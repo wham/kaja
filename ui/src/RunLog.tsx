@@ -14,8 +14,8 @@ import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
 import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
 
-// The log's rows are a fixed height, which is what lets it virtualise and lets
-// the tail bar say how many are still below without measuring any of them.
+// A fixed height is what lets the log virtualise and lets the tail bar say how many
+// rows are below without measuring any of them.
 const CALL_ROW_HEIGHT = 24;
 // Rows rendered beyond each edge of the viewport, so a scroll doesn't reveal blanks.
 const OVERSCAN = 8;
@@ -24,10 +24,9 @@ const TAIL_SLACK = CALL_ROW_HEIGHT * 2;
 // How much of the pane the log may take before the payload stops shrinking. The
 // payload is the thing being read; the log is how you choose it.
 const MAX_LOG_HEIGHT = "45%";
-// The widest a duration bar is drawn, in pixels.
 const BAR_WIDTH = 88;
-// The duration column reserves the longest value it can ever hold, so the
-// geometry is set once and nothing moves as calls settle and age.
+// Reserves the longest value it can ever hold, so the geometry is set once and
+// nothing moves as calls settle and age.
 const DURATION_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
 
 const payloadTabClass = "cursor-pointer select-none whitespace-nowrap text-xs text-muted-foreground hover:text-foreground";
@@ -40,8 +39,7 @@ interface RunLogProps {
   activeTab: ConsoleTab;
   selectedItem?: ConsoleItem;
   waiting: boolean;
-  // How much of what the script printed is mixed into the rows, so the tail bar
-  // can say what is being left out.
+  // So the tail bar can say what is being left out.
   logFloor: LogFloor;
   printed: { lines: number; errors: number };
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
@@ -57,13 +55,11 @@ interface RunLogProps {
 }
 
 /**
- * The flat audit log. A row is a call and only a call — no disclosure triangles,
- * no block rows, no run row — which is what keeps it scannable and lets every
- * row carry the same two extra channels.
+ * The flat audit log. A row is a call and only a call, which is what keeps it
+ * scannable and lets every row carry the same two extra channels.
  *
- * Only the rows on screen are drawn. The rest are two spacers, because a fixed
- * row height means the log's length is a number rather than a measurement — so
- * it stays complete at any length without a thousand rows in the document.
+ * Only the rows on screen are drawn; the rest are two spacers, because a fixed row
+ * height makes the log's length a number rather than a measurement.
  */
 export function RunLog({
   group,
@@ -93,8 +89,8 @@ export function RunLog({
   const slowest = group.stats.slowest;
   const failures = group.failures;
   const scriptFailed = group.items.some((item) => !item.printed && item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
-  // What the floor is keeping out. With the floor off that is everything the
-  // script printed, which is exactly when the tail bar has something to offer.
+  // With the floor off that is everything the script printed, which is exactly when
+  // the tail bar has something to offer.
   const shown = rows.length - group.calls.length;
   const hidden = { lines: printed.lines - shown, errors: logFloor === "off" ? printed.errors : 0 };
 
@@ -105,8 +101,8 @@ export function RunLog({
     const measure = () => {
       setWindow({ top: element.scrollTop, height: element.clientHeight });
       const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= TAIL_SLACK;
-      // Written now, not on the render this schedules: the next row may land
-      // before that render does, and it must not scroll the log back down.
+      // Written now, not on the render this schedules: the next row may land before that
+      // render does, and it must not scroll the log back down.
       if (atBottom !== tailingRef.current) onTailingRef.current(atBottom);
     };
 
@@ -129,8 +125,8 @@ export function RunLog({
   const first = Math.max(0, Math.floor(window.top / CALL_ROW_HEIGHT) - OVERSCAN);
   const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / CALL_ROW_HEIGHT) + OVERSCAN * 2));
   const visible = rows.slice(first, first + count);
-  // What is still below the fold. The log is never collapsed or summarised away,
-  // so this says what is out of sight rather than standing in for it.
+  // The log is never collapsed or summarised away, so this says what is out of sight
+  // rather than standing in for it.
   const rowsBelow = Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
 
   return (
@@ -221,8 +217,8 @@ export function RunLog({
   );
 }
 
-// A payload that is not there any more, and why. Expiry is only bearable when it
-// is a stated state rather than a silent hole.
+// A payload that is not there any more, and why. Expiry is only bearable when it is
+// a stated state rather than a silent hole.
 RunLog.NoPayload = function ({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 px-4 py-3">
@@ -243,13 +239,10 @@ interface LogRowProps {
 }
 
 /**
- * One line the script printed, mixed into the calls at the point it was printed.
- *
- * It is the same fixed 24px as a call row and truncates rather than wrapping —
- * the log's windowing is arithmetic only because every row is that height, and a
- * `console.log` of a whole response would otherwise be a row a screen tall. The
- * full line is one click away in the pane below, which had nothing to show for a
- * row that isn't a call anyway.
+ * One line the script printed, mixed into the calls where it was printed. The same
+ * fixed 24px as a call row, truncating rather than wrapping — the windowing is
+ * arithmetic only because every row is that height. The full line is one click away
+ * in the pane below.
  */
 RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
   return (
@@ -310,20 +303,17 @@ function logLevelLabel(level: LogLevel): string {
 interface TailBarProps {
   waiting: boolean;
   scriptFailed: boolean;
-  // Whether the run is still going, which is the one state here that is about
-  // the run rather than about what the log is leaving out.
+  // The one state here that is about the run rather than about what the log is
+  // leaving out.
   running: boolean;
   calls: number;
   elapsedMs: number;
   rowsBelow: number;
   failures: number;
-  // Rows a very long run stopped keeping. The log says where it stops being
-  // complete rather than quietly ending there.
+  // The log says where it stops being complete rather than quietly ending there.
   dropped: number;
-  // Lines the script printed that the floor is not showing, and how many of them
-  // were errors. Left out of the list is not the same as never happened, and a
-  // clean list over a run that printed an error is the one thing this refuses to
-  // be — so it is stated here, where what is out of sight is always stated.
+  // Left out of the list is not the same as never happened, and a clean list over a
+  // run that printed an error is the one thing this refuses to be.
   hiddenLines: number;
   hiddenErrors: number;
   tailing: boolean;
@@ -333,9 +323,8 @@ interface TailBarProps {
 }
 
 /**
- * What the log can't say inside a row. A run parked on a question, or one whose
- * script threw, is a fact about the whole run, and the log stays readable while
- * it waits — the pause blocks the script, not your reading.
+ * What the log can't say inside a row. A run parked on a question, or one whose script
+ * threw, is a fact about the whole run, and the log stays readable while it waits.
  */
 RunLog.TailBar = function ({
   waiting,
@@ -447,14 +436,11 @@ interface CallRowProps {
 }
 
 /**
- * One call, and the same shape for every one of them: when it happened, what it
- * was, which pass through the loop it belonged to, and how long it took — as a
- * number and as a length.
+ * One call, and the same shape for every one of them.
  *
- * Every prop is a value rather than an object, which is what makes the memo
- * hold: a settled row is handed the same twelve values on every repaint and
- * doesn't render again. `now` is the exception and is passed as zero unless the
- * row is the one counting up.
+ * Every prop is a value rather than an object, which is what makes the memo hold: a
+ * settled row is handed the same twelve values on every repaint and doesn't render
+ * again. `now` is the exception and is passed as zero unless the row is counting up.
  */
 RunLog.CallRow = memo(function CallRow({
   id,
@@ -509,7 +495,7 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange, jsonViewerR
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
   const hasError = methodCall.error !== undefined;
 
-  // Switch to response tab when response arrives
+  // Switch to the response tab when the response arrives.
   useEffect(() => {
     if (hasResponse && activeTab === "request") {
       onTabChange("response");
@@ -522,15 +508,15 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange, jsonViewerR
   if (activeTab === "request") {
     content = methodCall.input;
   } else if (hasError) {
-    // Same rule as the response below: an HTTP failure arrives wrapped in what
-    // carried it here, and the body the API sent is the failure.
+    // Same rule as the response below: an HTTP failure arrives wrapped in what carried
+    // it here, and the body the API sent is the failure.
     content = unwrapFailure(methodCall.error);
   } else if (isStreaming) {
     rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
   } else {
-    // An app that carries HTTP inside gRPC has to put a body protobuf has no
-    // shape for — an array, a scalar — in a field of its own. That field is the
-    // encoding, not the response, so the response is what it holds.
+    // An app that carries HTTP inside gRPC has to put a body protobuf has no shape for —
+    // an array, a scalar — in a field of its own. That field is the encoding, not the
+    // response, so the response is what it holds.
     content = unwrapEnvelope(methodCall.outputType, methodCall.output);
   }
 
@@ -590,8 +576,7 @@ interface ResponseSummaryProps {
   rawText?: string;
 }
 
-// What came back, how long it took and how big it is. Status colour appears
-// here and in the call's dot, and nowhere else.
+// Status colour appears here and in the call's dot, and nowhere else.
 RunLog.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
@@ -624,12 +609,12 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const responseHeaders = methodCall.responseHeaders || {};
   const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
   const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
-  // The request line of the upstream call, which a failure reports and the
-  // response no longer carries. A successful call doesn't report one.
+  // The request line of the upstream call, which a failure reports and the response no
+  // longer carries. A successful call doesn't report one.
   const upstreamRequest = upstreamRequestLine(methodCall.error);
-  // An in-process app (e.g. OpenAPI) reports the headers it exchanged with its
-  // upstream API. When present, the transport headers (browser ↔ Kaja) become a
-  // second, less interesting hop shown below the upstream ones.
+  // An in-process app reports the headers it exchanged with its upstream API. When
+  // present, the transport headers (browser ↔ Kaja) become a second, less interesting
+  // hop shown below the upstream ones.
   const hasUpstream = upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
 
   const section = (title: string, headers: { [key: string]: string }) => (

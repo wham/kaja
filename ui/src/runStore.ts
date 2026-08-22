@@ -7,22 +7,20 @@ import { Log } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
 // Storing code is free; storing responses is not. A file keeps its last few run
-// headers, the payloads under them are dropped after a week, and only the fifty
-// most recently run files are kept at all — because expiry is only bearable when
-// it is a stated state rather than a silent hole.
+// headers, the payloads under them are dropped after a week, and only the fifty most
+// recently run files are kept at all — expiry is bearable when it is a stated state
+// rather than a silent hole.
 const MAX_STORED_FILES = 50;
 const MAX_STORED_RUNS_PER_FILE = 3;
 const PAYLOAD_DAYS = 7;
-// The payload budget for one file, spent newest run first. A run whose payloads
-// don't fit is stored without them rather than not at all: the header is still
-// worth having, and "no longer kept" is what the screen already says.
+// The payload budget for one file, spent newest run first. A run whose payloads don't
+// fit is stored without them rather than not at all.
 const MAX_PAYLOAD_BYTES = 512 * 1024;
 
 const STORAGE_KEY = "lastRuns";
 
-// A call flattened to what the console needs to render it again. The message
-// types can't survive the store, so the response is written already unwrapped —
-// the envelope is an encoding detail, and this is display state.
+// A call flattened to what the console needs to render it again. The message types
+// can't survive the store, so the response is written already unwrapped.
 interface StoredCall {
   appName: string;
   service: string;
@@ -40,8 +38,7 @@ interface StoredCall {
   durationMs?: number;
 }
 
-// A block is already plain JSON, so it survives the store as itself — there is
-// nothing to flatten and nothing that can't come back.
+// A block is already plain JSON, so it survives the store as itself.
 interface StoredItem {
   id: string;
   timestamp: number;
@@ -56,8 +53,8 @@ interface StoredRun {
   items: StoredItem[];
 }
 
-// One file's console as it is kept between sessions: its last few runs, oldest
-// first, exactly as the live list reads.
+// One file's console as it is kept between sessions: its last few runs, oldest first,
+// exactly as the live list reads.
 export interface StoredFile {
   runs: StoredRun[];
   storedAt: number;
@@ -89,8 +86,8 @@ function toStoredCall(call: MethodCall): StoredCall {
   };
 }
 
-// Errors reach the console as plain objects already (serializeError in
-// client.ts), but a thrown Error can get here too and would store as `{}`.
+// Errors reach the console as plain objects already (serializeError in client.ts),
+// but a thrown Error can get here too and would store as `{}`.
 function serializableError(error: any): unknown {
   if (error instanceof Error) return { message: error.message, code: error.name };
   return error;
@@ -100,8 +97,8 @@ function fromStoredCall(stored: StoredCall): MethodCall {
   return {
     id: `${stored.service}.${stored.method}:${stored.timestamp}`,
     appName: stored.appName,
-    // Only the names survive; nothing that renders a stored run reaches past
-    // them, and the response is already unwrapped so no message type is needed.
+    // Only the names survive; nothing that renders a stored run reaches past them, and
+    // the response is already unwrapped so no message type is needed.
     service: { name: stored.service } as Service,
     method: { name: stored.method } as Method,
     input: stored.input,
@@ -120,9 +117,9 @@ function fromStoredCall(stored: StoredCall): MethodCall {
 }
 
 /**
- * A file's runs on their way into the store: the newest few, each marked as
- * belonging to an earlier session, and the payload budget spent newest first so
- * what is dropped is always the oldest thing.
+ * A file's runs on their way into the store: the newest few, each marked as belonging
+ * to an earlier session, and the payload budget spent newest first so what is dropped
+ * is always the oldest thing.
  */
 export function serializeFile(runs: Run[], items: ConsoleItem[], now: number): StoredFile {
   const kept = runs.slice(Math.max(0, runs.length - MAX_STORED_RUNS_PER_FILE));
@@ -156,18 +153,16 @@ function toStoredItem(item: ConsoleItem): StoredItem {
   };
 }
 
-// A question that was never answered is stored as one that was abandoned: the
-// promise it was blocking died with the session, so reading it back as still
-// waiting would show a run parked on an input nothing is listening to. A call
-// that was never approved reads back the same way, and it is the truth about it
-// too — nothing sent it.
+// A question that was never answered is stored as abandoned: the promise it was
+// blocking died with the session, so reading it back as still waiting would show a run
+// parked on an input nothing is listening to. A call that was never approved reads
+// back the same way, and that is the truth about it too — nothing sent it.
 function storedBlock(block: Block | undefined): Block | undefined {
   if (block === undefined) return undefined;
   if (block.kind === "ask" && isAwaitingUser(block)) return { ...block, cancelled: true };
   if (block.kind === "approve" && isAwaitingUser(block)) return { ...block, decision: "rejected" };
-  // A live table's source is a closure, which nothing can store. It reads back
-  // as the rows it had, saying so — the same bargain the payloads make, and for
-  // the same reason: expiry is bearable when it is stated.
+  // A live table's source is a closure, which nothing can store. It reads back as the
+  // rows it had, saying so.
   if (block.kind === "table" && block.live === true && block.exhausted !== true) {
     return { ...block, live: false, loading: false, error: undefined, expired: true };
   }
@@ -203,10 +198,10 @@ export function deserializeFile(stored: StoredFile): LoadedRuns {
 }
 
 /**
- * Retention, applied on every read and write: a file's runs older than a week
- * keep their headers and lose their payloads, and only the fifty most recently
- * run files are kept at all. An entry written by an older build has a shape this
- * can't read and is simply dropped.
+ * Retention, applied on every read and write: a file's runs older than a week keep
+ * their headers and lose their payloads, and only the fifty most recently run files
+ * are kept. An entry written by an older build has a shape this can't read and is
+ * simply dropped.
  */
 export function pruneArchive(archive: RunArchive, now: number): RunArchive {
   const cutoff = now - PAYLOAD_DAYS * 24 * 60 * 60 * 1000;

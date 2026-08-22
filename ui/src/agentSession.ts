@@ -1,33 +1,25 @@
 /**
  * The agent session: how a Kaja served over the web answers an agent.
  *
- * The desktop app needs none of this, because the process is the window. A
- * server has no window at all — a script runs in the browser, where the `kaja`
- * object and the service clients live — so it can only answer `run_script` by
- * forwarding it to a window that has offered itself. This module is that offer:
- * the tab makes up a token, holds a stream open under it, and runs what comes
- * down it.
+ * A server has no window — a script runs in the browser, where the `kaja` object and
+ * the service clients live — so it can only answer `run_script` by forwarding it to a
+ * window that has offered itself. This module is that offer.
  *
- * **The token is the address of this browser, not a key to the server.** It is
- * made up here, it is never anywhere but this browser's storage, and it opens
- * nothing while no window is listening — so an agent that has it can only reach
- * a window you have open. Connecting is deliberate and per browser: until it is
- * pressed there is no token, no stream and no session.
+ * The token is the address of this browser, not a key to the server: it is made up
+ * here, never anywhere but this browser's storage, and opens nothing while no window
+ * is listening. Until Connect is pressed there is no token, no stream and no session.
  *
- * It is the one thing kept in `localStorage` rather than in `storage.ts`, and
- * for the reason the whole design rests on: localStorage is shared between the
- * tabs of an origin *and* says when it changes, so connecting in one window
- * attaches the others as they are, and disconnecting detaches them. The
- * IndexedDB store reads itself once at startup, which would make a second window
- * find out on its next reload.
+ * It is the one thing kept in `localStorage` rather than in `storage.ts`, because
+ * localStorage is shared between an origin's tabs *and* says when it changes — so
+ * connecting in one window attaches the others as they are. The IndexedDB store reads
+ * itself once at startup, which would make a second window find out on its next reload.
  */
 
 import { isWailsEnvironment } from "./wails";
 
 const STORAGE_KEY = "kaja:agentSession";
-// How long the footer's plug stays lit after the last request is answered. An
-// agent's calls arrive in bursts of a few milliseconds; a mark that came and
-// went inside one frame would say nothing.
+// How long the footer's plug stays lit after the last request is answered. An agent's
+// calls arrive in bursts of a few milliseconds.
 const ACTIVITY_LINGER_MS = 2500;
 // A dropped stream is ordinary — a laptop sleeps, a proxy restarts — so it is
 // reconnected without saying anything, backing off to this.
@@ -50,9 +42,8 @@ export interface AgentSessionState {
 }
 
 /**
- * What a run asks of the window. Code is always set; path is what it lands
- * under, and client is what the agent calls itself — the name the draft an
- * inline snippet runs in is labelled with.
+ * What a run asks of the window. Code is always set; path is what it lands under, and
+ * client is what the agent calls itself.
  */
 export interface AgentRun {
   path: string;
@@ -86,9 +77,8 @@ function readStored(): Stored | undefined {
   }
 }
 
-// A token is 32 hex characters of the browser's own randomness, which is what
-// the server checks the shape of and nothing more: the server never issues one,
-// so there is nothing for it to remember.
+// A token is 32 hex characters of the browser's own randomness, which is what the
+// server checks the shape of and nothing more: the server never issues one.
 function newToken(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -139,10 +129,9 @@ class AgentSession {
   }
 
   /**
-   * Disconnects and rolls the token, which is the answer to having pasted it
-   * somewhere it should not have gone. The server is told rather than left to
-   * time the session out: until it forgets the token, discovery would go on
-   * answering under it.
+   * Disconnects and rolls the token, which is the answer to having pasted it somewhere
+   * it should not have gone. The server is told rather than left to time the session
+   * out: until it forgets the token, discovery would go on answering under it.
    */
   disconnect(): void {
     const token = readStored()?.token;
@@ -175,8 +164,7 @@ class AgentSession {
       const body = (await response.json()) as { available?: boolean };
       this.update({ available: body.available === true });
     } catch {
-      // A server that doesn't answer doesn't offer it. Nothing to report: the
-      // footer simply has no plug.
+      // A server that doesn't answer doesn't offer it: the footer simply has no plug.
     }
   }
 
@@ -198,9 +186,9 @@ class AgentSession {
     this.update({ connected: false, attached: false, onDuty: false, token: undefined, url: undefined, error: undefined });
   }
 
-  // hold keeps the stream open for as long as this browser is connected,
-  // reopening it when it drops. The server holds nothing at rest, so a
-  // reconnection is an ordinary attach — the catalog is pushed again with it.
+  // hold keeps the stream open for as long as this browser is connected, reopening it
+  // when it drops. The server holds nothing at rest, so a reconnection is an ordinary
+  // attach — the catalog is pushed again with it.
   private async hold(token: string, abort: AbortController): Promise<void> {
     while (!abort.signal.aborted) {
       try {
@@ -244,8 +232,7 @@ class AgentSession {
           try {
             this.handle(JSON.parse(line) as Message);
           } catch {
-            // A line that isn't a message is a line from something that isn't
-            // this server. Nothing to do with it.
+            // A line that isn't a message is a line from something that isn't this server.
           }
         }
         newline = buffer.indexOf("\n");
@@ -283,8 +270,8 @@ class AgentSession {
     await this.post("/agent-session/result", JSON.stringify({ runId, result }));
   }
 
-  // markActive lights the plug and holds it a beat past the last request, which
-  // is what makes a burst of calls one visible event rather than none.
+  // markActive lights the plug and holds it a beat past the last request, which makes
+  // a burst of calls one visible event rather than none.
   private markActive(inFlight: boolean): void {
     window.clearTimeout(this.activityTimer);
     this.onActivity?.(true);
@@ -293,8 +280,8 @@ class AgentSession {
     }
   }
 
-  // reportFocus is what decides where a run lands. The console of a run is held
-  // in the window that ran it, so it has to be the window being looked at.
+  // reportFocus decides where a run lands. A run's console is held in the window that
+  // ran it, so it has to be the window being looked at.
   private reportFocus = (): void => {
     if (!this.streamId || document.visibilityState === "hidden") return;
     void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId }));
@@ -310,8 +297,7 @@ class AgentSession {
         body,
       });
     } catch {
-      // The stream notices the same failure and reconnects; nothing here is
-      // worth a second report of it.
+      // The stream notices the same failure and reconnects.
     }
   }
 

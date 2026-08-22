@@ -25,17 +25,15 @@ interface VariableRow {
   value: string;
 }
 
-// VariablesSave is everything one Save writes: the configuration, plus the
-// stored values a variable that stopped being stored leaves behind. Values going
-// the other way don't wait for a save - they are written to the machine's store
-// the moment they are entered.
+// VariablesSave is everything one Save writes: the configuration, plus the stored
+// values a variable that stopped being stored leaves behind. Values going the other
+// way don't wait for a save — they are written to the machine's store when entered.
 export interface VariablesSave {
   variables: { [key: string]: string };
   cleared: string[];
 }
 
-// What the tab strip and the close gesture need to know about the editor's
-// state, since both live outside it.
+// What the tab strip and the close gesture need, since both live outside the editor.
 export interface VariablesState {
   dirty: boolean;
   canSave: boolean;
@@ -44,48 +42,45 @@ export interface VariablesState {
 
 interface VariablesProps {
   variables: { [key: string]: string };
-  // Where each variable's value came from, as the server resolved it.
   status: VariableStatus[];
   // Whether this machine has anywhere to store a value outside kaja.json.
   storeAvailable: boolean;
   // App names referencing each variable, and the references no variable defines.
   usage: { [name: string]: string[] };
   readOnly?: boolean;
-  // Which view the tab is showing. The control that switches it lives in the tab
-  // strip, so the tab owns the choice; Esc hands it back.
+  // The control that switches it lives in the command row, so the view owns the
+  // choice; Esc hands it back.
   editMode: VariablesEditMode;
   onEditModeChange: (editMode: VariablesEditMode) => void;
-  // Whether the JSON parses, which decides if the view can be switched back.
+  // Decides whether the view can be switched back.
   onJsonValidChange: (valid: boolean) => void;
-  // Whether this is the tab in front: a hidden tab stays mounted, so its
-  // keyboard shortcuts have to stand down.
+  // A hidden view stays mounted, so its keyboard shortcuts have to stand down.
   active: boolean;
   onSave: (save: VariablesSave) => Promise<void>;
-  // Writing a value to the machine's store changes machine state rather than
-  // file state, so it happens at once rather than on save.
+  // Writing a value to the machine's store changes machine state rather than file
+  // state, so it happens at once rather than on save.
   onStoreValue: (name: string, value: string) => Promise<void>;
   onStateChange?: (state: VariablesState) => void;
 }
 
-// The source is the one decision on every row, so it is named on the row rather
-// than inferred from what the value cell happens to render.
+// The source is the one decision on every row, so it is named on the row rather than
+// inferred from what the value cell happens to render.
 const SOURCE_LABEL: Record<VariableKind, string> = {
   value: "Value",
   stored: "Keychain",
   environment: "Environment",
 };
 
-// toRows lists the variables by name. The configuration is a JSON map, whose key
-// order doesn't survive a round trip, so sorting is what keeps a row where the
-// user last saw it.
+// The configuration is a JSON map, whose key order doesn't survive a round trip, so
+// sorting is what keeps a row where the user last saw it.
 function toRows(variables: { [key: string]: string }): VariableRow[] {
   return Object.entries(variables)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({ key, value }));
 }
 
-// toVariables collapses the edited rows back into the on-disk map, trimming keys
-// and dropping empty ones. Later rows win on duplicate keys.
+// toVariables collapses the edited rows back into the on-disk map, trimming keys and
+// dropping empty ones. Later rows win on duplicate keys.
 function toVariables(rows: VariableRow[]): { [key: string]: string } {
   const variables: { [key: string]: string } = {};
   for (const row of rows) {
@@ -101,8 +96,8 @@ function environmentName(row: VariableRow): string {
   return environmentReferences(row.value)[0] || row.key.trim() || "NAME";
 }
 
-// sameVariables compares two variable maps by what they hold. Key order is an
-// accident of how the map was built, so it can't be what says something changed.
+// Key order is an accident of how the map was built, so it can't be what says
+// something changed.
 function sameVariables(a: { [key: string]: string }, b: { [key: string]: string }): boolean {
   const names = Object.keys(a);
   return names.length === Object.keys(b).length && names.every((name) => name in b && a[name] === b[name]);
@@ -125,23 +120,19 @@ export function Variables({
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
-  // Rows whose stored value is being entered, either for the first time or over
-  // one this machine already holds.
   const [entering, setEntering] = useState<Set<number>>(new Set());
-  // Names whose value was written to the store just now. The server reports
-  // status for the variables kaja.json names, so a row that hasn't been saved
-  // yet has no status to read its own write back from.
+  // The server reports status for the variables kaja.json names, so a row that hasn't
+  // been saved yet has no status to read its own write back from.
   const [justStored, setJustStored] = useState<Set<string>>(new Set());
-  // A row being switched to the machine's store where there is no store to put
-  // it in: the value has to move to the environment, so it is shown once.
+  // A row being switched to the machine's store where there is no store to put it in:
+  // the value has to move to the environment, so it is shown once.
   const [movingToEnvironment, setMovingToEnvironment] = useState<{ index: number; name: string; value: string } | null>(null);
   const [confirmRevert, setConfirmRevert] = useState(false);
-  // The row whose name should take focus once it is on screen, after adding a
-  // row or removing one with the keyboard.
+  // After adding a row or removing one with the keyboard.
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
-  // What the JSON view currently holds, so its edits count as unsaved the same
-  // way the table's do. Null while it doesn't parse.
+  // So the JSON view's edits count as unsaved the same way the table's do. Null while
+  // it doesn't parse.
   const [jsonVariables, setJsonVariables] = useState<{ [key: string]: string } | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const nameInputs = useRef<Map<number, HTMLInputElement>>(new Map());
@@ -161,9 +152,7 @@ export function Variables({
     setFocusRow(null);
   }, [focusRow, rows.length]);
 
-  // What a save would write: the rows, or the JSON view's text while it is the
-  // one being edited. Undefined when the JSON doesn't parse, which is unsaved
-  // work all the same.
+  // Undefined when the JSON doesn't parse, which is unsaved work all the same.
   const edited = editMode === "json" ? (jsonVariables ?? undefined) : toVariables(rows);
   const dirty = edited === undefined || !sameVariables(edited, variables);
 
@@ -174,8 +163,8 @@ export function Variables({
 
   const addRow = () => {
     setSaved(false);
-    // Clicking add again while a blank row is open refocuses it rather than
-    // stacking a second one.
+    // Clicking add again while a blank row is open refocuses it rather than stacking a
+    // second one.
     const blank = rows.findIndex((row) => row.key.trim() === "" && row.value === "");
     if (blank !== -1) {
       setFocusRow(blank);
@@ -192,11 +181,9 @@ export function Variables({
     if (focus !== undefined) setFocusRow(focus);
   };
 
-  // Switching a row's source rewrites its value, because the value is what says
-  // where it comes from. Only the machine's store needs a word first: it drops
-  // the value from kaja.json, and with no store to put it in that value would
-  // just be lost, so it is shown once with the environment variable to paste it
-  // into.
+  // Switching a row's source rewrites its value, because the value is what says where
+  // it comes from. Only the machine's store needs a word first: it drops the value from
+  // kaja.json, and with no store to put it in that value would just be lost.
   const setSource = (index: number, kind: VariableKind) => {
     const row = rows[index];
     if (variableKind(row.value) === kind) return;
@@ -224,16 +211,14 @@ export function Variables({
   });
   const invalid = duplicateKey || rowErrors.some(Boolean);
 
-  // A ${NAME} an app uses that no variable defines. Requests send it literally.
-  // Read from the rows rather than the file, so deleting a variable two apps use
-  // says so at once instead of after the save.
+  // A ${NAME} an app uses that no variable defines; requests send it literally. Read
+  // from the rows rather than the file, so deleting a variable two apps use says so at
+  // once instead of after the save.
   const defined = new Set(trimmedKeys.filter(Boolean));
   const undefinedReferences = Object.keys(usage)
     .filter((name) => usage[name].length > 0 && !defined.has(name))
     .sort();
   const unresolved = status.filter((entry) => entry.source === VariableSource.UNSET && entry.name in variables);
-
-  // --- JSON view ---------------------------------------------------------
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -251,8 +236,8 @@ export function Variables({
       return;
     }
     setJsonVariables(null);
-    // The editor's own diagnostic knows the line; the parser's message is the
-    // better one for text that parses but isn't a variables block.
+    // The editor's own diagnostic knows the line; the parser's message is the better one
+    // for text that parses but isn't a variables block.
     const marker = parsed.syntax
       ? monaco.editor.getModelMarkers({ resource: VARIABLES_JSON_URI }).find((m) => m.severity === monaco.MarkerSeverity.Error)
       : undefined;
@@ -273,8 +258,8 @@ export function Variables({
       padding: { top: 12, bottom: 12 },
       minimap: { enabled: false },
       lineNumbers: "off",
-      // Gutter-less, but inset by the body's own padding so the text lines up
-      // with the table it replaced.
+      // Gutter-less, but inset by the body's own padding so the text lines up with the
+      // table it replaced.
       lineDecorationsWidth: 16,
       glyphMargin: false,
       folding: false,
@@ -303,10 +288,9 @@ export function Variables({
     };
   }, [editMode, readOnly, validateJson, onJsonValidChange]);
 
-  // Leaving the JSON view carries what was typed there back into the rows. The
-  // control is disabled while the JSON is invalid, so this only has to handle
-  // JSON that parses. Rows come back in the order they were written, so the two
-  // views agree on what sits where.
+  // Leaving the JSON view carries what was typed there back into the rows, in the
+  // order they were written, so the two views agree on what sits where. The control is
+  // disabled while the JSON is invalid, so only JSON that parses gets here.
   const leavingJsonRef = useRef(false);
   if (editMode === "table" && leavingJsonRef.current) {
     leavingJsonRef.current = false;
@@ -320,15 +304,13 @@ export function Variables({
     leavingJsonRef.current = true;
   }
 
-  // --- Saving ------------------------------------------------------------
-
   const canSave = !readOnly && dirty && edited !== undefined && (editMode === "json" ? !jsonError : !invalid);
 
   const save = async () => {
     if (!edited) return;
 
-    // A variable that stopped being stored - renamed, deleted, or switched back
-    // to a value of its own - leaves nothing behind in the store.
+    // A variable that stopped being stored — renamed, deleted, or switched back to a
+    // value of its own — leaves nothing behind in the store.
     const cleared = Object.keys(variables).filter(
       (name) => variableKind(variables[name]) === "stored" && (!(name in edited) || variableKind(edited[name]) !== "stored"),
     );
@@ -414,8 +396,8 @@ export function Variables({
         )}
       </div>
     ) : rows.length === 0 ? (
-      // Centred in the body band rather than the whole pane: the footer below it
-      // is chrome the blankslate has to sit clear of.
+      // Centred in the body band rather than the whole pane: the footer below it is chrome
+      // the blankslate has to sit clear of.
       <div className="flex min-h-0 flex-1 items-center justify-center px-4">
         <Blankslate className="max-w-[340px] py-0">
           <Blankslate.Visual>
@@ -611,8 +593,7 @@ interface VariableRowEditorProps {
   status?: VariableStatus;
   storeAvailable: boolean;
   entering: boolean;
-  // Whether this machine holds a value for the row, counting one written just
-  // now for a variable the file doesn't name yet.
+  // Counting one written just now for a variable the file doesn't name yet.
   justStored: boolean;
   usedBy?: string[];
   isLast: boolean;
@@ -649,12 +630,12 @@ function VariableRowEditor({
   const name = row.key.trim();
   const source = status?.source ?? VariableSource.UNSET;
   const storedEnv = status?.envName || storedEnvName(name || "NAME");
-  // A keychain row on a machine with no store has nothing to take a value into:
-  // it can only be supplied as KAJA_<NAME>, so the row says that under the field
-  // instead of offering an input that goes nowhere.
+  // A keychain row on a machine with no store has nothing to take a value into: it can
+  // only be supplied as KAJA_<NAME>, so the row says that instead of offering an input
+  // that goes nowhere.
   const needsEnvironment = kind === "stored" && !storeAvailable && source !== VariableSource.ENVIRONMENT;
-  // Deleting a variable an app reads breaks that reference, so the count says so
-  // while the gesture that would do it is under the pointer.
+  // Deleting a variable an app reads breaks that reference, so the count says so while
+  // the gesture that would do it is under the pointer.
   const [deleteHovered, setDeleteHovered] = useState(false);
 
   return (
@@ -764,8 +745,7 @@ function VariableRowEditor({
   );
 }
 
-// SourcePicker states where the value comes from, and is where it is changed. It
-// is bg-muted rather than a button surface so it reads as part of the field.
+// `bg-muted` rather than a button surface, so it reads as part of the field.
 function SourcePicker({
   kind,
   name,
@@ -820,8 +800,8 @@ function SourceItem({ selected, label, note, onSelect }: { selected: boolean; la
   );
 }
 
-// StoredValueCell stands in for the value of a variable this machine holds. It
-// never shows one: it says whether there is one, and offers to replace it.
+// StoredValueCell never shows the value: it says whether there is one, and offers to
+// replace it.
 function StoredValueCell({
   storedEnv,
   source,
@@ -902,8 +882,7 @@ function StoredValueCell({
 }
 
 // A read-only configuration can't be edited into shape, so the row is the wiring
-// information instead: the name, where the value comes from, and whether it
-// arrived.
+// information instead: the name, where the value comes from, and whether it arrived.
 function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?: VariableStatus; usedBy?: string[] }) {
   const kind = variableKind(row.value);
   const source = status?.source ?? VariableSource.UNSET;

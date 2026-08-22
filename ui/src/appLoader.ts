@@ -7,21 +7,18 @@ import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
-// Generate editor code for a method on-demand (when opening a task tab)
+// Generate editor code for a method on demand.
 export function generateMethodEditorCode(app: App, service: Service, method: Method): string {
-  // Find the source that matches the service's source path
   const source = app.sources.find((s) => s.importPath === service.sourcePath);
   if (!source) {
     return `// Error: Could not find source for service ${service.name}`;
   }
 
-  // Find the ServiceInfo from the stub
   const serviceInfo: ServiceInfo | undefined = findInStub(app.stub, source, service.name);
   if (!serviceInfo) {
     return `// Error: Could not find service info for ${service.name}`;
   }
 
-  // Find the MethodInfo by matching the method name
   const methodInfo = serviceInfo.methods.find((m) => m.name === method.name);
   if (!methodInfo) {
     return `// Error: Could not find method info for ${method.name}`;
@@ -44,18 +41,17 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       if (!serviceInfo) {
         return;
       }
-      // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")
+      // Extract the package name from typeName ("quirks.v1.Quirks" -> "quirks.v1").
       const typeName = serviceInfo.typeName || serviceName;
       const lastDotIndex = typeName.lastIndexOf(".");
       const packageName = lastDotIndex > 0 ? typeName.substring(0, lastDotIndex) : "";
 
-      // Find the corresponding .client source file (e.g., proto/v1/quirks.client.ts)
       const clientSourcePath = source.importPath + ".client";
       const clientSource = sources.find((s) => s.importPath === clientSourcePath);
 
-      // The generated client interface is where a method's TypeScript signature
-      // is written down; it is read once and used for both the service stub the
-      // editor checks against and the method model everything else reads.
+      // The generated client interface is where a method's TypeScript signature is written
+      // down; it is read once and used for both the service stub the editor checks against
+      // and the method model everything else reads.
       const interfaceDeclaration = clientSource?.interfaces["I" + serviceName + "Client"];
       const signatures = interfaceDeclaration && clientSource ? readSignatures(interfaceDeclaration, clientSource.file, serviceInfo) : {};
 
@@ -96,12 +92,9 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       stubModuleId: source.stubModuleId,
       file: ts.createSourceFile(
         source.file.fileName,
-        // If service source, replace the service class (last statement) with the service interface definitions
-        // TODO: This is bad. Won't work if there are multiple services in the source file.
-        // A method hands back a Call rather than a Promise, so the source that
-        // declares one says where the type comes from — the same module a script
-        // imports `kaja` from, which is where the rule about when a call starts
-        // is written down.
+        // TODO: won't work if there are multiple services in the source file.
+        // A method hands back a Call rather than a Promise, so the source that declares one
+        // says where the type comes from — the same module a script imports `kaja` from.
         printStatements([...(serviceInterfaceDefinitions.length > 0 ? [callTypeImport()] : []), ...kajaStatements, ...serviceInterfaceDefinitions]),
         ts.ScriptTarget.Latest,
       ),
@@ -140,10 +133,10 @@ function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients
   return clients;
 }
 
-// Copy a node's leading comments (proto docs the generator emits as JSDoc) from
-// the original source onto a freshly synthesized node as synthetic comments, so
-// the printer re-emits them. Interior lines are re-indented to a single ` *`
-// since the source indentation would otherwise be preserved verbatim.
+// Copy a node's leading comments (proto docs the generator emits as JSDoc) onto a
+// freshly synthesized node as synthetic comments, so the printer re-emits them.
+// Interior lines are re-indented to a single ` *`, since the source indentation would
+// otherwise be preserved verbatim.
 function copyLeadingComments(sourceFile: ts.SourceFile, fromNode: ts.Node, toNode: ts.Node): void {
   const fullText = sourceFile.getFullText();
   const ranges = ts.getLeadingCommentRanges(fullText, fromNode.getFullStart());
@@ -178,7 +171,7 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
     return undefined;
   }
 
-  // UnaryCall should have type arguments, get the second one (output type)
+  // UnaryCall's second type argument is the output type.
   if (typeRef.typeArguments && typeRef.typeArguments.length >= 2) {
     return typeRef.typeArguments[1];
   }
@@ -216,7 +209,7 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
 
   statements = [
     ...statements,
-    // blank line after import
+    // A blank line after the import; see
     // https://stackoverflow.com/questions/55246585/how-to-generate-extra-newlines-between-nodes-with-the-typescript-compiler-api-pr
     ts.factory.createIdentifier("\n") as unknown as ts.Statement,
     ts.factory.createExpressionStatement(
@@ -240,17 +233,15 @@ export function printStatements(statements: ts.Statement[]): string {
   return printer.printFile(sourceFile);
 }
 
-// MethodSignature is a method as a script writes it: the request and response
-// type names, and the API's own description. It is read off the generated client
-// interface, which is the one place the TypeScript names are written down.
+// MethodSignature is a method as a script writes it. It is read off the generated
+// client interface, which is the one place the TypeScript names are written down.
 export interface MethodSignature {
   input: string;
   output: string;
   doc?: string;
 }
 
-// readSignatures maps each proto method name to its TypeScript signature. The
-// client interface names its members in lowerCamelCase, so they are matched back
+// The client interface names its members in lowerCamelCase, so they are matched back
 // to the proto names the rest of Kaja uses.
 function readSignatures(
   interfaceDeclaration: ts.InterfaceDeclaration,
@@ -280,8 +271,8 @@ function readSignatures(
   return signatures;
 }
 
-// `import type { Call } from "kaja";` — what a generated service's methods
-// return. Type-only, so nothing about it survives into what a script runs.
+// `import type { Call } from "kaja";` — what a generated service's methods return.
+// Type-only, so nothing about it survives into what a script runs.
 function callTypeImport(): ts.ImportDeclaration {
   return ts.factory.createImportDeclaration(
     undefined,
@@ -294,8 +285,8 @@ function callTypeImport(): ts.ImportDeclaration {
   );
 }
 
-// createServiceInterfaceDefinition synthesizes the `export const <Service> = {…}`
-// the editor checks a script against, from the signatures already read.
+// createServiceInterfaceDefinition synthesizes the `export const <Service> = {…}` the
+// editor checks a script against, from the signatures already read.
 function createServiceInterfaceDefinition(
   serviceName: string,
   interfaceDeclaration: ts.InterfaceDeclaration,
@@ -315,9 +306,8 @@ function createServiceInterfaceDefinition(
     const func = ts.factory.createPropertyAssignment(
       protoMethodName,
       ts.factory.createArrowFunction(
-        // Not async: a method hands back a Call, which is not a promise the
-        // language would let an async function return. The call inside it is
-        // still awaited the same way — that is what a Call is for.
+        // Not async: a method hands back a Call, which is not a promise the language would
+        // let an async function return.
         undefined,
         undefined,
         [
@@ -336,8 +326,8 @@ function createServiceInterfaceDefinition(
         ts.factory.createBlock([]),
       ),
     );
-    // Carry the proto doc comment (emitted as JSDoc on the generated I<Service>Client
-    // member) onto the synthesized method so Monaco shows it on hover/autocomplete.
+    // Carry the proto doc comment onto the synthesized method so Monaco shows it on
+    // hover and autocomplete.
     const member = memberByProtoName.get(protoMethodName);
     if (member) {
       copyLeadingComments(sourceFile, member, func);
@@ -345,10 +335,9 @@ function createServiceInterfaceDefinition(
     funcs.push(func);
   }
 
-  // multiLine, so a service with thirty methods is thirty lines rather than one.
-  // The printer puts a synthesized object literal on a single line otherwise, and
-  // this text is what line-based readers - Monaco's hover, an agent grepping the
-  // stub - see of the service.
+  // multiLine, so a service with thirty methods is thirty lines rather than one. The
+  // printer puts a synthesized object literal on a single line otherwise, and this text
+  // is what line-based readers — Monaco's hover, an agent grepping the stub — see.
   return ts.factory.createVariableStatement(
     [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)],
     ts.factory.createVariableDeclarationList(
@@ -365,8 +354,8 @@ function createServiceInterfaceDefinition(
   );
 }
 
-// httpRequest reads the HTTP request a method transcodes to, when the app wrote
-// one onto the method. See server/pkg/apps/openapi/http.proto.
+// httpRequest reads the HTTP request a method transcodes to, when the app wrote one
+// onto the method. See server/pkg/apps/openapi/http.proto.
 function httpRequest(methodInfo: MethodInfo): string | undefined {
   const value = (methodInfo.options as { [key: string]: unknown } | undefined)?.["kaja.http_request"];
   return typeof value === "string" && value !== "" ? value : undefined;

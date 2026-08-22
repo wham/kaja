@@ -19,22 +19,19 @@ import (
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
-// MCP wiring. The MCP server lets an agent read, write, and run the user's saved
-// scripts and discover the services those scripts can call. It runs inside this
-// desktop process for as long as the process does, bound to localhost and guarded
-// by a persisted token. Editing is plain file I/O; running a script has to
-// round-trip into the webview, which is the only place the script runtime and
-// service clients live.
+// MCP wiring. The server runs inside this desktop process for as long as the process
+// does, bound to localhost and guarded by a persisted token. Editing scripts is plain
+// file I/O; running one has to round-trip into the webview, which is the only place
+// the script runtime and the service clients live.
 
-// mcpPort is the fixed loopback port the MCP server binds to. It is fixed rather
-// than OS-assigned so the connection command shown to the user stays valid across
-// restarts. It sits next to kaja's web port (41520) in the registered range, so
-// the OS won't hand it out as an ephemeral port.
+// mcpPort is the fixed loopback port the MCP server binds to. Fixed rather than
+// OS-assigned so the connection command shown to the user stays valid across restarts.
+// It sits next to kaja's web port (41520) in the registered range, so the OS won't
+// hand it out as an ephemeral port.
 const mcpPort = 41521
 
-// MCPInfo is reported to the UI so it can show the connection command. Error is
-// set when the server couldn't start (e.g. the fixed port was already in use) so
-// the footer can explain it instead of silently hiding the connection command.
+// MCPInfo is reported to the UI so it can show the connection command. Error is set
+// when the server couldn't start (e.g. the fixed port was already in use).
 type MCPInfo struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
@@ -58,14 +55,13 @@ func (a *App) MCPServerInfo() MCPInfo {
 	}
 }
 
-// mcpClientConfigurationPaths is the file each client keeps its MCP servers in,
-// so the footer can link to the one it is telling you to edit rather than only
-// naming it. A client whose path this machine can't answer for is absent, and
-// its snippet is shown with the file named and no link.
+// mcpClientConfigurationPaths is the file each client keeps its MCP servers in, so
+// the footer can link to the one it is telling you to edit. A client whose path this
+// machine can't answer for is absent, and its snippet names the file without a link.
 func mcpClientConfigurationPaths() map[string]string {
 	paths := map[string]string{}
-	// The three places os.UserConfigDir reports are the three Claude Desktop
-	// looks in: Application Support, %AppData%, and ~/.config.
+	// The three places os.UserConfigDir reports are the three Claude Desktop looks in:
+	// Application Support, %AppData%, and ~/.config.
 	if dir, err := os.UserConfigDir(); err == nil {
 		paths["claudeDesktop"] = filepath.Join(dir, "Claude", "claude_desktop_config.json")
 	}
@@ -75,9 +71,8 @@ func mcpClientConfigurationPaths() map[string]string {
 	return paths
 }
 
-// MCPSetCatalog receives the live services/methods picture from the UI after
-// each successful compilation, so list_services and the stub resources reflect
-// what is actually callable.
+// MCPSetCatalog receives the live services/methods picture from the UI, so
+// list_services and the stub resources reflect what is actually callable.
 func (a *App) MCPSetCatalog(catalogJSON string) error {
 	var catalog mcp.Catalog
 	if err := json.Unmarshal([]byte(catalogJSON), &catalog); err != nil {
@@ -118,9 +113,8 @@ func (a *App) startMCPServer() {
 	addr := fmt.Sprintf("127.0.0.1:%d", mcpPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		// The fixed port is taken. Don't fall back to a random port — that would
-		// silently break the static connection command the user has configured.
-		// Surface it so they can free the port and start Kaja again.
+		// Don't fall back to a random port — that would silently break the static connection
+		// command the user has configured.
 		a.mcpError = fmt.Sprintf("Port %d is in use. Free it, then restart Kaja.", mcpPort)
 		slog.Error("Failed to start MCP server", "addr", addr, "error", err)
 		return
@@ -179,9 +173,8 @@ func (a *App) runScript(ctx context.Context, path, code, client string) (mcp.Run
 	}
 }
 
-// notifyMCPActivity tells the webview a request is being served, so the footer
-// can show that an agent is using the server. inFlight is zero once the last one
-// has been answered; the UI decides how long the mark lingers after that.
+// notifyMCPActivity tells the webview a request is being served. inFlight is zero
+// once the last one is answered; the UI decides how long the mark lingers.
 func (a *App) notifyMCPActivity(inFlight int) {
 	runtime.EventsEmit(a.ctx, "mcp:activity", map[string]int{"inFlight": inFlight})
 }
@@ -199,9 +192,9 @@ func (a *App) catalog() mcp.Catalog {
 }
 
 // loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
-// generating and saving a new one the first time (or if the stored file is
-// missing, empty, or unreadable). Persisting it keeps the connection command
-// stable across restarts. Must be called with mcpMu held.
+// generating one the first time (or if the stored file is missing, empty or
+// unreadable). Persisting it keeps the connection command stable across restarts.
+// Must be called with mcpMu held.
 func (a *App) loadOrCreateMCPToken() string {
 	path := filepath.Join(a.workspaceDir, "mcp-token")
 	if data, err := os.ReadFile(path); err == nil {
@@ -225,14 +218,12 @@ func randomToken(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// mcpBridge adapts the App's file methods to the mcp.Bridge interface. It exists
-// because the App already exposes a ListScripts/CreateScript with Wails-shaped
-// return types; the adapter converts those to the MCP shapes without colliding.
+// mcpBridge adapts the App's file methods to the mcp.Bridge interface: the App
+// already exposes ListScripts/CreateScript with Wails-shaped return types.
 //
-// Nothing guards paths here any more: every one of those methods resolves the
-// name it is given inside the scripts folder through an os.Root, which is the
-// whole access boundary and is the same one the browser goes through. An agent's
-// path is a name to resolve, exactly like anyone else's.
+// Nothing guards paths here: every one of those methods resolves the name it is given
+// inside the scripts folder through an os.Root, which is the whole access boundary and
+// the same one the browser goes through.
 type mcpBridge struct{ app *App }
 
 func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
@@ -268,8 +259,8 @@ func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
-	// The content travels with it so the UI can tell whether this file is the
-	// agent's own draft being saved, in which case the draft goes with it.
+	// The content travels with it so the UI can tell whether this file is the agent's own
+	// draft being saved, in which case the draft goes with it.
 	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name, "folder": f.Folder, "content": f.Content})
 	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
@@ -301,8 +292,8 @@ func (b mcpBridge) Catalog() mcp.Catalog {
 	return b.app.catalog()
 }
 
-// CanWriteScripts is the desktop's answer to the question a deployed kaja
-// answers the other way: this process owns the workspace it opened.
+// CanWriteScripts is the desktop's answer to the question a deployed kaja answers the
+// other way: this process owns the workspace it opened.
 func (b mcpBridge) CanWriteScripts() bool {
 	return true
 }

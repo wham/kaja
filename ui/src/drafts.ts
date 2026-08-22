@@ -1,48 +1,36 @@
 import ts from "typescript";
 import { deriveDraftTitle } from "./draftTitle";
 
-// A draft that was opened, never edited and never run is a browsing buffer, not
-// work. The sweep drops one this old — weekly by default, because the steady
-// state of a pile that grows one row per method clicked is otherwise only ever
-// upward.
+// A draft opened, never edited and never run is a browsing buffer, not work. The
+// sweep drops one this old — the steady state of a pile that grows one row per method
+// clicked is otherwise only ever upward.
 export const SWEEP_DAYS = 7;
 
-// How many drafts the sidebar draws before the rest become `n more…`. The pile
-// is capped rather than scrolled so the Scripts region stays a predictable share
-// of the panel however many calls you have browsed.
+// How many drafts the sidebar draws before the rest become `n more…`. Capped rather
+// than scrolled, so the Scripts region stays a predictable share of the panel.
 export const VISIBLE_DRAFTS = 8;
 
 /**
- * A draft is the unit of exploration: unlimited, kept in the app, and named from
- * its own code. It has no name and no place, and that is the entire difference
- * between it and a file — not durability, since a draft survives quit, crash and
- * reopen exactly as a file does. Naming one is what gives it both and moves it
- * into Files.
- *
- * One word, in the code and in the UI alike. "Scratch" was the name here while
- * the storage tier was the thing worth naming; the tier is an implementation
- * detail and the draft is the object, so the object's word won.
+ * A draft is the unit of exploration: unlimited, kept in the app, named from its own
+ * code. It has no name and no place, and that is the entire difference between it and
+ * a file — not durability, since a draft survives quit and reopen exactly as a file
+ * does. Naming one gives it both and moves it into Files.
  */
 export interface Draft {
   id: string;
-  // Always read from the code — there is no rename, because naming a draft and
-  // filing it are the same act.
+  // Always read from the code — there is no rename, because naming a draft and filing
+  // it are the same act.
   title: string;
   code: string;
-  // What the draft was born as. While the code still matches this and nothing
-  // has been run, the next method click takes this draft over instead of
-  // starting another one.
+  // While the code still matches this and nothing has been run, the next method click
+  // takes this draft over instead of starting another one.
   generatedCode: string;
   ran: boolean;
-  // The app the call it was generated from belongs to, and nothing more: it is
-  // the qualifier beside the title, which is what tells two same-named calls in
-  // different apps apart. A draft is not bound to the method it came from and
-  // is free to grow past it.
+  // The qualifier beside the title, which tells two same-named calls in different apps
+  // apart. A draft is not bound to the method it came from.
   originAppName?: string;
-  // What an agent calls itself, on the one draft an MCP client writes in. It is
-  // the row's label — an actor you recognise rather than a mechanism you
-  // translate — and it is what pins the row above your own drafts, outside the
-  // count and outside the sweep.
+  // What an agent calls itself, on the one draft an MCP client writes in. It is what
+  // pins the row above your own drafts, outside the count and outside the sweep.
   agentClient?: string;
   createdAt: number;
   updatedAt: number;
@@ -68,22 +56,19 @@ export function createDraft(code: string, originAppName: string | undefined, now
   };
 }
 
-// Untouched means: still exactly what was generated, and never run. Clicking
-// another method takes such a draft over rather than leaving a trail.
+// Untouched means still exactly what was generated, and never run.
 export function isUntouched(draft: Draft): boolean {
   return !draft.ran && draft.code === draft.generatedCode;
 }
 
-// Two untouched drafts of the same call are one browsing buffer written
-// twice: same code, same title, same dimmed row. So a call reopens the buffer
-// that already holds it rather than adding another beside it.
+// Two untouched drafts of the same call are one browsing buffer written twice, so a
+// call reopens the buffer that already holds it rather than adding another beside it.
 export function findUntouched(drafts: Draft[], code: string, originAppName: string | undefined): Draft | undefined {
   return drafts.find((draft) => !isAgentDraft(draft) && isUntouched(draft) && draft.code === code && draft.originAppName === originAppName);
 }
 
-// Reopening is not work, so it settles nothing — it only says this buffer is
-// the one being browsed, which is what keeps it at the top of the list and out
-// of the way of the pruner.
+// Reopening is not work, so it settles nothing — it only keeps the buffer at the top
+// of the list and out of the way of the pruner.
 export function reopen(draft: Draft, now: number): Draft {
   return { ...draft, updatedAt: now };
 }
@@ -99,14 +84,14 @@ export function takeOver(draft: Draft, code: string, originAppName: string | und
   };
 }
 
-// Adding a call is as deliberate as running one, so it settles the title the
-// same way. Typing does not — that would rename the row under the cursor.
+// Adding a call is as deliberate as running one, so it settles the title the same
+// way. Typing does not — that would rename the row under the cursor.
 export function withCode(draft: Draft, code: string, now: number): Draft {
   return { ...draft, code, title: deriveDraftTitle(code) ?? draft.title, updatedAt: now };
 }
 
-// A run is the punctuation that settles a draft, so it is when the title is
-// re-read. Doing it on every keystroke would rename the row while you type.
+// A run is the punctuation that settles a draft. Doing it on every keystroke would
+// rename the row while you type.
 export function markRun(draft: Draft, code: string, now: number): Draft {
   return {
     ...draft,
@@ -117,17 +102,16 @@ export function markRun(draft: Draft, code: string, now: number): Draft {
   };
 }
 
-// The agent's draft is one row, pinned above your own. It is excluded from the
-// count and from the sweep: it persists with no client connected, because that
-// is how you read what the last one did, and clearing it is one deliberate act.
+// Excluded from the count and from the sweep: it persists with no client connected,
+// because that is how you read what the last one did.
 export function isAgentDraft(draft: Draft): boolean {
   return draft.agentClient !== undefined;
 }
 
 /**
- * The order the Drafts group reads in: the agent's row first, then edited drafts
- * — work never hides behind generated calls — then the browsing buffers, each
- * half most recently opened first.
+ * The order the Drafts group reads in: the agent's row first, then edited drafts —
+ * work never hides behind generated calls — then the browsing buffers, each half most
+ * recently opened first.
  */
 export function orderDrafts(drafts: Draft[]): Draft[] {
   const rank = (draft: Draft) => (isAgentDraft(draft) ? 0 : isUntouched(draft) ? 2 : 1);
@@ -144,9 +128,8 @@ export function editedDrafts(drafts: Draft[]): Draft[] {
   return drafts.filter((draft) => !isAgentDraft(draft) && !isUntouched(draft));
 }
 
-// Unlimited only works if the browsing buffers clear themselves out. Anything
-// run or edited is kept forever, and so is the agent's row, which nothing but a
-// deliberate clear removes.
+// Unlimited only works if the browsing buffers clear themselves out. Anything run or
+// edited is kept forever, and so is the agent's row.
 export function pruneDrafts(drafts: Draft[], now: number, openIds: Set<string>, sweep = true): Draft[] {
   if (!sweep) return drafts;
   const cutoff = now - SWEEP_DAYS * 24 * 60 * 60 * 1000;
@@ -154,9 +137,9 @@ export function pruneDrafts(drafts: Draft[], now: number, openIds: Set<string>, 
 }
 
 /**
- * Add a generated call to a draft that already holds one, merging the import
- * lines instead of stacking a second copy. Edits the existing text rather than
- * reprinting it, so whatever the author wrote keeps its formatting.
+ * Add a generated call to a draft that already holds one, merging the import lines
+ * instead of stacking a second copy. Edits the existing text rather than reprinting
+ * it, so whatever the author wrote keeps its formatting.
  */
 export function appendCall(existingCode: string, generatedCode: string): string {
   const existing = ts.createSourceFile("existing.ts", existingCode, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
@@ -180,8 +163,8 @@ export function appendCall(existingCode: string, generatedCode: string): string 
 
     const missing = imported.names.filter((name) => !target.names.includes(name));
     if (missing.length === 0) continue;
-    // Insert after the last name in the existing named imports, keeping
-    // whatever spacing sits before the closing brace.
+    // Insert after the last name in the existing named imports, keeping whatever spacing
+    // sits before the closing brace.
     const brace = code.lastIndexOf("}", target.end);
     if (brace === -1) continue;
     let at = brace;

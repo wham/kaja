@@ -1,26 +1,25 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { clearTypeMemoryStore, deleteTypeMemoryValue, getAllTypeMemoryKeys, getTypeMemoryKeyCount, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
-// Remembered values are offered as editor completions, never written into
-// generated code, so a handful per field is a list worth picking from rather
-// than a silent guess.
+// Remembered values are offered as editor completions, never written into generated
+// code, so a handful per field is a list worth picking from rather than a silent guess.
 const MAX_VALUES_PER_FIELD = 5;
 const MAX_TYPES_PER_NAME = 10;
 const MAX_KEYS = 400;
-// A list response repeats the same shape many times over; the first few
-// elements already carry everything worth suggesting.
+// A list response repeats the same shape many times over; the first few elements
+// already carry everything worth suggesting.
 const MAX_ELEMENTS = 10;
 const MAX_DEPTH = 8;
 
 // field:<typeName>:<fieldName> -> the values seen on that exact field.
 const FIELD_PREFIX = "field:";
-// name:<scalarType>:<fieldName> -> the type names that have such a field, so a
-// value seen on one type can be offered on a same-named field of another.
+// name:<scalarType>:<fieldName> -> the type names that have such a field, so a value
+// seen on one type can be offered on a same-named field of another.
 const NAME_PREFIX = "name:";
 
 export type ScalarValue = string | number | boolean;
 
-// Where a value came from: what the user sent, or what a service sent back.
+// What the user sent, or what a service sent back.
 export type ValueOrigin = "request" | "response";
 
 export interface ValueSource {
@@ -34,7 +33,6 @@ export interface RememberedValue extends ValueSource {
   // Message type the value was seen on, e.g. "movies.v1.Movie".
   typeName: string;
   fieldName: string;
-  // When it was last seen.
   t: number;
 }
 
@@ -44,8 +42,8 @@ interface StoredEntry<T> {
 }
 
 /**
- * Record the scalar values of a request or response so they can be suggested
- * later. Nested messages are recorded under their own type names.
+ * Record the scalar values of a request or response so they can be suggested later.
+ * Nested messages are recorded under their own type names.
  */
 export function rememberValues(typeName: string, obj: any, messageType: IMessageType<any> | undefined, source: ValueSource): void {
   if (!typeName || !obj || typeof obj !== "object") {
@@ -93,9 +91,9 @@ function walkWithSchema(obj: any, typeName: string, messageType: IMessageType<an
 }
 
 function walkWithoutSchema(obj: any, typeName: string, source: ValueSource): void {
-  // Without a schema there is no way to tell which type a nested object has, so
-  // only the top-level scalars are remembered, and without a scalar type they
-  // stay off the by-name index.
+  // Without a schema there is no way to tell which type a nested object has, so only the
+  // top-level scalars are remembered, and without a scalar type they stay off the
+  // by-name index.
   for (const key of Object.keys(obj)) {
     remember(typeName, key, obj[key], undefined, source);
   }
@@ -122,8 +120,8 @@ function readEntry<T>(key: string): StoredEntry<T> {
   return { t: raw.t ?? 0, v: raw.v };
 }
 
-// Move `value` to the front of the entry, dropping any earlier occurrence, and
-// trim the entry to `max`.
+// Move `value` to the front of the entry, dropping any earlier occurrence, and trim
+// the entry to `max`.
 function promote<T>(entry: StoredEntry<T>, value: T, max: number, matches: (candidate: T) => boolean): StoredEntry<T> {
   const kept = entry.v.filter((candidate) => !matches(candidate));
   kept.unshift(value);
@@ -155,7 +153,7 @@ function remember(typeName: string, fieldName: string, value: any, scalarType: S
 }
 
 function evictOldKeys(): void {
-  // O(1) check - only evict when at 2x the limit
+  // O(1) check — only evict when at 2x the limit.
   if (getTypeMemoryKeyCount() <= MAX_KEYS * 2) {
     return;
   }
@@ -169,8 +167,8 @@ function evictOldKeys(): void {
 }
 
 /**
- * Values to suggest for a field, most recent first: the ones seen on this exact
- * field, then the ones seen on same-named fields of other message types.
+ * Values to suggest for a field, most recent first: the ones seen on this exact field,
+ * then the ones seen on same-named fields of other message types.
  */
 export function recallValues(typeName: string, fieldName: string, scalarType?: ScalarType): RememberedValue[] {
   const exact = readEntry<RememberedValue>(fieldKey(typeName, fieldName)).v;
@@ -199,8 +197,8 @@ export function recallValues(typeName: string, fieldName: string, scalarType?: S
 }
 
 /**
- * Drop entries left behind by an earlier layout of the store, which are unread
- * by the current keys but still count against the key budget.
+ * Drop entries left behind by an earlier layout of the store, which are unread by the
+ * current keys but still count against the key budget.
  */
 export function pruneTypeMemory(): void {
   for (const key of getAllTypeMemoryKeys()) {
@@ -210,16 +208,11 @@ export function pruneTypeMemory(): void {
   }
 }
 
-/**
- * Forget every remembered value.
- */
 export function clearTypeMemory(): void {
   clearTypeMemoryStore();
 }
 
-/**
- * All fields that have remembered values, as "<typeName>:<fieldName>".
- */
+// All fields that have remembered values, as "<typeName>:<fieldName>".
 export function getAllRememberedFields(): string[] {
   return getAllTypeMemoryKeys()
     .filter((key) => key.startsWith(FIELD_PREFIX))

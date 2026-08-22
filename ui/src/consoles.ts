@@ -19,60 +19,51 @@ import { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
 /**
- * The console belongs to the file. A run is made by pressing Run on something,
- * so it lands in that file's console and stays there: switching files switches
- * consoles, and coming back finds the runs, the selection and the tab as they
- * were left.
+ * The console belongs to the file: a run lands in the console of whatever it was
+ * pressed on and stays there.
  *
- * None of it is React state. A call reaches the console two or three times — as
- * it is issued, as it streams, as it settles — and a thousand-call run that
- * writes each of those into a state tree at the root of the window renders the
- * whole window a few thousand times over. So a run is an append-only buffer with
- * its own subscribers, and what React holds is the small, slow-moving part:
- * which file is on screen, and which run is selected in it.
+ * None of it is React state. A call reaches the console two or three times — issued,
+ * streaming, settled — and a thousand-call run writing each of those into a state
+ * tree at the root of the window renders the whole window a few thousand times over.
+ * So a run is an append-only buffer with its own subscribers, and React holds only
+ * the small, slow-moving part: which file is on screen, and which run is selected.
  */
 
 // How many runs one file keeps. One file can be run a thousand times.
 const MAX_RUNS_PER_FILE = 25;
 /**
- * How many rows one run keeps. A row is a name, a key, a duration and a status —
- * a few hundred bytes — so this is set where a run stops being something anyone
- * reads rather than where it starts to cost. Past it the log says how many it
- * stopped keeping, because a log that is silently incomplete is worse than one
- * that admits where it ends.
+ * How many rows one run keeps. A row is a few hundred bytes, so this is set where a
+ * run stops being something anyone reads rather than where it starts to cost. Past
+ * it the log says how many it stopped keeping.
  */
 const MAX_ITEMS_PER_RUN = 20_000;
 /**
  * How many calls in a file hold on to their payloads. The row is cheap and the
- * payload is not, so they expire separately: an old call keeps its place in the
- * log and loses what it carried, which is the bargain the store already makes
- * with a run read back from an earlier session.
+ * payload is not, so they expire separately.
  */
 const MAX_PAYLOADS_PER_FILE = 500;
-// How many files hold a console at once. Past this the least recently run one is
-// let go — its last runs are in the store, which is what reopening it reads.
+// Past this the least recently run file is let go — its last runs are in the store,
+// which is what reopening it reads.
 const MAX_FILES = 50;
 
 class Group implements RunGroup {
   readonly items: ConsoleItem[] = [];
   readonly calls: ConsoleItem[] = [];
   readonly printed: ConsoleItem[] = [];
-  // What the canvas draws, in emission order. A call is not one of these, and
-  // neither is a line the script printed.
+  // A call is not one of these, and neither is a line the script printed.
   readonly drawn: ConsoleItem[] = [];
   readonly stats = new ItemStats();
   readonly strip = new RunStrip();
   drew = false;
   dropped = 0;
-  // Blocks that were at some point waiting on the user. There are a handful of
-  // these in a run at most, so the one it is parked on is found rather than
-  // tracked.
+  // There are a handful in a run at most, so the one it is parked on is found rather
+  // than tracked.
   readonly #asked: ConsoleItem[] = [];
   /**
-   * A counter over everything that happens in the run, which is the whole of how
-   * "was this failure reported" is answered: a failed call remembers where it
-   * settled, the run remembers where it last drew, and a failure that came after
-   * the last thing drawn is one nothing has spoken for.
+   * A counter over everything that happens in the run, which is the whole of how "was
+   * this failure reported" is answered: a failed call remembers where it settled, the
+   * run remembers where it last drew, and a failure after the last thing drawn is one
+   * nothing has spoken for.
    */
   #seq = 0;
   #drawnAt = 0;
@@ -80,8 +71,8 @@ class Group implements RunGroup {
 
   constructor(public run: Run) {}
 
-  // Failures nothing was drawn after. A script that reports its own — a table
-  // with a result column — keeps drawing past them, and the canvas stays quiet.
+  // A script that reports its own — a table with a result column — keeps drawing past
+  // them, and the canvas stays quiet.
   get unreported(): FailureNotice[] {
     if (this.#failed.size === 0) return [];
     const late = [...this.#failed.values()].filter((failure) => failure.seq > this.#drawnAt);
@@ -92,14 +83,13 @@ class Group implements RunGroup {
     return this.stats.status;
   }
 
-  // A run read back from the store happened in an earlier session: whatever it
-  // was doing then, it is not doing it now.
+  // A run read back from the store happened in an earlier session.
   get inFlight(): boolean {
     return !this.run.stale && this.stats.inFlight;
   }
 
-  // The run has not settled: its script has not returned, or something it
-  // started has not landed. A duration is what a settled run has.
+  // Its script has not returned, or something it started has not landed. A duration
+  // is what a settled run has.
   get running(): boolean {
     return !this.run.stale && this.run.durationMs === undefined;
   }
@@ -120,9 +110,8 @@ class Group implements RunGroup {
     this.items.push(item);
     if (item.call) this.calls.push(item);
     if (item.printed) this.printed.push(item);
-    // What the script drew, which is what decides the view a run opens in. A line
-    // it printed is not drawing: a script whose only output is `console.log`
-    // opening on its canvas would open on a canvas with nothing on it.
+    // A line the script printed is not drawing: a script whose only output is
+    // `console.log` would otherwise open on a canvas with nothing on it.
     if (item.block !== undefined || (item.logs !== undefined && !item.printed)) {
       this.drawn.push(item);
       this.drew = true;
@@ -134,9 +123,8 @@ class Group implements RunGroup {
     return true;
   }
 
-  // The same item again: a call that has settled, a table that has drawn another
-  // row, a question that has been answered. The object is the one already held,
-  // so only what is counted about it moves.
+  // The same item again — a settled call, another table row, an answered question.
+  // The object is the one already held, so only what is counted about it moves.
   patched(item: ConsoleItem): void {
     if (item.block !== undefined && isAwaitingUser(item.block) && !this.#asked.includes(item)) this.#asked.push(item);
     this.stats.add(item);
@@ -144,13 +132,11 @@ class Group implements RunGroup {
     this.#mark(item);
   }
 
-  // Where in the run this happened, and what it was: a run's own drawing, or a
-  // call that failed. Both arrive more than once, and both only ever move the
-  // mark forward.
+  // Both arrive more than once, and both only ever move the mark forward.
   #mark(item: ConsoleItem): void {
     this.#seq++;
-    // Printing is not drawing, here as everywhere else: a loop that logs each
-    // iteration would otherwise speak for every failure it logged past.
+    // Printing is not drawing: a loop that logs each iteration would otherwise speak
+    // for every failure it logged past.
     if (item.block !== undefined || (item.logs !== undefined && !item.printed)) this.#drawnAt = this.#seq;
     else if (item.call?.error !== undefined) this.#failed.set(item.id, { item, seq: this.#seq });
   }
@@ -163,25 +149,22 @@ export class FileConsole {
   // Undefined until a view has been chosen, which is what lets a run that drew
   // something open on its canvas while an explicit choice still outranks it.
   view?: ConsoleView;
-  // How much of what a script printed the calls view mixes in. Off by default, so
-  // the list is a clean audit of calls until it is asked to be something else.
+  // Off by default, so the list is a clean audit of calls until asked otherwise.
   logFloor: LogFloor = "off";
-  // Whether the store has been consulted for this file yet, so it is read once
-  // rather than on every visit.
+  // So the store is read once rather than on every visit.
   loaded = false;
   touchedAt = 0;
-  // Bumped when this console has something new to show. It is the whole of what
-  // React subscribes to.
+  // Bumped when this console has something new to show. The whole of what React
+  // subscribes to.
   version = 0;
 
   readonly #groups = new Map<string, Group>();
   readonly #byCall = new Map<string, ConsoleItem>();
   readonly #byItem = new Map<string, { item: ConsoleItem; group: Group }>();
-  // Calls that arrived after the run stopped keeping rows. They are remembered
-  // only so that settling one is not counted as another call left out.
+  // Remembered only so that settling one is not counted as another call left out.
   readonly #ignored = new Set<string>();
-  // Calls still holding their payloads, oldest first. A queue with a head rather
-  // than a shifting array: a spike pushes thousands through it.
+  // A queue with a head rather than a shifting array: a spike pushes thousands
+  // through it.
   readonly #holding: ConsoleItem[] = [];
   #held = 0;
   #ordered: RunGroup[] | null = null;
@@ -199,8 +182,7 @@ export class FileConsole {
     return this.runs.length === 0;
   }
 
-  // A run that has not settled is still going. This is what lets a file say so
-  // in the sidebar while you are looking at another one.
+  // What lets a file say so in the sidebar while you are looking at another one.
   get running(): boolean {
     return this.runs.some((run) => !run.stale && run.durationMs === undefined);
   }
@@ -214,10 +196,9 @@ export class FileConsole {
   }
 
   /**
-   * Whether anything the run started is still in the air, which is what the
-   * settle check waits on. A question the user hasn't answered — or a call held
-   * for approval — counts: a run parked on the user is not over, however the
-   * script that started it returned.
+   * Whether anything the run started is still in the air. A question the user hasn't
+   * answered — or a call held for approval — counts: a run parked on the user is not
+   * over, however the script that started it returned.
    */
   hasWorkInFlight(runId: string): boolean {
     const group = this.#groups.get(runId);
@@ -232,8 +213,8 @@ export class FileConsole {
     this.#trimRuns();
   }
 
-  // Runs are numbered per file, counting from one and never reused, so `Run 3`
-  // still says Run 3 after the oldest runs have been trimmed out from under it.
+  // Counting from one and never reused, so `Run 3` still says Run 3 after the oldest
+  // runs have been trimmed out from under it.
   #nextRunNumber(): number {
     return this.runs.reduce((highest, run) => Math.max(highest, run.number ?? 0), 0) + 1;
   }
@@ -245,10 +226,9 @@ export class FileConsole {
   }
 
   /**
-   * A call, as it is issued and again as it settles. The object is the one the
-   * client is holding and going on writing to, so it is kept rather than copied:
-   * copying it per update is exactly the work a spike cannot afford, and the
-   * console re-reads it on the next frame anyway.
+   * A call, as it is issued and again as it settles. The object is the one the client
+   * is holding and going on writing to, so it is kept rather than copied: copying per
+   * update is exactly the work a spike cannot afford.
    */
   recordCall(runId: string, call: MethodCall, now: number): void {
     const known = this.#byCall.get(call.id);
@@ -267,17 +247,14 @@ export class FileConsole {
     void now;
   }
 
-  // Everything the file holds, in run order — what a run on its way to the store
-  // is read from.
   allItems(): ConsoleItem[] {
     return this.groups.flatMap((group) => group.items);
   }
 
   /**
-   * Something the run drew. A block arrives more than once — a table paints row
-   * by row, an ask is emitted as a question and again as an answer — so a block
-   * already in the run is replaced in place rather than appended, which keeps it
-   * where it was emitted instead of jumping to the end when it changes.
+   * A block arrives more than once — a table paints row by row, an ask is emitted as a
+   * question and again as an answer — so one already in the run is replaced in place,
+   * which keeps it where it was emitted instead of jumping to the end.
    */
   recordBlock(runId: string, blockId: string, block: Block, now: number): void {
     const known = this.#byItem.get(blockId);
@@ -293,15 +270,12 @@ export class FileConsole {
     this.#append(runId, { id: newItemId(), runId, timestamp: now, logs });
   }
 
-  // One `console.*` call from the script. Lines are kept one to an item rather
-  // than gathered: the calls view draws a row per line, and a row is what makes a
-  // line selectable and therefore readable in full.
+  // One line to an item rather than gathered: the calls view draws a row per line,
+  // and a row is what makes a line selectable and readable in full.
   recordPrinted(runId: string, level: LogLevel, message: string, now: number): void {
     this.#append(runId, { id: newItemId(), runId, timestamp: now, logs: [{ level, message }], printed: true });
   }
 
-  // The run's wall duration is known once the script has settled and everything
-  // it started has landed.
   settleRun(runId: string, durationMs: number): boolean {
     const index = this.runs.findIndex((run) => run.id === runId);
     if (index === -1) return false;
@@ -318,8 +292,8 @@ export class FileConsole {
   }
 
   /**
-   * What the store held for this file, read once and merged in underneath: runs
-   * made in this session always sit above ones read back from an earlier one.
+   * What the store held for this file, read once and merged in underneath: runs made
+   * in this session always sit above ones read back from an earlier one.
    */
   adopt(stored: { runs: Run[]; items: ConsoleItem[] } | undefined): void {
     this.loaded = true;
@@ -355,7 +329,6 @@ export class FileConsole {
     this.touchedAt = now;
   }
 
-  // A draft saved to disk, or a script renamed: same console, new name.
   rename(fileId: string): void {
     this.runs = this.runs.map((run) => ({ ...run, fileId }));
     for (const run of this.runs) {
@@ -373,10 +346,9 @@ export class FileConsole {
   }
 
   /**
-   * Payload retention. A call keeps what it carried until enough newer calls
-   * have arrived to push it out, and then keeps its row and loses the payload.
-   * The error is not let go — it is small, and it is what the row's status is
-   * read from.
+   * A call keeps what it carried until enough newer calls push it out, then keeps its
+   * row and loses the payload. The error is not let go — it is small, and it is what
+   * the row's status is read from.
    */
   #hold(item: ConsoleItem): void {
     this.#holding.push(item);
@@ -401,10 +373,9 @@ const EMPTY = new FileConsole();
 export type QuietListener = (fileId: string, runId: string) => void;
 
 /**
- * Every file's console, and the one place anything writes to one. Notification
- * is coalesced to the frame: two hundred calls landing between two paints are
- * one repaint, which is what makes the cost of a spike the cost of drawing it
- * rather than the cost of the calls.
+ * Every file's console, and the one place anything writes to one. Notification is
+ * coalesced to the frame: two hundred calls landing between two paints are one
+ * repaint, so the cost of a spike is the cost of drawing it.
  */
 export class Consoles {
   readonly #files = new Map<string, FileConsole>();
@@ -427,11 +398,9 @@ export class Consoles {
   }
 
   /**
-   * The file's console, created if this is the first thing it has to say. The
-   * map is kept in least-recently-used order — a file being touched moves it to
-   * the end — which is what eviction reads instead of sorting timestamps. A run
-   * in full flow touches the same file over and over, so the reordering is
-   * skipped once it is already the most recent.
+   * The file's console, created if this is the first thing it has to say. The map is
+   * kept in least-recently-used order, which is what eviction reads instead of sorting
+   * timestamps; the reordering is skipped once a file is already the most recent.
    */
   #ensure(fileId: string, now: number): FileConsole {
     let file = this.#files.get(fileId);
@@ -449,9 +418,8 @@ export class Consoles {
   }
 
   /**
-   * One press of Run. A run with no file of its own — an agent running code that
-   * was never saved — is not kept: there is no console it belongs to, and the
-   * caller still gets its results.
+   * One press of Run. A run with no file of its own is not kept: there is no console
+   * it belongs to, and the caller still gets its results.
    */
   startRun(run: Run, now: number): void {
     if (!run.fileId) return;
@@ -473,8 +441,8 @@ export class Consoles {
     const file = this.#ensure(fileId, now);
     const wasWaiting = file.waiting;
     file.recordBlock(runId, blockId, block, now);
-    // A question drawn or answered is a gesture's worth of news, not a frame's:
-    // the sidebar has to say so at once.
+    // A question drawn or answered is a gesture's worth of news, not a frame's: the
+    // sidebar has to say so at once.
     this.#touch(fileId, file.waiting !== wasWaiting);
     if (file.waiting !== wasWaiting) this.#flagsChanged();
     this.#maybeQuiet(fileId, runId);
@@ -502,9 +470,8 @@ export class Consoles {
   }
 
   /**
-   * Which run drew a block, wherever it is. A live table is paged long after the
-   * run that drew it is over, and the rows it fetches belong in that run's log —
-   * the click happened on its canvas.
+   * Which run drew a block, wherever it is. A live table is paged long after its run
+   * is over, and the rows it fetches belong in that run's log.
    */
   findBlock(blockId: string): { fileId: string; run: Run; block: Block } | undefined {
     for (const [fileId, file] of this.#files) {
@@ -538,8 +505,8 @@ export class Consoles {
     this.#touch(fileId, true);
   }
 
-  // Choosing a view is a decision about how this script is being read, so it
-  // sticks until it is changed — a later run does not put it back.
+  // Choosing a view is a decision about how this script is being read, so it sticks
+  // until it is changed — a later run does not put it back.
   setView(fileId: string | undefined, view: ConsoleView, now: number): void {
     if (!fileId) return;
     const file = this.#ensure(fileId, now);
@@ -548,8 +515,6 @@ export class Consoles {
     this.#touch(fileId, true);
   }
 
-  // Whether the calls view mixes in what the script printed, and down to which
-  // level. Kept beside the view because it is the same kind of decision.
   setLogFloor(fileId: string | undefined, floor: LogFloor, now: number): void {
     if (!fileId) return;
     const file = this.#ensure(fileId, now);
@@ -558,9 +523,8 @@ export class Consoles {
     this.#touch(fileId, true);
   }
 
-  // Clearing a file's history leaves the file with an empty console rather than
-  // no console: the store has been read, and re-reading it would put back what
-  // was just cleared.
+  // Clearing leaves the file with an empty console rather than no console: the store
+  // has been read, and re-reading it would put back what was just cleared.
   clearFile(fileId: string, now: number): void {
     this.#ensure(fileId, now).clear(now);
     this.#touch(fileId, true);
@@ -579,8 +543,7 @@ export class Consoles {
     this.#flagsChanged();
   }
 
-  // Taking a console out, and putting it back — discarding a draft is
-  // undoable, so its runs have to be able to come back with it.
+  // Discarding a draft is undoable, so its runs have to be able to come back with it.
   takeFile(fileId: string): FileConsole | undefined {
     const file = this.#files.get(fileId);
     if (!file) return undefined;
@@ -608,9 +571,8 @@ export class Consoles {
     return this.file(fileId).hasWorkInFlight(runId);
   }
 
-  // Which files have something to say in the sidebar. Maintained rather than
-  // scanned: three yes/no questions used to cost a walk of every item of every
-  // file, on every call a script made.
+  // Maintained rather than scanned: three yes/no questions used to cost a walk of
+  // every item of every file, on every call a script made.
   flagSets(): { running: Set<string>; agent: Set<string>; waiting: Set<string> } {
     if (this.#flagsCache?.version === this.#flags) return this.#flagsCache;
     const running = new Set<string>();
@@ -643,9 +605,8 @@ export class Consoles {
     return () => this.#flagListeners.delete(listener);
   }
 
-  // A run whose last work has landed. The settle check hangs off this rather
-  // than off every change, so a run ending costs one callback and not one per
-  // call it made.
+  // The settle check hangs off this rather than off every change, so a run ending
+  // costs one callback and not one per call it made.
   subscribeQuiet(listener: QuietListener): () => void {
     this.#quietListeners.add(listener);
     return () => this.#quietListeners.delete(listener);
@@ -659,8 +620,8 @@ export class Consoles {
     return this.#flags;
   }
 
-  // Run whatever the frame was going to do, now. The console has to be settled
-  // before anything reads it synchronously — a test, or a run being saved.
+  // The console has to be settled before anything reads it synchronously — a test, or
+  // a run being saved.
   flush(): void {
     if (this.#frame === null) return;
     this.#frame = null;
@@ -670,8 +631,8 @@ export class Consoles {
   #touch(fileId: string, immediate = false): void {
     this.#dirty.add(fileId);
     if (immediate) {
-      // A gesture — a click, a run starting or ending — is news now. Only the
-      // stream of a running script is worth holding back to the frame.
+      // A gesture is news now. Only the stream of a running script is worth holding back
+      // to the frame.
       this.#frame = null;
       this.#paint();
       return;
@@ -706,8 +667,7 @@ export class Consoles {
     for (const listener of this.#quietListeners) listener(fileId, runId);
   }
 
-  // Files are let go in the order they were last touched, so the ones being
-  // worked in are the ones that stay.
+  // Files are let go in the order they were last touched.
   #evict(): void {
     while (this.#files.size > MAX_FILES) {
       const oldest = this.#files.keys().next().value;
@@ -717,6 +677,4 @@ export class Consoles {
   }
 }
 
-// One store for the window, the way the workspace's storage and the tree's
-// ledger are one.
 export const consoles = new Consoles();

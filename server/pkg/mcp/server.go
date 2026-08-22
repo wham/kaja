@@ -1,15 +1,12 @@
-// Package mcp implements the Model Context Protocol server that lets an agent
-// read, write, and run the user's Kaja scripts and discover the services they
-// can call. It speaks JSON-RPC 2.0 over HTTP (the MCP "Streamable HTTP"
-// transport) and reaches the app it serves only through the Bridge interface, so
-// it is the same server in both builds: the desktop process bridges it to its
-// own webview, and the web server bridges it to a browser that attached itself
-// to an agent session. It has no Wails dependency and is unit-testable on its
-// own.
+// Package mcp implements the Model Context Protocol server that lets an agent read,
+// write, and run the user's Kaja scripts and discover the services they can call. It
+// speaks JSON-RPC 2.0 over HTTP (MCP "Streamable HTTP") and reaches the app it serves
+// only through the Bridge interface, so it is the same server in both builds: the
+// desktop bridges it to its own webview, a deployed Kaja to a browser that attached
+// itself to an agent session. No Wails dependency, unit-testable on its own.
 //
-// This is kaja's own MCP server — the door an agent drives kaja through. The MCP
-// *app* (pkg/apps/mcp) points the other way, at somebody else's server. The two
-// share the protocol's name and nothing else.
+// This is kaja's own MCP server. The MCP *app* (pkg/apps/mcp) points the other way,
+// at somebody else's server; the two share the protocol's name and nothing else.
 package mcp
 
 import (
@@ -30,13 +27,12 @@ const protocolVersion = "2025-06-18"
 //go:embed guide.md
 var guide string
 
-// ScriptInfo is a script on disk. Content is populated only where it makes
-// sense (reads, creates, renames).
+// ScriptInfo is a script on disk. Content is populated only for reads, creates and
+// renames.
 type ScriptInfo struct {
 	Path string `json:"path"`
 	Name string `json:"name"`
-	// The folder the script is filed in, relative to the workspace's scripts
-	// root. Empty for one at the root.
+	// Relative to the workspace's scripts root; empty for one at the root.
 	Folder  string `json:"folder,omitempty"`
 	Content string `json:"content,omitempty"`
 }
@@ -54,8 +50,8 @@ type MethodCallLog struct {
 }
 
 // CallFailure is why a call failed, in the one distinction a caller can act on:
-// whether to change the request, the credentials, or nothing at all. Classified
-// in the UI (callFailure.ts), where the thrown error still has its shape.
+// whether to change the request, the credentials, or nothing at all. Classified in
+// the UI (callFailure.ts), where the thrown error still has its shape.
 type CallFailure struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
@@ -63,24 +59,22 @@ type CallFailure struct {
 	Code    string `json:"code,omitempty"`
 }
 
-// BlockLog is something the script drew on the run's canvas. The agent has the
-// contents already - it produced them - so this is the shape of what it made,
-// which is the receipt that the drawing landed.
+// BlockLog is something the script drew. The agent produced the contents already,
+// so this is the shape of what it made.
 type BlockLog struct {
 	Kind    string   `json:"kind"`
 	Label   string   `json:"label,omitempty"`
 	Columns []string `json:"columns,omitempty"`
 	Rows    int      `json:"rows,omitempty"`
-	// Cells of a table that hold no value: the ones still to be fetched, and the
-	// ones that stopped. A table with holes in it must say so rather than read
-	// as a table of blanks.
+	// Cells of a table that hold no value. A table with holes in it must say so rather
+	// than read as a table of blanks.
 	Pending int `json:"pending,omitempty"`
 	Failed  int `json:"failed,omitempty"`
 }
 
 // RunResult is the outcome of running a script in the webview. Result is what a
-// script returned, which is nothing a script is supposed to do - it is carried
-// so the report can say so rather than swallow it (see renderRun).
+// script returned, which a script is not supposed to do — carried so the report can
+// correct it rather than swallow it (see renderRun).
 type RunResult struct {
 	Console     []string        `json:"console,omitempty"`
 	Result      json.RawMessage `json:"result,omitempty"`
@@ -98,36 +92,30 @@ type Bridge interface {
 	CreateScript(name, content string) (ScriptInfo, error)
 	RenameScript(path, newName string) (ScriptInfo, error)
 	DeleteScript(path string) error
-	// RunScript executes a script in the webview and returns what it produced.
-	// Exactly one of path or code is set. client is what the agent calls itself,
-	// which is what the draft an inline snippet runs in is labelled with — an
-	// actor you recognise rather than a mechanism you translate.
+	// RunScript executes a script in the webview. Exactly one of path or code is set;
+	// client is what the agent calls itself, which labels the draft an inline snippet
+	// runs in.
 	RunScript(ctx context.Context, path, code, client string) (RunResult, error)
 	// Catalog returns the most recent services/methods picture, possibly empty
 	// if nothing has compiled yet.
 	Catalog() Catalog
-	// CanWriteScripts is whether this kaja owns the disk it serves. The desktop
-	// app does; a server serving a workspace it does not own does not, and the
-	// tools that write a file are absent from tools/list rather than offered and
-	// then refused — the same rule that takes the sidebar's + away.
+	// CanWriteScripts is whether this kaja owns the disk it serves. Where it doesn't,
+	// the tools that write a file are absent from tools/list rather than offered and
+	// then refused.
 	CanWriteScripts() bool
-	// Activity reports that a request started or finished, with the number still
-	// in flight, so the host can show that an agent is using the server. It is
-	// called for every request but ping, which is a keepalive rather than use.
+	// Activity reports that a request started or finished, with the number still in
+	// flight. Called for every request but ping, which is a keepalive rather than use.
 	Activity(inFlight int)
 }
 
-// defaultClientName is what an agent is called when it announces no name of its
-// own. The row it labels has to say something, and "Agent" is at least true.
+// defaultClientName is what an agent is called when it announces no name of its own.
 const defaultClientName = "Agent"
 
-// streamKeepalive is how often a streamed answer says it is still coming. A
-// run_script that takes a minute is a request that has carried no bytes for a
-// minute, which is what an idle timeout is measured on, and the timeout belongs
-// to whatever proxy is in front of this server rather than to this server. Fly,
-// which is what kaja is deployed on, passes a 75s one today — but 60s is the
-// common default elsewhere (nginx's proxy_read_timeout among them), and a run
-// cut off at the proxy is indistinguishable from one that failed.
+// streamKeepalive is how often a streamed answer says it is still coming. The idle
+// timeout belongs to whatever proxy is in front of this server, not to this server:
+// Fly passes a 75s run today, but 60s is the common default elsewhere (nginx's
+// proxy_read_timeout among them), and a run cut off at the proxy is
+// indistinguishable from one that failed.
 const streamKeepalive = 15 * time.Second
 
 // Server is the MCP HTTP handler.
@@ -138,8 +126,8 @@ type Server struct {
 
 	mu       sync.Mutex
 	inFlight int
-	// What the last client to hand shake called itself. One buffer is shared by
-	// every client, so the name on it is whichever one touched it last.
+	// What the last client to handshake called itself. One buffer is shared by every
+	// client, so this is whichever touched it last.
 	client string
 }
 
@@ -150,15 +138,12 @@ func NewServer(bridge Bridge, token string) *Server {
 }
 
 // Streamed answers over SSE whenever the client says it accepts one, so a slow
-// answer can say it is still coming. On the desktop nothing sits between the
-// agent and the server and a single JSON response is the simpler thing; a server
-// reached over the internet is behind at least one proxy with an idle timeout.
+// answer can say it is still coming. On the desktop nothing sits between the agent
+// and the server, and a single JSON response is the simpler thing.
 func (s *Server) Streamed() *Server {
 	s.streamed = true
 	return s
 }
-
-// --- JSON-RPC envelope ---------------------------------------------------
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -207,9 +192,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// An agent's calls arrive in bursts, so what the footer shows is the whole
-	// burst: the request is marked from the moment it lands until it is answered,
-	// and the UI holds the mark a little longer so a fast one is still seen.
+	// An agent's calls arrive in bursts, so the request is marked from the moment it
+	// lands until it is answered and the UI holds the mark a little longer.
 	if req.Method != "ping" {
 		s.activity(1)
 		defer s.activity(-1)
@@ -240,16 +224,13 @@ func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Accept"), "text/event-stream")
 }
 
-// respondStreamed answers over SSE, which the Streamable HTTP transport allows
-// for any request. Nothing about the answer changes — it is the same JSON-RPC
-// response, in one event. What it buys is the comment line sent while the answer
-// is still being produced, which is what keeps a long run from looking like an
-// idle connection to whatever sits in front of this server.
+// respondStreamed answers over SSE, which Streamable HTTP allows for any request.
+// The answer is the same JSON-RPC response in one event; what it buys is the comment
+// line sent while it is still being produced.
 func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		// Nothing can be flushed, so a stream would be buffered into a single
-		// write anyway. Answer as JSON rather than pretend.
+		// Nothing can be flushed, so a stream would be buffered into a single write anyway.
 		result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
 		resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
 		if rerr != nil {
@@ -292,8 +273,8 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 			} else {
 				resp.Result = a.result
 			}
-			// json.Marshal never emits a raw newline, so the response is always
-			// the single data line SSE needs it to be.
+			// json.Marshal never emits a raw newline, so the response is always the single data
+			// line SSE needs it to be.
 			body, err := json.Marshal(resp)
 			if err != nil {
 				return
@@ -341,9 +322,8 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	}
 }
 
-// handleInitialize also learns what the client calls itself. The name is only
-// ever read back onto the draft an inline run lands in, so a client that never
-// runs anything never names anything.
+// handleInitialize also learns what the client calls itself. The name is only ever
+// read back onto the draft an inline run lands in.
 func (s *Server) handleInitialize(params json.RawMessage) interface{} {
 	var announced struct {
 		ClientInfo struct {
@@ -352,8 +332,8 @@ func (s *Server) handleInitialize(params json.RawMessage) interface{} {
 		} `json:"clientInfo"`
 	}
 	if err := json.Unmarshal(params, &announced); err == nil {
-		// A title is written to be read; a name is an identifier ("claude-code").
-		// Prefer the one meant for a person, since that is where this ends up.
+		// A title is written to be read; a name is an identifier ("claude-code"). Prefer the
+		// one meant for a person, since that is where this ends up.
 		name := strings.TrimSpace(announced.ClientInfo.Title)
 		if name == "" {
 			name = strings.TrimSpace(announced.ClientInfo.Name)
@@ -394,8 +374,8 @@ func writeRPC(w http.ResponseWriter, resp rpcResponse) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// subtleEqual is a constant-time-ish string compare for the token. The token is
-// short-lived and localhost-only, but there's no reason to leak length/prefix.
+// subtleEqual is a constant-time-ish string compare for the token. There is no
+// reason to leak its length or prefix.
 func subtleEqual(a, b string) bool {
 	if len(a) != len(b) {
 		return false

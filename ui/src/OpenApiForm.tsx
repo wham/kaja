@@ -48,38 +48,39 @@ import {
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
 
-// Where the document comes from. The value itself lives in specUrl (URL) or
-// specContent (file, paste); switching mode clears it but keeps everything the
-// document filled in, since people often re-point at a local copy of the same API.
+// The value itself lives in specUrl (URL) or specContent (file, paste); switching
+// mode clears it but keeps everything the document filled in, since people often
+// re-point at a local copy of the same API.
 type SourceMode = "url" | "file" | "paste";
 
 type ReadState =
-  { status: "idle" } | { status: "reading" } | { status: "read"; document: OpenApiDocument; readAt: number } | { status: "problem"; problem: OpenApiProblem };
+  | { status: "idle" }
+  | { status: "reading" }
+  | { status: "read"; document: OpenApiDocument; readAt: number }
+  | { status: "problem"; problem: OpenApiProblem };
 
 const READ_DEBOUNCE_MS = 600;
 const PASTE_DEBOUNCE_MS = 400;
 
-// A document URL that reads a variable is sent to the server as it is written -
-// only the server knows what ${NAME} holds - so it is read rather than rejected
-// for not looking like a URL.
+// A document URL that reads a variable is sent to the server as it is written — only
+// the server knows what ${NAME} holds — so it is read rather than rejected for not
+// looking like a URL.
 function isReadableSourceUrl(value: string): boolean {
   return isAbsoluteHttpUrl(value) || holdsVariableReference(value);
 }
 
-// Documents already read, so flipping between apps in the picker doesn't fetch
-// and parse what hasn't changed. The refresh control reads past it. Only
-// successful reads are remembered - a host that was down should be tried again.
+// Documents already read, so flipping between apps doesn't fetch and parse what
+// hasn't changed. Only successful reads are remembered.
 const inspected = new Map<string, { document: OpenApiDocument; readAt: number }>();
 const INSPECTED_LIMIT = 20;
 
-// inspectionKey is everything the read depends on, including the credentials,
-// since a document behind a login can differ per token.
+// inspectionKey includes the credentials, since a document behind a login can differ
+// per token.
 function inspectionKey(parameters: Record<string, string>): string {
   return JSON.stringify(["specUrl", "specContent", "specHeaderName", "specHeaderValue", "token", "username", "password"].map((key) => parameters[key] ?? ""));
 }
 
-// Reads already on the wire, so two forms - or one form mounted twice - ask the
-// server for the same document once.
+// Reads already on the wire, so two forms ask the server for the same document once.
 const reading = new Map<string, Promise<InspectOpenApiResponse>>();
 
 function inspect(key: string, openapi: OpenApiApp | undefined): Promise<InspectOpenApiResponse> {
@@ -106,8 +107,7 @@ interface OpenApiFormProps {
   name: string;
   onNameChange: (name: string) => void;
   duplicateName: boolean;
-  // Names already in use, so a derived one doesn't land on a collision the user
-  // has to resolve by hand.
+  // So a derived name doesn't land on a collision the user has to resolve by hand.
   takenNames: string[];
   parameters: Record<string, string>;
   onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
@@ -115,10 +115,7 @@ interface OpenApiFormProps {
   readOnly: boolean;
   // What the form last read, for the receipt in the footer.
   onSurfaceChange: (surface: AppSurface | undefined) => void;
-  // Whether the app can be created from what the form holds.
   onReadyChange: (ready: boolean) => void;
-  // A choice the user made here, for the tab to stop being a preview. Typing is
-  // caught by the form shell; this is for the picks that aren't text.
 }
 
 // OpenApiForm is the New/Edit form for an OpenAPI app. It asks for one thing -
@@ -147,14 +144,13 @@ export function OpenApiForm({
   parametersRef.current = parameters;
   // Only the latest read may write to state; anything older is discarded.
   const readIdRef = useRef(0);
-  // Whether the name is the user's rather than the one derived from the title.
-  // State, not a ref, because the caption under the field reads it.
+  // Whether the name is the user's rather than the one derived from the title. State,
+  // not a ref, because the caption under the field reads it.
   const [nameTouched, setNameTouched] = useState(Boolean(name));
-  // Whether the source changed because the user typed into it, which is the only
-  // change that waits for a pause before reading.
+  // Typing is the only change that waits for a pause before reading.
   const typedRef = useRef(false);
-  // Credentials typed for a scheme, kept while another scheme is selected so
-  // flipping back and forth doesn't lose typing.
+  // Credentials typed for a scheme, kept while another scheme is selected so flipping
+  // back and forth doesn't lose typing.
   const credentialsRef = useRef<Record<string, Credentials>>({});
 
   const specUrl = parameters.specUrl ?? "";
@@ -202,9 +198,8 @@ export function OpenApiForm({
     }
   }, []);
 
-  // Read the document once the source settles. Typing is the only change that
-  // waits: a file, the demo link, or the app this form was opened on are already
-  // complete and read at once.
+  // Read once the source settles. A file, the demo link, or the app this form was
+  // opened on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
     typedRef.current = false;
@@ -224,9 +219,8 @@ export function OpenApiForm({
 
   useEffect(() => onSurfaceChange(document ? { count: document.operationCount } : undefined), [document, onSurfaceChange]);
 
-  // Derive the name from the document's title until the user types one. A title
-  // is written for a docs page, so what is offered is the part of it that names
-  // the API - the name is the folder every import starts with, not a heading.
+  // Derive the name from the document's title until the user types one. A title is
+  // written for a docs page, so what is offered is the part of it that names the API.
   useEffect(() => {
     if (!document || nameTouched) return;
     const derived = uniqueAppName(deriveAppName(document.title), takenNames);
@@ -234,8 +228,8 @@ export function OpenApiForm({
   }, [document, nameTouched, takenNames, onNameChange]);
 
   // Restore the server and credentials the app was configured with, matching them
-  // against what the document declares now. A choice that has vanished falls back
-  // rather than silently pointing somewhere else.
+  // against what the document declares now. A choice that has vanished falls back rather
+  // than silently pointing somewhere else.
   useEffect(() => {
     if (!document) return;
     const baseUrl = (parametersRef.current.baseUrl ?? "").trim();
@@ -275,8 +269,8 @@ export function OpenApiForm({
     return server ? resolveServerUrl(server, serverVariables[serverChoice] ?? {}) : "";
   }, [document, serverChoice, serverVariables, customServerUrl, parameters.baseUrl]);
 
-  // Requests go where the form says they go, so the choice is written out as the
-  // app's base URL rather than re-derived from the document later.
+  // Requests go where the form says they go, so the choice is written out as the app's
+  // base URL rather than re-derived from the document later.
   useEffect(() => {
     if (!document || document.servers.length === 0) return;
     onParametersChange((previous) => (previous.baseUrl === resolvedServerUrl ? previous : { ...previous, baseUrl: resolvedServerUrl }));
@@ -485,9 +479,8 @@ interface SourceStatusProps {
   onRetry: () => void;
 }
 
-// SourceStatus is the one slot under the source field that carries every state:
-// the caption, the read in progress, the document that was read, and each way
-// reading it can fail. All of them name the next move.
+// SourceStatus is the one slot under the source field carrying every state: the
+// caption, the read in progress, the document that was read, and each way it can fail.
 function SourceStatus({
   state,
   parameters,
@@ -608,8 +601,8 @@ interface ProblemBannerProps {
 }
 
 function ProblemBanner({ problem, parameters, variables, readOnly, onUploadInstead, onSpecHeaderChange, onRetry }: ProblemBannerProps) {
-  // The one case where a credential is needed before anything can be read. It is
-  // asked for right here, and kept apart from the API's own credentials.
+  // The one case where a credential is needed before anything can be read. It is asked
+  // for right here, and kept apart from the API's own credentials.
   if (problem.kind === OpenApiProblemKind.OPEN_API_PROBLEM_UNAUTHORIZED) {
     return (
       <div className="rounded-md border border-amber-500/40 bg-amber-500/10">
@@ -691,9 +684,8 @@ interface ServerSectionProps {
   onBaseUrlChange: (url: string) => void;
 }
 
-// ServerSection adapts to what the document's servers list holds: nothing, one
-// server, several, or one with {placeholders} to resolve. A list of one is not a
-// choice, so it is stated rather than offered.
+// ServerSection adapts to what the document's servers list holds. A list of one is
+// not a choice, so it is stated rather than offered.
 function ServerSection({
   document,
   variables,
@@ -839,9 +831,8 @@ interface AuthenticationSectionProps {
   onParameterChange: (key: string, value: string) => void;
 }
 
-// AuthenticationSection is one row per security scheme the document declares, in
-// coverage order, plus a row for sending nothing. Only the selected row asks for
-// a credential, in the shape its scheme expects.
+// One row per security scheme the document declares, in coverage order, plus a row
+// for sending nothing.
 function AuthenticationSection({ document, variables, readOnly, selected, onSelect, parameters, onParameterChange }: AuthenticationSectionProps) {
   if (document.securitySchemes.length === 0) {
     return (
@@ -912,9 +903,8 @@ interface SchemeCredentialsProps {
   onParameterChange: (key: string, value: string) => void;
 }
 
-// SchemeCredentials is what the selected scheme asks for: one field for a key or
-// a token, two for HTTP Basic. Each of them takes a ${NAME} variable, so a
-// credential can name where it is held instead of being written into kaja.json.
+// Each field takes a ${NAME} variable, so a credential can name where it is held
+// instead of being written into kaja.json.
 function SchemeCredentials({ scheme, variables, readOnly, parameters, onParameterChange }: SchemeCredentialsProps) {
   const basic = isBasicScheme(scheme);
 

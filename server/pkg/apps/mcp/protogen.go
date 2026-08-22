@@ -118,8 +118,6 @@ func generateProto(surface *Surface) (*generated, error) {
 	}, nil
 }
 
-// ---------------------------------------------------------------- tools
-
 func (g *generator) addTools(tools []Tool) {
 	service := g.service("Tools", "The tools the server exposes. Each method is one tool: its request is the\ntool's arguments and its response the result the tool returned.")
 
@@ -218,8 +216,6 @@ func annotationHint(annotations *ToolAnnotation) string {
 	return "The server describes this tool as " + strings.Join(hints, ", ") + "."
 }
 
-// ---------------------------------------------------------------- resources
-
 func (g *generator) addResources() {
 	g.messages = append(g.messages,
 		&messageDef{name: g.reserve("ResourceInfo"), doc: "One resource the server lists.", fields: []fieldDef{
@@ -275,8 +271,6 @@ func (g *generator) addResources() {
 	})
 	g.bindings[protoPackage+".Resources/ListResourceTemplates"] = &binding{kind: "passthrough", method: "resources/templates/list"}
 }
-
-// ---------------------------------------------------------------- prompts
 
 func (g *generator) addPrompts(prompts []Prompt) {
 	g.messages = append(g.messages,
@@ -337,8 +331,6 @@ func (g *generator) addPrompts(prompts []Prompt) {
 		g.bindings[protoPackage+"."+service.name+"/"+method] = &binding{kind: "prompt", method: "prompts/get", name: prompt.Name}
 	}
 }
-
-// ---------------------------------------------------------------- schema walk
 
 // walker converts one tool schema into proto messages. It carries the root so a
 // local $ref can be resolved against the $defs the root declares.
@@ -624,8 +616,6 @@ func enumValues(s *schema) string {
 	return strings.Join(values, ", ")
 }
 
-// ---------------------------------------------------------------- naming
-
 func (g *generator) service(name, doc string) *serviceDef {
 	service := &serviceDef{name: g.reserve(name), doc: doc}
 	g.services = append(g.services, service)
@@ -745,8 +735,6 @@ func splitWords(name string) []string {
 	flush()
 	return words
 }
-
-// ---------------------------------------------------------------- rendering
 
 func (g *generator) render(surface *Surface) string {
 	var out strings.Builder

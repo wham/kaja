@@ -284,13 +284,13 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 		}
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(sourcesDir, path)
-			// Use namespace exports to avoid name collisions when multiple packages
-			// define the same enum name (e.g., basics.lib.Position and quirks.lib.Position)
 			relativePath = filepath.ToSlash(relativePath)
 			identifier := strings.TrimSuffix(relativePath, ".ts")
 			identifier = strings.ReplaceAll(identifier, "/", "$")
 			identifier = strings.ReplaceAll(identifier, ".", "$")
 			identifier = strings.ReplaceAll(identifier, "-", "$")
+			// Namespace exports, so two packages defining the same enum name (basics.lib.Position,
+			// quirks.lib.Position) don't collide.
 			stubContent.WriteString("export * as " + identifier + " from \"./" + relativePath + "\";\n")
 		}
 		return nil

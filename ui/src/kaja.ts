@@ -20,8 +20,7 @@ import { LogSink } from "./scriptConsole";
 import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
-// Thrown when the user cancels a `kaja.ask*` prompt. The task runner
-// swallows it so a cancelled prompt quietly stops the script.
+// Swallowed by the script runner: a cancelled prompt quietly stops the script.
 export class AskCancelledError extends Error {
   constructor() {
     super("Kaja prompt cancelled");
@@ -29,8 +28,7 @@ export class AskCancelledError extends Error {
   }
 }
 
-// Thrown when the user doesn't approve a `kaja.approve(...)` call. The task
-// runner swallows it too: not approving stops the script rather than failing it.
+// Swallowed too: not approving stops the script rather than failing it.
 export class ApprovalRejectedError extends Error {
   constructor() {
     super("The call was not approved");
@@ -39,19 +37,13 @@ export class ApprovalRejectedError extends Error {
 }
 
 /**
- * A call that hasn't been made yet.
- *
- * **A call starts when it is awaited — or at the end of the tick, if nothing has
- * claimed it.** So `await Shows.ListShows({})` and a bare `Shows.Ping({})` both
- * do what they read as, and `Promise.all([A(), B()])` still runs both at once;
- * starting is idempotent, so it doesn't matter which of the two gets there.
- *
- * That gap of one tick is the whole of what `kaja.approve(...)` needs: the call
+ * A call that hasn't been made yet. It starts when it is awaited — or at the end of
+ * the tick, if nothing has claimed it, so a bare `Shows.Ping({})` still goes out.
+ * Starting is idempotent. That one-tick gap is what `kaja.approve` needs: the call
  * is written inside its parentheses, so approve is handed it in the same
  * synchronous turn and claims it before the tick can end.
  */
 export class Call<T> implements PromiseLike<T> {
-  // What the call is, for a canvas that has to name it before it happens.
   readonly label: string;
   readonly input: unknown;
   #send: () => Promise<T>;
@@ -73,10 +65,8 @@ export class Call<T> implements PromiseLike<T> {
   }
 
   /**
-   * Take the call out of the tick's hands: from here it goes out only when
-   * something starts it, however long that takes. `kaja.approve` claims a call
-   * before its own first await — the same synchronous turn the call was written
-   * in — which is the whole of how it can hold one back.
+   * Take the call out of the tick's hands. `kaja.approve` claims before its own first
+   * await, which is the whole of how it can hold a call back.
    */
   claim(): void {
     this.#claimed = true;
@@ -96,10 +86,8 @@ export class Call<T> implements PromiseLike<T> {
   }
 }
 
-// The question is asked by the block; this is what waits for it to be answered.
-// The whole block goes, not just its text, because what is being asked for
-// decides what is drawn. The id is what the answer comes back against, so an ask
-// on a canvas nobody is looking at is still the one that resolves.
+// The whole block travels, not just its text: what is being asked for decides what
+// is drawn, and the id is what the answer comes back against.
 export interface AskRequest {
   (question: AskBlock, blockId: string): Promise<string>;
 }
@@ -110,28 +98,19 @@ export interface Choice<V> {
   value: V;
 }
 
-// Which of the two approving gestures was made: this call, or this call and
-// every later one to the same method.
 export type ApproveDecision = Exclude<ApproveGesture, "rejected">;
 
-// The same, for a call held back until it is approved: it resolves when the call
-// may go out, and rejects when the script is to stop instead. The block travels
-// with it for the same reason a question's does — a run with no canvas asks in a
-// dialog, which has nothing but what it is handed.
+// The block travels for the same reason a question's does: a run with no canvas
+// asks in a dialog, which has nothing but what it is handed.
 export interface ApproveRequest {
   (call: ApproveBlock, blockId: string): Promise<ApproveDecision>;
 }
 
-// A block arriving, or the same block again with more in it.
 export interface BlockUpdate {
   (blockId: string, block: Block): void;
 }
 
-/**
- * A table that is still being filled in. A loop is the reason tables exist here,
- * so rows land one at a time and the canvas repaints as they do — waiting for
- * the loop to finish would make the interesting part the part you can't watch.
- */
+// Rows land one at a time so the canvas repaints as the loop runs.
 export interface Table {
   row(...cells: Cell[]): Row;
   column(name: string): void;
@@ -139,56 +118,35 @@ export interface Table {
 }
 
 /**
- * A row that is already on the canvas. **Updating one is writing it again** —
- * the same cells in the same order `row` took them — because a row is only ever
- * the whole of itself: naming a cell would need the columns to be keys, and
- * restating two cells that didn't change is the cheaper of the two. That is what
- * a summary table is: a row declared when the work starts and rewritten when it
- * finishes, so the table paints rather than reporting at the end.
+ * A row already on the canvas. Updating one is writing it again — the same cells in
+ * the same order `row` took them.
  */
 export interface Row {
   update(...cells: Cell[]): void;
 }
 
 /**
- * A cell the script has, or one it is getting. A **promise** is work already
- * started; a **function** is work nobody has asked for yet, so the table asks —
- * when the row is drawn, and again if you retry it. An `Error`, thrown or
- * returned, is a cell that stopped rather than a value.
- *
- * It is `unknown` to TypeScript, which is what it has always been. The alias is
- * where the rule is written down.
+ * A cell the script has, or one it is getting. A promise is work already started; a
+ * function is work nobody has asked for yet. An `Error`, thrown or returned, is a
+ * cell that stopped. `unknown` to TypeScript; the alias is where the rule is written.
  */
 export type Cell = unknown | PromiseLike<unknown> | (() => unknown);
 
-/**
- * Rows a table draws. An array is an iterable; so is an async generator, and one
- * of those only runs when something pulls it — which is what makes paging fetch
- * a page and nothing else.
- */
 export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
 
-/**
- * …or a source Kaja can start, which is what a server-side search needs: a new
- * search is a new result set, so the source is restarted with the text in hand.
- * A source that doesn't declare the parameter never sees it, and the search box
- * filters the rows already loaded instead.
- */
+// A source that declares the search parameter is restarted for each new search;
+// one that doesn't never sees it, and the box filters what is already loaded.
 export type RowSource = Rows | ((search: string) => Rows);
 
 export interface TableOptions {
   pageSize?: number;
 }
 
-/**
- * A cell the table is getting rather than holding. The closure beside the
- * block's `CellStatus`, on the same rule the source is: the block is JSON the
- * console stores, and a function can't be.
- */
+// The closure beside the block's `CellStatus`: the block is JSON the console
+// stores, and a function can't be.
 interface LiveCell {
-  // The work, while nobody has asked for it — a function that hasn't been
-  // called, or a failed one waiting on Retry. A promise never has one: it was
-  // already running when the script handed it over, and can't be run again.
+  // The work, while nobody has asked for it. A promise never has one: it was already
+  // running when the script handed it over, and can't be run again.
   open?: () => unknown;
   running?: Promise<void>;
   // The row's revision when this cell was declared. A row rewritten since is not
@@ -196,66 +154,51 @@ interface LiveCell {
   revision: number;
 }
 
-// What a live table is filled from. The block is the JSON the console stores;
-// this is the closure beside it, which is why it lives on the Kaja instance —
-// that outlives any one run, and a table stays live after the script is over.
+// The closure beside the block, held on the Kaja instance because that outlives any
+// one run and a table stays live after the script is over.
 interface LiveTable {
   block: TableBlock;
-  // Absent on a table that was handed its rows outright. Such a table is held
-  // here anyway once it has a cell that isn't a value: what is kept is the
-  // closures, and a cell is one.
+  // Absent on a table handed its rows outright. Such a table is held here anyway once
+  // it has a cell that isn't a value: what is kept is the closures.
   open?: (search: string) => Rows;
   iterator?: Iterator<unknown[]> | AsyncIterator<unknown[]>;
-  // Whether the source can be started again. A function can be; an iterable that
-  // is already running cannot, so it has neither a server search nor a retry
-  // that gets anywhere.
+  // A function can be started again; an iterable already running cannot, so it has
+  // neither a server search nor a retry that gets anywhere.
   restartable: boolean;
-  // A generator that threw is finished — JavaScript says so, not us — so a retry
-  // is only a retry if the source can be opened again, from the top.
+  // A generator that threw is finished, so a retry only works if the source can be
+  // opened again from the top.
   restart?: boolean;
   search: string;
   // Bumped when the source is restarted, so a pull that is mid-flight when the
   // search changes drops what it was doing instead of appending to the new set.
   generation: number;
   pulling?: Promise<void>;
-  // The first page, which is pulled a microtask after the table is drawn. It is
-  // held apart from `pulling` because it settles before that one is set, and the
-  // run waits for both.
+  // Held apart from `pulling` because it settles before that one is set, and the run
+  // waits for both.
   first?: Promise<void>;
   // The cells that aren't values, by row and then column, so rewriting a row
   // lets go of everything that was answering it in one move.
   cells: Map<number, Map<number, LiveCell>>;
-  // Bumped every time a row is written and never reset — a revision that started
-  // over would let a cell declared before a restart answer the row that replaced
-  // it, which is the one thing this exists to prevent.
+  // Never reset: a revision that started over would let a cell declared before a
+  // restart answer the row that replaced it.
   revision: number;
   rowRevision: number[];
-  // Every cell still outstanding, which is what the run waits for…
   running: Set<Promise<void>>;
-  // …and the ones past the gate, which is what the next one waits for. Two sets
-  // rather than a count: a cell waiting for a slot is outstanding but not in
+  // Two sets rather than a count: a cell waiting for a slot is outstanding but not in
   // flight, and racing a set that holds the waiters is a race nobody wins.
   inFlight: Set<Promise<void>>;
 }
 
-// Live sources are closures, so they are held rather than collected. A console
-// that has drawn hundreds of tables lets the oldest go; those tables read as
-// expired, which is a state the canvas already states.
+// Live sources are closures, so they are held rather than collected; the oldest are
+// let go and those tables read as expired.
 const MAX_LIVE_TABLES = 24;
 
-/**
- * How many of a table's cells are fetched at once. A page draw asks for every
- * cell it can see in one go, and fifty rows must not put fifty requests on the
- * wire in one frame — they arrive as a rolling handful instead, in the order
- * they were declared.
- */
+// A page draw asks for every cell it can see at once, so fifty rows must not put
+// fifty requests on the wire in one frame.
 const MAX_CELLS_IN_FLIGHT = 6;
 
-/**
- * How many calls to one method a run reads remembered values out of. The
- * completion list keeps a handful per field, so the ones after this would offer
- * nothing the first few didn't — and a loop is exactly where that adds up.
- */
+// The completion list keeps a handful per field, so calls past this offer nothing
+// the first few didn't — and a loop is where that adds up.
 const SAMPLED_CALLS_PER_METHOD = 5;
 
 function isAsyncIterable(value: any): value is AsyncIterable<unknown[]> {
@@ -271,14 +214,13 @@ function openIterator(rows: Rows): Iterator<unknown[]> | AsyncIterator<unknown[]
   return (rows as Iterable<unknown[]>)[Symbol.iterator]();
 }
 
-// A row is cells. Anything else a source yields is one cell rather than an
-// error, on the same rule formatCell follows: readable beats correct-or-nothing.
+// Anything a source yields that isn't an array is one cell rather than an error.
 function toCells(row: unknown): unknown[] {
   return Array.isArray(row) ? row : [row];
 }
 
-// A cell that is already running. A Call is one of these, so a method handed
-// straight to a table is a cell the table waits for.
+// A Call is one of these, so a method handed straight to a table is a cell the
+// table waits for.
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return typeof (value as { then?: unknown } | null | undefined)?.then === "function";
 }
@@ -287,17 +229,13 @@ function cellFailure(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// A row is as wide as the table. Fewer cells than columns draws blanks rather
-// than a ragged edge, which is what lets a row be written before the work that
-// fills it is done; more are left alone, since dropping them would hide what the
-// script had.
+// Fewer cells than columns draws blanks rather than a ragged edge, which is what
+// lets a row be written before the work that fills it is done; extra are kept.
 function padCells(cells: string[], width: number): string[] {
   return cells.length >= width ? cells : [...cells, ...new Array(width - cells.length).fill("")];
 }
 
-// The request a call is holding, as the approve block shows it. A block is
-// stored as JSON, so it is text by the time it is one — and text is what the
-// canvas draws either way.
+// A block is stored as JSON, so the request is text by the time it is one.
 function formatRequest(input: unknown): string {
   try {
     return JSON.stringify(input, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2) ?? String(input);
@@ -308,8 +246,7 @@ function formatRequest(input: unknown): string {
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-// google.protobuf.Value and friends, declared structurally so they match the
-// types protoc-gen-kaja generates for any app that uses them.
+// Declared structurally so they match the types protoc-gen-kaja generates.
 export interface Value {
   kind:
     | { oneofKind: "nullValue"; nullValue: 0 }
@@ -359,11 +296,9 @@ function toListValue(input: JsonValue[]): ListValue {
 }
 
 /**
- * Where one run's output goes, and what it was given to start with. A `Kaja` is
- * built from one of these per run, so a script's calls, blocks, questions and
- * log lines are addressed to the run that made them before it makes any — which
- * is what lets two scripts run at once without either being able to reach the
- * other's console. Nothing here is reassigned once the run has begun.
+ * What one run's output is addressed to. A `Kaja` is built from one of these per
+ * run, so two scripts running at once can't reach each other's console. Nothing here
+ * is reassigned once the run has begun.
  */
 export interface RunContext {
   onMethodCallUpdate: MethodCallUpdate;
@@ -371,24 +306,18 @@ export interface RunContext {
   onApprove: ApproveRequest;
   onBlockUpdate: BlockUpdate;
   onLog: LogSink;
-  /**
-   * The query a `kaja://run/<script>?...` link carried. It is given at the start
-   * rather than assigned afterwards, so one link's parameters can never be found
-   * by the next run — the two runs are different objects.
-   */
+  // Given at the start rather than assigned afterwards, so one link's parameters can
+  // never be found by the next run.
   input?: { [key: string]: string };
 }
 
 /**
- * The one `Kaja` per run holds what belongs to that run. This holds what
- * outlives it: the workspace's variables, and the live tables — which are paged
- * long after the run that drew them is over, and must stay bounded across all
- * runs rather than per run.
+ * What outlives a run: the workspace's variables, and the live tables, which are
+ * paged long after the run that drew them is over and are bounded across all runs.
  */
 export class KajaHost {
-  // The resolved values, including the ones kaja.json only names and this
-  // machine holds - scripts are the desktop only, where there is no remote
-  // browser being handed a value it shouldn't have.
+  // Includes values kaja.json only names: scripts are the desktop only, where there
+  // is no remote browser being handed a value it shouldn't have.
   variables: { [key: string]: string } = {};
   readonly tables = new LiveTables();
 
@@ -398,18 +327,16 @@ export class KajaHost {
   }
 
   /**
-   * Whether this block's source is still held, which is what Next depends on. It
-   * is asked of the host rather than of a run, because the canvas asking has
-   * only a block id and no idea which run drew it.
+   * Whether this block's source is still held, which is what Next depends on. Asked of
+   * the host because the canvas has only a block id and no idea which run drew it.
    */
   hasLiveTable(blockId: string): boolean {
     return this.tables.has(blockId);
   }
 
   /**
-   * Page a table by its block, from the canvas rather than from a script. The
-   * run that drew it is the one that fetches — its Kaja still holds the source,
-   * so the calls land in that run's log however long ago it ended.
+   * Page a table from the canvas. The run that drew it fetches — its Kaja still holds
+   * the source, so the calls land in that run's log however long ago it ended.
    */
   pullTable(blockId: string, search: string, want: number): Promise<boolean> {
     return this.tables.owner(blockId)?.pullTable(blockId, search, want) ?? Promise.resolve(false);
@@ -422,12 +349,10 @@ export class KajaHost {
 }
 
 /**
- * Every live table, whoever drew it. It is one map rather than one per run for
- * two reasons: `MAX_LIVE_TABLES` is a budget for the app, not for a run, and a
- * page fetched from the canvas arrives knowing only a block id. Holding the
- * owner beside each table is also what keeps a finished run's `Kaja` — and so
- * its console, its approvals and its bound clients — alive exactly as long as
- * something can still call into it, and no longer.
+ * Every live table, whoever drew it: `MAX_LIVE_TABLES` is a budget for the app, and
+ * a page fetched from the canvas arrives knowing only a block id. Holding the owner
+ * beside each table is what keeps a finished run's `Kaja` alive exactly as long as
+ * something can still call into it.
  */
 export class LiveTables {
   #entries = new Map<string, { table: LiveTable; owner: Kaja }>();
@@ -459,8 +384,7 @@ export class LiveTables {
 
 export class Kaja {
   readonly _internal: KajaInternal;
-  // The query a `kaja://run/<script>?...` link carried, readable as
-  // `kaja.input.<name>`. Empty when the script is run any other way.
+  // Empty when the script is run any other way.
   readonly input: { [key: string]: string };
   #host: KajaHost;
   #onAsk: AskRequest;
@@ -476,11 +400,7 @@ export class Kaja {
     this.#onBlockUpdate = context.onBlockUpdate;
   }
 
-  /**
-   * The workspace's variables, readable as `kaja.variables.<name>`. They belong
-   * to the app rather than to the run, so this reads through to the host and
-   * every run in flight sees the same values.
-   */
+  // Read through to the host, so every run in flight sees the same values.
   get variables(): { [key: string]: string } {
     return this.#host.variables;
   }
@@ -489,39 +409,25 @@ export class Kaja {
     this.#host.variables = variables;
   }
 
-  /**
-   * Ask the user for text. The question is drawn on the run's canvas where it
-   * happened, and the canvas stops there until it is answered — the empty space
-   * under it is the pause. A cancel aborts the script.
-   */
   askStr(question: string): Promise<string> {
     return this.#ask({ kind: "ask", question, answerType: "str" }, (answer) => answer);
   }
 
-  /**
-   * Ask the user for a whole number. The field will not submit anything else,
-   * so this always resolves with a number — the answer has been checked against
-   * parseInteger on the way in, and this is a re-read rather than a second parse
-   * with its own opinion.
-   */
+  // Always resolves with a number: the answer was checked against parseInteger on the
+  // way in, so this is a re-read rather than a second parse with its own opinion.
   askInt(question: string): Promise<number> {
     return this.#ask({ kind: "ask", question, answerType: "int" }, (answer) => parseInteger(answer) ?? Number.NaN);
   }
 
-  /**
-   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
-   * { label, value } pairs resolve as the value.
-   */
   askSelect(question: string, options: readonly string[]): Promise<string>;
   askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
   askSelect(question: string, options: readonly (string | Choice<any>)[]): Promise<any> {
     if (options.length === 0) throw new Error("kaja.askSelect: options must not be empty");
     const choices = options.map((option) => (typeof option === "string" ? option : formatCell(option.label)));
     return this.#ask({ kind: "ask", question, answerType: "select", choices }, (answer) => {
-      // The answer comes back as the label, because that is what was on the
-      // canvas and what a stored run reads back without its script. Two options
-      // under one label are one option to whoever picked it, so the first is the
-      // honest reading rather than an error nobody can act on.
+      // The answer comes back as the label — what was on the canvas, and what a stored run
+      // reads back without its script. Two options under one label are one option to
+      // whoever picked it, so the first is the honest reading.
       const picked = options[choices.indexOf(answer)] ?? options[0];
       return typeof picked === "string" ? picked : picked.value;
     });
@@ -541,19 +447,9 @@ export class Kaja {
   }
 
   /**
-   * Hold a call until it is approved. The call and the request it is about to
-   * send are drawn on the run's canvas and the run stops there; approving sends
-   * it and hands back the response, and not approving stops the script.
-   *
-   *   const show = await kaja.approve(Shows.CreateShow({ title: "Vera Lune" }));
-   *
-   * The call goes inside the parentheses — that is what makes it a call that
-   * hasn't happened yet rather than one to be sorry about.
-   *
-   * The canvas also offers **Approve all**, which settles this call and every
-   * later one to the same method in this run. The script never asks for that and
-   * never learns of it: which calls are worth reading one by one is a decision
-   * made in front of them, not written into the loop.
+   * Hold a call until it is approved. The canvas also offers Approve all, which settles
+   * every later call to the same method in this run; the script never asks for that and
+   * never learns of it.
    */
   async approve<T>(call: Call<T>): Promise<T> {
     if (call.started) {
@@ -563,10 +459,8 @@ export class Kaja {
     // while the question was still on screen and send the call itself.
     call.claim();
 
-    // A standing approval was given for this method earlier in the run, so this
-    // call goes out without asking — and draws nothing, since a canvas of
-    // decisions nobody made is what "let it run" was pressed to be rid of. The
-    // call is still a card on the canvas and a row in the log, as every call is.
+    // A standing approval, so this goes out without asking — and draws nothing, since a
+    // canvas of decisions nobody made is what it was pressed to be rid of.
     if (this._internal.approvedMethods.has(call.label)) return call.start();
 
     const blockId = newBlockId();
@@ -588,68 +482,16 @@ export class Kaja {
     return call.start();
   }
 
-  /**
-   * Write a line onto the run's canvas.
-   *
-   *   kaja.text(`Reconciling ${accounts.length} accounts`);
-   */
   text(text: string): void {
     const block: TextBlock = { kind: "text", text };
     this.#onBlockUpdate(newBlockId(), block);
   }
 
-  /**
-   * Put a snippet of code on the canvas — a query a script built, a payload it
-   * is about to send.
-   */
   code(code: string, language?: string): void {
     const block: CodeBlock = { kind: "code", code, language };
     this.#onBlockUpdate(newBlockId(), block);
   }
 
-  /**
-   * Start a table on the canvas and hand back a handle to fill it. Rows appear
-   * as they are added, so a loop paints rather than reporting at the end.
-   *
-   *   const table = kaja.table(["id", "name", "status"]);
-   *   for (const account of accounts) table.row(account.id, account.name, "matched");
-   *
-   * A row hands back a handle, so a table can keep saying what is true as the
-   * script runs: write the row when the work starts and update it when it ends.
-   *
-   *   const row = table.row(account.id, account.name, "checking…");
-   *   const result = await check(account);
-   *   row.update(account.id, account.name, result.status);
-   *
-   * A cell can be a value the script is still getting rather than one it has —
-   * a promise it already started, or a function the table calls when the row is
-   * drawn. The row appears with everything it has and that cell fills in after.
-   *
-   *   table.row(show.id, show.title, () => Ratings.GetRating({ id: show.id }));
-   *
-   * The rows can also be given: an array is drawn as it is, and a source is
-   * pulled a page at a time as the table is paged through.
-   *
-   *   kaja.table(["id", "title"], async function* (search) {
-   *     for (let pageToken = ""; ; ) {
-   *       const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
-   *       yield* page.shows.map((show) => [show.id, show.title]);
-   *       if (!(pageToken = page.nextPageToken)) return;
-   *     }
-   *   });
-   *
-   * An API that reports how many rows there are in total is the only thing that
-   * knows; say it through the handle as the pages arrive, and the table states it
-   * instead of counting what it has.
-   *
-   *   const shows = kaja.table(["id", "title"], async function* () {
-   *     for (let page = 1; ; page++) {
-   *       const result = await Shows.ListShows({ page });
-   *       shows.total(result.totalCount);
-   *       yield* result.shows.map((show) => [show.id, show.title]);
-   *     }
-   *   });
-   */
   table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
     const blockId = newBlockId();
     const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
@@ -672,11 +514,8 @@ export class Kaja {
       if (typeof rows !== "function" && !isAsyncIterable(rows) && !isIterable(rows)) {
         throw new Error("kaja.table: rows must be an array, an iterable of rows, or a function returning one");
       }
-      // A function can be started again, which is what a search that reaches the
-      // server needs; an iterable that is already running cannot, so its search
-      // stays local. Declaring the parameter is what asks for the text — a
-      // source that ignores it would otherwise be restarted on every keystroke
-      // to fetch the same page back.
+      // Declaring the parameter is what asks for the search text: a source that ignores it
+      // would otherwise be restarted on every keystroke to fetch the same page back.
       const restartable = typeof rows === "function";
       table.restartable = restartable;
       table.open = restartable ? rows : () => rows;
@@ -688,19 +527,13 @@ export class Kaja {
     }
 
     this.#onBlockUpdate(blockId, { ...block });
-    // A live table draws its first page itself rather than waiting to be looked
-    // at: the run is what fetched it, so its calls belong in the run's log — and
-    // a run nobody is watching (an agent's) still reports a page of rows.
-    //
-    // A microtask later, though, so `const shows = kaja.table(…)` is assigned
-    // before any source body runs. A source reports its total through that
-    // handle, from inside its own loop, and pulling here and now would run the
-    // loop while the name it reaches for is still in its dead zone.
+    // A microtask later, so `const shows = kaja.table(…)` is assigned before any source
+    // body runs — a source reports its total through that handle, and pulling here and
+    // now would run the loop while the name is still in its dead zone.
     if (live) table.first = Promise.resolve().then(() => void this.pullTable(blockId, "", pageSizeOf(block)));
 
-    // A new array each time, at both levels: the canvas compares what it was
-    // handed against what it holds, and a row pushed or spliced into the same
-    // array is invisible to it.
+    // A new array each time, at both levels: the canvas compares what it was handed
+    // against what it holds, and a push or splice into the same array is invisible.
     const write = (index: number, cells: unknown[]) => {
       const row = this.#declareRow(blockId, table, index, cells);
       block.rows = block.rows.map((current, at) => (at === index ? row : current));
@@ -714,34 +547,28 @@ export class Kaja {
         this.#onBlockUpdate(blockId, { ...block });
         return {
           update: (...cells: unknown[]) => {
-            // The row a handle points at can be gone: a source that takes the
-            // search is restarted from the top, and the rows it had answered a
-            // question nobody is asking any more. There is nothing to rewrite,
-            // so nothing happens — a handle going quiet is better than a script
-            // ending on someone else's search.
+            // The row a handle points at can be gone — a restarted source dropped the rows it
+            // had — so nothing happens rather than the script ending on someone else's search.
             if (index < block.rows.length) write(index, cells);
           },
         };
       },
       column: (name: string) => {
-        // Widening the table widens the rows it has already drawn, so the header
-        // and the rows can never disagree about how many columns there are.
+        // Widening the table widens the rows already drawn, so header and rows can never
+        // disagree about how many columns there are.
         block.columns = [...block.columns, formatCell(name)];
         block.rows = block.rows.map((row) => padCells(row, block.columns.length));
         this.#onBlockUpdate(blockId, { ...block });
       },
       total: (count: number | undefined) => {
-        // A total is a claim about the whole set, so anything that isn't a count
-        // says nothing rather than something wrong — an API that stops reporting
-        // one leaves the table where a cursor-based source always is.
+        // A total is a claim about the whole set, so anything that isn't a count says
+        // nothing rather than something wrong.
         block.total = typeof count === "number" && Number.isFinite(count) && count >= 0 ? Math.floor(count) : undefined;
         this.#onBlockUpdate(blockId, { ...block });
       },
     };
   }
 
-  // Every run's tables, so the budget is the app's and a page can find its way
-  // back to the run that drew it.
   get #tables(): LiveTables {
     return this.#host.tables;
   }
@@ -750,27 +577,18 @@ export class Kaja {
     this.#tables.open(blockId, table, this);
   }
 
-  /**
-   * Write a row's cells and take note of the ones that are not values. A
-   * **promise** is work the script already started, so the table only waits for
-   * it; a **function** is work nobody has asked for yet, so the table asks —
-   * when the row is drawn, and again if a failed one is retried. The row's
-   * revision is stamped here, and it is what an answer arriving late is checked
-   * against.
-   */
+  // The row's revision is stamped here, and it is what an answer arriving late is
+  // checked against.
   #declareRow(blockId: string, table: LiveTable, index: number, cells: unknown[]): string[] {
     const block = table.block;
     const revision = (table.rowRevision[index] = ++table.revision);
-    // Whatever was on its way answered the row as it was, which is not the row
-    // this is writing.
+    // Whatever was on its way answered the row as it was, not the row being written.
     table.cells.delete(index);
     block.cells = withoutRowStatus(block, index);
 
     const text = cells.map((cell, column) => {
-      // Thrown or returned, an Error is a cell that stopped — a script that
-      // hands its failures back rather than throwing them is saying the same
-      // thing in the other voice. There is nothing to call again: the script had
-      // the failure, not a way to repeat it.
+      // Thrown or returned, an Error is a cell that stopped: the script had the failure,
+      // not a way to repeat it, so there is nothing to call again.
       if (cell instanceof Error) {
         block.cells = withCellStatus(block, index, column, { error: cell.message });
         return "";
@@ -782,9 +600,6 @@ export class Kaja {
     return padCells(text, block.columns.length);
   }
 
-  // A cell that is not here yet: blank text, a status saying so, and the closure
-  // beside the block. A table with one is held for the same reason a live one
-  // is — what is kept is the closures.
   #awaitCell(blockId: string, table: LiveTable, row: number, column: number, revision: number, open?: () => unknown, started?: PromiseLike<unknown>): string {
     const cell: LiveCell = { revision, open };
     const byColumn = table.cells.get(row) ?? new Map<number, LiveCell>();
@@ -799,18 +614,16 @@ export class Kaja {
         this.#fillCell(blockId, table, cell, row, column, () => started, false),
       );
     } else if (row < pageSizeOf(table.block)) {
-      // The first page is asked for with the table, on the same rule that makes
-      // a live table pull its own: a run nobody is watching still fills one.
+      // The first page is asked for with the table: a run nobody is watching still fills one.
       this.#startCell(blockId, table, row, column);
     }
     return "";
   }
 
   /**
-   * Start a cell nobody has called yet, or hand back the run it is already in.
-   * Having work to do is what says it hasn't started — `open` is taken when a
-   * cell starts and put back only when a retryable one fails, so a cell that
-   * finished has neither work nor a way to be started twice.
+   * Start a cell nobody has called yet, or hand back the run it is already in. Having
+   * work to do is what says it hasn't started — `open` is taken when a cell starts and
+   * put back only when a retryable one fails.
    */
   #startCell(blockId: string, table: LiveTable, row: number, column: number): Promise<void> | undefined {
     const cell = table.cells.get(row)?.get(column);
@@ -820,8 +633,8 @@ export class Kaja {
     cell.open = undefined;
 
     if (cellStatus(table.block, row, column)?.error !== undefined) {
-      // Asking again is what clears the last failure: the cell goes back to
-      // waiting rather than reading as stopped while it is being fetched.
+      // Asking again clears the last failure: the cell goes back to waiting rather than
+      // reading as stopped while it is being fetched.
       table.block.cells = withCellStatus(table.block, row, column, {});
       this.#onBlockUpdate(blockId, { ...table.block });
     }
@@ -829,18 +642,12 @@ export class Kaja {
     return cell.running;
   }
 
-  /**
-   * Run a cell's work and write what comes back. A cell that fails writes the
-   * failure rather than throwing it: the loop that drew the row is long over,
-   * and the one place the failure belongs is the cell it happened in.
-   *
-   * `gated` is both halves of what a function is and a promise isn't — it waits
-   * for a slot before starting, and it can be started again.
-   */
+  // A cell that fails writes the failure rather than throwing it: the loop that drew
+  // the row is long over. `gated` is both halves of what a function is and a promise
+  // isn't — it waits for a slot, and it can be started again.
   async #fillCell(blockId: string, table: LiveTable, cell: LiveCell, row: number, column: number, work: () => unknown, gated: boolean): Promise<void> {
-    // A rolling handful rather than a page all at once. The wait is here, past
-    // the point where the cell counts as started, so a second draw of the same
-    // page doesn't queue it twice.
+    // The wait is past the point where the cell counts as started, so a second draw of
+    // the same page doesn't queue it twice.
     while (gated && table.inFlight.size >= MAX_CELLS_IN_FLIGHT) await Promise.race([...table.inFlight]);
 
     const filling = (async () => {
@@ -849,8 +656,8 @@ export class Kaja {
         if (value instanceof Error) throw value;
         this.#writeCell(blockId, table, cell, row, column, formatCell(value), undefined);
       } catch (error) {
-        // Put the work back where a retry finds it. A function can be called
-        // again; a promise is finished, whatever it settled as.
+        // Put the work back where a retry finds it. A function can be called again; a
+        // promise is finished, whatever it settled as.
         if (gated) cell.open = work;
         this.#writeCell(blockId, table, cell, row, column, undefined, { error: cellFailure(error), retry: gated || undefined });
       }
@@ -865,9 +672,7 @@ export class Kaja {
 
   #writeCell(blockId: string, table: LiveTable, cell: LiveCell, row: number, column: number, text: string | undefined, status: CellStatus | undefined): void {
     const block = table.block;
-    // The row this answers can be gone or rewritten — a source that takes the
-    // search is restarted from the top, and a row updated asked a different
-    // question. Either way there is nothing here for the answer to land in.
+    // The row this answers can be gone or rewritten, so there is nothing to land in.
     if (table.rowRevision[row] !== cell.revision) return;
     if (text !== undefined) {
       block.rows = block.rows.map((current, at) => (at === row ? current.map((value, index) => (index === column ? text : value)) : current));
@@ -876,7 +681,6 @@ export class Kaja {
     this.#onBlockUpdate(blockId, { ...block });
   }
 
-  // Everything outstanding, so the run can wait for it.
   #hold(table: LiveTable, promise: Promise<void>): Promise<void> {
     table.running.add(promise);
     void promise.finally(() => table.running.delete(promise));
@@ -884,13 +688,9 @@ export class Kaja {
   }
 
   /**
-   * Start the cells a page is drawing. Asking is what is idempotent, not the
-   * work: the canvas asks for every cell it can see on every frame, and a cell
-   * that has started, finished or stopped is not started again. A failed one is
-   * the exception it has to be — it is asked for only when someone asks.
-   *
-   * Resolves false when the table is gone, and the caller marks it expired on
-   * the same rule a pull that finds no source does.
+   * Start the cells a page is drawing. Asking is idempotent, not the work: the canvas
+   * asks for every visible cell on every frame. A failed one is the exception — it is
+   * asked for only when someone asks. Resolves false when the table is gone.
    */
   async pullCells(blockId: string, cells: CellRef[]): Promise<boolean> {
     const table = this.#tables.get(blockId);
@@ -905,10 +705,8 @@ export class Kaja {
   }
 
   /**
-   * Fill a live table up to `want` rows, restarting its source first if it takes
-   * the search text and the text has changed. Rows are emitted as they arrive,
-   * so a page paints while it fills. Resolves false when the source is gone —
-   * the caller marks the table expired, since it holds the block by then.
+   * Fill a live table up to `want` rows, restarting its source first if it takes the
+   * search text and the text has changed. Resolves false when the source is gone.
    */
   async pullTable(blockId: string, search: string, want: number): Promise<boolean> {
     const table = this.#tables.get(blockId);
@@ -916,9 +714,7 @@ export class Kaja {
 
     const searched = table.block.serverSearch === true && table.search !== search;
     if (searched || table.restart) {
-      // A new search is a new result set, and a retry is the same source from
-      // the top: either way the rows that are here answer a question nobody is
-      // asking any more.
+      // A new search is a new result set, and a retry is the same source from the top.
       table.search = search;
       table.restart = false;
       table.iterator = undefined;
@@ -926,18 +722,14 @@ export class Kaja {
       table.block.rows = [];
       table.block.exhausted = false;
       table.block.loadedSearch = search;
-      // The cells that were coming belonged to those rows. A revision is never
-      // reused, so the ones still in flight write nothing when they land.
+      // A revision is never reused, so cells still in flight write nothing when they land.
       table.cells.clear();
       table.rowRevision = [];
       table.block.cells = undefined;
-      // A total counts a result set, and this is a different one. The source
-      // reports the new one as it answers; until it does, the table says how many
-      // it has and that there are more, which is what it in fact knows.
+      // A total counts a result set, and this is a different one.
       table.block.total = undefined;
     } else if (table.pulling) {
-      // Single flight: a pull already under way is filling the same table, and a
-      // second one would interleave its rows with the first's.
+      // Single flight: a second pull would interleave its rows with the first's.
       await table.pulling;
       return true;
     }
@@ -947,8 +739,8 @@ export class Kaja {
     try {
       await pulling;
     } finally {
-      // A restart supersedes this pull and puts its own promise here; clearing
-      // it unconditionally would report the new one as finished.
+      // A restart supersedes this pull and puts its own promise here; clearing it
+      // unconditionally would report the new one as finished.
       if (table.pulling === pulling) table.pulling = undefined;
     }
     return true;
@@ -964,8 +756,7 @@ export class Kaja {
       if (!table.iterator) table.iterator = openIterator(table.open!(table.search));
       while (block.rows.length < want) {
         const next = await table.iterator.next();
-        // A restart happened while this was awaiting; its rows answer a search
-        // nobody is looking at any more.
+        // A restart happened while this was awaiting.
         if (table.generation !== generation) return;
         if (next.done) {
           block.exhausted = true;
@@ -976,8 +767,8 @@ export class Kaja {
       }
     } catch (error) {
       if (table.generation !== generation) return;
-      // The call that failed is already a row in the run's log; this is what the
-      // table says about why it stopped, and what Retry clears.
+      // The call that failed is already a row in the run's log; this is what the table
+      // says about why it stopped, and what Retry clears.
       block.error = error instanceof Error ? error.message : String(error);
       table.restart = table.restartable;
     } finally {
@@ -989,29 +780,27 @@ export class Kaja {
   }
 
   /**
-   * Resolves once no table is still filling. A script that draws a live table
-   * and ends is not over until its first page has landed — those calls are the
-   * run's, and the run's duration is what they cost. A cell the script handed
-   * over is the same bargain one column narrower.
+   * Resolves once no table is still filling. A live table's first page is work the
+   * script started, so the run's duration covers it.
    */
   async settleTables(): Promise<void> {
     for (let pass = 0; pass < 8; pass++) {
-      // This run's tables only. Another run's first page is its own to wait for,
-      // and waiting on it here would make one script's duration cover another's.
+      // This run's tables only: waiting on another run's first page here would make one
+      // script's duration cover another's.
       const mine = this.#tables.ownedBy(this);
       const pulling = mine
         .flatMap((table) => [table.first, table.pulling, ...table.running])
         .filter((promise): promise is Promise<void> => promise !== undefined);
       if (pulling.length === 0) return;
       await Promise.all(pulling);
-      // The first pull is over once it has been awaited; leaving it here would
-      // make every later pass find work that is already done.
+      // The first pull is over once awaited; leaving it would make every later pass find
+      // work that is already done.
       for (const table of mine) table.first = undefined;
     }
   }
 
-  // Builders for google.protobuf.Value, Struct and ListValue, so a field of one
-  // of those types is written as the JSON it stands for.
+  // Builders for google.protobuf.Value, Struct and ListValue, so a field of one of
+  // those types is written as the JSON it stands for.
   value(input: JsonValue): Value {
     return toValue(input);
   }
@@ -1075,8 +864,7 @@ export interface MethodCallUpdate {
   (methodCall: MethodCall): void;
 }
 
-// A call is in flight until it fails, produces a response, or its stream ends. A
-// stream sets `output` on every message, so it can't be judged by that alone.
+// A stream sets `output` on every message, so a call can't be judged by that alone.
 export function isCallInFlight(methodCall: MethodCall): boolean {
   if (methodCall.error !== undefined) return false;
   if (methodCall.streamOutputs !== undefined) return !methodCall.streamComplete;
@@ -1084,36 +872,17 @@ export function isCallInFlight(methodCall: MethodCall): boolean {
 }
 
 class KajaInternal {
-  // Signal of the run currently in flight, so the calls a script makes can be
-  // aborted from the editor's Stop button. Undefined when nothing is running.
   abortSignal?: AbortSignal;
   /**
-   * Methods that were approved for the rest of the run, by their "Service.Method"
-   * label — the same identity the block names and the button offers, so what was
-   * pressed and what it covers are one thing.
-   *
-   * The scope is the method rather than the run because that is what the button
-   * can honestly say: a script that loops over one call is the case this exists
-   * for, and one that also writes somewhere else asks again for that. And the
-   * lifetime is the run because anything longer is a policy — this set belongs
-   * to one run's `Kaja` and goes when it does, so the guard is back the next
-   * time Run is pressed and a second script running at the same time can never
-   * be let through on an approval it was not given.
+   * Methods approved for the rest of the run, by their "Service.Method" label. The set
+   * belongs to one run's `Kaja` and goes when it does, so the guard is back the next
+   * time Run is pressed and a concurrent script can't be let through on it.
    */
   readonly approvedMethods = new Set<string>();
-  /**
-   * How many calls to each method this run has already read values out of.
-   * Remembering walks a request and a response with their schemas, and it feeds
-   * a completion list that keeps five values per field — so a loop calling one
-   * method a thousand times is nine hundred and ninety-five walks for a list
-   * that was full after the first few. Per run, like the approvals.
-   */
+  // Remembering walks a request and a response with their schemas to feed a completion
+  // list that keeps five values per field, so a loop calling one method a thousand
+  // times is mostly wasted walks.
   readonly sampledMethods = new Map<string, number>();
-  /**
-   * Where a line the script printed goes — this run's console, since the `Kaja`
-   * it hangs off is this run's. Both doors, the editor's Run and the MCP
-   * server's, build one of these per run and hand it the sink.
-   */
   readonly onLog: LogSink;
   #onMethodCallUpdate: MethodCallUpdate;
 

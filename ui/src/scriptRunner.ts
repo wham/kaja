@@ -6,9 +6,8 @@ import { scriptConsole } from "./scriptConsole";
 import { deviceConsole } from "./uiLog";
 
 // Scripts are TypeScript but new Function only accepts JavaScript, so transpile
-// first. Parse errors are thrown with line numbers pointing into the user's
-// source. moduleDetection: Force keeps top-level await parseable even in a
-// script with no imports.
+// first. Parse errors are thrown with line numbers pointing into the user's source.
+// moduleDetection: Force keeps top-level await parseable even with no imports.
 function transpile(code: string): string {
   const output = ts.transpileModule(code, {
     compilerOptions: {
@@ -34,24 +33,24 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
   return message;
 }
 
-// prepareTask resolves a script's imports against the loaded apps and splits
-// out the runnable body, returning the args every binding maps to plus the code.
+// prepareTask resolves a script's imports against the loaded apps and splits out the
+// runnable body, returning the args every binding maps to plus the code.
 function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
   const file = ts.createSourceFile("task.js", transpile(code), ts.ScriptTarget.Latest);
   const args: { [key: string]: Client | Object } = {};
   const runStatements: ts.Statement[] = [];
 
   file.statements.forEach((statement) => {
-    // moduleDetection: Force can make the transpiler emit a bare `export {};`,
-    // which new Function would reject.
+    // moduleDetection: Force can make the transpiler emit a bare `export {};`, which new
+    // Function would reject.
     if (ts.isExportDeclaration(statement)) {
       return;
     }
     if (ts.isImportDeclaration(statement)) {
-      // slice(1, -1) - remove quotes
+      // slice(1, -1) removes the quotes.
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
-      // Monaco backs the kaja module with a model at ts:/kaja.ts, so its
-      // auto-import and go-to-definition can emit the relative "./kaja" form.
+      // Monaco backs the kaja module with a model at ts:/kaja.ts, so its auto-import and
+      // go-to-definition can emit the relative "./kaja" form.
       if (path === "kaja" || path === "./kaja") {
         const importClause = statement.importClause;
         if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
@@ -67,8 +66,8 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
       }
       const app = apps.find((app) => path.startsWith(app.configuration.name + "/"));
       if (!app) {
-        // A silent drop here surfaces later as an opaque "X is not defined" when
-        // the body uses the binding; name the unresolved app instead.
+        // A silent drop here surfaces later as an opaque "X is not defined" when the body
+        // uses the binding; name the unresolved app instead.
         throw new Error(`Cannot resolve import "${path}": app "${path.split("/")[0]}" was not found (it may have been deleted).`);
       }
       const source = app.sources.find((source) => source.importPath === path);
@@ -81,13 +80,13 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
         importClause.namedBindings.elements.forEach((importSpecifier) => {
           const alias = importSpecifier.name.text;
           const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
-          // Find service by name and source path to handle duplicate service names
+          // Matched on source path too, to handle duplicate service names.
           const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
           if (service) {
             const client = app.clients[serviceId(service)];
-            // Bound to this run's Kaja, not assigned onto the shared client:
-            // two scripts running at once import the same client and must not
-            // be able to take each other's run out from under it.
+            // Bound to this run's Kaja, not assigned onto the shared client: two scripts running
+            // at once import the same client and must not be able to take each other's run out
+            // from under it.
             if (client) args[alias] = client.methodsFor(kaja);
           } else if (source.enums[name]) {
             args[alias] = source.enums[name].object;
@@ -102,25 +101,22 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
   return { args, runCode: printStatements(runStatements) };
 }
 
-// runScript runs a script and resolves once it settles, so the caller can show it
-// as running. Passing a signal lets the caller abort the calls it makes.
+// runScript resolves once the script settles, so the caller can show it as running.
+// A signal lets the caller abort the calls it makes.
 export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void, signal?: AbortSignal): Promise<void> {
-  // A standing approval covers the run it was given in and nothing further, and
-  // that is now the shape of the thing rather than a rule to remember: the Kaja
-  // is this run's, so its approvals and its signal are born and die with it.
-  // Clearing them here used to be the only guard, and it was the wrong one — it
-  // revoked whatever another run in flight had been granted.
+  // The Kaja is this run's, so its approvals and its signal are born and die with it.
+  // Clearing them here used to be the only guard, and it revoked whatever another run in
+  // flight had been granted.
   kaja._internal.abortSignal = signal;
 
   let result: any;
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
 
-    // Wrap the user's code in an async function so async keyword can be used.
-    // `console` is a parameter of that wrapper, which is the whole of how a
-    // script's log lines are told from Kaja's own: inside the body the name
-    // resolves to the run's console, and everywhere else in the app to the real
-    // one — including in app code this script calls into.
+    // Wrapped in an async function so `await` can be used at the top level. `console` is
+    // a parameter of that wrapper, which is the whole of how a script's log lines are told
+    // from Kaja's own: inside the body the name resolves to the run's console, and
+    // everywhere else to the real one — including in app code this script calls into.
     const func = new Function(
       ...Object.keys(args),
       "console",
@@ -139,8 +135,8 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
   return Promise.resolve(result).then(
     () => {},
     (err: unknown) => {
-      // A cancelled prompt, a call that wasn't approved, or an aborted run
-      // simply stops the script; surface everything else.
+      // A cancelled prompt, a call that wasn't approved, or an aborted run simply stops the
+      // script; surface everything else.
       if (err instanceof AskCancelledError || err instanceof ApprovalRejectedError || signal?.aborted) return;
       onError(err);
     },
@@ -153,15 +149,13 @@ export interface CapturedRun {
   error?: string;
 }
 
-// runScriptCaptured runs a script and collects its console output, return value,
-// and any error instead of letting them escape. Used by the MCP server so an
-// agent can see what a script did.
+// runScriptCaptured collects a script's console output, return value and any error
+// instead of letting them escape. Used by the MCP server.
 export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
   const lines: string[] = [];
-  // The same console the editor's Run installs, teed into the report. An agent's
-  // snippet runs in the agent's draft, so its lines belong in that draft's
-  // console as well as in the answer: a run nobody is watching is still a run
-  // somebody can go and look at.
+  // The same console the editor's Run installs, teed into the report: an agent's
+  // snippet runs in the agent's draft, so its lines belong in that draft's console as
+  // well as in the answer.
   const captureConsole = scriptConsole((level, message) => {
     lines.push(message);
     kaja._internal.onLog(level, message);

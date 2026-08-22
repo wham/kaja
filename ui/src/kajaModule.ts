@@ -1,18 +1,13 @@
 // The declaration of the `kaja` module — what a script gets from
 // `import { kaja } from "kaja"`.
 //
-// It is written once and read twice: Monaco backs the import with it (see
-// registerKajaModule in Editor.tsx) and the MCP catalog carries it to an agent
-// (see mcpCatalog.ts), on the same rule the service declarations follow — the
-// answer is the TypeScript a script is checked against, because a second model
-// of it can disagree with the code, and did. The canvas verbs existed here for
-// the editor and were described from memory in the MCP guide, which is exactly
-// how an agent came to write a Markdown table by hand.
+// Written once and read twice: Monaco backs the import with it (registerKajaModule
+// in Editor.tsx) and the MCP catalog carries it to an agent (mcpCatalog.ts). The
+// answer is the TypeScript a script is checked against, because a second model of
+// it can disagree with the code, and did.
 
-// Build the `variables` member type from the configured names so the editor
-// suggests them and flags typos. With names it is an exact object; with none it
-// falls back to an index signature so `kaja.variables.foo` isn't flagged before
-// any variable exists.
+// With names this is an exact object; with none it falls back to an index signature
+// so `kaja.variables.foo` isn't flagged before any variable exists.
 function kajaVariablesType(variableNames: string[]): string {
   if (variableNames.length === 0) {
     return "{ [key: string]: string }";
@@ -21,9 +16,8 @@ function kajaVariablesType(variableNames: string[]): string {
   return `{\n${members}\n  }`;
 }
 
-// The header states what the type system can't: that a script is a body of
-// statements rather than a function, so it has no return value, and that what it
-// produces it produces by drawing it.
+// The header states what the type system can't: a script is a body of statements
+// rather than a function, so it has no return value.
 const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
 //
 // A script is a body of statements, not a function: top-level \`await\` works and

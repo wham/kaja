@@ -10,13 +10,10 @@ import { FileName } from "./FileName";
 import { LINK_SCHEME, scriptLinkParts } from "./scriptLink";
 
 /**
- * The three doors that need values for a script.
- *
- * `copy` builds a deeplink, `arrived` confirms one that came in, `run` is the
- * Run button asking first. They are one sheet because they are one middle: the
- * same `Parameters` grid, whose keys are read from the script and whose values
- * are always real fields. Only the header, the one line of guidance and the
- * footer verb change.
+ * The three doors that need values for a script: `copy` builds a deeplink, `arrived`
+ * confirms one that came in, `run` is the Run button asking first. One sheet because
+ * they are one middle — the same `Parameters` grid, whose keys are read from the
+ * script and whose values are always real fields.
  */
 export type ParameterDoor = "copy" | "arrived" | "run";
 
@@ -25,9 +22,9 @@ export interface ParameterSheetProps {
   /** What the sheet is about, named the way every other surface names it. */
   fileName: string;
   /**
-   * The script's name within the scripts folder — what the deeplink's path
-   * holds, without the extension. Absent on the `run` door, which builds no
-   * link, and on a draft, which has no address.
+   * The script's name within the scripts folder — what the deeplink's path holds,
+   * without the extension. Absent on the `run` door, which builds no link, and on a
+   * draft, which has no address.
    */
   address?: string;
   /** The parameters, in the order the script reads them. */
@@ -36,7 +33,7 @@ export interface ParameterSheetProps {
   values?: { [key: string]: string };
   /** What this file was last run with, offered rather than applied. */
   lastRun?: { [key: string]: string };
-  /** Run with what the fields hold. Absent on `copy`, whose exit is the clipboard. */
+  /** Absent on `copy`, whose exit is the clipboard. */
   onRun?: (input: { [key: string]: string }) => void;
   onClose: () => void;
 }
@@ -44,28 +41,26 @@ export interface ParameterSheetProps {
 /**
  * A script's parameters, before it runs or before its address leaves.
  *
- * Values are fields in every door, never static text: a field clips at its own
- * edge, scrolls on focus, and stays correctable right up to the run. Rendering
- * an incoming value as mono text is what used to push a pasted URL through the
- * side of the dialog.
+ * Values are fields in every door, never static text: a field clips at its own edge,
+ * scrolls on focus, and stays correctable right up to the run. Rendering an incoming
+ * value as mono text is what used to push a pasted URL through the side of the dialog.
  */
 export function ParameterSheet({ door, fileName, address, parameters, values, lastRun, onRun, onClose }: ParameterSheetProps) {
   const [entered, setEntered] = useState<{ [key: string]: string }>(() => values ?? {});
   const [copied, setCopied] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
-  // Every parameter rides along, blank or not: the trailing `=` is where a
-  // launcher's own token goes, so it has to be in what gets copied.
+  // Every parameter rides along, blank or not: the trailing `=` is where a launcher's
+  // own token goes, so it has to be in what gets copied.
   const input = useMemo(() => Object.fromEntries(parameters.map((key) => [key, entered[key] ?? ""])), [parameters, entered]);
   const parts = useMemo(() => (address === undefined ? [] : scriptLinkParts(address, input)), [address, input]);
   const link = parts.map((part) => part.text).join("");
-  // The desktop's own scheme, versus this page's address with the script in
-  // its fragment. The link is the same sentence either way; who can open one
-  // is not, so the closing line differs and nothing else does.
+  // The desktop's own scheme, versus this page's address with the script in its
+  // fragment. The link is the same sentence either way; who can open one is not.
   const schemeLink = link.startsWith(`${LINK_SCHEME}:`);
 
-  // An illustration rather than the link again: the URL is already on screen
-  // whole, and this line is about the shell, not about this script's values.
+  // An illustration rather than the link again: the URL is already on screen whole, and
+  // this line is about the shell, not about this script's values.
   const shellExample = useMemo(() => {
     const bare = parts
       .filter((part) => part.kind === "base" || part.kind === "script")
@@ -95,9 +90,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
     onRun?.(input);
   }, [door, link, input, onRun, onClose]);
 
-  // ⏎ is the whole gesture: a deeplink that arrived from a hotkey is one press
-  // from a run, and a sheet of text fields submits on Enter like any form. A
-  // button's own Enter is its click, so it is left to it.
+  // ⏎ is the whole gesture: a deeplink that arrived from a hotkey is one press from a
+  // run. A button's own Enter is its click, so it is left to it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter" || event.defaultPrevented) return;
@@ -109,8 +103,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [submit]);
 
-  // Offered only where it says something the fields don't: values from a run
-  // this file actually made, that aren't already what is typed.
+  // Offered only where it says something the fields don't: values from a run this file
+  // actually made, that aren't already what is typed.
   const offerLastRun =
     door === "run" && lastRun !== undefined && parameters.some((key) => (lastRun[key] ?? "") !== "" && (lastRun[key] ?? "") !== (entered[key] ?? ""));
 
@@ -127,9 +121,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
     >
       <div className={cn("flex flex-col py-3", parameters.length > 0 ? "gap-4" : "gap-3")}>
         {door === "copy" && (
-          // The URL is the headline rather than a caption: shown whole, at body
-          // size, it teaches where Kaja is, the script's address and the query
-          // syntax at once, and nothing on screen has to explain any of them.
+          // The URL is the headline rather than a caption: shown whole, at body size, it
+          // teaches where Kaja is, the script's address and the query syntax at once.
           <div className="relative rounded-md border border-border bg-muted/40 p-3 pr-10">
             <p className="m-0 break-all font-mono text-sm leading-[1.55] text-foreground">
               {parts.map((part, index) => (
@@ -145,9 +138,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
         )}
 
         {door === "arrived" && (
-          // What arrived, stated rather than offered: it wraps rather than
-          // clipping, so nothing in it is unreadable — the fields below are
-          // where it is corrected.
+          // What arrived, stated rather than offered: it wraps rather than clipping, so nothing
+          // in it is unreadable — the fields below are where it is corrected.
           <div className="rounded-md border border-border bg-muted/40 p-3">
             <p className="m-0 break-all font-mono text-xs leading-[1.55] text-muted-foreground">{link}</p>
           </div>
@@ -213,8 +205,7 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
               </p>
             </div>
           ) : (
-            // A script that takes nothing still gets the sheet: the URL is the
-            // whole point of it, and this is the shortest version of the lesson.
+            // A script that takes nothing still gets the sheet: the URL is the whole point of it.
             <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
               This script takes no parameters. Anything that opens a URL can run it — a{" "}
               {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}
@@ -226,8 +217,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
   );
 }
 
-// The verb that opened it and the script it is about, in the one treatment a
-// filename gets everywhere: mono, with the extension quiet behind the name.
+// The one treatment a filename gets everywhere: mono, with the extension quiet behind
+// the name.
 function SheetTitle({ door, fileName }: { door: ParameterDoor; fileName: string }) {
   const name = (
     <span className="font-mono">
@@ -267,8 +258,8 @@ function Guidance({ door, parameters }: { door: ParameterDoor; parameters: strin
   );
 }
 
-// A clipped field still hides its tail, so the whole value is one hover away.
-// Only where there is one: a tooltip over an empty field says nothing.
+// A clipped field still hides its tail, so the whole value is one hover away. Only
+// where there is one: a tooltip over an empty field says nothing.
 function ParameterField({
   id,
   ref,

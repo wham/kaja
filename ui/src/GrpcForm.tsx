@@ -56,32 +56,29 @@ import { getApiClient } from "./server/connection";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { isWailsEnvironment } from "./wails";
 
-// Where the service definitions come from. The server describes itself, or a
-// directory of .proto files does. It is the only structural choice in the form,
-// and every other question is the same either way.
+// The only structural choice in the form; every other question is the same either way.
 type SurfaceMode = "reflection" | "protoDir";
 
 type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; server: GrpcServer } | { status: "problem"; problem: GrpcProblem };
 
 const READ_DEBOUNCE_MS = 600;
 
-// Surfaces already read, so flipping between apps in the sidebar doesn't reflect
-// a server that hasn't changed. The refresh control reads past it. Only
-// successful reads are remembered - a server that was down should be tried again.
+// Surfaces already read, so flipping between apps in the sidebar doesn't reflect a
+// server that hasn't changed. Only successful reads are remembered — a server that was
+// down should be tried again.
 const inspected = new Map<string, GrpcServer>();
 const INSPECTED_LIMIT = 20;
 
-// inspectionKey is what the surface depends on: the address, where the
-// definitions come from, and how the connection is made. Credentials are sent
-// with the read but are not part of the key - a token is typed a character at a
-// time, and each character is not worth a round trip to a server.
+// inspectionKey is what the surface depends on: the address, where the definitions
+// come from, and how the connection is made. Credentials are sent with the read but
+// are not part of the key — a token is typed a character at a time.
 function inspectionKey(parameters: Record<string, string>): string {
   return JSON.stringify(
     ["url", "protoDir", "reflection", "tls", "insecureSkipVerify", "caFile", "clientCertFile", "clientKeyFile"].map((key) => parameters[key] ?? ""),
   );
 }
 
-// Reads already on the wire, so two forms - or one form mounted twice - ask the
+// Reads already on the wire, so two forms — or one form mounted twice — ask the
 // server the same question once.
 const reading = new Map<string, Promise<InspectGrpcResponse>>();
 
@@ -109,8 +106,7 @@ interface GrpcFormProps {
   name: string;
   onNameChange: (name: string) => void;
   duplicateName: boolean;
-  // Names already in use, so a derived one doesn't land on a collision the user
-  // has to resolve by hand.
+  // So a derived name doesn't land on a collision the user has to resolve by hand.
   takenNames: string[];
   parameters: Record<string, string>;
   onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
@@ -118,7 +114,6 @@ interface GrpcFormProps {
   readOnly: boolean;
   // What the form last read, for the receipt in the footer.
   onSurfaceChange: (surface: AppSurface | undefined) => void;
-  // Whether the app can be created from what the form holds.
   onReadyChange: (ready: boolean) => void;
 }
 
@@ -152,8 +147,7 @@ export function GrpcForm({
   const readIdRef = useRef(0);
   // Whether the name is the user's rather than the one derived from the address.
   const [nameTouched, setNameTouched] = useState(Boolean(name));
-  // Whether the source changed because the user typed into it, which is the only
-  // change that waits for a pause before reading.
+  // Typing is the only change that waits for a pause before reading.
   const typedRef = useRef(false);
 
   const url = parameters.url ?? "";
@@ -201,18 +195,16 @@ export function GrpcForm({
     }
   }, []);
 
-  // The control above the address and the parameter under it are the same
-  // choice, so the parameter follows the control rather than being set alongside
-  // it - a new app opens on reflection, and says so in its configuration.
+  // The control above the address and the parameter under it are the same choice, so
+  // the parameter follows the control rather than being set alongside it.
   useEffect(() => {
     if (readOnly) return;
     const wanted = surfaceMode === "reflection" ? "true" : "";
     onParametersChange((previous) => ((previous.reflection ?? "") === wanted ? previous : { ...previous, reflection: wanted }));
   }, [surfaceMode, readOnly, onParametersChange]);
 
-  // Read once the source settles. Typing is the only change that waits: the demo
-  // link, a picked folder, or the app this form was opened on are already
-  // complete and read at once.
+  // Read once the source settles. The demo link, a picked folder, or the app this form
+  // was opened on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
     typedRef.current = false;
@@ -233,9 +225,8 @@ export function GrpcForm({
 
   useEffect(() => onSurfaceChange(server ? { count: server.methodCount } : undefined), [server, onSurfaceChange]);
 
-  // Derive the name from the address until the user types one. The name is the
-  // folder every generated import starts with, so what is offered is the part of
-  // the address that identifies the API rather than the machine.
+  // Derive the name from the address until the user types one: the part of the address
+  // that identifies the API rather than the machine.
   useEffect(() => {
     if (!server || nameTouched) return;
     const derived = uniqueAppName(
@@ -248,17 +239,17 @@ export function GrpcForm({
     if (derived) onNameChange(derived);
   }, [server, nameTouched, takenNames, onNameChange]);
 
-  // The transport is settled by what answered, so the app says outright what it
-  // does rather than leaving it to be re-derived from the address. A choice the
-  // user has already made is never written over.
+  // The transport is settled by what answered, so the app says outright what it does
+  // rather than leaving it to be re-derived from the address. A choice the user has
+  // already made is never written over.
   useEffect(() => {
     if (readOnly || !server || !server.reachable) return;
     const settled = tlsFromServer(server);
     onParametersChange((previous) => ((previous.tls ?? "") === "" ? { ...previous, tls: settled } : previous));
   }, [server, readOnly, onParametersChange]);
 
-  // A server that asks for a credential before it will say anything is asking
-  // for the one nearly every gRPC service asks for.
+  // A server that asks for a credential before it will say anything is asking for the
+  // one nearly every gRPC service asks for.
   useEffect(() => {
     if (readOnly || problem?.kind !== GrpcProblemKind.GRPC_PROBLEM_UNAUTHENTICATED) return;
     onParametersChange((previous) => ((previous.auth ?? "") === "" ? { ...previous, auth: AUTH_BEARER } : previous));
@@ -280,8 +271,8 @@ export function GrpcForm({
   const auth = (parameters.auth ?? "").trim() || AUTH_NONE;
   const transport = (parameters.tls ?? "").trim();
 
-  // A credential the server wants, or the transport it wants, is asked for
-  // before anything has been read - it is the whole reason nothing has been.
+  // A credential the server wants, or the transport it wants, is asked for before
+  // anything has been read — it is the whole reason nothing has been.
   const showTransport = Boolean(server) || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_TLS;
   const showAuthentication =
     Boolean(server) || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_UNAUTHENTICATED || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_PERMISSION_DENIED;
@@ -420,9 +411,8 @@ interface SourceStatusProps {
   onSwitchMode: (mode: SurfaceMode) => void;
 }
 
-// SourceStatus is the one slot under the address that carries every state: the
-// caption, the read in progress, the server that answered, and each way reaching
-// it can fail. All of them name the next move.
+// SourceStatus is the one slot under the address carrying every state: the caption,
+// the read in progress, the server that answered, and each way reaching it can fail.
 function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
   if (state.status === "idle") {
     return (
@@ -525,9 +515,9 @@ interface ProblemBannerProps {
 
 function ProblemBanner({ problem, mode, readOnly, onRetry, onSwitchMode }: ProblemBannerProps) {
   // A server that reflects nothing, doesn't reflect at all, or isn't there yet is
-  // answered by the other source rather than by trying again. The failures with a
-  // fix of their own - the transport, the address, a credential, a proto file
-  // that doesn't compile - are not.
+  // answered by the other source rather than by trying again. The failures with a fix of
+  // their own — the transport, the address, a credential, a proto that won't compile —
+  // are not.
   const otherSource = !(
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_TLS ||
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_TARGET ||
@@ -583,9 +573,8 @@ interface TransportSectionProps {
   onCertificatesOpenChange: (open: boolean) => void;
 }
 
-// TransportSection is the half of a gRPC connection the address can't state. A
-// server that answered has settled it, so it is stated rather than offered; a
-// server that hasn't is the one case where the three options are a real choice.
+// TransportSection is the half of a gRPC connection the address can't state. A server
+// that answered has settled it, so it is stated rather than offered.
 function TransportSection({
   server,
   transport,
@@ -667,9 +656,7 @@ interface CertificatesSectionProps {
   readOnly: boolean;
 }
 
-// CertificatesSection is everything about a TLS connection beyond having one:
-// which roots the server is verified against, and which certificate Kaja
-// presents. Folded away, because the system roots are the answer nearly always.
+// Folded away, because the system roots are the answer nearly always.
 function CertificatesSection({ open, onOpenChange, parameters, onParameterChange, variables, readOnly }: CertificatesSectionProps) {
   const skipping = parameters.insecureSkipVerify === "true";
   const configured = [skipping ? "x" : "", parameters.caFile, parameters.clientCertFile].filter((value) => (value ?? "").trim()).length;
@@ -749,10 +736,8 @@ interface AuthenticationSectionProps {
   readOnly: boolean;
 }
 
-// AuthenticationSection is one row per credential a gRPC service asks for, plus
-// a row for sending nothing. Only the selected row asks for a credential, in the
-// shape its scheme expects. There is no document to read them off, so the list is
-// the fixed one gRPC services use.
+// One row per credential a gRPC service asks for, plus a row for sending nothing.
+// There is no document to read them off, so the list is the fixed one.
 function AuthenticationSection({ selected, onSelect, parameters, onParameterChange, variables, readOnly }: AuthenticationSectionProps) {
   return (
     <div className="flex flex-col gap-2">
@@ -800,10 +785,9 @@ interface SchemeCredentialsProps {
   readOnly: boolean;
 }
 
-// SchemeCredentials is what the selected scheme asks for. Each field takes a
-// ${NAME} variable, so a credential can name where it is held instead of being
-// written into kaja.json - and whichever it is, the value is applied where Kaja
-// keeps it rather than handed to the browser to send.
+// Each field takes a ${NAME} variable, so a credential can name where it is held
+// instead of being written into kaja.json — and whichever it is, the value is applied
+// where Kaja keeps it rather than handed to the browser to send.
 function SchemeCredentials({ scheme, parameters, onParameterChange, variables, readOnly }: SchemeCredentialsProps) {
   const note = authNote(scheme, parameters.apiKeyName ?? "");
 
@@ -870,8 +854,7 @@ interface PathFieldProps {
   readOnly: boolean;
 }
 
-// PathField is a path that takes a ${NAME} variable and, on the desktop, a
-// native picker. Elsewhere it is the text field it always was.
+// PathField takes a ${NAME} variable and, on the desktop, a native picker.
 function PathField({ value, onValueChange, onPick, icon, label, variables, placeholder, readOnly }: PathFieldProps) {
   return (
     <VariableSuggestInput

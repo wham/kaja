@@ -1,20 +1,17 @@
 // Package agent is how a deployed Kaja answers an agent: it holds the sessions a
-// browser opens, and bridges kaja's MCP server (pkg/mcp) to whichever window is
-// on duty.
+// browser opens, and bridges kaja's MCP server (pkg/mcp) to whichever window is on
+// duty.
 //
-// The desktop app needs none of this because the process is the window: there is
-// exactly one, it is always there, and it belongs to whoever launched the app. A
-// server has none of those three things. It cannot run a script at all — the
-// script runtime, the `kaja` object and the service clients are JavaScript living
-// in a browser tab — so every run_script is forwarded to a tab and its answer
-// forwarded back. The server is a switchboard, not the thing doing the work.
+// The desktop needs none of this because the process is the window. A server cannot
+// run a script at all — the script runtime, the `kaja` object and the service clients
+// are JavaScript in a browser tab — so every run_script is forwarded to a tab and its
+// answer forwarded back.
 //
-// A session is therefore something a browser offers, not something the server
-// has. The tab makes up a token, keeps it in its own storage (so every tab of
-// that origin shares it, and it survives a reload), and holds an open stream
-// under it. The token is not a key to the server: it is the address of a
-// browser, and it opens nothing while no tab is listening. Nothing here is ever
-// written to disk, and a token that has never been attached with is unknown.
+// A session is therefore something a browser offers, not something the server has.
+// The tab makes up a token, keeps it in its own storage, and holds an open stream
+// under it. The token is the address of a browser rather than a key to the server:
+// it opens nothing while no tab is listening, nothing here is written to disk, and a
+// token that has never been attached with is unknown.
 package agent
 
 import (
@@ -33,12 +30,10 @@ import (
 
 const (
 	// sessionIdle is how long a session outlives its last window. It is what lets
-	// discovery keep working across a reload: the catalog a tab pushed is still
-	// there, so list_services and describe_method answer while you are between
-	// tabs, and only run_script actually needs a live window.
+	// discovery keep working across a reload; only run_script needs a live window.
 	sessionIdle = 30 * time.Minute
-	// maxSessions bounds what one server holds for browsers it has seen. Only
-	// sessions with no window attached are ever let go.
+	// maxSessions bounds what one server holds. Only sessions with no window attached
+	// are ever let go.
 	maxSessions = 64
 	// runTimeout is the longest a run may take, matching the desktop's.
 	runTimeout = 2 * time.Minute
@@ -47,9 +42,8 @@ const (
 	streamBuffer = 8
 )
 
-// The two ways a run has nowhere to happen. Both are answered to the agent as
-// the tool failure they are, so it reads a sentence saying what to do rather
-// than a timeout.
+// The two ways a run has nowhere to happen. Both are answered to the agent as the
+// tool failure they are, so it reads a sentence saying what to do rather than a timeout.
 var (
 	ErrNoWindow = errors.New("no Kaja window is attached to this agent session. " +
 		"Open Kaja in a browser and connect the agent again — a script runs in the browser, not on the server")
@@ -64,14 +58,13 @@ type Message struct {
 	StreamID string `json:"streamId,omitempty"`
 	// RunID correlates a "run" with the result the window posts back.
 	RunID string `json:"runId,omitempty"`
-	// Path is the saved script being run, empty for an inline snippet. Code is
-	// always set: the server owns the disk, so it reads the file itself and the
-	// window is only ever asked to run source.
+	// Path is the saved script being run, empty for an inline snippet. Code is always
+	// set: the server owns the disk, so it reads the file itself and the window is only
+	// ever asked to run source.
 	Path string `json:"path,omitempty"`
 	Code string `json:"code,omitempty"`
-	// Client is what the agent calls itself, which is what the draft an inline
-	// snippet runs in is labelled with — an actor the user recognises rather than
-	// a mechanism they translate.
+	// Client is what the agent calls itself, which labels the draft an inline snippet
+	// runs in.
 	Client string `json:"client,omitempty"`
 	// InFlight is how many agent requests are being served, on "activity".
 	InFlight int `json:"inFlight"`
@@ -94,8 +87,8 @@ type Stream struct {
 // Messages is what the HTTP handler writes down to the browser.
 func (s *Stream) Messages() <-chan Message { return s.messages }
 
-// Closed fires when the window goes away, which is what fails a run dispatched
-// to it rather than leaving the agent to wait out the timeout.
+// Closed fires when the window goes away, which fails a run dispatched to it rather
+// than leaving the agent to wait out the timeout.
 func (s *Stream) Closed() <-chan struct{} { return s.closed }
 
 // Detach removes the window from its session.
@@ -120,8 +113,8 @@ type Session struct {
 	idleSince time.Time
 }
 
-// Handler is the MCP server bound to this session. One per session, so the
-// in-flight count the footer's plug reads is this browser's own.
+// Handler is the MCP server bound to this session. One per session, so the in-flight
+// count the footer's plug reads is this browser's own.
 func (s *Session) Handler() *mcp.Server { return s.server }
 
 // Attached is whether any window is listening.
@@ -131,8 +124,8 @@ func (s *Session) Attached() bool {
 	return len(s.streams) > 0
 }
 
-// attach adds a window and makes it the one on duty: a window that just opened
-// is the one you are looking at.
+// attach adds a window and makes it the one on duty: a window that just opened is
+// the one you are looking at.
 func (s *Session) attach() *Stream {
 	stream := &Stream{
 		ID:        randomID(),
@@ -167,10 +160,9 @@ func (s *Session) remove(stream *Stream) {
 	s.publishDuty()
 }
 
-// Focus marks a window as the one being looked at. The most recently focused
-// window is the one a run is sent to, which matters more than it sounds: the
-// run's console is in memory in the window that ran it, so a run that lands in
-// the wrong window is one you cannot watch.
+// Focus marks a window as the one being looked at. The most recently focused window
+// is the one a run is sent to: the run's console is in memory in the window that ran
+// it, so a run landing in the wrong window is one you cannot watch.
 func (s *Session) Focus(streamID string) {
 	s.mu.Lock()
 	for _, stream := range s.streams {
@@ -193,8 +185,8 @@ func (s *Session) duty() *Stream {
 	return on
 }
 
-// publishDuty tells every window whether it is the one on duty, so the footer
-// can say so rather than leave two windows both claiming the agent.
+// publishDuty tells every window whether it is the one on duty, so two windows never
+// both claim the agent.
 func (s *Session) publishDuty() {
 	s.mu.Lock()
 	on := s.duty()
@@ -214,8 +206,8 @@ func (s *Session) publishDuty() {
 	}
 }
 
-// send never blocks: a window that is not reading is a window that is going
-// away, and the run waiting on it fails on its own closed channel.
+// send never blocks: a window that is not reading is a window that is going away,
+// and the run waiting on it fails on its own closed channel.
 func (s *Stream) send(message Message) {
 	select {
 	case s.messages <- message:
@@ -224,8 +216,8 @@ func (s *Stream) send(message Message) {
 	}
 }
 
-// SetCatalog records what a window says is callable. It is kept for as long as
-// the session is, so discovery survives the window being closed.
+// SetCatalog records what a window says is callable. Kept for as long as the session
+// is, so discovery survives the window being closed.
 func (s *Session) SetCatalog(catalog mcp.Catalog) {
 	s.mu.Lock()
 	s.catalog = catalog
@@ -302,9 +294,9 @@ type Registry struct {
 	sessions map[string]*Session
 }
 
-// NewRegistry builds the registry. scripts is how the workspace's scripts folder
-// is read; it is the server's own, because the server owns the disk and the
-// browser is only ever asked to run source.
+// NewRegistry builds the registry. scripts is the server's own reader for the
+// workspace's scripts folder: the server owns the disk, and the browser is only ever
+// asked to run source.
 func NewRegistry(scripts Scripts) *Registry {
 	return &Registry{scripts: scripts, sessions: map[string]*Session{}}
 }
@@ -324,8 +316,8 @@ func (r *Registry) Attach(token string) (*Stream, error) {
 			pending:   map[string]chan mcp.RunResult{},
 			idleSince: time.Now(),
 		}
-		// The bridge is bound to the session, and the server to the bridge, so a
-		// request carrying this token can only ever reach this browser.
+		// The bridge is bound to the session and the server to the bridge, so a request
+		// carrying this token can only ever reach this browser.
 		session.server = mcp.NewServer(&bridge{session: session}, token).Streamed()
 		r.sessions[token] = session
 	}
@@ -333,9 +325,8 @@ func (r *Registry) Attach(token string) (*Stream, error) {
 	return session.attach(), nil
 }
 
-// Session returns an existing session. A token nobody has attached with is
-// unknown, which is what makes the browser's own storage the only place a
-// session comes from.
+// Session returns an existing session. A token nobody has attached with is unknown,
+// which is what makes the browser's own storage the only place a session comes from.
 func (r *Registry) Session(token string) (*Session, bool) {
 	if ValidateToken(token) != nil {
 		return nil, false
@@ -347,10 +338,8 @@ func (r *Registry) Session(token string) (*Session, bool) {
 	return session, ok
 }
 
-// Drop forgets a browser. Disconnecting is what makes the token that was pasted
-// somewhere name nothing, so it cannot wait on the idle timeout: the session goes
-// now, and with it the catalog that would otherwise go on answering. Windows of
-// that browser still holding a stream are told by their own storage.
+// Drop forgets a browser. Disconnecting must not wait on the idle timeout: the
+// session goes now, and with it the catalog that would otherwise go on answering.
 func (r *Registry) Drop(token string) {
 	r.mu.Lock()
 	delete(r.sessions, token)
@@ -358,8 +347,7 @@ func (r *Registry) Drop(token string) {
 }
 
 // sweep drops sessions no window has been attached to for a while, and trims the
-// oldest of those when there are too many. A session with a window is never
-// touched. Must be called with mu held.
+// oldest of those when there are too many. Must be called with mu held.
 func (r *Registry) sweep() {
 	idle := make([]*Session, 0, len(r.sessions))
 	for token, session := range r.sessions {
@@ -388,9 +376,8 @@ func (r *Registry) sweep() {
 	}
 }
 
-// ValidateToken checks the shape of a token before anything is done with it. It
-// is the browser that makes one up, so this is only what stops a typo or an
-// empty string from becoming a session.
+// ValidateToken checks the shape of a token. The browser makes one up, so this only
+// stops a typo or an empty string from becoming a session.
 func ValidateToken(token string) error {
 	if len(token) < 24 || len(token) > 128 {
 		return errors.New("an agent session token is between 24 and 128 characters")

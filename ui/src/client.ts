@@ -17,8 +17,6 @@ import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
 
-// collectResponseHeaders folds a call's response headers and trailers onto the
-// method call, routing the upstream-header trailers to their own fields.
 function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, trailers?: RpcMetadata): void {
   const responseHeaders: MethodCallHeaders = {};
   const absorb = (meta?: RpcMetadata) => {
@@ -38,11 +36,10 @@ function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, t
   methodCall.responseHeaders = responseHeaders;
 }
 
-// applyErrorMetadata routes a failed call's response metadata to the Headers
-// view, which is where headers belong whether or not the call succeeded — a 401
-// is exactly when they matter. The kaja trailers become the upstream hop; what a
-// server sent of its own (a gRPC error's trailers) becomes the response headers.
-// Web errors carry the metadata on the RpcError; the Wails transport mirrors it.
+// applyErrorMetadata routes a failed call's response metadata to the Headers view,
+// where headers belong whether or not the call succeeded — a 401 is exactly when they
+// matter. The kaja trailers become the upstream hop; what a server sent of its own
+// becomes the response headers. Web errors carry it on the RpcError; Wails mirrors it.
 function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
   const metaRecord = errorMeta(error);
   if (!metaRecord) return;
@@ -73,8 +70,8 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
   let transport;
   if (isWailsEnvironment()) {
-    // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
-    // Pass appRef so URL and headers are read dynamically at request time
+    // Target mode, so both Twirp and gRPC go through it. appRef is passed so the URL and
+    // headers are read at request time.
     transport = new WailsTransport({
       mode: "target",
       appRef,
@@ -98,18 +95,15 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   const options: RpcOptions = {
     interceptors: [
       {
-        // adds X-Target header and configured headers for web environment
-        // Reads from appRef dynamically at request time
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};
           }
           if (!isWailsEnvironment()) {
             options.meta["X-Target"] = appRef.target;
-            // Pass configured headers with X-Header- prefix for the backend to
-            // forward. Their ${NAME} references travel unexpanded: the server
-            // resolves them, because a variable's value may be one it holds and
-            // the browser is not allowed to know.
+            // Configured headers travel with an X-Header- prefix for the backend to forward.
+            // Their ${NAME} references travel unexpanded: the server resolves them, because a
+            // variable's value may be one it holds and the browser is not allowed to know.
             const headers = transportHeaders(appRef.configuration);
             for (const [key, value] of Object.entries(headers)) {
               options.meta["X-Header-" + key] = value;
@@ -121,26 +115,23 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     ],
   };
 
-  // What a method needs that the run has no say in, resolved once rather than
-  // per run: everything below this is the same for every script that calls it.
+  // What a method needs that the run has no say in, resolved once rather than per run.
   const prepared = service.methods.map((method) => ({
     method,
     isServerStreaming: method.serverStreaming && !method.clientStreaming,
     inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
   }));
 
-  // Bound methods are kept per run rather than rebuilt per import, and weakly,
-  // so a run's bindings go when the run's Kaja does.
+  // Bound methods are kept per run rather than rebuilt per import, and weakly, so a
+  // run's bindings go when the run's Kaja does.
   const bound = new WeakMap<Kaja, Methods>();
 
   const bind = (kaja: Kaja): Methods => {
     const methods: Methods = {};
     for (const { method, isServerStreaming, inputType } of prepared) {
       const send = async (input: any) => {
-        // Capture request headers from appRef at request time. They are shown as
-        // configured, with their ${NAME} references intact - the Headers view
-        // reads better that way, and the values behind them stay outside the
-        // browser.
+        // Shown as configured, with their ${NAME} references intact — the Headers view reads
+        // better that way, and the values behind them stay outside the browser.
         const requestHeaders: { [key: string]: string } = appHeaders(appRef.configuration);
 
         const methodCall: MethodCall = {
@@ -159,15 +150,14 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         const elapsed = () => Math.round(performance.now() - startedAt);
 
         try {
-          // The signal is the one belonging to the run these methods were bound
-          // for, so Stop reaches the calls of that run and no others.
+          // The signal belongs to the run these methods were bound for, so Stop reaches the
+          // calls of that run and no others.
           const abort = kaja._internal.abortSignal;
-          // A request is a hand-written object literal, so it is routinely partial:
-          // a deleted field, or a oneof left unset, reaches the serializer as
-          // `undefined` and fails there with an error that names neither. create()
-          // fills those in with the zero values the wire format omits anyway. The
-          // literal itself stays on the method call, so the console and the value
-          // completions keep showing what was actually written.
+          // A request is a hand-written object literal, so it is routinely partial: a deleted
+          // field, or a oneof left unset, reaches the serializer as `undefined` and fails there
+          // with an error that names neither. create() fills those in with the zero values the
+          // wire format omits anyway. The literal itself stays on the method call, so the
+          // console and the value completions keep showing what was actually written.
           const message = inputType ? inputType.create(input) : input;
           const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
 
@@ -180,9 +170,9 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             methodCall.streamOutputs = [];
 
             for await (const message of streamCall.responses) {
-              // Appended, not copied: the console holds this object rather than a
-              // snapshot of it, so rebuilding the array per message would be a
-              // quadratic cost for a stream nothing is reading differently.
+              // Appended, not copied: the console holds this object rather than a snapshot, so
+              // rebuilding the array per message would be quadratic for a stream nothing reads
+              // differently.
               methodCall.streamOutputs.push(message);
               methodCall.output = message;
               kaja._internal.methodCallUpdate(methodCall);
@@ -201,7 +191,6 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             methodCall.outputTypeName = call.method?.O?.typeName;
             methodCall.outputType = call.method?.O;
 
-            // Capture response headers and trailers
             collectResponseHeaders(methodCall, headers, trailers);
           }
         } catch (error: any) {
@@ -215,11 +204,10 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         return methodCall.output;
       };
 
-      // A call is handed back rather than made: it goes out when the script awaits
-      // it, or at the end of the tick if nothing has claimed it. `kaja.approve` is
-      // what claims one, and holding it back is the only reason the gap exists —
-      // everything above happens when the call starts, including the row it puts
-      // in the log, so a call that was never approved was never anywhere.
+      // A call is handed back rather than made: it goes out when the script awaits it, or
+      // at the end of the tick if nothing has claimed it. Everything above happens when the
+      // call starts, its log row included, so a call that was never approved was never
+      // anywhere.
       methods[method.name] = (input: any) => new Call(`${service.name}.${method.name}`, input, () => send(input));
     }
     return methods;
@@ -242,11 +230,10 @@ function lcfirst(str: string): string {
 
 // callError turns a thrown error into what the console shows for the call.
 //
-// A failed call against an HTTP app is an HTTP failure. It reaches the client as
-// a gRPC error only because that is how the app is invoked, and the frame it
-// travelled in - the gRPC status code, the trailers carrying the real failure and
-// the exchanged headers - is not part of what went wrong. When the app reported a
-// structured failure, that failure *is* the error; everything else is transport.
+// A failed call against an HTTP app is an HTTP failure. It reaches the client as a
+// gRPC error only because that is how the app is invoked, and the frame it travelled
+// in — the status code, the trailers carrying the real failure, the exchanged headers
+// — is not part of what went wrong.
 function callError(error: unknown): any {
   const meta = errorMeta(error);
   if (meta) {
@@ -267,18 +254,17 @@ function serializeError(error: any): any {
   }
   const obj: any = { message: errorMessage(error) };
   for (const key of Object.keys(error)) {
-    // Response metadata is not the error: what it carries is already routed to
-    // the Headers view, and the rest is the transport talking about itself.
+    // Response metadata is not the error: what it carries is already routed to the
+    // Headers view, and the rest is the transport talking about itself.
     if (key === "meta") continue;
     obj[key] = (error as any)[key];
   }
   return obj;
 }
 
-// errorMessage reads a thrown error's message, undoing the percent-encoding a
-// gRPC status message travels under. grpc-message is percent-encoded UTF-8 by
-// spec, but the gRPC-Web client reads trailers byte by byte and hands the value
-// through as it found it, so anything non-ASCII arrives escaped.
+// errorMessage undoes the percent-encoding a gRPC status message travels under.
+// grpc-message is percent-encoded UTF-8 by spec, but the gRPC-Web client reads
+// trailers byte by byte and hands the value through as it found it.
 function errorMessage(error: Error): string {
   if (typeof (error as { code?: unknown }).code !== "string") return error.message;
   try {

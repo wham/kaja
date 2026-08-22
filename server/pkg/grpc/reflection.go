@@ -157,11 +157,9 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 		ctx = metadata.NewOutgoingContext(ctx, metadata.New(c.metadata))
 	}
 
-	// Try v1 first
 	version := "v1"
 	stream, v1Err := c.openV1Stream(ctx, conn)
 	if v1Err != nil {
-		// Fall back to v1alpha
 		version = "v1alpha"
 		stream, err = c.openV1AlphaStream(ctx, conn)
 		if err != nil {
@@ -190,7 +188,7 @@ func (c *ReflectionClient) openV1Stream(ctx context.Context, conn *grpc.ClientCo
 		return nil, err
 	}
 
-	// Send a probe request to detect Unimplemented before committing
+	// Probe first, to detect Unimplemented before committing to this version.
 	if err := stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: ""},
 	}); err != nil {
@@ -264,7 +262,8 @@ func (c *ReflectionClient) discover(stream reflectionStream) (*ReflectionResult,
 	}, nil
 }
 
-// getFileDescriptorsForSymbol retrieves file descriptors for a given symbol and its dependencies.
+// getFileDescriptorsForSymbol retrieves file descriptors for a symbol and its
+// dependencies.
 func (c *ReflectionClient) getFileDescriptorsForSymbol(
 	stream reflectionStream,
 	symbol string,
@@ -287,7 +286,6 @@ func (c *ReflectionClient) getFileDescriptorsForSymbol(
 		return fmt.Errorf("unexpected response type")
 	}
 
-	// Parse and collect file descriptors
 	for _, fdBytes := range fdResp.GetFileDescriptorProto() {
 		fd := &descriptorpb.FileDescriptorProto{}
 		if err := proto.Unmarshal(fdBytes, fd); err != nil {
@@ -298,12 +296,11 @@ func (c *ReflectionClient) getFileDescriptorsForSymbol(
 		if _, exists := collected[fileName]; !exists {
 			collected[fileName] = fd
 
-			// Recursively fetch dependencies
 			for _, dep := range fd.GetDependency() {
 				if _, exists := collected[dep]; !exists {
 					err = c.getFileDescriptorByName(stream, dep, collected)
 					if err != nil {
-						// Log but don't fail - some well-known types may not be available
+						// Some well-known types may not be available; a missing dependency is not fatal.
 						continue
 					}
 				}
@@ -347,7 +344,6 @@ func (c *ReflectionClient) getFileDescriptorByName(
 		if _, exists := collected[name]; !exists {
 			collected[name] = fd
 
-			// Recursively fetch dependencies
 			for _, dep := range fd.GetDependency() {
 				if _, exists := collected[dep]; !exists {
 					err = c.getFileDescriptorByName(stream, dep, collected)
@@ -375,12 +371,10 @@ func WriteProtoFiles(result *ReflectionResult, outputDir string) error {
 
 		filePath := filepath.Join(outputDir, fileName)
 
-		// Create parent directories if needed
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", fileName, err)
 		}
 
-		// Generate proto file content from descriptor
 		content := generateProtoFromDescriptor(fd)
 
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
@@ -395,19 +389,16 @@ func WriteProtoFiles(result *ReflectionResult, outputDir string) error {
 func generateProtoFromDescriptor(fd *descriptorpb.FileDescriptorProto) string {
 	var b strings.Builder
 
-	// Syntax
 	if fd.GetSyntax() != "" {
 		b.WriteString(fmt.Sprintf("syntax = \"%s\";\n\n", fd.GetSyntax()))
 	} else {
 		b.WriteString("syntax = \"proto3\";\n\n")
 	}
 
-	// Package
 	if fd.GetPackage() != "" {
 		b.WriteString(fmt.Sprintf("package %s;\n\n", fd.GetPackage()))
 	}
 
-	// Imports
 	for _, dep := range fd.GetDependency() {
 		b.WriteString(fmt.Sprintf("import \"%s\";\n", dep))
 	}
@@ -415,7 +406,6 @@ func generateProtoFromDescriptor(fd *descriptorpb.FileDescriptorProto) string {
 		b.WriteString("\n")
 	}
 
-	// Options
 	if fd.GetOptions() != nil {
 		opts := fd.GetOptions()
 		if opts.GetGoPackage() != "" {
@@ -423,17 +413,14 @@ func generateProtoFromDescriptor(fd *descriptorpb.FileDescriptorProto) string {
 		}
 	}
 
-	// Enums (top-level)
 	for _, enum := range fd.GetEnumType() {
 		writeEnum(&b, enum, 0)
 	}
 
-	// Messages
 	for _, msg := range fd.GetMessageType() {
 		writeMessage(&b, msg, 0)
 	}
 
-	// Services
 	for _, svc := range fd.GetService() {
 		writeService(&b, svc)
 	}
@@ -456,12 +443,10 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 	prefix := strings.Repeat("  ", indent)
 	b.WriteString(fmt.Sprintf("%smessage %s {\n", prefix, msg.GetName()))
 
-	// Nested enums
 	for _, enum := range msg.GetEnumType() {
 		writeEnum(b, enum, indent+1)
 	}
 
-	// Nested messages
 	for _, nested := range msg.GetNestedType() {
 		// Skip map entry types
 		if nested.GetOptions() != nil && nested.GetOptions().GetMapEntry() {
@@ -470,7 +455,6 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 		writeMessage(b, nested, indent+1)
 	}
 
-	// Oneofs need to be tracked
 	oneofFields := make(map[int32][]int) // oneof index -> field indices
 	for i, field := range msg.GetField() {
 		if field.OneofIndex != nil {
@@ -478,7 +462,6 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 		}
 	}
 
-	// Track which fields are in oneofs
 	fieldsInOneof := make(map[int]bool)
 	for _, indices := range oneofFields {
 		for _, idx := range indices {
@@ -486,7 +469,6 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 		}
 	}
 
-	// Write oneofs
 	for i, oneof := range msg.GetOneofDecl() {
 		b.WriteString(fmt.Sprintf("%s  oneof %s {\n", prefix, oneof.GetName()))
 		for _, fieldIdx := range oneofFields[int32(i)] {
@@ -496,7 +478,6 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 		b.WriteString(fmt.Sprintf("%s  }\n", prefix))
 	}
 
-	// Regular fields
 	for i, field := range msg.GetField() {
 		if !fieldsInOneof[i] {
 			writeField(b, field, msg, indent+1)
@@ -509,10 +490,8 @@ func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent 
 func writeField(b *strings.Builder, field *descriptorpb.FieldDescriptorProto, parent *descriptorpb.DescriptorProto, indent int) {
 	prefix := strings.Repeat("  ", indent)
 
-	// Check if this is a map field
 	typeName := getTypeName(field, parent)
 
-	// Handle labels (repeated, optional)
 	label := ""
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && !strings.HasPrefix(typeName, "map<") {
 		label = "repeated "
@@ -522,15 +501,12 @@ func writeField(b *strings.Builder, field *descriptorpb.FieldDescriptorProto, pa
 }
 
 func getTypeName(field *descriptorpb.FieldDescriptorProto, parent *descriptorpb.DescriptorProto) string {
-	// Check if this is a map field
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 		typeName := field.GetTypeName()
-		// Look for map entry in nested types
 		for _, nested := range parent.GetNestedType() {
 			if nested.GetOptions() != nil && nested.GetOptions().GetMapEntry() {
 				fullName := "." + parent.GetName() + "." + nested.GetName()
 				if strings.HasSuffix(typeName, fullName) || strings.HasSuffix(typeName, "."+nested.GetName()) {
-					// This is a map
 					var keyType, valueType string
 					for _, f := range nested.GetField() {
 						if f.GetName() == "key" {
@@ -558,7 +534,6 @@ func getTypeName(field *descriptorpb.FieldDescriptorProto, parent *descriptorpb.
 }
 
 func simplifyTypeName(name string) string {
-	// Remove leading dot and return the type name
 	if strings.HasPrefix(name, ".") {
 		name = name[1:]
 	}
@@ -609,7 +584,6 @@ func writeService(b *strings.Builder, svc *descriptorpb.ServiceDescriptorProto) 
 		inputType := simplifyTypeName(method.GetInputType())
 		outputType := simplifyTypeName(method.GetOutputType())
 
-		// Handle streaming
 		if method.GetClientStreaming() && method.GetServerStreaming() {
 			b.WriteString(fmt.Sprintf("  rpc %s(stream %s) returns (stream %s);\n", method.GetName(), inputType, outputType))
 		} else if method.GetClientStreaming() {

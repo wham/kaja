@@ -1,1838 +1,503 @@
 ## Guidelines
 
-- See [Development](README.md#development) for instructions how to run and test.
-- Only add code comments for really tricky parts; otherwise keep it clean.
-- If API is called "getConfiguration", use "configuration" not "config" in code.
-- Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done. Make sure the server port is not in use.
-- Don't run `scripts/build-ui` separately; when `scripts/server` is running, the UI is recompiled automatically on page load.
-- **`scripts/server` does everything needed and skips what isn't.** It is one idempotent script, and it stays that way by making each heavy step state what it is made of: a code generator is installed at the version `server/go.mod` names and left alone while the binary on disk is that version (`install_go_tool`), and protoc runs only when a proto file or a generator has moved since the stamp it left in `server/build` (`fingerprint` + `stamp_matches`). Nothing is skipped on a guess about what you were probably doing; a step is skipped only when its inputs are provably the ones it last ran on, so `rm -rf server/build` is always a way back. It does **not** bundle the UI: a `-tags development` server does that itself, on demand (below). That is also why testing the server takes the same tag — without it the packages embed a production bundle nothing has written.
-- **In development the UI is bundled by the server, once per change rather than once per request.** `BuildForDevelopment` holds the bundle and the esbuild context, and rebuilds when the digest of `ui/src` (plus `package.json`/`bun.lock`) differs from the one it last built — so one page load, which asks for `main.css`, `main.js` and the codicon font, is one build instead of three, and a reload that follows no edit is none. **What the files hold, not when they were written**: an edit arrives with an old modification time often enough — a checkout, a `cp -p`, an unpacked archive — and an edit that isn't seen is one served stale. 1.5 MB reads in single-digit milliseconds, which is nothing against the build it is deciding about. Monaco's workers come from `node_modules` alone, so no edit under `ui/src` can reach one. A build that fails leaves the last good bundle being served and the stamp behind, so the next request tries again: a syntax error mid-edit belongs in the editor, not in a window that failed to load the editor.
-- **`scripts/desktop` follows the same rule, against a CLI that writes the repository.** `wails dev` regenerates the bindings twice per start, rewrites `desktop/go.mod` to whatever version the CLI on the machine happens to be, and runs `go mod tidy` — so a start that changed nothing cost half a minute and four modified files. The script installs the Wails CLI at the version `desktop/go.mod` names (`install_go_tool`, so the tool tracks the repository rather than the machine), generates the bindings itself only when the Go they are generated from has moved, and then runs `wails dev -skipbindings -nosyncgomod -m`. The three flags say one thing: what is committed is the script's to write, not the CLI's.
-- **Generated files are committed exactly as the generator writes them**, which is why `ui/.prettierignore` covers `src/wailsjs/` and `src/server/` as directories rather than by name. Formatting a generated file only means the next run of its generator is a diff — that is how `models.ts` came to differ from its own generator while four of its neighbours didn't.
-- The UI uses shadcn/ui-style primitives built on Base UI (`@base-ui-components/react`) + Tailwind CSS, stock neutral theme. Reusable primitives live in `ui/src/components/`; compose them and style with Tailwind utility classes. Reach for a raw HTML element + Tailwind before adding a new primitive.
-- Don't update generated files directly; they will be overwritten.
+- See [Development](README.md#development) for how to run and test.
+- Only add code comments for things the code cannot say: a gotcha, a workaround, a magic value an API insists on, an ordering that matters. Not a restatement of the line below it, and not design rationale.
+- If an API is called "getConfiguration", use "configuration" not "config" in code.
+- Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done, and check the port is free first.
+- Don't run `scripts/build-ui` separately — a `-tags development` server rebuilds the UI on page load. Testing the server packages needs the same tag, or they embed a production bundle nothing has written.
+- `scripts/server` and `scripts/desktop` are idempotent: they install tools at the version the relevant `go.mod` names and re-run protoc/bindings only when the inputs moved. `rm -rf server/build` is always a way back.
+- Don't update generated files directly; they will be overwritten, and formatting one makes the next generator run a diff. `ui/.prettierignore` covers `src/wailsjs/` and `src/server/` as directories for that reason.
   - `ui/src/server/` is generated by protoc-gen-kaja.
-  - `ui/src/wailsjs/**` are generated by Wails.
-- When I prompt you to make changes that are radically different from what's documented here, please update this file accordingly.
-- Don't commit changes to `kaja.json`
-- The server serves its workspace read-only; `scripts/server --editable` is what lets the UI write to `kaja.json`. The desktop app owns its workspace and is always editable. This is decided at startup only — a configuration file never says whether it may be edited.
-  - **A read-only configuration doesn't offer the verbs that write it.** Editing an app can be refused halfway — the form is still worth opening to read what an app is configured as, so it keeps its banner and its fields are disabled. Creating one can't: there is nothing to read in a blank form whose only button can never be pressed. So `canUpdateConfiguration` false takes the **+** off the sidebar's Apps header and an app's **Delete** away entirely rather than disabling them, and the no-apps blankslate becomes a screen that says where apps come from instead of a button that leads nowhere. **Settings** stays, on the same rule the app form does.
-- `Configuration` is the file and nothing else; `Runtime` is the running kaja — `can_update_configuration`, `git_ref`, `build_number`, `variable_store_available`. Everything in `Runtime` is settled when the process starts, is never read from or written to `kaja.json`, and is never accepted as input; it rides alongside the configuration on `GetConfigurationResponse`, so saving can't round-trip it. `variable_status` is a third thing again — the result of resolving one against the other. Retired fields are reserved on `Configuration` *and* stripped in `migrateConfiguration`: reserving only stops the schema reusing them, while protojson still fails the whole file on the unknown key.
-- Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
-- Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
-- Prefer the existing primitives in `ui/src/components/` and Tailwind utilities; add a new shared primitive only when a pattern repeats across screens.
-- Icons are imported straight from `lucide-react` under their real names (e.g. `Trash2`, `Ellipsis`). Use `cn()` from `ui/src/cn.ts` to compose class names.
-- Ask me before adding a new shared UI primitive; one-off compositions of existing primitives are fine.
-- Keep pull-request descriptions super short - one or two sentences summarizing the change.
-- Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
-- Values seen in earlier calls are never written into a generated request: `defaultInput.ts` only ever emits zero values (a `Value`/`Struct`/`ListValue` field's zero value is its kaja builder — `kaja.value(null)` — since it has no writable literal), and `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions, each labelled with the field and call it came from.
+  - `ui/src/wailsjs/**` is generated by Wails.
+- Don't commit changes to `kaja.json`.
+- Use past tense in pull request titles and commit messages ("Fix bug" → "Fixed bug"). Keep PR descriptions to one or two sentences.
+- Use capitalized "Kaja" for user-facing labels; lowercase "kaja" for code, commands and paths.
+- Don't reference specific example services (names of APIs used to reproduce a bug) in code, comments, or tests — they are just random examples.
+- When a change is radically different from what's documented here, update this file.
+
+### UI conventions
+
+- shadcn/ui-style primitives over Base UI (`@base-ui-components/react`) + Tailwind, stock neutral theme. Reusable primitives live in `ui/src/components/`; compose them with Tailwind utilities. Reach for a raw HTML element + Tailwind before adding a primitive, and **ask before adding a new shared primitive** — one-off compositions are fine.
+- Icons come straight from `lucide-react` under their real names (`Trash2`, `Ellipsis`). Compose class names with `cn()` from `ui/src/cn.ts`.
+- Base UI: interactive parts take a `render` prop (not `asChild`); the trigger wrappers here re-expose `asChild`. Overlays are `Popup` + `Positioner` + `Backdrop`; cursor-anchored menus take an `anchor`. Enter/exit is CSS keyed off `data-starting-style` / `data-ending-style`.
+- **Three surfaces.** Content (every view body) is `bg-background`; chrome (sidebar, command row, status bar) is `bg-chrome`; floating (dialogs, popovers, menus, Monaco widgets) is `bg-card`/`bg-popover`. `bg-muted` is a highlight for chips and pills, never a pane.
+- Theme tokens live in `ui/src/tailwind.css` (stock neutral plus `--chrome`). Day/night is a `dark` class on `<html>`. Monaco can't read CSS variables, so `ui/src/monacoTheme.ts` repeats the surfaces as hex — keep them in step.
+- Status colors: warning `text-amber-600 dark:text-amber-400` over `bg-amber-500/10`, success `text-emerald-600 dark:text-emerald-400` over `bg-emerald-500/10`, error `text-destructive` over `bg-destructive/10`.
+- Tailwind is compiled by the Tailwind CLI (via `bun`) in an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx`.
+
+Primitives in `ui/src/components/`: `button` · `icon-button` · `input` · `checkbox` · `switch` · `select` · `form-control` · `segmented-control` · `dialog` · `confirmation-dialog` · `dropdown-menu` · `popover` · `tooltip` (`SimpleTooltip`) · `action-list` · `tree-view` · `alert` · `spinner` · `blankslate`.
+
+### Configuration
+
+- The server serves its workspace **read-only**; `scripts/server --editable` lets the UI write `kaja.json`. The desktop always owns its workspace. Decided at startup — the file never says whether it may be edited.
+- **A read-only configuration omits the verbs that write it rather than disabling them**: no **+** on the sidebar's Apps header, no app **Delete**, and the no-apps blankslate says where apps come from instead of offering a button. The app *form* stays (its fields disabled) because reading an app's configuration is still worth doing; **Settings** stays for the same reason.
+- `Configuration` is the file and nothing else. `Runtime` is the running kaja (`can_update_configuration`, `git_ref`, `build_number`, `variable_store_available`) — settled at process start, never read from or written to `kaja.json`, never accepted as input. It rides alongside the configuration on `GetConfigurationResponse` so saving can't round-trip it. `variable_status` is a third thing: the result of resolving one against the other.
+- Retired fields are reserved on `Configuration` **and** stripped in `migrateConfiguration` — reserving only stops the schema reusing them, while protojson still fails the whole file on the unknown key.
+
+## Directory structure
+
+```
+desktop/          Desktop app (Wails)
+protoc-gen-kaja/  Protoc plugin for TypeScript codegen (Go, own go.mod)
+server/           Backend (Go) — serves both web and desktop
+ui/               Frontend (React/TypeScript)
+workspace/        Demo workspace, also what both public deployments serve
+scripts/          Build and development scripts
+docs/
+```
+
+| Build directory           | Holds                                                | Gitignored |
+| ------------------------- | ---------------------------------------------------- | ---------- |
+| `server/build/`           | protoc plugins and bundled UI assets                  | Yes        |
+| `desktop/build/`          | Platform files (icons, Info.plist)                    | No         |
+| `desktop/build/bin/`      | Desktop binaries                                      | Yes        |
+| `desktop/frontend/dist/`  | Frontend copied from `server/build`                   | Yes        |
+| `$TMPDIR/kaja/`           | Compilation temp folders (auto-cleaned after 60 min)  | N/A        |
+
+**Development vs production** is a Go build tag. `-tags development` uses `server/assets_development.go`, which reads UI files from disk and calls `ui.BuildForDevelopment()`. The default embeds everything via `//go:embed` (`server/assets_production.go`).
+
+`BuildForDevelopment` holds the bundle and the esbuild context and rebuilds when the **digest** of `ui/src` (plus `package.json`/`bun.lock`) moves — content, not mtimes, because a checkout or `cp -p` restores old mtimes and an edit that isn't seen is served stale. A failed build leaves the last good bundle and the old stamp in place, so the next request retries. Monaco's workers come from `node_modules` alone.
+
+**Server (web)** is one Go binary with the UI embedded, on port 41520. **Desktop** is Wails, embedding `frontend/dist` copied from the server build, with native windows and file dialogs.
+
+### Code generation
+
+```
+server/proto/api.proto
+  ├─ protoc-go + protoc-gen-go/twirp  → server/pkg/api/*.go
+  └─ protoc-go + protoc-gen-kaja      → ui/src/server/*.ts
+                                          └─ esbuild (cmd/build-ui) → server/build/
+                                               → embedded in server / copied to desktop / embedded in docker
+```
+
+`protoc-gen-kaja` is a Go protoc plugin generating TypeScript, currently a drop-in replacement for `@protobuf-ts/plugin` producing identical output (it will diverge). Codegen lives in `kaja/` (`NewPlugin()`, `Generate()`); `main.go` is a CLI wrapper. At runtime both protoc-go and protoc-gen-kaja are **embedded as Go libraries** — no subprocesses; the binaries are only used by development scripts.
+
+- Tests in `protoc-gen-kaja/tests/` compare output against `protoc-gen-ts`; run with `protoc-gen-kaja/scripts/test`.
+- `tests/000_big` is the multi-file integration test (8 protos, 6 directories) covering scalars, WKTs, map key types, all four streaming kinds, custom options, `import public`, proto3 optional, `allow_alias`, reserved fields, deprecation, `jstype`, `json_name`, TypeScript keyword and `__proto__` field names, deep nesting, self-reference, name collisions, empty services, idempotency levels and comment edge cases. **Extend it when adding codegen features.**
+- `protoc-gen-kaja/scripts/loop` alternates two agents: RALPH (fixer, reads `RALPH.md`, writes `DONE` to `status.txt`) and NELSON (adversarial tester, reads `NELSON.md`, writes `HAHA` on a new failing test).
+
+### Source layout
+
+- `ui/src/*.tsx` components; `src/server/` generated proto client; `src/wailsjs/` generated Wails bindings.
+- `server/cmd/server/`, `server/cmd/build-ui/`, `server/pkg/api/` (generated), `server/pkg/mcp/` (kaja's own MCP server), `server/pkg/agent/` (agent sessions for deployed kaja), `server/proto/api.proto`, `server/static/`.
+- `workspace/` — demo apps in `kaja.json` (grpcb.in gRPC, quirks Twirp, theatre OpenAPI, seating gRPC-reflection, concierge MCP) plus local protos for the two that need them and demo scripts in `workspace/scripts/`. `scripts/demo-protos` refreshes the protos. The demo services themselves live in kaja-tools/website.
+  - Both public deployments serve this workspace out of the Dockerfile's `demo` stage: `demo.kaja.tools` (`deploy/demo/fly.toml`, deployed on push to main) and a per-PR app (`deploy/preview/fly.toml`). The **main** workflow drops two apps with `jq` before deploy so the public demo shows fewer; it fails on a name no app has. Nothing in kaja knows a deployment can hide an app, and it must not grow such a setting.
 
 ## Drafts, files and the sidebar
 
-**Everything you run is a script; the only axis is whether it has a name.** A
-method in the sidebar is a *template*, not a document — clicking it fills a
-**draft**, and a draft is the unit of exploration. The Scripts region is two
-labelled groups, and four rules hold the whole thing together.
+**Everything you run is a script; the only axis is whether it has a name.** A method in the sidebar is a template — clicking it fills a **draft**. The Scripts region is two groups, Drafts and Files.
 
-1. **A draft has no name and no place. A file has both.** That is the entire
-   difference, and the group label states it. It is *not* "temporary vs.
-   permanent": a draft survives quit, crash and reopen exactly as a file does, so
-   nothing about one is styled as a warning. The amber dot is gone from the
-   sidebar entirely.
-2. **Files never turn into drafts on their own.** Editing a saved file leaves it
-   a file, in place, auto-saving as you type. There is exactly one way into
-   Drafts — run something that has no file yet, a method or `⌘N` — so there is no
-   branching and no forking: a variant of a file is a copy of the file.
-3. **Naming a draft moves it into Files.** The naming sheet asks for a name and a
-   folder, nothing else. The row leaves Drafts and appears where you filed it.
-4. **Discarding is safe by default.** Untouched drafts (still identical to the
-   generated call) are cleared without asking; edited ones are never removed
-   without a confirm that names them.
+1. **A draft has no name and no place; a file has both.** Not "temporary vs. permanent" — a draft survives quit and reopen exactly as a file does, so nothing about one is styled as a warning.
+2. **Files never become drafts on their own.** Editing a saved file leaves it a file, auto-saving in place. The only ways into Drafts are running something with no file yet and `⌘N`; a variant of a file is a copy of the file.
+3. **Naming a draft moves it into Files.** The naming sheet asks for a name and a folder, nothing else.
+4. **Discarding is safe.** Untouched drafts are cleared without asking; edited ones need a confirm that names them.
 
-**One word, in the code and in the UI alike: a draft** (`drafts.ts`, `Draft`,
-`draftTitle.ts`, IndexedDB, unlimited, web and desktop alike). "Scratch" was the
-name in the code while the storage tier was the thing worth naming; the tier is
-an implementation detail and the draft is the object, so the object's word won
-and the second vocabulary is gone. The persisted keys moved with it (`drafts`,
-`agentDraftId`, a view of `type: "draft"`) and the old ones are still **read**
-once — a rename is not a reason to lose somebody's work.
+One word throughout — a **draft** (`drafts.ts`, `Draft`, `draftTitle.ts`, IndexedDB, unlimited, web and desktop alike). The old "scratch" keys (`drafts`, `agentDraftId`, view `type: "draft"`) are still read once for migration.
 
-- **Five verbs, each on exactly one object.** You **name** a draft, **save** a
-  file, **clear** drafts, **delete** a file, and **revert** a file to saved.
-  Nothing says "unsaved", because nothing is at risk.
-- **Clicking a method never asks what to do with it** (`onMethodSelect`). The
-  current draft decides: an **untouched** one (still exactly its generated
-  code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
-  a worked-in one is left alone and the call starts a **new** draft. So
-  browsing the tree leaves one draft behind, not a trail, and work is never
-  silently overwritten. **A new one is never a copy of one that is already
-  there**: before either of those, `findUntouched` looks for an untouched
-  draft holding exactly this call, from this app, and **reopens** it — two
-  browsing buffers of the same call are one buffer written twice, identical
-  down to the title and the dim. It is decided before the takeover, which is
-  what would otherwise make the duplicate. Reopening settles nothing (`reopen`
-  only bumps `updatedAt`, so the buffer sits at the top of the list and out of
-  the sweep's reach) — a run or an edit is still what turns a buffer into work.
-  The agent's draft is never taken over by a click of yours: it isn't yours.
-  Appending is the deliberate gesture — **⌥click, or the
-  `+` on the row** — so a draft never grows a second call by drifting.
-  `appendCall` merges the import lines instead of stacking a second copy, and
-  edits the text rather than reprinting it so the author's formatting survives.
-  Generated code is run through prettier **before it reaches the model**: the
-  editor's format-on-open only fires when a model is created, and taking over a
-  draft writes into a model that already exists, so a twenty-field request
-  would otherwise sit on one line. The editor wraps rather than scrolling
-  sideways — the pane is short on purpose, and horizontal scrolling is worse
-  than vertical.
-- **A draft names itself from its own code** (`draftTitle.ts`), which Kaja
-  can do better than a chat app names conversations: the content is typed code
-  against a known schema, so the title is a formatting job rather than a
-  summarization one, and it comes out the same every time. `ListShows`,
-  `GetShow · vera-lune` (the first literal bound to an identifying field),
-  `Sum · 5, 3` (a request of three fields or fewer is described by the values
-  filled into it, which is usually what tells two goes at the same call apart;
-  anything bigger or nested stays quiet rather than picking a field out of a
-  crowd), `ListShows → GetShow`, `CreateShow +2`. Zero values never count —
-  that is what a generated request starts with. The **canvas verbs never count
-  either**: `kaja` is imported like a service and called like one, but
-  `kaja.table(...)` is the script drawing rather than a call it made, so a script
-  that only draws would otherwise be titled `text +3`.
-- **The title re-derives at deliberate moments, never while typing**: on a run
-  (`markRun`) and on an append (`withCode`), because both are punctuation. There
-  is **no rename of a draft** — naming one and filing it are the same act, so the
-  code decides until you name it, and then the filename does.
-- **The browsing buffer says so.** "An untouched one gets taken over, a
-  worked-in one doesn't" is a good rule you could otherwise only learn by being
-  surprised by it, so it has a tell: a draft that is still `isUntouched` is
-  **dimmed** — in the sidebar row and in the finder's trigger and rows
-  (`provisional` on `ViewIdentity` and on a finder `Destination`) — and resolves
-  to full weight the moment it is edited or run. Not italics, and not a word; the
-  dim is the reading. Beside it, `titleParts` splits the qualifier the naming rule
-  produced (`· vera-lune`, `· 5, 3`) off the name so the row can dim that too.
-- **A draft is not bound to an app.** Deleting an app leaves your drafts
-  alone — they just stop compiling. Only a *rename* is followed, so the imports
-  keep resolving.
+- **Five verbs, one object each.** You **name** a draft, **save** a file, **clear** drafts, **delete** a file, **revert** a file to saved. Nothing says "unsaved", because nothing is at risk.
+- **Clicking a method never asks what to do with it** (`onMethodSelect`). `findUntouched` first looks for an untouched draft holding exactly this call from this app and **reopens** it (`reopen` only bumps `updatedAt`, so it sits at the top and out of the sweep's reach). Otherwise an **untouched** draft — byte-identical to its generated code and never run (`isUntouched`) — is **taken over**, and a worked-in one is left alone while the call starts a new draft. The agent's draft is never taken over. Appending is deliberate: **⌥click or the row's `+`**; `appendCall` merges import lines and edits the text rather than reprinting it, so the author's formatting survives. Generated code is run through prettier **before it reaches the model** — format-on-open only fires when a model is created, and a takeover writes into one that already exists. The editor wraps rather than scrolling sideways.
+- **A draft names itself from its own code** (`draftTitle.ts`): `ListShows`, `GetShow · vera-lune` (first literal bound to an identifying field), `Sum · 5, 3` (three fields or fewer are described by their values; anything bigger or nested stays quiet), `ListShows → GetShow`, `CreateShow +2`. Zero values never count, and neither do the canvas verbs — `kaja.table(...)` is the script drawing, not a call it made. The title re-derives on a run (`markRun`) and on an append (`withCode`), never while typing. **There is no rename of a draft**: naming one and filing it are the same act.
+- **The browsing buffer says so.** A draft that is still `isUntouched` is **dimmed** — in the sidebar row and in the finder's trigger and rows (`provisional` on `ViewIdentity` and on a finder `Destination`) — and resolves to full weight when edited or run. `titleParts` splits the qualifier (`· vera-lune`) off the name so the row can dim that too.
+- **A draft is not bound to an app.** Deleting an app leaves drafts alone; they just stop compiling. Only a *rename* is followed, so imports keep resolving.
 
 ### One section, two groups
 
-`ScriptsRegion.tsx` is the two groups; `Sidebar.tsx` is the panel — the API's
-catalog, the band over both sections and the header over each — and it takes the
-region in as a node, because the two lists share nothing but the panel.
+`ScriptsRegion.tsx` is the two groups; `Sidebar.tsx` is the panel — the band over both sections and the header over each — taking the region in as a node.
 
-- **A control's scope decides where it lives, and that settles what the band
-  is.** **+** is local, so there is one on Scripts and one on Apps; `{ }` is
-  about the window rather than about either list, so it is in the band above
-  both. What the band is *not* is a header for the first section
-  — which is exactly how it read while it was titled **Scripts** and carried
-  that section's verbs, since everything below it, the app tree included,
-  appeared to be inside it. It is the panel's own 40px row (`GlobalBand`),
-  holding the global tools and nothing else.
-- **The left of the band belongs to the platform, which is what makes the two
-  builds one app.** macOS puts the traffic lights there, so the band takes their
-  inset and stays draggable except where a control is; everywhere else — the
-  browser, and a desktop window whose buttons are on the right — the **Kaja mark
-  and wordmark** take that corner (`KajaTrace`, the real mark rather than a
-  logotype of its own). The tools sit flush right either way, so the cluster
-  never moves between builds and desktop and browser differ by exactly one
-  element.
-- **Both sections are the same in-list header**, 22px like the rows under them
-  (`SectionHeader`): a name at `text-[13px] font-medium text-foreground`, and on
-  the right the one verb that belongs to that list — **+** on Scripts starts a
-  draft (⌘N), **+** on Apps makes an app. That is what makes them peers; a 40px
-  bar over one and a row over the other reads as a title for the panel and a
-  heading inside it. A hairline seats Apps against the section above it, which is
-  enough now that the band says nothing about either. The header still names the
-  region's `nav` through `aria-labelledby`, so the heading is stated once.
-  Nothing indents: the name sits at 8px, left of the group chevrons, and no row
-  under it moves.
-- **The two + are permanent; everything else in a header is revealed by the
-  cursor.** Making a draft and adding an app are the verbs somebody comes to
-  this panel for, and they were permanent while the band was theirs. The group
-  actions below them (`Trash2` on Drafts, the Files kebab) keep the hover rule.
-- **The name is the fold, not the whole row.** Clicking it collapses the
-  section — the escape valve when the other one gets long — and the chevron is
-  revealed by the cursor while the section is open, then stays put once it is
-  shut, which is when it is the only way back; it holds its space either way, so
-  the name never moves. The name rather than the row, so a header can carry a
-  button without the two competing.
-- **Each section scrolls inside itself**, so a hundred methods can't push the
-  Scripts header off the top of the panel. Scripts is content-sized and shrinks
-  (`flex-[0_1_auto]`) — a short list of files leaves the room to the apps rather
-  than claiming half the panel — and Apps takes what is left; with Apps folded
-  away there is nothing to leave room for, so Scripts takes the rest.
-- **Tabs were the other candidate and were cut.** The core loop is clicking a
-  method in Apps and landing in a draft under Scripts, and one region at a time
-  hides half of that loop at the moment it matters — every method click becomes a
-  tab switch back. They buy full height for a 150-method tree, and are worth
-  revisiting if a third section ever appears.
-- **One list of names, in one font.** Mono on a file row was doing double duty as
-  the tell for "this one is on disk"; the group label carries that now, and mono
-  inside a nav list reads as code, which is the wrong register. So every row in
-  the region — draft, file, folder, and the app tree below — is the UI font, and
-  only the **extension** is dimmed (`FileName`, `text-muted-foreground`) — the
-  same two-tone name the trigger, the finder and every sheet title now draw, so
-  one object never reads two ways one line apart (see **A filename is one
-  object**). A file still looks like a file without shouting. Dropping `.ts` altogether
-  was the other candidate and gives up the last cue that these are things on
-  disk; keeping mono for the extension alone puts two fonts inside one word,
-  which sits unevenly at 13px. The UI font is narrower, so truncation improves
-  as well. **Mono belongs to content** — the editor, the payload panes, variable
-  values, the naming field — not to navigation, which is why the counts beside
-  the group labels are `tabular-nums` rather than mono too.
-- **Group headers are 22px rows too**, at `text-xs`, their chevrons in the same
-  column as the app rows' below, and their rows indent to 24px so the group label
-  and the row text share a left edge. Both groups collapse, and a collapsed one
-  keeps its count, so `Drafts 12` is still readable when folded away.
-- **Two counts, and only two.** They earn their place because the group can be
-  collapsed and because the number answers a question you do ask: how much is in
-  here that I haven't filed. Folder rows carry **nothing** on the right — a count
-  next to `billing` answers a question nobody asked and collides with the two that
-  are load-bearing — which also frees that edge for the hover actions. Each says
-  what is in its group, always: there is nothing that narrows these lists, so a
-  count can't disagree with the rows under it.
-- **No dot survives.** The amber one went with the split, and a file auto-saves,
-  so there is no unsaved state left to mark either. What the trailing slot holds
-  is the run indicators — spinner, the amber waiting ring, the agent's emerald dot
-  — and it is a fixed 24px whatever is in it, so a run starting under the cursor
-  never moves the label out from under it; the row that carries three buttons
-  widens the slot instead. Nothing is drawn in a leading slot any more: there was
-  nothing left to put there, and 18px of indent is better spent on the name.
-- **Header actions live on the group they act on**: `Trash2` on Drafts, an
-  overflow menu on Files (`New folder… ⇧⌘N`, `Reveal in Finder`). Both are
-  revealed by the cursor and always present for the keyboard.
-- **The frequent verbs are on the row, not behind the menu.** A draft is made by
-  clicking a method, run twice and thrown away — a several-times-a-minute loop
-  that shouldn't cost hover → ⋯ → click → click. So a draft row's hover carries
-  **save · ✕ discard · ⋯**, and `⌫` on the focused row does the same as the ✕. A
-  **file** row keeps only the kebab: taking a file off disk is not the loop this
-  is for, and it still asks first.
-- **Delete and discard are different words for different consequences.** A file
-  row's menu is `Copy deeplink…` / `Rename…` / `Move to…` / **`Delete file`**,
-  destructive and confirmed, because it takes a file off disk — the only action
-  in the sidebar
-  that does, and the only one in `text-destructive`. A draft row's is `Name…` /
-  **`Discard`**, neutral and **undoable** — the row goes and a bar offers it back
-  for eight seconds (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove.
-  There is no route from a file into Drafts: that group is for things that have
-  never had a name.
-- **Clearing the pile has two verbs and one dialog.** The Drafts header's menu is
-  `Clear untouched` (n) / `Clear all` (n) / `Sweep untouched weekly`. Untouched
-  means byte-identical to the generated call and never run, so clearing those
-  removes nothing you wrote and needs **no confirm** — clicking the method again
-  writes the same thing back. `Clear all` asks only when it costs something, and
-  then the dialog **names the work at stake**: `9 are untouched and regenerate on
-  demand. 3 have edits that aren't saved anywhere:` over the list. Both buttons
-  are actions — **Keep edited (n)** clears the untouched ones and **Clear all n**
-  is destructive — so closing the dialog clears nothing: the safe path is the fast
-  one, not the one you fall into. Either way the bar offers an undo.
-- **The pile is capped, not scrolled.** Drafts draws `VISIBLE_DRAFTS` (8) rows,
-  most recently opened first, with **edited ones pinned above the browsing
-  buffers** (`orderDrafts`) so work never hides behind generated calls; the
-  rest are `n more…`, which expands in place. That is what keeps the region a
-  predictable share of the panel: its height is bounded by folder depth in Files,
-  not by draft accumulation.
-- **The sweep is what makes unlimited work.** `pruneDrafts` drops drafts that
-  were never run and never edited past their generated form after `SWEEP_DAYS`
-  (7), never touches one that is on screen, never touches the agent's row, and is
-  off entirely when `sweepDrafts` is off. Anything run or edited is kept forever.
-- **Empty states.** Zero drafts hides the Drafts group entirely rather than
-  showing an empty label — there is nothing there and nothing to say about it.
-  Zero files keeps its header and says one line: where files come from.
+- **A control's scope decides where it lives.** **+** is local, so Scripts and Apps each have one; `{ }` (Variables) is about the window, so it sits in the panel's own 40px `GlobalBand` and is the only thing there.
+- **The left of the band belongs to the platform.** macOS puts the traffic lights there, so the band takes their inset and stays draggable except where a control is; everywhere else the **Kaja mark and wordmark** (`KajaTrace`) take that corner. Tools sit flush right either way, so desktop and browser differ by exactly one element.
+- **Both sections wear the same 22px in-list header** (`SectionHeader`): a name at `text-[13px] font-medium text-foreground` and, on the right, the one verb for that list — **+** starts a draft (⌘N) or makes an app. A hairline seats Apps against the section above. The header names the region's `nav` through `aria-labelledby`. Nothing indents: the name sits at 8px, left of the group chevrons.
+- **The two + are permanent; everything else in a header is revealed by the cursor** (`Trash2` on Drafts, the Files kebab) and stays present for the keyboard.
+- **The name is the fold, not the row.** Clicking it collapses the section; the chevron is revealed by the cursor while open and stays put once shut, holding its space either way so the name never moves.
+- **Each section scrolls inside itself.** Scripts is content-sized and shrinks (`flex-[0_1_auto]`), Apps takes the rest; with Apps folded, Scripts takes it all.
+- **Tabs were considered and cut.** The core loop is clicking a method in Apps and landing in a draft under Scripts; one region at a time hides half of it.
+- **One list of names, in one font.** Every row in the region is the UI font, with only the **extension** dimmed (`FileName`, `text-muted-foreground`). Mono belongs to content — the editor, payload panes, variable values, the naming field — not to navigation. The two group counts are `tabular-nums`.
+- **Group headers are 22px at `text-xs`**, chevrons in the same column as the app rows' below, rows indented to 24px so label and row text share a left edge. Both groups collapse and keep their count when folded.
+- **Two counts, and only two** — one per group, always the whole group. Folder rows carry nothing on the right, which frees that edge for hover actions.
+- **The trailing slot is a fixed 24px** holding the run indicators (spinner, amber waiting ring, the agent's emerald dot), so a run starting under the cursor never moves the label. There is no leading slot and no dot of any kind.
+- **The frequent verbs are on the row.** A draft row's hover carries **save · ✕ discard · ⋯**, and `⌫` on the focused row does the same as the ✕. A **file** row keeps only the kebab.
+- **Delete and discard are different words.** A file's menu is `Copy deeplink…` / `Rename…` / `Move to…` / **`Delete file`** — destructive, confirmed, and the only `text-destructive` action in the sidebar. A draft's is `Name…` / **`Discard`** — neutral and **undoable**, with a bar offering it back for `UNDO_DISCARD_MS` (8s). There is no route from a file into Drafts.
+- **Clearing has two verbs and one dialog.** The Drafts header menu is `Clear untouched` (n) / `Clear all` (n) / `Sweep untouched weekly`. Untouched drafts regenerate on demand, so clearing them needs **no confirm**. `Clear all` asks only when it costs something and then **names the work at stake**; both buttons act (**Keep edited (n)** and a destructive **Clear all n**) so closing the dialog clears nothing. Either way an undo is offered.
+- **The pile is capped, not scrolled.** Drafts draws `VISIBLE_DRAFTS` (8) rows, most recently opened first, with **edited ones pinned above browsing buffers** (`orderDrafts`); the rest are `n more…`, expanding in place.
+- **The sweep makes unlimited work.** `pruneDrafts` drops drafts never run and never edited past their generated form after `SWEEP_DAYS` (7). It never touches one on screen or the agent's, and is off entirely when `sweepDrafts` is off.
+- **Empty states.** Zero drafts hides the group entirely; zero files keeps its header and says one line about where files come from.
 
 ### There is one search, and it is the finder
 
-**Searching is `⌘P`, and nothing in the sidebar competes with it.** The panel
-briefly had a magnifying glass in its band, filtering the scripts and the app
-tree in place — a good filter over a strict subset of what the finder already
-reaches, sitting one seam from the finder's own trigger. Two magnifying glasses
-in one window is a question the reader has to answer before either of them is
-useful, so the panel's is gone (`sidebarFilter.ts`, `appFilter.ts` and
-`filterScripts` with it) and the finder is the whole answer.
-
-- **The finder strictly dominates**, which is what makes this a deletion rather
-  than a trade. It matches every method by name, service and app, every file by
-  name and folder, every draft by title, plus Variables and the compile log —
-  and its rows are flat, keyboard-driven, and reached from either `⌘P` or a
-  trigger that also says where you are. The panel filter matched less, from a
-  second place, with no keyboard route in.
-- **What went with it is browsing a filtered catalog in place**, with the row
-  verbs still on the rows: `⌥click` and the row's **+** append to the open
-  draft, and a finder row only goes. Appending is a tree gesture, and the tree
-  is where you browse; if that turns out to be the loss that matters, the fix is
-  `⌥⏎` in the finder, not a second field in the panel.
-- **The band keeps its wordmark permanently.** It gave way to the field while
-  there was a field; with the search gone the corner is the mark, the lights, or
-  nothing, and the band holds `{ }` alone.
-- **The folds are the folds again.** Nothing forces a section open, no group
-  count reports hits instead of totals, and neither list has an empty state for
-  a query that matched nothing.
+`⌘P` is the whole answer. The sidebar had a filter of its own and it is gone (`sidebarFilter.ts`, `appFilter.ts`, `filterScripts`): two magnifying glasses in one window is a question the reader has to answer first, and the finder strictly dominates — it matches every method by name, service and app, every file by name and folder, every draft by title, plus Variables and the compile log. What went with it is browsing a filtered catalog in place with the row verbs (`⌥click`, the row's **+**) still attached; if that turns out to matter the fix is `⌥⏎` in the finder, not a second field in the panel.
 
 ### Folders
 
-- **A folder in Files is a real directory** under the workspace's scripts root.
-  Creating one, renaming it and moving a file all hit disk immediately — no
-  staged state — which is also what gives an import a stable path to reference.
-  An **empty folder persists**: it is a directory, not a UI grouping, so it sorts
-  with the rest and shows nothing when expanded. Folders sort first,
-  alphabetically, files after (`scriptTree.ts`, unit-tested).
-- **Making one is inline, never a dialog.** The row is a real row from the first
-  keystroke, so you can see where it lands while you type: `⏎` creates the
-  directory, `Esc` or an empty name cancels, and a duplicate shows the field in
-  `border-destructive` and refuses `⏎`. **Rename is the same row**, so the
-  interaction is learned once. Three doors lead to it — the Files group menu
-  (`⇧⌘N`, at the root), right-clicking a folder (one level deeper), and the
-  naming sheet's own `New folder…`, so filing a draft somewhere new needs no trip
-  to the sidebar.
-- **A file's path is its name**, so renaming and moving are one write
-  (`RenameScript`, `renameScriptFile`). The naming sheet is therefore **one sheet
-  for three moments** — naming a draft, renaming a file, moving one — with the
-  same two fields; only its title and its button differ. The folder select lists
-  the folders that exist plus `New folder…`, and the last folder used is the
-  default, so repeat filing is Enter-Enter.
-- **Drafts stay flat, permanently.** Foldering one would mean giving it a place,
-  and a place is half of what a file is. If you want it organised, name it.
-- **A name is resolved inside the folder, never followed out of it.** Everything
-  crossing into `desktop/scripts.go` — from the UI, from an agent, from a browser
-  — is reduced to a relative path (`filepath.IsLocal`, no dot segments) and opened
-  through an `os.Root`. That is the whole access boundary, the same rule the
-  folder app and the server's `ReadScript` follow, which is why the MCP bridge no
-  longer guards paths of its own.
+- **A folder in Files is a real directory** under the workspace's scripts root. Creating, renaming and moving hit disk immediately. An **empty folder persists**. Folders sort first, alphabetically, files after (`scriptTree.ts`, unit-tested).
+- **Making one is inline, never a dialog.** The row is real from the first keystroke: `⏎` creates, `Esc` or an empty name cancels, a duplicate shows `border-destructive` and refuses `⏎`. **Rename is the same row.** Three doors: the Files group menu (`⇧⌘N`, at the root), right-clicking a folder, and the naming sheet's own `New folder…`.
+- **A file's path is its name**, so renaming and moving are one write (`RenameScript`, `renameScriptFile`), and the naming sheet is **one sheet for three moments** — naming a draft, renaming a file, moving one — differing only in title and button. The folder select lists existing folders plus `New folder…`, defaulting to the last one used.
+- **Drafts stay flat, permanently.** A place is half of what a file is.
+- **A name is resolved inside the folder, never followed out of it.** Everything crossing into `desktop/scripts.go` — UI, agent, browser — is reduced to a relative path (`filepath.IsLocal`, no dot segments) and opened through an `os.Root`. That is the whole access boundary, and it is why the MCP bridge guards no paths of its own.
 
 ### Saving, and what the web hasn't got
 
-- **A file auto-saves; a draft has no save step at all.** Neither has an unsaved
-  state, which is why neither has a dot: an open file view writes to disk 500ms
-  after you stop typing (and on quit, on close, and before a rename, which is
-  what `flushScriptWrite` is for), and a draft is written straight through to its
-  store. **Saving is not one of the five verbs** — you name a draft, and after
-  that the file keeps itself.
-- **The one you are editing has the pair beside its name**, in the command row —
-  `Name ⌘S` and a discard, on a **draft**. A file has neither, because it is
-  already on disk and stays there as you type. Same verbs as the draft's sidebar
-  row, answering a different moment (mid-edit, versus tidying up after).
-- **The web is the same app minus the verbs that write a file.** Drafts are
-  IndexedDB on both platforms, so the list, the titles, the clearing and the
-  history are identical; Name, Rename, Move, Delete file and New folder are
-  missing, because the server serves a workspace it does not own — and the row's
-  ⋯ and the command row's pair go with them rather than opening onto nothing.
-- **The reads are not one of those verbs, so the web has the workspace's own
-  scripts** (`scriptFiles.ts`). The `scripts` folder beside kaja.json is read
-  wherever it is, at any depth: the desktop opens the files itself, a browser goes
-  through `ListScripts`/`ReadScript` on the Api service, and either way the rows
-  are files in the one `Files` group. That is what puts a workspace's scripts in a
-  container — `docker run -v .../workspace:/workspace` already mounts the folder —
-  so a demo workspace can ship the scripts that demonstrate it
-  (`workspace/scripts`).
-- **A file the server can't write is read-only, stated by refusing the edit.**
-  The script's editor takes `readOnly` rather than accepting keystrokes into a
-  buffer nothing would keep — the same shape as an app form whose fields are
-  disabled, and the same reason. A draft beside it is unaffected: it lives in
-  the browser, so it is as writable there as anywhere, and `⌘N` is the way to
-  take a copy of a script somewhere you can change it — `Duplicate as draft`, in
-  the Run caret's menu, is that gesture with the file's own code in it.
+- **A file auto-saves; a draft has no save step.** An open file view writes 500ms after you stop typing, and on quit, close and before a rename (`flushScriptWrite`). A draft is written straight through to its store. Neither has an unsaved state, which is why neither has a dot.
+- **The command row carries `Name ⌘S` and a discard on a draft**, and neither on a file.
+- **The web is the same app minus the verbs that write a file.** Drafts are IndexedDB on both platforms, so lists, titles, clearing and history are identical; Name, Rename, Move, Delete file and New folder are missing, and the row's ⋯ and the command row's pair go with them.
+- **Reads are not one of those verbs, so the web has the workspace's own scripts** (`scriptFiles.ts`): the desktop opens the files itself, a browser goes through `ListScripts`/`ReadScript` on the Api service, and either way they are files in the one `Files` group. That is what puts a workspace's scripts in a container.
+- **A file the server can't write is read-only, stated by refusing the edit** — the editor takes `readOnly` rather than accepting keystrokes nothing would keep. A draft beside it is unaffected; `⌘N`, and `Duplicate as draft` in the Run caret's menu, are how you take a copy somewhere writable.
 
 ### The agent's draft
 
-**An agent explores in a draft too**, which is what puts its runs in the sidebar
-and in the run history instead of somewhere the user can't see. A snippet run
-over MCP is run in **one** draft, the same one every time. What it needs beyond
-an ordinary draft is attribution, liveness, and a clear answer to "can I touch
-this".
+A snippet run over MCP is run in **one** draft, the same one every time, so its runs appear in the sidebar and the run history.
 
-- **One row, pinned above your own, wearing the last client's name.** The label is
-  whatever the agent called itself at the handshake (`clientInfo.title`, else
-  `clientInfo.name`, else `Agent` — captured in `desktop/mcp/server.go` and
-  carried into the run), so the row reads `Claude` rather than "MCP workspace": an
-  actor you recognise instead of a mechanism you translate. `agentClient` on the
-  `Draft` is the whole of it, and `isAgentDraft` is what pins the row,
-  excludes it from the count and spares it from the sweep. The `Plug` icon is
-  already MCP in the status bar.
-- **The emerald dot is the only live indicator in the sidebar.** It goes out the
-  moment the call finishes, and the row stays, name and all — it persists with no
-  client connected, because that is how you read what the last one did.
-- **It can be cleared like any draft, and the agent simply makes another.** That
-  is the point of it being a draft rather than a fixture: clearing it is one
-  deliberate act and costs nothing, and the next snippet an agent runs starts a
-  new one.
-- **Naming it works the same way** and does the same thing — a name and a folder —
-  except the file is yours from then on. `create_script` also consumes it when
-  what was saved is exactly what was last run (`consumeAgentDraft`), on the same
-  rule a person's Name follows: the buffer became the file, so it doesn't linger
-  as a copy, and its console follows it to the path.
+- **One row, pinned above your own, wearing the last client's name** — `clientInfo.title`, else `clientInfo.name`, else `Agent`, captured in `server/pkg/mcp/server.go` and carried into the run. `agentClient` on the `Draft` is the whole of it; `isAgentDraft` pins the row, excludes it from the count and spares it from the sweep. The icon is `Plug`, which already means MCP in the status bar.
+- **The emerald dot is the only live indicator in the sidebar.** It goes out when the call finishes; the row and its name persist with no client connected.
+- **It can be cleared like any draft** — the next snippet makes another.
+- **Naming it works the same way.** `create_script` also consumes it when what was saved is exactly what was last run (`consumeAgentDraft`), so the buffer becomes the file rather than lingering as a copy, and its console follows it to the path.
 
-## Deeplinks, and the sheet that asks
+## Deeplinks
 
-**`kaja://run/<script>?key=value&key=value` is a script's address outside Kaja**
-(`scriptLink.ts`). It replaced the macOS "Run Kaja Script" text service, which
-was reachable only from a *selection* — so the thing you had just copied could
-not be sent at all — carried one unnamed string, and ran whichever single script
-was pinned. A URL is what every launcher on the machine already knows how to
-build, so being addressable is the whole feature: a Raycast quicklink with
-`{clipboard}` in it, an Alfred workflow, a Shortcut on a hotkey, `open` from a
-shell. Kaja integrates with none of them and reaches none of them.
+**`kaja://run/<script>?key=value&key=value`** is a script's address outside Kaja (`scriptLink.ts`). It replaced a macOS text service that could only be reached from a selection, carried one unnamed string, and ran whichever script was pinned. A URL is what every launcher already knows how to build — a Raycast quicklink with `{clipboard}`, an Alfred workflow, a Shortcut, `open` from a shell — and Kaja integrates with none of them.
 
-**The word is deeplink**, in the menu item, both sheet titles and the footer
-verb. It is the established term for this exact object and the one the launcher
-on the other end already uses — Raycast names its `raycast://` command URLs
-deeplinks and ships a `Copy Deeplink` action on `⌘⇧C`, the same gesture and the
-same idea; Slack, Spotify and Figma use it for app-scheme URLs too. `Link` was
-what shipped, and it is also what a browser URL, a file alias and a share sheet
-are called, so nothing in the phrase said "this launches Kaja". `URI` is spec
-vocabulary — Apple's own docs say "custom URL scheme" — and belongs in developer
-prose, not in a menu. Everywhere the sentence is about the string itself it
-still says **URL**, which stays correct: the deeplink is a URL, the word just
-names which kind.
+**The word is deeplink** in the menu item, both sheet titles and the footer verb. Where the sentence is about the string itself it still says **URL**.
 
-- **The verb is the host and the script is the path, which is what leaves the
-  query to the script.** `kaja://run/slack-thread?url=…&note=…`: nothing in the
-  query string is reserved, so a script may take a parameter called `script` or
-  `run` without knowing any of this exists. Putting the script in a `?script=`
-  of its own is what would have created that collision, and the first script to
-  want the name would have found it taken.
-- **A page can't register a scheme, so the web says the same thing after a
-  `#`**: `https://kaja.example.com/#run/slack-thread?url=…&note=…`. The fragment
-  is the `kaja://` link minus its scheme, which is why this is one grammar and
-  one parser rather than a second feature — `parseScriptLink` puts the scheme
-  back on and reads what it always read, and everything downstream (the arrived
-  sheet, `isLinkedScript`, `kaja.input`) never learns which door it came
-  through. It is the **fragment** rather than a path, because a fragment is
-  never sent to a server: nothing about how Kaja is served, or under what base
-  path, has to know deeplinks exist — no route to add, no SPA fallback, and the
-  relative `./main.js` and `./monaco.ts.worker.js` the page already loads stay
-  correct. A `?run=` of its own was the other candidate and is out for the
-  reason the desktop's host is the verb: a query key named here is one a script
-  can never take.
-- **The base is the one thing that differs, so it is the one thing passed in.**
-  `linkBase()` is the single function here that asks what it is running in —
-  `kaja://run/` under Wails, this page's own href minus its fragment in a
-  browser — and `scriptLink`/`scriptLinkParts` take it as an argument, so
-  everything else in `scriptLink.ts` is pure and unit-tested against both forms.
-- **The address carries no extension; a filename always does.** Two different
-  things are being named, so there are two rules rather than one. The path
-  segment is how the app finds the script (`linkName`, `isLinkedScript`), and a
-  deeplink is meant to outlive the file: rename or move the script and the
-  quicklink somebody saved a month ago should still fire. `.ts` in the path also
-  reads as "fetch this file", which is not what the URL does. The cost is that
-  two scripts can't share a name across extensions — already true of the sidebar
-  list, so the constraint is not new. A link written *with* `.ts` is still read,
-  because links written before this rule existed are not worth breaking.
-- **Every value is text, and `kaja.input` is a map of them** (`kaja.input.url`),
-  empty when the script is run any other way. Not `undefined` when empty: a
-  parameter that wasn't sent is undefined either way, and `kaja.input?.url` on
-  every line would be noise for a distinction nothing acts on. A run carries
-  what it was started with and nothing else — the input is a field of that run's
-  `Kaja`, so a plain Run beside a parameterised one carries none of its values.
-  A script that reads `kaja.input.url ?? await kaja.askStr(…)` works from a
-  deeplink and from the editor alike, which is the shape to write.
+- **The verb is the host and the script is the path**, which leaves the whole query to the script: nothing in it is reserved, so a script may take a parameter called `script` or `run`.
+- **A page can't register a scheme, so the web says the same thing after a `#`**: `https://kaja.example.com/#run/slack-thread?url=…`. One grammar, one parser — `parseScriptLink` puts the scheme back on, and nothing downstream learns which door it came through. A **fragment** rather than a path because a fragment is never sent to a server: no route to add, no SPA fallback, and the relative `./main.js` the page already loads stays correct.
+- **`linkBase()` is the one function that asks what it is running in** — `kaja://run/` under Wails, this page's href minus its fragment in a browser. `scriptLink`/`scriptLinkParts` take it as an argument, so the rest of `scriptLink.ts` is pure and unit-tested against both forms.
+- **The address carries no extension; a filename always does.** A deeplink is meant to outlive a rename or a move, and `.ts` in a path reads as "fetch this file". The cost is that two scripts can't share a name across extensions, which was already true of the sidebar. A link written *with* `.ts` is still read.
+- **Every value is text, and `kaja.input` is a map of them**, empty when the script is run any other way — never `undefined`, so `kaja.input?.url` is noise. The input is a field of that run's `Kaja`, so a plain Run beside a parameterised one carries none of its values. `kaja.input.url ?? await kaja.askStr(…)` is the shape to write.
 
 ### One parameter block, three doors
 
-**Every flow that needs values for a script shows the same middle**
-(`ParameterSheet.tsx`): a `Parameters` grid whose keys are read from the source
-and whose values are always real text fields. Only the header, the one line of
-guidance and the footer verb change — `copy` builds a deeplink, `arrived`
-confirms one that came in, `run` is the Run button asking first. Three sheets
-that differed in the middle is what let the incoming one render its values as
-static mono text, which pushed a pasted URL out through the side of the dialog.
+Every flow that needs values for a script shows the same middle (`ParameterSheet.tsx`): a `Parameters` grid whose keys are read from the source and whose values are **always real text fields** — a field clips at its own edge, scrolls on focus and stays correctable up to the run, where a line of static text does none of the three. Only the header, one line of guidance and the footer verb change.
 
-- **A value is always a field, never a line of text.** A field clips at its own
-  edge, scrolls on focus, and stays correctable right up to the run; a text box
-  can do none of the three. That is the whole of what the `arrived` door needed,
-  and the reason the block is shared rather than reimplemented per door. The
-  tail a clipped field still hides is one hover away, in a `SimpleTooltip`.
-- **`copy` — the deeplink being built.** The URL is the headline rather than a
-  caption: shown whole, at body size, in mono with the scheme and the keys
-  dimmed, it teaches the scheme, the script's address and the query syntax at
-  once, and nothing on screen has to explain any of them. A value typed here is
-  baked in; left blank the key still ships, and that trailing `=` is where a
-  launcher's own token goes. One line under it says what opens a URL, and the
-  clipboard is the only exit. **Run now was designed and cut**: with two verbs
-  the sheet is no longer about copying, and running is two feet away in the
-  command row with a console attached to catch the output.
-- **`arrived` — the deeplink that came in.** Anything that can open a URL can
-  get this far, so it states what it wants and stops. The script is opened
-  *behind* the sheet — reading it is the reason the question is worth asking —
-  the URL is shown wrapped rather than clipped, and every value it carried is a
-  field, so a wrong one is corrected before the run rather than after it. `⏎`
-  runs it, because a deeplink that arrived from a hotkey is one gesture from a
-  run and should stay that way. There is **no "don't ask again"**: a remembered
-  answer is a policy, on the same rule that keeps `kaja.approve`'s standing
-  approval inside its own run, and this door is the one place where the thing on
-  the other side may not be a person. **What it runs is presented**: nobody
-  pressed Run for it and nothing else on screen is what they came for, so the
-  moment the run draws, the canvas takes the whole window — see **A run nobody
-  pressed Run for is presented rather than left in a panel**. Which is also why
-  that screen carries Run: a script launched from a hotkey is one somebody runs
-  more than once.
-- **`run` — the Run button asking first.** The same block with no URL line. It
-  closes the gap that made a script written for a deeplink only half runnable in
-  the app: a manual Run could not supply `kaja.input` at all. Fields start
-  **blank** — a value from three days ago riding along on a run is worse than
-  typing it again — and the last run is *offered* instead, as one
-  `Use last run's values` link inside the sheet, shown only when there is
-  something to offer that isn't already typed (`runInput.ts`, per file, capped,
-  and it follows a file through a rename the way its console does).
-- **The parameters are the script's own, read at the language level**
-  (`scriptInputs.ts`). `readInputKeys` walks the AST rather than the text, which
-  is the only way to be right about any of it: `kaja` is an ordinary local
-  binding, so what names it is what the file imported (`scriptBindings.ts`,
-  shared with `draftTitle`), and a key is written four ways a pattern over the
-  source would miss or invent — `kaja.input.url`, `kaja.input["order id"]`,
-  `const { url: link } = kaja.input`, and an alias a line above any of them. A
-  key the script computes is left out rather than guessed at, and a
-  `kaja.input.x` in a comment or a string is not a parameter. For the file on
-  screen they are read from the **buffer** (`useInputKeys`, debounced), because
-  the script as it is now is the one Run runs. A script that reads nothing still
-  gets the `copy` sheet, minus the block: the URL is the whole point of it.
-- **The deeplink the sheet shows is the one it copies, by construction.**
-  `scriptLinkParts` is what `scriptLink` is built from rather than a second
-  reading of it, so the dimming can't drift from the string, and each pair is
-  encoded by the same `URLSearchParams` that writes the whole query.
+- **`copy` — the deeplink being built.** The URL is the headline, shown whole at body size in mono with scheme and keys dimmed, which teaches the scheme and the query syntax at once. A blank value still ships its key, and that trailing `=` is where a launcher's own token goes. The clipboard is the only exit; Run now was cut, since running is two feet away with a console attached.
+- **`arrived` — the deeplink that came in.** The script is opened *behind* the sheet, the URL is wrapped rather than clipped, and `⏎` runs it. There is **no "don't ask again"** — a remembered answer is a policy, and this is the one door where the thing on the other side may not be a person. What it runs is **presented** (below).
+- **`run` — the Run button asking first.** The same block with no URL line, which is what makes a script written for a deeplink runnable from the app. Fields start **blank**; the last run is offered as one `Use last run's values` link, shown only when there is something to offer that isn't already typed (`runInput.ts`, per file, capped, following a file through a rename).
+- **The parameters are read at the language level** (`scriptInputs.ts`). `readInputKeys` walks the AST, not the text, because `kaja` is an ordinary local binding (`scriptBindings.ts`, shared with `draftTitle`) and a key is written four ways a pattern would miss or invent: `kaja.input.url`, `kaja.input["order id"]`, `const { url: link } = kaja.input`, and an alias above any of them. A computed key is left out rather than guessed at, and a `kaja.input.x` in a comment or string is not a parameter. For the file on screen the keys come from the **buffer** (`useInputKeys`, debounced).
+- **The sheet's URL is the one it copies, by construction**: `scriptLinkParts` is what `scriptLink` is built from, so the dimming can't drift from the string.
 
 ### The Run button, split
 
-**Plain Run keeps its place, its shape and its `⌘⏎`** — the one-click path is
-untouched, and pressing Run still never opens anything. A 22px caret beside it
-(`RunButton.tsx`) opens the script's action menu: the run gestures, then a rule,
-then what this script is once the run is over.
+Plain Run keeps its place, shape and `⌘⏎`, and pressing it never opens anything. A 22px caret beside it (`RunButton.tsx`) opens the script's action menu: run gestures, a rule, then what the script is once the run is over.
 
-- **The caret is the script's action menu, not a parameters affordance, so it is
-  on for every script and the menu is what varies.** Keying it to `kaja.input`
-  was what gave the pill two widths — it stepped 23px wider the moment you moved
-  from a script that declares a key to one that doesn't, a control moving under
-  the cursor for a reason nothing on screen explains — and it also left
-  `Copy deeplink…` sitting in a menu that a file with no parameters had no way
-  to open. Mid-run the button is Stop, which is one thing to press and nothing
-  to choose between, so the caret is gone there and only there.
-- **The second group is never empty, because every script has an answer to
-  "what is this once the run is over".** A **file** offers the address it has —
-  `Copy deeplink… ⌘⇧C` and `Reveal in Finder`, the file itself rather than the
-  folder the Files group already reveals. A **draft** offers the sheet that
-  gives it one: `Name… ⌘S`, and the `Discard` beside it. That is the whole
-  substitution — a draft has no deeplink *because* it has no name, so the item
-  in that slot is the one that fixes it — and it is what lets the caret stay on
-  everywhere without being a stub kept for alignment.
-- **`Reveal in Finder` is desktop-only**, because the web doesn't own the disk.
-  `Copy deeplink…` is not: a file has an address on either platform, so it is on
-  a script row and in the caret's menu wherever there is a file. `⌘⇧C` falls
-  through to the browser's own Copy wherever the item isn't there — a draft, or
-  anything that isn't a script.
-- **A read-only file's answer is `Duplicate as draft`**, which is the one place
-  a file may become a draft. Files never turn into drafts on their own and there
-  is no forking — but a server serving a workspace it does not own has no second
-  file to copy this one into, so on the **web** a draft is the whole of what
-  "take a copy and change it" can mean. `⌘N` was already named as that route
-  and only ever gave you a blank script; this is the same route with the file's
-  own code in it. On the desktop a file is writable, so the item is absent.
-  The copy is taken from the **buffer**, on the rule Run follows, and lands with
-  an empty `generatedCode` so a deliberate copy is work rather than a browsing
-  buffer the next method click would take over.
-- **Omit, don't disable.** `Run with parameters…` is absent on a script that
-  declares no key rather than greyed, since a greyed item makes people hunt for
-  the way to enable it. Absent, the menu just reads as short.
-- **The draft's two verbs are in two places on purpose.** The command row
-  carries `Name` and the discard beside the file's name, which is the pair you
-  reach for mid-edit; the menu restates them at the other end of the row, which
-  is where your hand already is once you have pressed Run. `Name` is in four
-  places now (row hover, row menu, command row, this menu) and that was already
-  the status quo for it.
-- **Prefill is not a menu item.** The last run's values live only as the link
-  inside the sheet, so the run half of the menu stays two gestures.
+- **The caret is on for every script and the menu is what varies.** Keying it to `kaja.input` made the pill two widths and left `Copy deeplink…` unreachable on a script with no parameters. Mid-run the button is Stop and the caret is gone.
+- **The second group is never empty.** A **file** offers `Copy deeplink… ⌘⇧C` and `Reveal in Finder` (desktop only — the web doesn't own the disk). A **draft** offers `Name… ⌘S` and `Discard`: a draft has no deeplink *because* it has no name, so the item in that slot is the one that fixes it.
+- **A read-only file's answer is `Duplicate as draft`** — the one place a file may become a draft, because on the web a draft is all "take a copy and change it" can mean. The copy is taken from the **buffer** and lands with an empty `generatedCode`, so it is work rather than a browsing buffer the next method click would take over. Absent on the desktop.
+- **Omit, don't disable.** `Run with parameters…` is absent on a script that declares no key.
+- **Prefill is not a menu item** — the last run's values live only as the link inside the sheet.
 
 ### Where the rest of it lives
 
-- **A deeplink is what launches Kaja as often as not, so the desktop holds it.**
-  On a cold launch macOS delivers the URL long before there is a webview to hear
-  it, so `openLink` buffers until the UI emits `link:ready` and then flushes
-  (`main.go`). It rides on a Wails event in each direction rather than a bound
-  method, which is what keeps the generated bindings out of it. Registering the
-  scheme is a bundle's to do (`info.protocols` in `wails.json` →
-  `CFBundleURLTypes`), which is the whole of why the web needs a form of its
-  own.
-- **The web needs no buffer, because the URL is one.** There is nothing to
-  deliver a link with: the link *is* the page load, or — Kaja already being open
-  in a tab — a `hashchange`, which the browser makes without reloading anything.
-  Both go through one door (`takeLinkFromLocation`), and a fragment that arrives
-  before the script list is in is simply **left where it is** until the same
-  readiness the desktop flushes on, which is the buffering done by not doing it.
-- **The fragment is cleared once it has been handed over**
-  (`history.replaceState`, which fires no `hashchange`, so clearing can't come
-  back around as a second arrival). The URL is a door, not a location: this
-  window shows whatever you last selected, and an address bar still naming a
-  script you have since navigated away from is claiming something false. Making
-  it a location would mean routing the whole app, which is a different feature.
-- **It comes from the row that runs it**: right-click a script → **Copy
-  deeplink…**, which is where the pin used to be, and from the caret beside Run
-  on the file already open. Nobody types one of these by hand.
-- **The sheet says who can open one, and nothing else moves.** The `copy` door's
-  closing line is the one platform-dependent sentence — "anything on this Mac"
-  against "anything that opens a URL", a Shortcut against a bookmark — because
-  that is the one thing that genuinely differs. The URL line above it, the
-  parameter grid and the verb are the same either way.
-- **The web is the broader door, which is what the `arrived` sheet was already
-  for.** Anything that can open a URL can now reach a Kaja that is merely
-  served — a link in an email, a page you didn't write — so the rule that a
-  deeplink is never permission by itself, and that there is deliberately **no
-  "don't ask again"**, stops being belt-and-braces and becomes the thing holding
-  the door.
+- **The desktop holds the link, because a deeplink often launches Kaja.** macOS delivers the URL long before there is a webview, so `openLink` buffers until the UI emits `link:ready` and then flushes (`main.go`). It rides a Wails event in each direction rather than a bound method, keeping the generated bindings out of it. Registering the scheme is a bundle's job (`info.protocols` in `wails.json` → `CFBundleURLTypes`).
+- **The web needs no buffer, because the URL is one.** The link *is* the page load, or a `hashchange` — both through `takeLinkFromLocation`, and a fragment arriving before the script list is simply left where it is.
+- **The fragment is cleared once handed over** (`history.replaceState`, which fires no `hashchange`). The URL is a door, not a location.
+- **It comes from the row that runs it**: right-click a script → **Copy deeplink…**, or the caret beside Run.
+- The `copy` sheet's closing line is the one platform-dependent sentence — "anything on this Mac" against "anything that opens a URL".
 
-## A filename is one object, so it reads one way
+## A filename is one object
 
-**The name at full weight and the extension quiet behind it** (`FileName.tsx`,
-over `scriptNameParts`), in every place a file is named: the sidebar row, the
-command row's trigger and the finder's rows, and every sheet title that points
-at one. The dimmed extension was already the sidebar's treatment and was applied
-nowhere else, so one object read two ways one line apart.
+`FileName.tsx` over `scriptNameParts`: the name at full weight, the extension quiet behind it, in every place a file is named — sidebar row, command row trigger, finder rows, sheet titles. It is **stated, not read off the dot** (`file` is a flag on `ViewIdentity` and on a finder `Destination`), because a draft's title is a call with no extension to find. It is a fragment rather than an element, so the caller owns truncation, font and weight.
 
-- The extension **stays present and stays quiet**. It says which language the
-  file is in without competing with the name that is actually scanned for, and
-  dropping it gives up the last cue that these are things on disk.
-- **It is stated, not read off the dot.** A draft's title is a call rather than
-  a file — `Sum · 5, 3` has no extension to find — so `file` is a flag on
-  `ViewIdentity` and on a finder `Destination`, set for script views only.
-- It is a fragment rather than an element, so the caller owns the truncation,
-  the font and the weight: the same name is 13px in a row and mono in a title.
+## The tree is an index
 
-## The tree is an index, so it reads as a list of names
+Rows are **22px** at **13px**, chevrons 12px — a dense desktop client, not a web page. The type sits one step above the `text-xs` chrome around it.
 
-Rows are **22px** at **13px**, chevrons 12px — a dense desktop client's sizing,
-not a web page's. The row is tight but the names in it are still names, so the
-type sits one step above the `text-xs` of the chrome around it. The three levers
-are row height, indent, and how many icons repeat per row, and the last one is
-what buys the horizontal room:
+- **Depth is a hairline, not an icon column.** `TreeView.SubTree` nests inside a guide (14px indent, 1px rule at its left edge). Packages and services carry no icon; the **app keeps its** `AppTypeIcon`, which says gRPC or OpenAPI or Folder.
+- **A list of leaves takes the indent without the guide** (`leaf` on `TreeView` and `SubTree`), dropping the chevron slot it would never fill.
+- **Rows are full-bleed** — no radius, no inset — so hover reads as a band. The one hairline in the panel is above the **Apps** header.
+- The panel's **band stays 40px** so it lines up with the command row across the seam.
 
-- **Depth is a hairline, not an icon column.** `TreeView.SubTree` nests inside a
-  guide (14px indent, a 1px rule at its left edge). A package and a service
-  repeated the same glyph on every row, saying what the indent already said, so
-  those icons are gone. The **app keeps its** `AppTypeIcon` — that one says gRPC
-  or OpenAPI or Folder, which nothing else does.
-- **A list of leaves takes the indent without the guide** (`leaf` on `TreeView`
-  and on `SubTree`): a line nothing hangs off is noise, and its rows drop the
-  chevron slot they would never fill, so methods start where the eye already is
-  rather than 20px right of it.
-- **Rows are full-bleed** — no radius, no inset — so the panel edge is the row
-  edge and hover reads as a band. The one hairline in the panel separates your
-  scripts from the API's catalog, above the **Apps** header, which is all that is
-  needed to say "a new thing starts here" now that both sections wear the same
-  22px header.
-- The panel's **band stays 40px**, because it lines up with the command row
-  across the seam — one row across the whole window, holding the traffic lights
-  or the mark at one end and the file's own controls at the other.
+### What the tree opens with
 
-## What the tree opens with
+Expansion is a record of where you have been (`treeExpansion.ts`). Three inputs, in order: calls you made, folds you made, and — only before either can say anything — how much of an app fits on screen.
 
-**Expansion is a record of where you have been, not a guess about where you will
-go** (`treeExpansion.ts`). Three inputs decide it, in that order: the calls you
-have made, the nodes you have folded yourself, and — only before either of those
-can say anything — how much of an app fits on screen. Guessing once, on the day
-you know least, was the old rule (*the first two apps in `kaja.json`, their first
-service*), and it never ran again: whatever you got on day one you kept forever.
-
-- **The ledger is what you called, most recent first.** A `MethodUse` is
-  app/package/service/method and nothing else — the list is ordered, so there is
-  no timestamp and no count for anything to read. It is written from
-  `onMethodSelect`, which is the one door the tree *and* the finder both go
-  through, and from every call a script makes (`onMethodCallUpdate`), because a
-  call you ran counts at least as much as one you clicked. On load the tree opens
-  the path to the **three** most recent calls that still resolve; the budget is
-  spent across the whole tree, not per app, and a call whose proto has since
-  dropped it doesn't spend any of it.
-- **A fold is a decision, an expansion is a suggestion.** A node is `open`,
-  `shut`, or absent, and nothing derived ever writes over the first two — this is
-  what makes it safe for the ledger to be as aggressive as it is. Absent is the
-  only state a seed may fill, and opening a node by hand clears its own `shut`,
-  so the mess is never bigger than the nodes you touched and each is one click
-  from fixed. There is no global reset to offer.
-- **Size decides only on a cold start** (`autoOpenNodes`, 12 rows). It opens an
-  app as deep as it goes while staying under the budget, **a level whole or not
-  at all** — picking the first service out of a list is the arbitrariness this
-  replaced — and never less than one level, so an app always says what is in it.
-  A small API comes up open to its methods, one click from a script; a large one
-  shows its shape. Once there is a history, **silence about an app means shut**:
-  the fallback is the cold-start rule and nothing else, so seven apps you don't
-  use can't sit open forever. An app added since the ledger was written has
-  nothing to be silent with, so it falls back to its size the same way.
-- **An app is seeded once**, when it first has services, and after that the folds
-  are the truth — the tree can never rearrange itself under the cursor. Apps
-  compile at their own pace, so `seedFolds` seeds *some* apps against *all* of
-  them: the recent-call budget and the is-this-a-cold-start question are both
-  asked of the whole tree.
-- **Folds are pruned against what exists; the ledger is not.** An app that is
-  still compiling — or has no services for any other reason — has nothing to
-  match against, so its subtree is spared rather than cleared and re-seeded on
-  every reload. The ledger is never pruned against apps at all, because a failing
-  compile would erase the history that outlives it; it is capped instead, and a
-  stale entry simply never resolves.
-- **There are no fold-all and unfold-all buttons.** Both were about managing a
-  view of the tree, which stopped being something you do, and Fold All was the
-  one gesture that could write `shut` over everything at once and mute the whole
-  model from a button in the header. **⌥click a row** takes its subtree instead —
-  the same verb, scoped to where the cursor already is, at no cost in chrome.
-  Folding the **Apps** section is not that verb back: it hides the section whole,
-  which is a question about the panel's two halves rather than about the tree,
-  and it writes nothing into the fold map.
-- The old `expandedApps`/`expandedServices` keys are **not migrated**. Their ids
-  differ, and ignoring them lands an existing workspace on the cold start, which
-  is a better tree than their stale contents would rebuild.
+- **The ledger is what you called, most recent first.** A `MethodUse` is app/package/service/method; the list is ordered, so there is no timestamp or count. It is written from `onMethodSelect` (the one door the tree and finder share) and from every call a script makes (`onMethodCallUpdate`). On load the tree opens the path to the **three** most recent calls that still resolve, budgeted across the whole tree.
+- **A fold is a decision, an expansion is a suggestion.** A node is `open`, `shut`, or absent; nothing derived overwrites the first two. Opening a node by hand clears its own `shut`, so the mess is never bigger than the nodes you touched. There is no global reset to offer.
+- **Size decides only on a cold start** (`autoOpenNodes`, 12 rows): an app opens as deep as it goes while staying under budget, **a level whole or not at all**, never less than one level. Once there is a history, **silence about an app means shut**.
+- **An app is seeded once**, when it first has services, so the tree can never rearrange under the cursor. Apps compile at their own pace, so `seedFolds` seeds *some* apps against *all* of them.
+- **Folds are pruned against what exists; the ledger is not.** An app still compiling has nothing to match against, so its subtree is spared rather than cleared and re-seeded. The ledger is capped instead of pruned, because a failing compile would erase the history that outlives it.
+- **There are no fold-all/unfold-all buttons.** **⌥click a row** takes its subtree instead. Folding the **Apps** section writes nothing into the fold map.
+- The old `expandedApps`/`expandedServices` keys are **not migrated**.
 
 ## A run has two views
 
-**A run is the unit** (`runs.ts`): one press of Run, one duration, one verdict,
-with everything it produced under it. One script can make three calls, and three
-unrelated rows say nothing about the thing you actually pressed.
+**A run is the unit** (`runs.ts`): one press of Run, one duration, one verdict, everything it produced under it.
 
-**And there is more than one run at a time, because there is nothing to stop
-there being.** ⌘⏎ twice, Run on a second file, a `kaja://` link arriving while a
-script is going, an agent calling `run_script` — none of them asks what else is
-running. So the run is **lexical, not ambient**: `beginRun` mints the run *and*
-the `Kaja` its script is handed (`KajaHost.run`, `RunContext`), and every callback
-that run will ever fire is a closure over it. There is no "current run" to read,
-so there is nothing to read wrongly. Everything that used to stand in for one is
-gone — `currentRunRef`, `openRun`, `pullRunRef`, `Client.kaja`, and the MCP
-collectors; the abort signal, the standing approvals and `kaja.input` are fields
-of one run's `Kaja` rather than of the app's. A client is shared by every run
-that imports it, so its methods are **bound per run** (`Client.methodsFor(kaja)`,
-memoized in a `WeakMap`) rather than pointed at whichever run assigned itself
-last. That single assignment was what made two scripts report their calls into
-each other's console, and made one script's `kaja.approve("every CreateShow")`
-send another script's writes without asking.
+**And there is more than one at a time**, because nothing stops there being — `⌘⏎` twice, Run on a second file, a deeplink arriving mid-run, an agent calling `run_script`. So the run is **lexical, not ambient**: `beginRun` mints the run *and* the `Kaja` its script is handed (`KajaHost.run`, `RunContext`), and every callback is a closure over it. There is no "current run" to read, so there is nothing to read wrongly. A client is shared by every run that imports it, so its methods are **bound per run** (`Client.methodsFor(kaja)`, memoized in a `WeakMap`) — the single assignment this replaced made two scripts report calls into each other's console, and made one script's `kaja.approve("every CreateShow")` send another script's writes without asking.
 
-- **What belongs to the app rather than to a run lives on `KajaHost`**: the
-  workspace's variables, and `LiveTables`. Both are shared on purpose —
-  `kaja.variables` is the same for a run in flight and one started after it, and
-  `MAX_LIVE_TABLES` is a budget for the app, not one each run gets its own copy
-  of.
-- **A page fetched from a canvas belongs to the run that drew the table**, which
-  is now structural rather than arranged: the host routes a block id to its
-  owning `Kaja` and the calls land in that run's log however long ago it ended.
-  `settleTables` waits for that run's tables alone, so one script's duration
-  can't cover another's work.
-- **A run's context lives exactly as long as something can call into it.**
-  `settleIfQuiet` asks every run in flight — they finish in whatever order their
-  work does, and the second one pressed is routinely the first one over — and
-  dropping the settled record releases that run's `Kaja`, its approvals, its
-  sampled methods and its bound clients. The one thing that can hold it past
-  that is a live table the canvas can still page, and that registry is bounded.
-- **A run leaves the live list one way, and that way gives it its duration**
-  (`endRuns`). Settling it and dropping the record are one act because they were
-  two: the list is where the settle check looks, so a record taken off it without
-  a duration is a run nothing can ever settle — and a run without a duration is a
-  *running* run to everything that reports one, which is a spinner that turns
-  until the window is reloaded.
-- **Stop is about one run**: it aborts the runs of the file the button is on and
-  cancels only the questions those runs are parked on. Cancelling every prompt
-  on screen was how one Stop used to end a script nobody had pointed at.
-- **Stop ends the run rather than asking the script to end it.** Waiting for the
-  script to unwind is waiting on the thing that was stopped: a run parked on a
-  question that will never be asked again has nothing left to settle it, and one
-  sleeping between two calls settles whenever it feels like it. So Stop is what
-  closes the record, on the one door above.
+- **What belongs to the app rather than a run lives on `KajaHost`**: the workspace's variables and `LiveTables`.
+- **A page fetched from a canvas belongs to the run that drew the table.** The host routes a block id to its owning `Kaja`, so the call lands in that run's log however long ago it ended, and `settleTables` waits for that run's tables alone.
+- **A run's context lives exactly as long as something can call into it.** `settleIfQuiet` asks every run in flight — they finish in whatever order their work does — and dropping the settled record releases that run's `Kaja`, approvals, sampled methods and bound clients. Only a live table the canvas can still page holds it past that, and that registry is bounded.
+- **A run leaves the live list one way, and that way gives it its duration** (`endRuns`). Settling and dropping are one act: the list is where the settle check looks, so a record taken off it without a duration is a run nothing can settle — and a run without a duration is a *running* run to everything that reports one.
+- **Stop is about one run**: it aborts the runs of the file the button is on and cancels only the questions those runs are parked on. It **ends** the run rather than asking the script to end it — a run parked on a question that will never be asked again has nothing left to settle it.
 
-**And a run has two views of that, because they want opposite things.** The
-**log** is the flat audit log — one row per call, in wall order, always
-complete; that is what makes it scannable at two hundred rows and lets every row
-carry the same extra channels. The **canvas** is the rendered output — varied,
-and free to fold what is repetitive. Every attempt to serve both in one surface
-bent one of them out of shape, so one segmented control in the header switches
-them and **everything else about the header stops moving**. That is the change
-that pays for the restructure.
+The **log** is the flat audit log — one row per call, in wall order, always complete. The **canvas** is the rendered output, free to fold what is repetitive. A segmented control (**Calls** / **Canvas**, `ConsoleView`, in-memory only) switches them and **everything else about the header stops moving**; that is what pays for the split. Request/Response/Headers moved down onto the payload pane, so the pane never reflows as you step through the log.
 
-**The two views are peers, and the console is the frame around them**
-(`RunLog.tsx`, `Canvas.tsx`, `Console.tsx`). The log used to be
-`Console.ListView`, a property, while the canvas was a file of its own — so a
-reader who found one had no reason to expect the other where it is. Each now has
-its own file and its own parts: `RunLog.CallRow` / `TailBar` / `PayloadPane`
-belong to the log, `Console.RunSelect` / `RunRow` to the frame, and flat against
-one another they read as the same kind of thing. `Log` alone is taken (the
-script's own log messages, which the calls view now mixes in), and `RunList` would
-be read as a list of runs, which is what the run picker beside it actually is — so
-the component is `RunLog`, the run's log. The segmented control says **Calls** and
-**Canvas**, and `ConsoleView` is `"calls" | "canvas"` to match; it is in-memory
-only, so nothing had to migrate.
+`RunLog.tsx`, `Canvas.tsx` and `Console.tsx` are peers: `RunLog.CallRow` / `TailBar` / `PayloadPane` belong to the log, `Console.RunSelect` / `RunRow` to the frame.
 
-**A row is a call and only a call** — no disclosure triangles, no block rows, no
-run row — which is why the view is called **Calls** rather than Log: "log" is what
-anyone means by what a script printed, and that is a separate thing this view can
-*mix in*. Splitting the views is what deletes the double-statement problem — an
-index of "table · 42 rows" rows sitting above the same tables rendered below —
-and it is why Request/Response/Headers moved **down onto the payload pane**: the
-header no longer rearranges itself as the selection moves, and the pane never
-reflows as you step through the log.
+### What a script printed
 
-**What a script printed is a channel, and the Calls view is where it is read.**
-`console.log` and friends are the logging API — there is no `kaja.log`, because the
-`kaja` object holds the verbs that are Kaja's own and logging is not one of them:
-a second spelling would add a decision without adding a capability, and the value
-of a log line is that it costs nothing to write and nothing to delete.
+`console.log` and friends are the logging API. There is no `kaja.log` — the `kaja` object holds the verbs that are Kaja's own, and a second spelling for logging would add a decision without a capability.
 
-- **The scope is what tells a script's lines from Kaja's own** (`scriptConsole.ts`).
-  The script body is wrapped in a function taking `console` as a parameter, so
-  inside it the name resolves to the run's console and everywhere else in the app
-  to the real one — app code a script calls into keeps the real console, and a
-  closure the script defines keeps this one however late it fires. No origin
-  tagging, no allowlist, nothing to drift. **Kaja's own `console.log` never
-  appears in a run**, which is right and not a limitation: what fires during a run
-  is transport tracing that duplicates the request and response the payload pane
-  already shows properly, eight lines to a call. When the system does have
-  something to say in a run it says it in the console's own vocabulary — a row, a
-  status, a tail-bar statement — never as a text stream. If a log line is the only
-  way to say it, it didn't need saying.
-- **The wrapper is built from the console, not declared as five methods.** The
-  five-method stand-in it replaced made `console.table(rows)` throw
-  "console.table is not a function" inside an agent's snippet. Everything that
-  isn't a level — `table`, `time`, `group`, `dir`, and whatever a runtime adds
-  next — passes straight through to devtools, which is where instrumentation
-  belongs and where it stays. The five levels map onto the proto's own ordered
-  enum (`LEVEL_DEBUG` 0 … `LEVEL_ERROR` 3), with `log` and `info` sharing `INFO`.
-- **A printed line is not a verdict** (`printed` on `ConsoleItem`). It never
-  colours the run's dot and never counts as something drawn — a script that prints
-  `console.error("retry 2")` in a loop and finishes is not a failed run, and one
-  whose only output is `console.log` must not open on an empty canvas. The
-  script-error item, which is a verdict Kaja wrote, goes on being one.
-- **Off by default, and a floor rather than four checkboxes.** `LogFloor` is
-  `off` / `error` / `warn` / `all`: the levels are ordered, so "warnings but not
-  errors" is not a question anyone asks, and one control beats four switches over
-  a list that is usually empty. It lives on `FileConsole` beside `view`, on the
-  same rule — debugging is a mode, not a click — and its control only exists while
-  the run printed something.
-- **Off is only bearable because the tail bar says what is missing.** A clean list
-  over a run that printed an error is a log that is silently incomplete, so the
-  bar states `4 log lines · 1 error` and is the way to turn the floor on.
-- **A log row is the same fixed 24px and truncates; the pane holds the line.** The
-  windowing is arithmetic only because every row is that height, and the payload
-  pane had nothing to show for a row that isn't a call anyway — so selecting one
-  shows the whole message, which is what makes `console.log(someObject)` worth
-  doing.
-- **A line lands where it was printed and a call where it was issued**
-  (`callRows`), so a line printed while a call is in flight sits after that call's
-  row rather than after its response. Both lists are already ordered, so the mix
-  is a merge rather than a sort.
-- **kaja.log gets the lines with their origin attached** — `[ui] [INFO] [script] …`
-  via `logScriptLine`, so the level column stays greppable. The script's console
-  forwards to `deviceConsole`, the console as it was before `installUiLog` patched
-  it, so a script error isn't written to the file twice.
+- **The scope is what tells a script's lines from Kaja's own** (`scriptConsole.ts`). The script body is wrapped in a function taking `console` as a parameter, so inside it the name resolves to the run's console and everywhere else to the real one — no origin tagging, nothing to drift. **Kaja's own `console.log` never appears in a run**: what fires during one is transport tracing that duplicates the payload pane. When the system has something to say in a run it says it as a row, a status or a tail-bar statement.
+- **The wrapper is built from the console, not declared as five methods** — the five-method stand-in made `console.table(rows)` throw inside an agent's snippet. Anything that isn't a level (`table`, `time`, `group`, `dir`, whatever a runtime adds next) passes straight through to devtools. The five levels map onto the proto's ordered enum (`LEVEL_DEBUG` 0 … `LEVEL_ERROR` 3), with `log` and `info` sharing `INFO`.
+- **A printed line is not a verdict** (`printed` on `ConsoleItem`): it never colours the run's dot and never counts as something drawn, so a script that prints `console.error` in a loop and finishes is not a failed run, and one whose only output is `console.log` doesn't open on an empty canvas.
+- **Off by default, and a floor rather than four checkboxes.** `LogFloor` is `off` / `error` / `warn` / `all`, on `FileConsole` beside `view`, and its control exists only while the run printed something. Off is bearable because the tail bar states `4 log lines · 1 error` and is the way to turn the floor on.
+- **A log row is a fixed 24px and truncates; the pane holds the line**, which is what makes `console.log(someObject)` worth doing.
+- **A line lands where it was printed and a call where it was issued** (`callRows`), so a line printed mid-call sits after that call's row rather than after its response. Both lists are ordered, so the mix is a merge.
+- **kaja.log gets the lines with their origin attached** — `[ui] [INFO] [script] …` via `logScriptLine`. The script's console forwards to `deviceConsole`, the console as it was before `installUiLog` patched it, so a script error isn't written twice.
 
-**A response is printed, not formatted** (`payloadText.ts`). The pane follows the
-selection, which follows a run as it happens, so this runs as often as the
-console repaints — and prettier costs about 2 ms and a parser download per
-payload against a fiftieth of that for `JSON.stringify`, which the two disagree
-about only in places nobody reads a response for. Being synchronous is the other
-half: a slow payload can no longer land over a newer one. Prettier stays where it
-earns its keep — generated TypeScript, and the JSON *documents* the app form and
-Variables edit. Past 2 MB the pane draws the head and says how much it left, on
-the same rule as everything else here: a limit that states itself.
+### The payload pane
 
-**The console belongs to the file** (`consoles.ts`). There is no shared
-console: a run lands in the console of the script it was pressed on and stays
-there, so switching files switches consoles and coming back finds the runs, the
-selection, the tab and the view as they were left.
+**A response is printed, not formatted** (`payloadText.ts`). The pane follows the selection, which follows a run as it happens, so prettier's ~2 ms and a parser download per payload buy nothing over `JSON.stringify`. Being synchronous is the other half: a slow payload can't land over a newer one. Prettier stays where it earns its keep — generated TypeScript, and the JSON *documents* in the app form and Variables. Past 2 MB the pane draws the head and says how much it left.
 
-- **Keyed by file, not held on the view.** `Consoles` maps a `fileId` — a draft
-  id or a script path — to a `FileConsole`: that file's runs, its items, its
-  selection, tab and view. Views are a ten-slot cache, so a console living on one
-  would be thrown away by ordinary navigation. ("Source" was the old name for
-  this and is taken: it means an app's generated proto TypeScript.)
-- **A run is a buffer, not React state, and nothing above the console subscribes
-  to it.** A call reaches the console two or three times — issued, streaming,
-  settled — and when each of those was a `setHistory` at the root of the window,
-  a thousand-call run rendered the sidebar, the command row, every mounted view
-  and the editor with them a few thousand times over. So the store is mutable and
-  external: items are appended, a call that settles is the same object written
-  again, and `Console` is the one component that subscribes
-  (`useSyncExternalStore` over `FileConsole.version`). What React still holds is
-  the small, slow-moving part — which file is on screen.
-  - **Notification is coalesced to the frame.** Two hundred calls landing between
-    two paints are one repaint, so the cost of a spike is the cost of drawing it
-    rather than the cost of the calls. A **gesture** — a click, a run starting or
-    ending, a question drawn or answered — notifies at once instead: only the
-    stream of a running script is worth holding back.
-  - **What a run says about itself is counted, not derived** (`ItemStats`). Its
-    status, failures, slowest call, wall duration and whether anything is in
-    flight are maintained as items arrive; `add` is idempotent so a settling call
-    is an update rather than a recount. The pure functions this replaced
-    (`worstStatus`, `slowestOf`) are kept as the definition it is tested against
-    — the fast path and the rule must not become two rules.
-  - **The sidebar's three sets are three booleans per file.** Running, agent-run
-    and waiting-for-an-answer used to be three walks of every item of every file
-    on every call a script made; they are now flags the store keeps, published on
-    their own subscription so a flip is rare and a call never touches them.
-  - **Settling hangs off the store, not off a render** (`subscribeQuiet`). A run
-    is over when its script has returned and nothing it started is in flight, and
-    asking that question once per call was the other thing that put the whole
-    window in the path of a loop.
-- **An item is anything that happened in a run** — a call, a block the script
-  drew, or the log messages it printed. Blocks are items rather than a parallel
-  world, so they inherit run grouping, ordering, the per-file console and the
-  store without any of it being written twice.
-- **The scope is what makes the history worth stepping through.** `⌃↑`/`⌃↓` walk
-  *this file's* runs, so one go at it is comparable against the last. A file keeps
-  25 runs, so a chatty script can no longer evict another's history; fifty files
-  hold a console at once and the least recently touched is let go. There are **no
-  prev/next arrows** beside the pill: the picker already lists every run and is
-  the gesture anyone reaches for, so a pair of chevrons and an `N of M` was the
-  same verb twice, spending header room the pill truncates for.
-- **The row and the payload expire separately, because only one of them costs
-  anything.** A row is a name, a key, a duration and a status; the payload is the
-  response. So a run keeps **every** row up to 20,000 (past that it says how many
-  it stopped keeping — a log that is silently incomplete is worse than one that
-  admits where it ends), while a file keeps the payloads of its **500** most
-  recent calls and the older rows say `Payload let go to keep this run bounded`.
-  That is the bargain the store already makes with a run read back from an
-  earlier session, applied to a run that is simply very long. Retention is by
-  count rather than by bytes on purpose: measuring bytes means serializing every
-  payload, which is the kind of per-call work this is all about removing.
-- **Only the rows on screen are in the document.** The log's rows are a fixed
-  24px, which makes windowing arithmetic rather than measurement — the row at a
-  scroll position is a division, and everything above and below it is one spacer
-  each. Forty rows are drawn where there are two thousand, and the tail bar goes
-  on saying what is below. A row takes values rather than an object so its memo
-  holds; `now` reaches it as zero unless it is the one counting up.
-- **The log follows the run like a terminal, and stops when you scroll.**
-  Following every call as it was issued is right at five calls a second and is
-  the most expensive thing in the room at five hundred — and it is also wrong: a
-  row you scrolled back to read should not be pulled out from under you. So the
-  cursor follows the newest call only while the log is at the bottom, leaving it
-  is what stops it, and a `↓ Latest` chip in the tail bar is the way back.
-  Pressing Run starts following again, because that is what pressing Run means.
-  The flag lives in a ref rather than in state: a run appends between two of your
-  wheel events, and a render-lagged answer would scroll the log back down under
-  your hands.
-- **Runs are numbered, not named.** A console holds one script's runs, so naming
-  each after that script says the same thing on every row — the pill reads `Run
-  3 · 14:03 · 1.2 s` and the picker hangs off it, which keeps run identity in the
-  one place it already lives. The number is the run's own (`Run.number`, assigned
-  in `startRun`), because a position would renumber as the oldest runs are
-  trimmed out from under it. `Run.title` still carries the derived script name,
-  which is what the window title and the store read.
-- **The mark is the running indicator, in the log's tail bar and nowhere else**
-  (`KajaTrace.tsx`). The logo is a trace — a line that dips, spikes and settles —
-  which is what a run is, so while a run is going the tail bar states it in the
-  mark's own hand: the trace drawing itself left to right on a 1.4s beat
-  (`--animate-trace`, `--brand-rust` / `--brand-violet`), then `2 calls · 5.8 s`.
-  Motion **only** while the run is going, and it is the one thing in the chrome
-  that moves.
-- **Which is why it is not in the run pill.** The mark is three times the width of
-  the status dot it would swap back to, so the pill's whole label — name, agent
-  glyph, detail — steps sideways at the exact moment the run lands, which is the
-  moment you are reading it. The tail bar has no such problem: the row exists only
-  while the run does, and nothing is aligned to it. Same reason the run-history
-  rows and the sidebar's 12px glyph slot keep their spinners. Everywhere the mark
-  is not, the spinner still is.
-- **The mark alone, with nothing under it.** A 2px gradient rule filling along the
-  bottom of the console header was tried alongside it and cut: the mark redrawing
-  itself is already the only thing moving on the screen, and a rule under the
-  header is a second statement of it at forty times the width — one that reads as
-  a progress bar for a run whose progress nothing knows.
-- **Which is about the run, not about a call** (`Group.running`, beside
-  `inFlight`). A script sleeping between two calls has nothing in flight and is
-  very much still running, so an indicator hung off `inFlight` blinks through a
-  run and — worse — the pill reported `failed` while the script was still going.
-  `running` is `durationMs === undefined` on a run that isn't stale: a settled run
-  is one with a duration. Everything that reports the run's state reads it; the
-  in-flight count is still what the strip and the payload machinery care about.
-- **Two extra channels on every row, and no third.** The **loop key**
-  (`loopKey.ts`) is the identifying value read off the request — the only thing
-  making two hundred identical method names tellable apart — and it shares its
-  field list with `draftTitle` so "what identifies a call" is defined once. The
-  **duration bar** is drawn against the slowest call in the run, so finding the
-  slow one is a shape you see rather than four digits you read; a run with
-  nothing to compare gets no bars.
-- **The log is never collapsed or summarised away.** It stays complete at any
-  length, and the tail bar says what is out of sight (`13 more`) rather than
-  standing in for it. The canvas summarises the run's calls into one strip; the
-  log is the place that never does.
-- **A run that has nowhere to land is not kept** — but almost nothing has nowhere
-  to land, because an agent's inline snippet is given a draft to run in (see
-  the MCP section). What is left is a call arriving with no run open, which gets
-  one under the file the last run came from, which is where a late call almost
-  certainly belongs.
-- **A run says who pressed it, once there is more than one who.** `Run.origin` is
-  `"agent"` or absent, because a file's console holds runs of both and the file
-  can't say which is which. It is a `Bot` glyph beside the run's number in the
-  pill and in the picker, and the sidebar's spinner names it (`agentFileIds`) —
-  a run you didn't start is the one you most want named.
-- **A run keeps going when you navigate away from it**, and its console is no
-  longer on screen to say so — so the sidebar row does, with a spinner in place
-  of its icon (`runningFileIds`), or the waiting ring below. Run/Stop in the
-  command row still tracks the *active* run, because Stop has to abort what it is
-  showing — including a run parked on a question, which is awaiting an answer
-  rather than a call.
-- **Renaming or saving moves the console; deleting takes it with the file.**
-  Naming a draft changes what the file is called, not what it is, so its runs
-  follow it from the draft id to the path (`renameFile`), and a move or a rename
-  moves them again. Discarding a draft is undoable, so its console is held
-  alongside it and comes back.
-- **A run's status is the worst status it contains** (`worstStatus`) — there is
-  no "partially succeeded", and the pill's dot is the only thing anyone needs to
-  read after a press. Items are ordered by start, never re-sorted, and keep their
-  own durations; the run's duration is **wall time for the whole script**, which
-  is the number that differs from the sum when calls run concurrently.
-- **A new run always takes the console** (`followSelection`), because pressing Run
-  is a request to see what it did — from an older run stepped back to as much as
-  from the last one. Everything short of a new run stays where it is put: a call
-  landing in a later run leaves a stepped-back one alone, and only inside the run
-  being watched does the cursor follow the newest call, which is what selects one
-  in flight the moment it is issued rather than when its response lands.
-- **Live and last-time are different states.** Reopening a script gives you its
-  code and, if we still hold it, its last run (`runStore.ts`), at 70% opacity.
-  Pressing Run replaces it in place — a run made in this session always wins over
-  a stored one. Retention can be short because **expiry is a stated state, not a
-  silent hole**: headers are kept for the fifty most recently run files, payloads
-  for seven days (or dropped at once if they don't fit), and a run whose payloads
-  have gone says `Response no longer kept — run to see it live`. Clearing the
-  history clears the store too.
-- **With no run there is nothing to select.** The console drops its header
-  entirely until something has been run, rather than showing Response as
-  selected and the other two as disabled over an empty panel.
-- **Copy is gone from the canvas, and full-screen has its place.** A document of
-  six different kinds of block has no coherent clipboard form and the button
-  quietly produced a poor one; if it comes back it should be per block — a table's
-  own affordance producing TSV — not one button claiming to serialise a document.
-  The Calls view keeps its Copy, because a payload is one thing and copying it
-  means something. The console header carries no Run either: it is `RunButton` in
-  the CommandRow, which already swaps to a spinner, "Stop" and an elapsed counter
-  — and the one place that button is drawn a second time is the full-screen bar,
-  which is the only screen that covers the CommandRow.
-- **Full-screen is a size, not a mode** (`Console.FullScreen`). The canvas takes
-  the whole window — sidebar, editor, splitters, console header, run strip and
-  status bar all covered — and the only chrome left is a 40px bar that keeps the
-  window's traffic lights and says which script, which run, and the way out. The
-  run keeps running and the log keeps recording behind it; padding grows to 32px
-  and text blocks measure 72ch instead of 60ch; everything interactive works
-  exactly as it does in the panel.
-  - **In and out:** the `Maximize` icon in the console header or `⌘⇧F`; `Esc`, the
-    `Minimize` icon, or `⌘⇧F` again. **Esc is the canvas's only when nothing else
-    wants it** — a focused ask field cancels its question first and a held call
-    refuses itself first, both by `preventDefault` on the document, which is why
-    the canvas checks `defaultPrevented` before claiming it. The second Esc leaves.
-  - **The bar carries Run, because this screen is one you sit in.** Running a
-    script again used to mean leaving full screen and coming back — two gestures
-    around the one thing the screen is for, and the one control it covered that
-    anybody wanted. It is the CommandRow's own `RunButton` element, passed down
-    as `runControl` rather than reimplemented, so the two can never disagree
-    about whether the file can run or why it can't: the same Stop with the same
-    counter mid-run, and the same caret, which is how a script launched from a
-    deeplink is run again with the values it was launched with. The bar's own
-    running chip gives way to it — the button already spins and counts — while
-    "waiting for you" and the settled duration stay, since the button says
-    nothing about either.
-  - **Taking the screen settles the view as well as the size**
-    (`enterFullScreen`, the one door all four ways in go through). Full screen is
-    the canvas with the whole window, so it writes `canvas` as the file's choice.
-    Without that the next run has drawn nothing yet, `defaultView` falls back to
-    the calls, and the screen you just pressed Run on closes under you — which is
-    exactly what `⌘⏎` did here before the button existed.
-  - **It belongs to the run you were reading**, so it is component state and
-    nothing else: not persisted, dropped when the file changes and when the view
-    goes back to Calls. The Calls view has no full-screen at all — a flat list of
-    calls gains nothing from the room and the splitter already sizes it. The canvas's
-    scroll offset is carried across in a ref, so leaving lands where you left.
-  - **A run nobody pressed Run for is presented rather than left in a panel.** A
-    deeplink arrives from outside Kaja — a hotkey, a launcher, a Shortcut — so
-    what it draws takes the window: `onConfirmScriptLink` names the run it just
-    started (`presentRunId`) and the console shows it. The decision is
-    `presentRun` in `runs.ts` and is unit-tested, because it is three states and
-    not one: the canvas is the only thing there is to present, so a run that has
-    drawn nothing yet **waits** for its first block rather than opening on an
-    empty screen, one that has drawn **presents**, and one that ended without
-    drawing is **dropped** — an ordinary run, in the console it already landed
-    in. It is one-shot: the console hands the request back once it has been
-    honoured, and once it is clear it never will be.
+### The console belongs to the file
+
+`consoles.ts`. There is no shared console: a run lands in the console of the script it was pressed on, so switching files switches consoles and coming back finds the runs, selection, tab and view as they were left.
+
+- **Keyed by file**, not held on the view — views are a ten-slot cache and would throw a console away on ordinary navigation. `Consoles` maps a `fileId` (draft id or script path) to a `FileConsole`. ("Source" is taken: it means an app's generated proto TypeScript.)
+- **A run is a buffer, not React state, and nothing above the console subscribes to it.** A call reaches the console two or three times, and when each was a `setHistory` at the root, a thousand-call run rendered the whole window a few thousand times over. The store is mutable and external; `Console` is the one component that subscribes (`useSyncExternalStore` over `FileConsole.version`). React holds only which file is on screen.
+  - **Notification is coalesced to the frame**, so 200 calls between two paints are one repaint. A **gesture** — a click, a run starting or ending, a question drawn or answered — notifies at once.
+  - **What a run says about itself is counted, not derived** (`ItemStats`): status, failures, slowest call, wall duration, whether anything is in flight. `add` is idempotent so a settling call is an update rather than a recount. The pure functions this replaced (`worstStatus`, `slowestOf`) are kept as the definition it is tested against.
+  - **The sidebar's three sets are three booleans per file** (running, agent-run, waiting), published on their own subscription so a flip is rare and a call never touches them.
+  - **Settling hangs off the store, not off a render** (`subscribeQuiet`).
+- **An item is anything that happened in a run** — a call, a block the script drew, or a printed line. Blocks are items rather than a parallel world, so they inherit grouping, ordering, the per-file console and the store.
+- **The scope makes the history worth stepping through.** `⌃↑`/`⌃↓` walk *this file's* runs. A file keeps 25 runs; fifty files hold a console at once, least-recently-touched let go. There are **no prev/next arrows** beside the pill — the picker already lists every run.
+- **The row and the payload expire separately**, because only one costs anything. A run keeps **every** row up to 20,000 (past that it says how many it stopped keeping), while a file keeps the payloads of its **500** most recent calls and older rows say `Payload let go to keep this run bounded`. Retention is by count rather than bytes, because measuring bytes means serializing every payload.
+- **Only the rows on screen are in the document.** Rows are a fixed 24px, so windowing is arithmetic: the row at a scroll position is a division, and everything above and below is one spacer. A row takes values rather than an object so its memo holds; `now` reaches it as zero unless it is the one counting up.
+- **The log follows the run like a terminal, and stops when you scroll.** The cursor follows the newest call only while the log is at the bottom; a `↓ Latest` chip in the tail bar is the way back, and pressing Run starts following again. The flag lives in a **ref**, because a run appends between two wheel events and a render-lagged answer would scroll the log back down under your hands.
+- **Runs are numbered, not named**: `Run 3 · 14:03 · 1.2 s`. The number is the run's own (`Run.number`, assigned in `startRun`), because a position would renumber as old runs are trimmed. `Run.title` still carries the derived script name for the window title and the store.
+- **The mark is the running indicator, in the log's tail bar and nowhere else** (`KajaTrace.tsx`). The logo is a trace, which is what a run is: while a run goes, the bar draws it on a 1.4s beat (`--animate-trace`, `--brand-rust` / `--brand-violet`), then `2 calls · 5.8 s`. It is the one thing in the chrome that moves. **Not in the run pill** — the mark is three times the width of the status dot it would swap back to, so the pill's whole label would step sideways at the moment you are reading it. Everywhere the mark is not, the spinner still is.
+- **Running is about the run, not a call** (`Group.running`, beside `inFlight`). A script sleeping between two calls is still running, so `running` is `durationMs === undefined` on a run that isn't stale. The in-flight count is still what the strip and the payload machinery care about.
+- **Two extra channels on every row.** The **loop key** (`loopKey.ts`) is the identifying value read off the request — the only thing telling two hundred identical method names apart — and shares its field list with `draftTitle`. The **duration bar** is drawn against the slowest call in the run; a run with nothing to compare gets no bars.
+- **The log is never collapsed or summarised away.** The tail bar says what is out of sight (`13 more`) rather than standing in for it.
+- **A run that has nowhere to land is not kept** — which is almost nothing, since an agent's snippet has a draft. What is left is a call arriving with no run open, which gets one under the file the last run came from.
+- **A run says who pressed it, once there is more than one who.** `Run.origin` is `"agent"` or absent: a `Bot` glyph beside the run's number in the pill and picker, and the sidebar's spinner names it (`agentFileIds`).
+- **A run keeps going when you navigate away**, so the sidebar row says so with a spinner (`runningFileIds`) or the waiting ring. Run/Stop in the command row tracks the *active* run, because Stop has to abort what it is showing.
+- **Renaming or saving moves the console; deleting takes it with the file.** Naming a draft moves its runs from the draft id to the path (`renameFile`). Discarding a draft is undoable, so its console is held alongside it.
+- **A run's status is the worst status it contains** (`worstStatus`) — there is no "partially succeeded". Items are ordered by start, never re-sorted, and keep their own durations; the run's duration is **wall time for the whole script**.
+- **A new run always takes the console** (`followSelection`); everything short of one stays where it is put. Inside the run being watched the cursor follows the newest call, selecting one in flight when it is issued rather than when its response lands.
+- **Live and last-time are different states.** Reopening a script gives its code and, if still held, its last run (`runStore.ts`) at 70% opacity; pressing Run replaces it in place. Retention is short because **expiry is a stated state, not a silent hole**: headers for the fifty most recently run files, payloads for seven days, and a run whose payloads are gone says `Response no longer kept — run to see it live`.
+- **With no run there is nothing to select** — the console drops its header entirely.
+- **Copy is gone from the canvas** (a document of six block kinds has no coherent clipboard form); the Calls view keeps it, because a payload is one thing.
+- **Full-screen is a size, not a mode** (`Console.FullScreen`). The canvas takes the whole window, leaving a 40px bar with the traffic lights, which script, which run, and the way out. The run keeps running behind it; padding grows to 32px and text blocks measure 72ch instead of 60ch.
+  - In and out: the `Maximize` icon or `⌘⇧F`; `Esc`, `Minimize`, or `⌘⇧F`. **Esc is the canvas's only when nothing else wants it** — a focused ask field and a held call both `preventDefault` first, so the canvas checks `defaultPrevented` before claiming it.
+  - **The bar carries Run**, as the CommandRow's own `RunButton` element passed down as `runControl` rather than reimplemented, so the two can't disagree. The bar's running chip gives way to it; "waiting for you" and the settled duration stay.
+  - **Taking the screen settles the view as well as the size** (`enterFullScreen`, the one door all four ways in go through) — without it the next run has drawn nothing, `defaultView` falls back to Calls, and the screen closes under you.
+  - **It belongs to the run you were reading**: component state, not persisted, dropped when the file changes and when the view goes back to Calls. The Calls view has no full-screen. The canvas's scroll offset is carried across in a ref.
+  - **A run nobody pressed Run for is presented rather than left in a panel.** `onConfirmScriptLink` names the run it started (`presentRunId`). The decision is `presentRun` in `runs.ts`, unit-tested, and is three states: a run that has drawn nothing **waits** for its first block, one that has drawn **presents**, and one that ended without drawing is **dropped**. One-shot — the console hands the request back once honoured.
 
 ## The canvas is what a run drew
 
-**A script says what it made, never how it looks.** The block set is closed and
-tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask*`,
-`kaja.approve` — and that is the guard, not a starting point: the moment a script
-can paint pixels the console is a rendering engine and every block becomes a
-support surface. There is no `kaja.html`, no styling arguments, no layout control.
+**A script says what it made, never how it looks.** The block set is closed and tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask*`, `kaja.approve` — and that is the guard, not a starting point: the moment a script can paint pixels the console is a rendering engine. There is no `kaja.html`, no styling arguments, no layout control. Blocks stack in emission order; free 2D positioning would turn this into a quarter of work.
 
-- **Ordered, never placed.** Blocks stack in the order they were emitted, like
-  calls do. "Canvas" is the name; the thing is a document. Free 2D positioning is
-  the single feature that would turn this into a quarter of work.
-- **A table is a handle, because a loop is why tables exist here.** `kaja.table`
-  returns something with `.row(...)`, and rows land one at a time so the canvas
-  repaints as the loop runs — waiting for it to finish would make the interesting
-  part the part you can't watch. Blocks are recorded against their own id
-  (`recordBlock`), so a block that fills in stays where it was emitted rather
-  than jumping to the end.
-- **A row is a handle too, and updating one is writing it again.** `.row(...)`
-  hands back a `Row` with one verb, `.update(...cells)`, taking the same cells in
-  the same order — so a row is declared when its work starts and rewritten when
-  it finishes, which is what a summary table is. Naming the cell instead
-  (`row.update({ status })`) would make the columns keys and buy nothing on a
-  table narrow enough to want this; restating two cells that didn't change is the
-  cheaper of the two, and a patch verb can be added later if wide tables ever ask
-  for it — it can't be an *overload*, since a cell may itself be an object. The
-  block is unchanged by any of it: `rows` is still `string[][]`, an update is the
-  same wholesale re-emit an append is, and a stored run reads back the last
-  values, because the canvas is what the run drew and not how it got there.
-  **A row is as wide as the table** (`padCells`): fewer cells than columns draws
-  blanks rather than a ragged edge — which is what lets a row be written before
-  the work that fills it is done — and `.column(name)` widens the rows already
-  drawn along with the header, so the two can never disagree. Extra cells are
-  left alone, since dropping them would hide what the script had. Renaming a
-  column, removing a row and flashing a changed cell are all **out**: the first
-  two make the canvas rewrite what it drew, and the third is a script asking for
-  how it looks. A handle into a table filled from a **source** goes quiet rather
-  than throwing — a server-side search restarts the source from the top, so the
-  row it pointed at is answering a question nobody is asking any more.
-- **A cell that is work rather than a value says which kind of work it is, and
-  that is the whole of loading-versus-here** (`CellStatus` on the block,
-  `LiveCell` beside it). A **promise** is work the script already started, so the
-  table only waits for it; a **function** is work nobody has asked for yet, so
-  the table asks — when the row is drawn, and again if a failed one is retried.
-  That is `restartable` one level down: a function can be called again and a
-  promise is finished, which is why one offers Retry and the other can't. An
-  `Error`, thrown or returned, is a cell that stopped. Nothing in the signatures
-  changed — `row(...cells: unknown[])` always accepted all of this, and a promise
-  used to render as `{}`.
-  - **The row is drawn with everything it already has**, which is the point: the
-    rows appear at once and the cells fetched by a second call fill in after
-    them. A waiting cell is the **same bar a skeleton row draws** — with no
-    shimmer (cells fill one at a time and that is movement enough) and no 150ms
-    delay (the bar arrives *with* the row rather than replacing something, so
-    there is nothing to flash). A stopped one is a dim `—` with the message on
-    hover: a column of numbers with `429 Too Many Requests` in the middle of it
-    stops being a column, and the width is 12ch on a good day.
-  - **Drawn is what asks** (`pendingCells`, `pullCells`). The canvas asks for
-    every waiting cell it can see on every frame, so *asking* is idempotent
-    rather than the work — a cell is started once, and the table is what knows
-    it. The exception is the one that has to be: a failed cell is asked for only
-    when someone asks, since retrying on sight is a loop and not a retry. The
-    first page is asked for with the table, on the rule that already makes a live
-    table pull its own — a run nobody is watching still fills one. Six cells are
-    in flight at a time, because a page draw asks for fifty at once.
-  - **A cell is addressed by where its row sits, not by where it landed on the
-    page** (`TableWindow.indices`), which is arithmetic until a local filter takes
-    rows out of the middle. Answers are checked against the row's **revision** on
-    the way in, so a row rewritten and a source restarted both drop what was
-    still coming — they answered the row as it was. A block whose cells have all
-    landed is stored as the plain table it has become, and one read back has lost
-    its closures, so a waiting cell reads as the `run to load` the table already
-    says. An agent's run reports the cells that never landed rather than passing
-    off blanks as values.
-- **A table's rows are an iterable, and that is the whole of static-versus-live.**
-  An array is one; so is an async generator, and one of those only runs when
-  something pulls it — which is what makes paging fetch a page and nothing else.
-  `kaja.table(columns, rows?, { pageSize })` takes either, plus a **function**
-  returning one, and the handle's `.row(...)` is unchanged.
-  - **The pager is over rows, not requests** (`tableView.ts`). Next means "the
-    next page of rows, fetching if I have run out", so a source that yields in
-    batches of 25 fetches twice per page of 50 and one that yields 500 doesn't
-    fetch for ten pages. The script never states a page size and never holds a
-    cursor: the cursor is an ordinary local variable in its own loop, which is
-    what a callback-with-context would have taken away, along with per-row
-    laziness (a row that costs a call only costs it if you page to it).
-  - **No lookahead.** Pulling one row past the page to light Next up would fetch
-    a whole page to answer a question nobody asked, so an open source offers Next
-    until it runs out and a click that yields nothing closes it out. This is also
-    why the page clamp lets **one** page past the loaded rows through — paging
-    into rows that aren't here yet is how they are asked for.
-  - **How big the whole thing is, the script is the only one who can say.**
-    `.total(count)` on the handle takes the number an API reports beside a page,
-    said from inside the source's own loop as it learns it (`totalOf`), and the
-    toolbar reads `1–50 of 2,431` instead of counting what it holds. It is a verb
-    rather than an option because the count arrives *with* the first page — an
-    option would make every script fetch a page before drawing the table it is
-    fetching for — and it is on the handle rather than a second parameter of the
-    source because arity there already means "restart me for each search". A
-    cursor-based API has nothing to say and says nothing: the count is then what
-    is loaded, marked `of 120+` while the source is open and exact once it runs
-    out. **A total is a claim and exhaustion is the truth** — a source that
-    promised 2,431 and stopped at 2,000 has 2,000 rows in it, and a count the
-    rows have already passed is one the table can see is wrong. A restart clears
-    it, because it counted a result set nobody is asking about any more. It is
-    also the one thing that spares the no-lookahead click: with a total, the
-    pager stops where the set does.
-  - **A live table's first page is pulled a microtask after it is drawn.** A
-    source reports its total through the handle the script is still assigning
-    (`const shows = kaja.table(…, async function* () { shows.total(…) })`), so
-    nothing the source runs may happen before that name is bound. The run still
-    waits for it (`LiveTable.first`, awaited by `settleTables`).
-  - **Declaring the search parameter is what asks for the search text.** A source
-    that takes one is restarted for each new search (a new search is a new result
-    set); one that doesn't is never restarted, and the box filters the rows
-    already loaded and says so. A local filter **never** fetches — searching
-    would otherwise mean pulling an API dry to find three rows. Arity is the
-    switch because it is readable one line from the box, and because the
-    alternative is an option that says what the signature already said.
-  - **Controls appear when there is something to control** — one bar above the
-    rows, holding the search box, the count and the pager. A static table that
-    fits on a page reads exactly as it did before any of this existed, and a
-    pager under a fifty-row table is a control you have to go looking for.
-  - **The table is the one block with a frame, because it is the one block wider
-    than the text.** Without it the header row reads as another line of the
-    paragraph above it. So: a card (`rounded-lg border`), a 40px toolbar on
-    `bg-card` above the rows, a `bg-muted` header band, 26px rows, and the
-    canvas's own 16px gap doing the separating. Everything in the toolbar is
-    **28px** — the search box is a real input, and Previous/Next are two 28px
-    buttons **joined into one pair**, so there is no gap between them to miss
-    into. That is what the 12px chevrons in a line of body text were not.
-  - **Paging moves nothing** (`holdsPage`, `bodyMinHeight`). A fetch is 200–800ms
-    and a table sits in the middle of a document, so a page that collapsed to a
-    loading row and grew back would move every block below it twice per click.
-    The frame keeps the height of a **full page** — `28 + pageSize × 26` as a
-    `min-height` on the body — for as long as the table can page; only the final
-    page of a table that can no longer page shrinks to its rows, and by then
-    nothing is going to move again. A local filter is instant and its result is
-    the whole of it, so it is the one narrowing allowed to shrink.
-    - **The old page stays, dimmed** (`TableWindow.held`). It is the page you
-      were reading: `opacity-40` and `pointer-events-none` rather than thrown
-      away, with a 2px indeterminate bar along the bottom edge of the toolbar
-      and a spinner in place of the pressed button's chevron, so the loader is
-      also where the click was. **It stays on the click, and dims on the
-      delay** — the two are separate (`stale` and `holding`), because a page
-      cleared while the dim waits its 150ms out is the blink the wait exists to
-      prevent.
-    - **A first draw has nothing to dim**, so it draws skeleton rows — one per
-      row of the page being fetched, one slow shimmer across the whole set, and
-      bar widths fixed per column index, since widths that re-roll on every
-      render look like activity that isn't there.
-    - **Under 150ms nothing is said at all** (`TABLE_LOADING_DELAY_MS`): no dim,
-      no bar, no skeleton — the rows just change. A page off a local server is
-      back inside a frame or two, and a dim that flashes reads as a glitch
-      rather than as progress. The frame is already held, so the wait costs no
-      movement.
-    - **The toolbar states the page that was clicked**, not the rows in hand
-      (`TableWindow.pending`): `51–100 of 2,431` while it is fetched, or
-      `Loading 1–50…` before a source has reported a count. The range used to be
-      read off rows that hadn't arrived, so it dropped to zero and back on every
-      click — including the first draw, which is the one everybody sees.
-  - **One row is one line.** Cells truncate rather than wrap — a wrapped cell
-    breaks the 26px rhythm the grid is read down — and a long one carries its
-    full value as a hover title. A column whose every non-empty cell is a number
-    reads from the right (`numericColumns`), decided by what the cells are rather
-    than by anything declared, since a script hands the table text.
-  - **The empty state is a row inside the frame**, not the run's blankslate:
-    `No rows match “xyz”` with Clear search beside it. So is a source's error,
-    with its Retry. Both are 40px, and the columns stay on screen above them.
-  - **A live table expires like a payload does.** The source is a closure, so it
-    cannot be stored: read back, the table is the rows it had, saying
-    `run to load the rest` rather than offering a Next that leads nowhere
-    (`storedBlock`). The closures are held on the `Kaja` instance, which outlives
-    any run, and the oldest are let go past `MAX_LIVE_TABLES` — into the same
-    stated state.
-  - **A page fetched later belongs to the run that drew the table**, not to a run
-    of its own: the click happened on that run's canvas, so `openRun` attributes
-    it (`pullRunRef`) and the call is a row in that run's log. The run's duration
-    doesn't move — it is wall time for the script — but the run **does** wait for
-    a live table's first page (`settleTables`), because that page is work the
-    script started. A script running at the same time outranks the attribution;
-    it is definitely the one making the call being reported.
-  - **An agent sees one page.** Nobody is there to press Next, so `run_script`
-    reports `more: true` and the loop that reads the rest is the agent's own to
-    write.
-- **A call is not a block, and the body draws blocks and nothing else.** Cards,
-  folded loop rows and per-call ticks in the flow are all gone: the document is
-  `text`, `code`, `table`, `ask`, `approve` and the run's own logs — the ones
-  Kaja wrote, never a line the script printed — in emission order, separated by
-  16px. The run's calls are stated once, in the strip below —
-  a card in the flow was the log again at 90°, and a fold of them was an index of
-  the same calls sitting over the content. `group.drawn` is that document, kept as
-  the run happens so the canvas never filters an item list to find it.
-- **The run strip is where the calls are** (`runStrip.ts`, `Canvas.RunStrip`). One
-  28px row directly under the console header, on the canvas view only, holding the
-  marks, `N calls`, `N failed`, and the two methods the run called most with their
-  counts. A run that only drew has no calls to state and gets no row.
-  - **The mode is decided by the room, not by a count.** Slots are
-    `floor(availableWidth / 5)` capped at 200, and the strip is dropped entirely
-    under 240px of it. While the calls still fit the slots each one gets its own
-    **tick** — 4px by 9px, hover names the method and duration, click selects it in
-    the log. Past that the same row becomes a **histogram**: one bar per bucket,
-    its height that bucket's slowest call against the run's slowest, red if any of
-    them failed, click selects the bucket's first call. So a 300px panel switches
-    at 60 calls and a wide one at 200, which is the same rule twice — draw one
-    tick per call for exactly as long as a tick can still be a tick.
-  - **The buckets are maintained, not derived** (`RunStrip`). A call updates one
-    bucket on arrival, and when there are more buckets than the strip could ever
-    draw, adjacent pairs are merged and the capacity doubles — O(slots), log(N)
-    times over a run of any length. A call's bucket is `floor(ordinal / capacity)`,
-    so a call settling finds its own bucket without anything searching, and `add`
-    is idempotent because a call arrives issued and again settled. Resizing merges
-    the buckets down on the way out rather than rebuilding them.
-- **A failed call does not interrupt the document if the script reported it.** A
-  table with a result column is a better place for a 409 than a red row above it,
-  so the destructive row is drawn only for failures **nothing was drawn after** —
-  a counter over everything that happens in the run, against where it last drew
-  (`Group.unreported`). A table filling row by row keeps covering its own
-  failures; a run that fails and says nothing collects its failures at the end of
-  the document, one row per method with `Open in log` beside it.
-- **A block that asks is a block that pauses the run.** `kaja.ask*` is drawn
-  where it happened and the canvas stops there — the empty space under it *is*
-  the pause. Answering appends the next block. A dialogue is not a sixth block
-  type; it is what a sequence of asks reads as.
-- **An answered ask is a record and collapses to one row.** Keeping the block's
-  full shape and only changing its colour made a run with ten answered asks ten
-  cards; it is a 34px row instead — a `CircleCheck`, the question dimmed and
-  truncating, the answer as a chip on the right that titles in full on hover. A
-  cancelled one is the same row with a `CircleX` and "Cancelled — the script
-  stopped here". The waiting state is unchanged.
-- **A block that approves is one of those, about a call that hasn't happened.**
-  `kaja.approve(Shows.CreateShow({ … }))` draws the call and the request it is
-  about to send, and parks the run in front of it: **Approve** sends it and hands
-  back the response, **Stop** ends the script there. It reads exactly like the
-  ask it is modelled on — same amber, same pause, `isAwaitingUser` covers both,
-  and an undecided one is stored as not approved on the same rule a hanging ask
-  is stored as cancelled. It carries the request rather than a summary of it,
-  because what makes a call worth approving is what is in it, and a click away is
-  too far for the one block you are meant to read before deciding. No button
-  takes focus: an ask focuses its input for free, but here Enter would send the
-  request, which is the thing this block exists to prevent. `⏎` approves **this
-  call only** and `Esc` stops the script; the standing approval always costs a
-  deliberate pointer or arrow gesture.
-- **The payload is clipped to 12 lines, then a fade and a footer** reading
-  `N more lines · Expand`. Expand takes the window — the same Approve / Stop pair
-  is under it there — so a decision is never made from a screen you had to leave
-  to read. The header carries the method and the request's **size**, which is the
-  one fact about a payload that survives collapsing.
-- **Approve is a split button, and the standing approval lives in its menu.** The
-  main half approves this call; the caret opens two items, `This call` and
-  `Every <Method> this run`. The method name is only in the menu, so a long one
-  never reflows the row. A loop is read a couple of times and then let go, and the
-  calls that ride on the standing approval draw no block — a canvas of decisions
-  nobody made is what pressing it was meant to be rid of. **Stop is
-  `variant="secondary"`**, not outline and not destructive: it is a refusal, not a
-  catastrophe, and it must not out-weigh Approve.
-- **A settled approve block is a record, not a control.** It loses its amber and
-  its payload — the request collapses to a size and a `View` that brings it back —
-  and states the decision in one line.
-  - **The scope is the method because that is what the button can honestly say.**
-    A script that also writes somewhere else asks again for that method, which is
-    a click, not a wall. All-methods was the alternative and it cannot be named:
-    it would cover calls you have not seen.
-  - **The lifetime is the run, because anything longer is a policy.**
-    `runScript` clears `_internal.approvedMethods` at the top of every run — both
-    doors, the editor's and the MCP server's — so the guard is back the next time
-    Run is pressed, and nothing about it is ever written to disk. The key is the
-    call's own `Service.Method` label, the same identity the block names.
-  - **The script never learns of it.** `kaja.approve` is unchanged and takes no
-    options: which calls are worth reading one by one is decided in front of
-    them, not written into the loop. The one place it is recorded is `standing`
-    on the block that granted it, which is what a run read back has to say
-    instead of falling silent about a decision made once and used ten times.
-- **Which is only possible because a method hands back a `Call`, not a promise**
-  (`Call` in `kaja.ts`, returned by every method `client.ts` builds). **A call
-  starts when it is awaited — or at the end of the tick, if nothing has claimed
-  it.** So every script that was ever written still reads as what it does:
-  `await Shows.ListShows({})` sends immediately, a bare `Shows.Ping({})` still
-  goes out, and `Promise.all([a(), b()])` still runs both at once (starting is
-  idempotent, so it doesn't matter which of the two gets there). The generated
-  service stubs say `Call<Response>` and import the type from `kaja`, so the
-  editor and `describe_method` state the same thing the runtime does. Claiming is
-  a real operation rather than a matter of being first — `approve` calls
-  `call.claim()` before its own first `await`, because otherwise the tick would
-  end while the question was still on screen and send the call itself. A call
-  that has already gone out is refused rather than approved: nothing could take
-  it back, so pretending to ask would be the one dishonest thing this could do.
-  Everything a call does happens when it starts, the row it puts in the run's
-  log included — so a call that was never approved was never anywhere.
-- **An ask asks for a kind of thing, and hands that kind back.** There is one
-  verb per kind — `kaja.askStr`, `kaja.askInt`, `kaja.askSelect(question,
-  options)` — and no general `ask` beside them, because a script that asks for
-  text and parses it has moved the parse a line too late to say anything useful
-  about a typo. `Str` rather than `String` or `Text`: `kaja.text` already means
-  *draw a line*, and `Str`/`Int` are the same length as each other, which is
-  what makes the pair readable. The kind is on the **block** (`answerType`, plus
-  a select's `choices`), not on the script, because the canvas is what draws the
-  control and checks the answer, and a run read back has to redraw the question
-  it asked. `ask.ts` holds that check, so the canvas, the fallback dialog and
-  the value handed to the script are three readings of one rule. An int field
-  will not submit anything that isn't a whole number — that is the whole point,
-  and `3.5` is refused rather than truncated. A select is a list rather than a
-  field, so there is nothing to validate; its answer travels as the **label**,
-  which is what the canvas showed and what a stored run reads back without its
-  script, and `kaja.askSelect` maps it to the value beside it. Empty text
-  answers a `str`: the script asked for a string and `""` is one.
-- **The `kaja` object is flat.** `askStr`/`askInt`/`askSelect`, `uuidV4` — not
-  `ask.str` or `uuid.v4`. The object is small enough that grouping buys nothing,
-  and it is met through the editor's completion list: one `kaja.` shows every
-  verb there is, where a namespace shows a noun you have to open to find out
-  what is under it. A prefix sorts the related ones together anyway.
-- **Splitting the views reintroduces exactly one problem: a run can be waiting on
-  the tab you are not looking at.** So a parked run says so three times before
-  you can leave it — an amber dot on the Canvas tab, an amber bar at the tail of
-  the log with `Go to canvas`, and the run pill going amber — and a fourth time
-  once you have, as an amber ring on the sidebar row (`waitingFileIds`), because
-  a spinner there would say the script was working rather than waiting. The log
-  stays readable throughout: the pause blocks the script, not your reading.
-- **An ask with no canvas falls back to the dialog.** A run with no file has no
-  console to draw on, and the modal needs no surface of its own. An agent's
-  snippet is not that case any more — it has a draft, so its question is drawn
-  on that draft's canvas and the sidebar row wears the waiting ring, which is
-  the right place for a question nobody is looking at. A question that was never
-  answered is stored as cancelled, because the promise it was blocking died with
-  the session.
-- **Which view a run opens in** (`defaultView`): a run that drew something opens
-  on its canvas — it was executed for its output, and the log is where you go
-  when the output is wrong — while a run that only made calls opens on its log,
-  since its canvas would be a true but redundant view of the same calls. An
-  explicit choice outranks that and sticks per file: debugging is a mode, not a
-  click.
+- **A table is a handle, because a loop is why tables exist here.** `kaja.table` returns something with `.row(...)`, and rows land one at a time so the canvas repaints as the loop runs. Blocks are recorded against their own id (`recordBlock`), so a block that fills in stays where it was emitted.
+- **A row is a handle too**, with one verb: `.update(...cells)`, taking the same cells in the same order — a row is declared when its work starts and rewritten when it finishes. The block is unchanged by any of it: `rows` is `string[][]` and an update is the same wholesale re-emit an append is. **A row is as wide as the table** (`padCells`): fewer cells draws blanks, and `.column(name)` widens rows already drawn along with the header. Extra cells are left alone. Renaming a column, removing a row and flashing a changed cell are all **out**. A handle into a table filled from a **source** goes quiet rather than throwing, since a restart makes it point at a row nobody is asking about.
+- **A cell that is work says which kind of work it is** (`CellStatus` on the block, `LiveCell` beside it). A **promise** is work the script already started, so the table only waits; a **function** is work nobody has asked for yet, so the table asks — when the row is drawn, and again if a failed one is retried. That is why one offers Retry and the other can't. An `Error`, thrown or returned, is a cell that stopped. Nothing in the signatures changed: `row(...cells: unknown[])` always accepted this, and a promise used to render as `{}`.
+  - **The row is drawn with everything it already has.** A waiting cell is the **same bar a skeleton row draws**, with no shimmer and no 150ms delay — it arrives *with* the row rather than replacing something. A stopped one is a dim `—` with the message on hover.
+  - **Drawn is what asks** (`pendingCells`, `pullCells`): the canvas asks for every waiting cell it can see on every frame, so asking is idempotent and the table is what knows a cell was started. A **failed** cell is asked for only when someone asks, since retrying on sight is a loop. The first page is asked for with the table. Six cells are in flight at a time.
+  - **A cell is addressed by where its row sits, not where it landed on the page** (`TableWindow.indices`) — arithmetic until a local filter takes rows out of the middle. Answers are checked against the row's **revision** on the way in, so a rewritten row and a restarted source both drop what was still coming. A block whose cells have all landed is stored as the plain table it has become; one read back has lost its closures, so a waiting cell reads as `run to load`.
+- **A table's rows are an iterable, and that is the whole of static-versus-live.** An array is one; so is an async generator, which only runs when something pulls it. `kaja.table(columns, rows?, { pageSize })` takes either, plus a **function** returning one.
+  - **The pager is over rows, not requests** (`tableView.ts`). Next means "the next page of rows, fetching if I have run out". The script never states a page size and never holds a cursor — the cursor is an ordinary local in its own loop.
+  - **No lookahead.** Pulling one row past the page to light Next up would fetch a whole page to answer a question nobody asked, so an open source offers Next until it runs out. This is why the page clamp lets **one** page past the loaded rows through.
+  - **`.total(count)` is how the script says how big the whole thing is** — the number an API reports beside a page, said from inside the source's loop (`totalOf`), so the toolbar reads `1–50 of 2,431`. A verb rather than an option because the count arrives *with* the first page; on the handle rather than a second source parameter because arity there already means "restart me for each search". A cursor-based API says nothing and the count is what is loaded, marked `of 120+` while the source is open. **A total is a claim and exhaustion is the truth** — a source that promised 2,431 and stopped at 2,000 has 2,000 rows. A restart clears it. It is also the one thing that spares the no-lookahead click.
+  - **A live table's first page is pulled a microtask after it is drawn**, because a source reports its total through the handle the script is still assigning (`const shows = kaja.table(…, async function* () { shows.total(…) })`). The run still waits for it (`LiveTable.first`, awaited by `settleTables`).
+  - **Declaring the search parameter is what asks for the search text.** A source that takes one is restarted per search; one that doesn't is never restarted and the box filters the rows already loaded, saying so. A local filter **never** fetches. Arity is the switch because it is readable one line from the box.
+  - **Controls appear when there is something to control** — one bar above the rows with the search box, the count and the pager.
+  - **The table is the one block with a frame**, because it is the one block wider than the text: `rounded-lg border`, a 40px toolbar on `bg-card`, a `bg-muted` header band, 26px rows. Everything in the toolbar is **28px**, and Previous/Next are **joined into one pair** so there is no gap to miss into.
+  - **Paging moves nothing** (`holdsPage`, `bodyMinHeight`). The frame keeps the height of a full page — `28 + pageSize × 26` as a `min-height` — for as long as the table can page; only the final page of a table that can no longer page shrinks. A local filter is instant, so it is the one narrowing allowed to shrink.
+    - **The old page stays, dimmed** (`TableWindow.held`): `opacity-40` and `pointer-events-none`, with a 2px indeterminate bar along the toolbar's bottom edge and a spinner in place of the pressed button's chevron. It **stays on the click and dims on the delay** (`stale` and `holding` are separate) — a page cleared while the dim waits is the blink the wait exists to prevent.
+    - **A first draw has nothing to dim**, so it draws skeleton rows with bar widths fixed per column index (widths that re-roll every render look like activity that isn't there).
+    - **Under 150ms nothing is said at all** (`TABLE_LOADING_DELAY_MS`). The frame is already held, so the wait costs no movement.
+    - **The toolbar states the page that was clicked**, not the rows in hand (`TableWindow.pending`): `51–100 of 2,431`, or `Loading 1–50…` before a count.
+  - **One row is one line.** Cells truncate rather than wrap, with the full value as a hover title. A column whose every non-empty cell is a number reads from the right (`numericColumns`), decided by the cells rather than by anything declared.
+  - **The empty state is a 40px row inside the frame** — `No rows match "xyz"` with Clear search — and so is a source's error, with its Retry. The columns stay on screen above them.
+  - **A live table expires like a payload does.** The source is a closure and cannot be stored: read back, the table is the rows it had, saying `run to load the rest` (`storedBlock`). The closures live on the `Kaja` instance and the oldest are let go past `MAX_LIVE_TABLES`.
+  - **An agent sees one page** — nobody is there to press Next, so `run_script` reports `more: true`.
+- **A call is not a block.** The body draws blocks and nothing else, in emission order, 16px apart. The run's calls are stated once, in the strip below. `group.drawn` is that document, kept as the run happens.
+- **A failed call does not interrupt the document if the script reported it.** The destructive row is drawn only for failures **nothing was drawn after** — a counter over everything in the run, against where it last drew (`Group.unreported`). A run that fails and says nothing collects its failures at the end, one row per method with `Open in log`.
+- **A block that asks pauses the run.** `kaja.ask*` is drawn where it happened and the canvas stops there — the empty space under it *is* the pause. A dialogue is not a sixth block type; it is what a sequence of asks reads as.
+- **An answered ask is a record and collapses to a 34px row**: a `CircleCheck`, the question dimmed and truncating, the answer as a chip. A cancelled one is a `CircleX` and "Cancelled — the script stopped here". The waiting state is unchanged.
+- **A block that approves is one of those, about a call that hasn't happened.** `kaja.approve(Shows.CreateShow({ … }))` draws the call and the request and parks the run: **Approve** sends it and hands back the response, **Stop** ends the script. Same amber and same pause as an ask (`isAwaitingUser` covers both); an undecided one is stored as not approved. It carries the request rather than a summary, because what makes a call worth approving is what is in it. **No button takes focus** — an ask focuses its input for free, but here Enter would send the request. `⏎` approves **this call only**, `Esc` stops the script, and the standing approval always costs a deliberate gesture.
+  - The payload is clipped to 12 lines, then a fade and `N more lines · Expand`. Expand takes the window, with the same Approve / Stop pair under it. The header carries the method and the request's **size**.
+  - **Approve is a split button**: the main half approves this call, the caret offers `This call` and `Every <Method> this run`. The method name is only in the menu, so a long one never reflows the row. Calls riding a standing approval draw no block. **Stop is `variant="secondary"`** — a refusal, not a catastrophe, and it must not out-weigh Approve.
+  - **A settled approve block is a record, not a control**: it loses its amber and its payload (a size and a `View` that brings it back) and states the decision in one line.
+  - **The scope is the method**, because that is what the button can honestly say — all-methods would cover calls you have not seen. **The lifetime is the run**: `runScript` clears `_internal.approvedMethods` at the top of every run, both doors, and nothing about it is written to disk. The key is the call's own `Service.Method`.
+  - **The script never learns of it.** `kaja.approve` takes no options. The one place it is recorded is `standing` on the block that granted it, so a run read back can say a decision was made once and used ten times.
+- **A method hands back a `Call`, not a promise** (`Call` in `kaja.ts`, returned by every method `client.ts` builds), which is what makes approval possible. **A call starts when it is awaited — or at the end of the tick, if nothing has claimed it**, so `await Shows.ListShows({})` sends immediately, a bare `Shows.Ping({})` still goes out, and `Promise.all([a(), b()])` still runs both at once (starting is idempotent). Generated stubs say `Call<Response>`. Claiming is a real operation rather than a matter of being first — `approve` calls `call.claim()` before its own first `await`, or the tick would end while the question was on screen and send the call itself. A call that has already gone out is **refused** rather than approved. Everything a call does happens when it starts, its log row included.
+- **An ask asks for a kind of thing and hands that kind back**: `kaja.askStr`, `kaja.askInt`, `kaja.askSelect(question, options)`, and no general `ask` beside them. `Str` rather than `String`/`Text` because `kaja.text` already means *draw a line*. The kind is on the **block** (`answerType`, plus a select's `choices`), because the canvas draws the control and checks the answer, and a stored run has to redraw its question. `ask.ts` holds that check, so the canvas, the fallback dialog and the value handed to the script are three readings of one rule. An int field refuses `3.5` rather than truncating. A select's answer travels as the **label** — what the canvas showed, and what a stored run reads back without its script — and `kaja.askSelect` maps it to the value beside it. Empty text answers a `str`.
+- **The `kaja` object is flat** — `askStr`/`askInt`/`askSelect`, `uuidV4`, not `ask.str`. It is met through the editor's completion list, where one `kaja.` shows every verb there is.
+- **A run can be waiting on the tab you are not looking at**, which is the one problem splitting the views introduced. So a parked run says so three times before you can leave it — an amber dot on the Canvas tab, an amber bar at the tail of the log with `Go to canvas`, and the run pill going amber — and a fourth time once you have, as an amber ring on the sidebar row (`waitingFileIds`), because a spinner there would say the script was working. The log stays readable throughout.
+- **An ask with no canvas falls back to the dialog.** An agent's snippet is not that case — it has a draft, so its question is drawn there and the sidebar row wears the waiting ring. A question never answered is stored as cancelled.
+- **Which view a run opens in** (`defaultView`): a run that drew something opens on its canvas, one that only made calls on its log. An explicit choice outranks that and sticks per file.
 
 ## The empty state
 
-With nothing open, the pane has one job: **say that clicking a call in the tree
-writes you a script** (`NoFileBlankslate.tsx`). That sentence is the whole model
-of the product and is said nowhere else. Under it sit the last few things you
-were in, and `⌘P find a call` · `⌘N blank script`.
-
-The people who see this screen most are not new — every missed `⌘P` and every
-fresh window lands here — so it is a shortcut rather than a teaching
-illustration, and it degrades correctly: on a first run the recent list is
-**absent**, not an empty box, leaving the sentence and the two keys.
+With nothing open, the pane has one job: **say that clicking a call in the tree writes you a script** (`NoFileBlankslate.tsx`) — the whole model of the product, said nowhere else. Under it, the last few things you were in, and `⌘P find a call` · `⌘N blank script`. The people who see this screen most are not new, so it is a shortcut rather than an illustration; on a first run the recent list is **absent**, not an empty box.
 
 ## The command row and the finder
 
-**There is no tab strip, and no open files either.** The pane shows one thing —
-whatever you last selected — and the window's right side opens with one 40px
-**command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
-sidebar toggle · finder · the file's own pair · spacer · action ·
-hairline · layout. There are
-no recent chips — with one pane and a finder, they were the last echo of a tab
-strip. Nothing else may be added to it; new controls go on the sidebar's band or
-on the header of the section they are about, or in the console header. The
-draft's own pair — `Name` and a discard — is the one exception, and it earned it
-by belonging to the file the trigger just named rather than to the window; it is
-absent on a file, which is already on disk, and so most of the time. The
-sidebar's band is 40px too, so the two line up across the seam, and the macOS
-traffic lights stay in it (the row takes over the inset only when the sidebar is
-collapsed).
+**There is no tab strip, and no open files either.** The pane shows one thing, and the window's right side opens with one 40px **command row** (`CommandRow.tsx`): sidebar toggle · finder · the file's own pair · spacer · action · hairline · layout. Nothing else may be added to it; new controls go on the sidebar's band, on a section header, or in the console header. The draft's pair (`Name` and a discard) is the one exception and is absent on a file. The sidebar band is 40px too, so the two line up across the seam.
 
-- **There is no search icon in the row, and none in the sidebar's band either.**
-  The row's opened the same finder its own trigger opens, which is why it was
-  the first thing dropped as the row narrowed. The sidebar's was a different
-  search over a subset of the same rows, which was worse: two magnifying glasses
-  in one window, neither of which says which it is. What is left is the finder,
-  its trigger, and `⌘P`.
-- **The lights move to the band, not the band to the lights**
-  (`desktop/traffic_lights_darwin.m`). AppKit centres the three window buttons
-  on the 28pt title bar, six points above the centre of the 40px band, so the
-  window's top-left corner read as two staggered baselines — the lights on one,
-  and `{ }`, the panel toggle and the draft's own Name on the other. There
-  is no position to set: `mac.TitleBar` is six booleans, and Wails has had the
-  request open since v2. So the title bar container is made as tall as the band
-  and the buttons are centred in it, which is what Electron's
-  `trafficLightPosition` is underneath — public AppKit throughout, so it holds
-  in the sandboxed App Store build, and it is the same cgo-rather-than-a-library
-  move the keychain and the Finder reveal already make. **Nothing in the layout
-  moves and no vertical space is spent**, which is why this and not a strip of
-  its own for the lights (28px, on a laptop) or a 28px row pinned to the top of
-  a 40px band (bottom-heavy by 12px, for no native change).
-  - **The container only makes the room; the move is the buttons' own.** AppKit
-    lays the buttons out a fixed distance below the container's *top*, so a
-    taller container moves nothing by itself — it is what keeps them from being
-    clipped once they are lower than AppKit would ever put them.
-  - **Re-applied rather than set once.** AppKit re-runs that layout whenever it
-    feels like it — the window is first shown, the title changes (which kaja
-    does on every run), the appearance changes, fullscreen ends — and puts the
-    buttons back. Applying once landed the first window 6px out and fixed
-    itself on the next click into the app, which is the shape of the bug this
-    is written against. So **every view between the window and the buttons is
-    watched**, the buttons included, and applying is a no-op once it is already
-    right — which is what most of those passes come to.
-  - **Corrected in the same turn it is broken in, and again once that turn is
-    over.** The first is what stops it being seen: the pass that moved the
-    buttons ends in a frame, and a move put right on the *next* turn is a
-    visible jump about a second after the window opens, which is what deferring
-    it alone looked like. The second is the backstop, because the pass is still
-    running and may move them again after we are done. Setting a frame posts
-    the notification this all hangs off, so the reentrancy guard is what keeps
-    the correction out of itself. **Fullscreen is left alone**: there the
-    buttons belong to the menu bar overlay, which is AppKit's to place.
+- **There is no search icon anywhere** — the row's opened the same finder its own trigger does.
+- **The traffic lights move to the band, not the band to the lights** (`desktop/traffic_lights_darwin.m`). AppKit centres the buttons on the 28pt title bar, six points above the centre of the 40px band, so the corner read as two staggered baselines. There is no position to set (`mac.TitleBar` is six booleans), so the title bar container is made as tall as the band and the buttons are centred in it — public AppKit throughout, so it holds in the sandboxed App Store build.
+  - **The container only makes the room; the move is the buttons' own.** AppKit lays them out a fixed distance below the container's *top*, so a taller container moves nothing by itself — it keeps them from being clipped once they are lower than AppKit would ever put them.
+  - **Re-applied rather than set once.** AppKit re-runs that layout on first show, on a title change (which kaja does on every run), on an appearance change and when fullscreen ends. So **every view between the window and the buttons is watched**, the buttons included, and applying is a no-op once it is already right.
+  - **Corrected in the same turn it is broken in, and again once that turn is over** — the first keeps it from being seen (a correction on the *next* turn is a visible jump a second after the window opens), the second is the backstop. Setting a frame posts the notification this hangs off, so a reentrancy guard keeps the correction out of itself. **Fullscreen is left alone**: there the buttons belong to the menu bar overlay.
+- **"Open" is not a concept** (`views.ts`). What is left is a **cache**: `MOUNTED_LIMIT` views kept mounted in most-recently-visited order so going back is instant and keeps its cursor. It has no UI and nothing can be closed out of it; a view holding edits that exist nowhere else (`holdsWork` — Variables, an app form) is never evicted. `views[0]` is on screen; `views[1]` is what `⌘P⏎` returns to.
+- **Kaja never starts on the compile log** — the log is a report on this session's apps, so starting there means starting on an account of a compilation that hasn't run. `serializeViews` leaves it out, `restoreViews` skips a stored one, and the view is dropped when the last app goes. Which blankslate is right depends on the configuration, so **neither is shown until it has loaded**.
+- **Preview tabs went with the strip** — `preview`, `keepTab`, `closeTab`, `⌘W`, `⌘⌫`, row close buttons, `Close all` and the Variables close-confirmation are all gone. Navigating away from a dirty Variables tab keeps the edits.
+- **The finder** (`Finder.tsx`) — the trigger is a `role="combobox"` button, 26px, carrying icon · name · qualifier · `ChevronsUpDown`, capped at 260px (over that the qualifier drops, measured with a clipped probe, then the name truncates from the left so the call name survives). It is a **label first**: with the sidebar collapsed it is the only thing that says where you are. Its popover is one list — `Recent`, then `All files` — and typing narrows both, which is what makes it the only surface that can search the calls. **`⌘P` is the only key that opens it**, on the previous place so `⌘P⏎` is "back"; a click on the trigger opens on the first row. Only the response is 120ms opacity — no slide, no scale, because movement makes fast repeated `⌘P` feel unstable.
+- **`⌘K` is deliberately unassigned.** It is the command-palette convention and a palette *does* things; this list only navigates, so the first thing anyone types into it is a verb. It is also a chord prefix in Monaco.
+- **The action slot** — Run and the `</>` JSON toggle share one position, since a file is never both a script and a form. Run is absent (not disabled) on non-script surfaces. Its disabled state and the trigger's `N errors` state come from the same `useSyntaxErrors` (`RunButton.tsx`).
+- **Shortcuts** — `⌘P` finder · `⌘N` blank script · `⇧⌘N` new folder · `⌘⏎`/F5 run · `⇧⌘⏎` run with parameters · `⌘⇧C` copy deeplink · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a draft. `⌃Tab`, `⌘1–9` and `⌘W` are gone: there are no positions to number and nothing to close.
+- **Split panes are cut, not deferred.** Splitting reintroduces "which one is current", the exact question removing the strip answered. Comparing responses is a console problem. (The `Columns2`/`Rows2` control is not this: it decides whether the console sits beside the editor or under it.)
 
-- **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
-  only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing
-  that existed to serve itself. What is left is a **cache**: `MOUNTED_LIMIT`
-  views kept mounted in most-recently-visited order so going back is instant and
-  keeps its cursor. It has no UI, nothing can be closed out of it, and a view
-  holding edits that exist nowhere else (`holdsWork` — Variables, an app form) is
-  never the one evicted. `views[0]` is on screen; `views[1]` is what `⌘P⏎`
-  returns to.
-- **Kaja never starts on the compile log**, because the log is a report on this
-  session's apps rather than a document: starting on it means starting on an
-  account of a compilation that hasn't run, and with no apps on one that never
-  can — a switcher naming a file whose body is the no-apps blankslate. So
-  `serializeViews` leaves it out and `restoreViews` skips a stored one, and when
-  the last app goes the view is dropped rather than left standing (`App.tsx`).
-  Nothing open is the better answer either way: with apps it is the screen that
-  says picking a call writes you a script, and without them the one that says
-  where apps come from. Which of those two is right depends on the
-  configuration, so **neither is shown until it has loaded** — the compile
-  log's own `Loading configuration…` was the only thing that used to cover that
-  moment.
-- **Preview went with it.** Italic tabs, double-click-to-keep and
-  "the first keystroke promotes it" only ever existed to stop tabs accumulating.
-  With one pane showing one thing nothing accumulates, so `preview`, `keepTab`,
-  `closeTab`, `⌘W`, `⌘⌫`, the row close buttons, `Close all` and the
-  Variables close-confirmation are all gone. Navigating away from a dirty
-  Variables tab now simply keeps the edits.
-- **The finder** (`Finder.tsx`) — the trigger is a `role="combobox"` button,
-  26px, carrying icon · name · qualifier · `ChevronsUpDown`, capped at 260px
-  (over that the qualifier drops — measured with a clipped probe — then the name
-  truncates from the left so the call name survives). It is a **label first**:
-  with the sidebar collapsed it is the only thing that says where you are. Its
-  popover is one list — `Recent`, then `All files` — and typing narrows both,
-  which is what makes it the only surface that can search the calls, as the tree
-  can't. **`⌘P` is the only key that opens it**, on the previous place so `⌘P⏎`
-  is "back" — the only way back, now that the chips are gone; a click on the
-  trigger opens on the first row instead, since a click carries no "back"
-  intent. Only the response is 120ms opacity — no slide, no scale, because
-  movement makes fast repeated `⌘P` feel unstable.
-- **`⌘K` is deliberately unassigned.** It used to open this same finder on the
-  first row, which made it `⌘P` minus the one thing `⌘P` is for. `⌘K` is the
-  command-palette convention (Linear, Slack, GitHub) and a palette *does* things;
-  this list only navigates, so the first thing anyone types into it is a verb,
-  which filters the file names to nothing. It is left free rather than reassigned:
-  it is a chord prefix in Monaco, and it is the key a real palette would want.
-- **The action slot** — Run and the `</>` JSON toggle share one position, since a
-  file is never both a script and a form. Run is absent (not disabled) on
-  non-script surfaces. Its disabled state and the trigger's `N errors` state come
-  from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
-  with itself. Run is a **split button** on every script — see **The Run button,
-  split** — and a plain one only while a run is in flight; the caret is the only
-  thing that ever grew here, and it belongs to the file rather than to the row,
-  which is why its menu changes as the file does and its width never does.
-- **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
-  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⇧⌘⏎` run with parameters · `⌘⇧C` copy
-  deeplink · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a draft (a file is
-  already saved, so it does nothing on one). `⌃Tab`, `⌘1–9` and `⌘W` are gone:
-  there are no positions to number and nothing to close.
-- **Split panes are cut, not deferred.** The pane holds one thing by
-  construction; splitting it reintroduces "which one is current", which is the
-  exact question removing the strip answered — two panes, one trigger, one `⌘P`.
-  Comparing one response against another is a console problem, and the run
-  history above is where it belongs, not the editor. (The `Columns2`/`Rows2`
-  control in the row is not this: it decides whether the console sits beside the
-  editor or under it, which is one file either way.)
+## Apps
 
-## Experimental (Preview)
+**Everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; the built-in integrations `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`; a legacy top-level `projects` list is migrated on load, as is a legacy `"markdown"` app (which becomes a `"folder"` app).
 
-Experimental features are opt-in through the **feature previews** menu — a beaker
-button in the footer next to the theme selector (`FeaturePreviews.tsx`) that opens a
-small popup with a toggle per experimental feature. Enabled features are marked with a
-"Preview" pill in the UI (`PreviewPill`). Toggle state persists via
-`usePersistedState` under `featurePreview:<key>` keys.
+`ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "…", "grpc": { "url": "…", "proto_dir": "…", "headers": {…} } }`. **The set field is the type**, two types can never be mixed (protojson rejects two oneof members), and each message declares exactly its own params. The server flattens the set variant's scalar fields to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), excluding `headers`, which is forwarded per request rather than being a creation param.
 
-**Scripts, Variables, the MCP server and OpenAPI apps are not previews** — they
-are the app. Scripts are what everything you run is, and Variables is what they
-and app configuration read, so both ship. What the platform still gates is
-narrower than the feature: **writing** a script needs a disk this process owns
-(`canWriteScripts()` in `scriptFiles.ts`, which is `isWailsEnvironment()`) — but
-reading the workspace's scripts is the server's to do, so the web lists and runs
-them. **The MCP server is both builds'**, and what differs is what it is bridged
-to (below): on the desktop **its lifetime is the process's** — `startup` starts
-it and `shutdown` stops it, there is no enable/disable call, and the UI's only
-part in it is reading `MCPServerInfo` for the footer's plug. A port already in
-use is still reported through `MCPInfo.Error` rather than falling back to a
-random one; freeing the port and restarting is the fix, since there is no longer
-a toggle to cycle.
+The experimental built-ins (mcp/openai/folder) appear in the sidebar's **New** dialog only when the `previewApps` feature preview is on, and carry a "Preview" pill. gRPC/Twirp/OpenAPI are always offered. The type is fixed at creation.
 
-- **Deeplinks** — `kaja://run/<script>?key=value&key=value` on the desktop, `https://<kaja>/#run/<script>?key=value` on the web, runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`). A URL scheme is a bundle's to register, so the web says the same thing in a fragment — same grammar, same parser, no server route. It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Deeplinks, and the sheet that asks** below.
-- **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Folder app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp/OpenAPI always; the experimental built-ins (mcp/openai/folder) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load, as is a legacy `"markdown"` app — the same folder on disk, behind methods that each rendered one Markdown construct — which becomes a `"folder"` app.
+### Architecture
 
-### Apps architecture
+- **Contract** — `server/pkg/apps` defines `App` (factory), `Instance` (live, invocable) and a `Manager` (type registry + live instances). `App.Open` returns an `*Opened` describing the proto surface (`ProtoDir`) and either an in-process `Instance` or a `Target`+`Protocol` the client invokes directly. `Manager.Open` registers an `Instance` under a `kaja-app://<id>` target; otherwise it passes the upstream URL and transport through.
+- **grpc/twirp** — `server/pkg/apps/rpc`. The proto surface is a workspace-relative `proto_dir` or, for gRPC, server reflection (the `reflection` field, reusing `server/pkg/grpc`). They have **no** in-process `Instance`: `Open` returns the upstream `url` and `"grpc"`/`"twirp"`, so the browser invokes them directly and gRPC-Web streaming is preserved.
+- **Open + compile** — the `OpenApp` RPC opens **every** app and returns the `proto_dir` to feed into `Compile`, the invocation `target`, and the `protocol`. `InspectOpenApi`, `InspectGrpc` and `InspectMcp` are the only app-type-specific RPCs, and none of them creates anything.
+- **Invoke** — in-process apps are invoked as gRPC via `kaja-app://` targets: the web `/target/{method}` handler calls `grpc.ServeAppGRPCWeb` (→ `Manager.Invoke`), the desktop Wails `Target` dispatches to `Manager.Invoke`. grpc/twirp keep their browser-direct transports.
+- **UI** — `ui/src/apps.ts` models an app as a `ConfigurationApp` plus a runtime `target`/`protocol` (`Transport`). `useCompilation` always calls `OpenApp`. `ui/src/appTypes.ts` is the single registry of app types and bridges the typed oneof to the generic form: `appType` is the set field, `appParameters`/`appHeaders` read the variant, `buildApp` constructs it, and its parameter keys are the generated camelCase field names (`protoDir`, `specUrl`). Each type's `icon` is how the app is shown everywhere it is named (`AppTypeIcon`, with the type label as a tooltip).
+- **App settings** is a document identified by the app: the view is titled with the app's name (a new one is `New <Type> app`), opened from the sidebar or by right-clicking an app → **Settings**. New apps come from the sidebar's **+**. Its `editMode` lives on the view, because the control that switches it (`</>` in the command row) sits in the row.
+- **`</>` edits the current file's content as JSON** — same position, same icon, same `⌘J`, on every view type with a JSON representation (app settings, Variables), absent where there is none. Because the button belongs to the row, the view it selects belongs to the view (`AppFormView.editMode`, `VariablesView.editMode`) and the "does it parse" flag belongs to `App.tsx` (`viewJsonValid`), which is what disables the way back.
+- **`AppForm.tsx`** is the form body: the **Advanced** disclosure for per-request headers, and the footer, whose left-hand sentence is the receipt of what the button will add. The JSON view opens on the **on-disk shape**, dropping a parameter the app doesn't set rather than writing an empty string. A type marked `customForm` renders its own body; its `parameters` list stays the contract with the config, and it reports what it read back as an `AppSurface`, counted in the footer with the type's `surfaceNoun`.
+- **`ChoiceRow.tsx`** is the radio row the custom forms share (a server, a security scheme, a transport), with `ChoiceCard` holding it together with whatever the selection reveals. It lives beside `AppNameField.tsx` rather than in `components/` — it is not a design-system primitive.
+- **The name is a namespace, not a label**, so `AppNameField.tsx` shows the **import line the name produces** (`import { … } from "OpenMeter/service"`, the name lit and the rest dimmed) instead of explaining it. The path is exact where the app's type fixes it and `…` where the app's protos decide it. Absent while there is no name.
 
-- **Contract** — `server/pkg/apps` defines the `App` (factory) and `Instance` (live, invocable) interfaces plus a `Manager` (type registry + live instances). `App.Open` returns an `*Opened` describing the proto surface (`ProtoDir`), and either an in-process `Instance` (built-ins) or a `Target`+`Protocol` for apps the client invokes directly (grpc/twirp). `Manager.Open` registers any `Instance` under a `kaja-app://<id>` target; otherwise it passes the app's upstream URL + transport through.
-- **grpc/twirp apps** — `server/pkg/apps/rpc` implements both. Their proto surface is a static, workspace-relative `proto_dir` (resolved by the compiler) or, for gRPC, server reflection (the `reflection` field, reuses `server/pkg/grpc`). They have **no** in-process `Instance`: `Open` returns the upstream `url` as `Target` and `"grpc"`/`"twirp"` as `Protocol`, so the browser invokes them directly (preserving gRPC-Web streaming) exactly as before. The `apps` package still takes a `map[string]string` — the set variant's scalar fields are flattened to it server-side, so app implementations are unchanged.
-- **A gRPC app's credential and transport are the app's, not the request's.** Both are resolved in Go, on the way out, and neither is ever handed to the browser. `GrpcApp` carries one credential (`auth`: `bearer` / `basic` / `apikey` / `none`, plus `token`, `username`, `password`, `api_key_name`) and the transport the address can't state (`tls`: `on` / `off` / empty to read it off the URL, `insecure_skip_verify`, `ca_file`, `client_cert_file`, `client_key_file`). `rpc.Metadata` turns the credential into the metadata it becomes; `rpc.TLS` turns the rest into a `grpc.TLSOptions`. Doing it here rather than in the browser is what makes `"${secret}"` credentials work at all, and what makes **Basic's base64 kaja's to do rather than yours** — the same rule the OpenAPI form states.
-  - **The reserved header is how the call finds its app.** Both transports send `X-Kaja-App: <name>` beside the app's own headers (`transportHeaders` in `ui/src/appTypes.ts`); both request routers call `apps.TakeAppName` to pull it back out before anything is forwarded, so it never reaches the wire, and hand the name to `ApiService.AppConnection`. That reads the app out of kaja.json **at call time**, so replacing a token takes effect on the next call rather than the next compile. `apps.MergeMetadata` then applies the credential without touching a header the app configures under the same name (matched case-insensitively) — writing one out by hand is the more specific instruction of the two. The name travels as a header rather than as an argument because the Wails bindings are generated, and a header costs no signature.
-  - **`grpc.TLSOptions` is what the target URL can't say.** Its zero value reads the transport off the URL and verifies against the system roots, which is what kaja always did, so every caller that has nothing to configure passes it. `sharedConnection` keys the connection cache on the options as well as the target, so two apps on one host with different certificates are two connections. Only `insecure_skip_verify` is genuinely unverified; a CA bundle and a client certificate (mutual TLS) are ordinary `tls.Config`. Certificate paths are workspace-relative, resolved by `internal/workspace.Resolve` — the same rule as `proto_dir`, which now goes through it too.
-- **Reading the server up front** — the `InspectGrpc` RPC (`server/pkg/apps/rpc/inspect.go`) reads the surface a grpc app *would* be opened with, without creating it: it reflects the server (sending the app's credential, because a server that guards its methods usually guards the list of them) or compiles the proto directory, and reports the services, their method and streaming-method counts, which reflection version answered, and **which transport did**. Failures come back as a classified `problem` (`unreachable`, `tls`, `noReflection`, `unauthenticated`, `permissionDenied`, `noServices`, `timeout`, `noProtoFiles`, `protoInvalid`, `target`) so the form can name the next move. Two things make the classification worth having: when the app leaves the transport to the URL, a failure that *could* be the transport is retried the other way round and the answer is reported (`worthRetrying` keeps that from doubling the wait on a host that simply isn't there); and when the app pins the transport, the other one is tried only to say **"the server is there, but it only speaks TLS"** rather than "couldn't reach it", which is the most confusing failure in gRPC. The proto-directory source also probes the address on a short leash, so the form can state the transport for an app whose definitions are local — a server that doesn't answer is reported, not fatal.
-- **OpenAPI app** — `server/pkg/apps/openapi` reads the spec (`sigs.k8s.io/yaml`, handles JSON and YAML) from the `spec_url` app parameter or, when the spec is uploaded, from inline `spec_content` (the browser reads the chosen file's text into it via the `"upload"` form parameter type). The upstream base URL comes from the spec's `servers` list (relative server URLs are resolved against the spec document's URL), unless the `base_url` app parameter overrides it; an uploaded spec has no document URL to resolve relative server URLs against, so it must declare an absolute server URL or supply `base_url`. It generates a single `.proto` file plus a per-method HTTP "binding" manifest, then compiles the proto (via the embedded `protoc-go`) into descriptors. Every generated proto field carries `[json_name = "<openApiName>"]` so proto3-JSON keys match the REST shape. `Invoke` decodes the protobuf request with `dynamicpb`+`protojson`, transcodes to/from REST (path/query/header extraction, body pass-through, array/scalar/text response wrapping), then encodes the protobuf response. Integers map to `int32` unless `format` says `int64`/`uint64`/`uint32`. Both OpenAPI 3.0 (`nullable: true`) and 3.1 are handled: a 3.1 array `type` such as `["string", "null"]` keeps its first non-`"null"` entry (`openAPIType` in `spec.go`), so a nullable type generates the same field as its non-null counterpart. Schema composition is resolved: `allOf` entries merge into the message's fields; a `oneOf`/`anyOf` whose variants are all objects (a discriminated union) merges the variants' properties into one superset message (a property two variants declare differently becomes a union of those schemas); a mixed-shape union (e.g. an ingest body that is one event or an array of them) models its first variant. Bodies and responses accept structured `+json` content types, and the binding remembers which content type to send. Query parameters honour `style`/`explode`: `explode: false` arrays are comma-joined, `deepObject` objects serialize as `name[key]=value`. A kitchen-sink fixture (`server/pkg/apps/openapi/testdata/kitchensink.yaml`) exercises all of these constructs and must generate and compile cleanly end to end; extend it when adding new schema features.
-- **The HTTP envelope** — carrying HTTP inside gRPC needs somewhere to put the parts protobuf has no shape for, and the rule is that the envelope only exists where it is unavoidable, and says so where it is. An operation whose only input is an object body **is** that body — `rpc CreatePet(Pet)`, no `body` field wrapping it. An envelope field appears only when the payload can't be the message: a body sitting beside path/query/header parameters, a body that is an array, and every non-object response (an array, a scalar, plain text). Those fields carry `[(kaja.http_payload) = HTTP_PAYLOAD_BODY|ITEMS|VALUE]`, declared in `server/pkg/apps/openapi/http.proto`, which the app writes into the proto directory as `kaja/http.proto` whenever it marks anything (`generated.write`). The mark survives compilation into the generated TypeScript as `options: { "kaja.http_payload": ... }` on the field, which is how the client tells an envelope from a property an API happens to call `items`. `ui/src/httpEnvelope.ts` reads it: a message that is **nothing but** a marked field is an envelope, and the console shows the payload instead of it — so a list response reads as the array it is. Only the response is unwrapped, and only for display: the wire and the generated types are untouched, so a script still reads `response.items`. Header parameters (`in: header`) are ordinary request fields whose `json_name` is the header name; `transcode` sets them on the HTTP request after the app's configured headers, so the value typed for one call outranks the one configured for every call, and they surface in the Headers view rather than in the payload. `kaja/http.proto` carries three more marks for the same reason — protobuf has no shape for them and a caller would otherwise have to guess: `(kaja.http_request) = "GET /pets/{petId}"` on every generated **method** (the verb is the only thing that says whether calling it reads or writes), and `(kaja.http_in) = "path|query|header"` plus `(kaja.http_required) = true` on a **field** (proto3 has no `required`, so without it every field looks equally optional and a caller fills them all). A property's `description` is emitted as a leading comment, so it reaches the generated TypeScript as JSDoc. Because every method now carries an option, `kaja/http.proto` is always written beside the generated service rather than only when an envelope exists.
-- **OpenAPI auth** — `auth.go` resolves the spec's `securitySchemes`/`security` into an `auth` that injects the user's credentials (the `token`, `username`, `password` app parameters) the way the scheme expects: `http` bearer → `Authorization: Bearer`, `http` basic → HTTP Basic, `apiKey` → the declared header/query/cookie, and `oauth2`/`openIdConnect` → bearer. Any other `http` scheme (digest, negotiate, ...) is sent under its own name in the `Authorization` header, without the challenge handshake. The app can pin which scheme its credentials belong to with the `security_scheme` parameter (the scheme's name in `components.securitySchemes`, or `"none"` to send nothing); the app form always writes it, so the pick is explicit rather than re-derived. An empty value keeps the old behaviour: honour the document-level `security` requirement, else the sole declared scheme, else fall back to bearer (token) or basic (username/password) from whatever credentials were given. Spec auth is applied before any per-request header so an explicit header still overrides it.
-- **Reading the document up front** — the `InspectOpenApi` RPC (`server/pkg/apps/openapi/inspect.go`) reads the document an openapi app *would* be opened with and reports what it declares — title, versions, operation and tag counts, `servers` (with each `{placeholder}`'s default and `enum`, and relative URLs resolved against the document URL), and `securitySchemes` sorted by how many operations accept each one — without creating the app. Failures come back as a classified `problem` (`unreachable`, `unauthorized`, `httpError`, `html`, `notADocument`, `swagger2`, `malformed`) with a headline and the underlying error, so the form can name the next move instead of printing a raw error. A document that is itself behind a login is fetched with the `spec_header_name`/`spec_header_value` parameters, kept apart from the API's own credentials because they are usually different tokens. `components.securitySchemes` keeps its declaration order (`securitySchemes.UnmarshalJSON` in `spec.go`) so the form's preselection is stable across reads.
-- **Folder app** — `server/pkg/apps/folder` binds to one folder on disk (the `path` parameter) and serves the four operations that make a folder usable from a script and nothing else: `ListFolder`, `CreateFile`, `ReadFile`, `AppendFile`. It renders a static proto (`folder.proto`) and dispatches by method name, like any in-process app. **It knows nothing about file formats**: content is written and read verbatim. It replaced a "markdown" app whose ten methods each rendered one Markdown construct — a script can write its own `"## " + title`, and the app that can only write Markdown can't hold a `.json` or a `.csv`. It is local, so it forwards no headers and reports no upstream ones.
-  - **Every path the app reports can be handed straight back to another method.** Paths are relative to the app's folder and slash-separated (`team/notes.md`), so a name out of a listing goes into `ReadFile` as it is, with nothing to join first. That invariant is the whole of what makes the app usable one method at a time — the old surface broke it at both ends, listing bare names that only worked at the top level and refusing any name with a slash in it, so nothing below the first level was reachable at all.
-  - **The boundary is `os.Root`, not the shape of the name.** Every operation goes through it, which enforces the folder at the syscall level, symlinks included; `clean` is a lexical check in front of it (`filepath.IsLocal`, which rejects absolute paths and anything that climbs out) and not the fence itself. The `filepath.Base` rule that used to sit beside it was a second fence inside the first whose only effect was to exclude subfolders. `.` is the folder itself, so it is a folder that can be listed and never a file: `resolve` refuses it there rather than leaving it to the open that would fail anyway.
-  - **A write creates the folders its path implies** (`makeParents`), which is what keeps the app at four methods: there is no `CreateFolder` to discover and no `mkdir` flag to guess, and `CreateFile("team/notes.md")` means what it says.
-  - **`ListFolder` takes a folder and a `recursive` flag, and reports `files`, `folders` and `truncated`.** Two lists rather than one list of typed entries, so `files` goes on meaning what it meant and scripts written against the old response still read. The walk is **breadth-first and capped** (`maxEntries`), so a truncated listing is the top of the tree rather than whatever sorted first, and it says so instead of trailing off — `folder` is how a caller narrows past it. Nothing is filtered on the way, `.git` included: a listing that hides what is on disk is worse than one that states where it stopped. Entries are **sorted per folder**, because `File.ReadDir` hands back filesystem order where the `os.ReadDir` this replaced sorted, and a listing that reorders itself between two calls is one nothing can be compared against.
-  - **One word, the whole way down.** The app type is `folder`, the service is `Folder`, the method is `ListFolder({ folder })`; "directory" is for `proto_dir`, where a developer is wiring up a toolchain path. And the `File` suffix on the other three is **disambiguation, not stutter** — once folders are things this app has, `Create` alone would read as creating one. That is also why this stayed one service rather than splitting into `Folder` + `File`: a service name becomes a `new Function` parameter in `scriptRunner.ts` and would shadow the DOM `File` global in every script, `File` is the name a listing entry message would want (services and messages share one proto namespace), and a generic service aliases at the import (`Folder as Team`) only while there is one of it.
-- **MCP app** — `server/pkg/apps/mcp` is an MCP **client**: it connects to somebody else's Model Context Protocol server and renders what that server exposes as a proto surface. (Not to be confused with kaja's own MCP server, below, which is the other direction entirely — that one lets an agent drive kaja. The two share a name and nothing else.)
-  - **A tool is a method, and its input schema is the request.** `protogen.go` turns each tool into an rpc on a `Tools` service and its `inputSchema` into the request message, field per property, in the order the document declares them — sorting the names would renumber the message the moment a tool gains one, and would reorder the request away from how the tool documents itself. Every field carries the property's own name as its `json_name`, so the message *is* the arguments object and `invoke.go` needs no mapping table: protojson out, `arguments` in. Prompts become the methods of a `Prompts` service the same way, over the string arguments a prompt declares; resources get the fixed `ListResources` / `ReadResource` / `ListResourceTemplates`, since a resource is addressed by URI rather than by name. Only the kinds a server actually exposes are emitted — an empty service is a row in the tree that leads nowhere.
-  - **What JSON Schema leaves open stays open.** Nested objects and `$defs` become messages of their own (the name is allocated before the fields are walked, which is what makes a self-referential schema terminate), `allOf` and an all-object `oneOf`/`anyOf` merge into one message, a `["string","null"]` union is the same field as its non-null counterpart, and `additionalProperties` with a schema is a `map<string, T>`. Everything else — a free-form object, a mixed-shape union, an array of arrays — is `google.protobuf.Value`, which is honest and still callable. proto3 has no `required` and no place for an `enum`'s allowed values, so both are written into the field's leading comment, which is what reaches the editor as JSDoc.
-  - **A tool result is a result, not a failure.** `<Method>Response` is `content` + `isError` + `structuredContent`, and a tool that reports `isError: true` comes back as an ordinary response — the run has to show what the tool said about it. A tool that declares an `outputSchema` gets a typed `structuredContent`; one that doesn't keeps the JSON it returned. A JSON-RPC error is an error, an HTTP failure is an `apps.UpstreamError` (so a 401 reads as a 401), and a result that asks the client for something back — sampling, elicitation, roots — says so rather than arriving empty, because kaja declares none of those capabilities.
-  - **The client is dual-era, and that is the whole of `client.go`.** Revision `2026-07-28` dropped the `initialize` handshake: every request carries its version, identity and capabilities in `_meta`, mirrored into `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers, and there is no session. Everything before it opens with `initialize` and may pin an `Mcp-Session-Id`. Which one a server speaks is settled **once**, by sending `server/discover` and reading what comes back: only an error the modern revision defines (`-32022`) identifies a modern server, and **anything else at all** — an unknown method, a rejected `_meta`, a bare HTTP status — is the handshake era, because a server from before the split has no way to say so. That rule is not fussiness: real servers answer the modern probe with `-32600` and their versions in the *message text*, which no amount of code-reading would have predicted. A response arrives as a JSON object or as an SSE stream whose last data event is the response, and notifications sent ahead of it are stepped over — there is nowhere to put a progress event mid-call.
-  - **The credential is the app's, not the request's**, on the same rule the gRPC app states: `bearer` (the default, because MCP's authorization framework is OAuth and what OAuth hands back is a bearer token) or a key under a header the server names. It is resolved in Go and applied on the way out, so a `"${secret}"` token is never handed to the browser. The app's own headers are set after it, since a header written out by hand is the more specific instruction.
-  - **Streamable HTTP only.** A stdio server is a subprocess, and the app contract has no place to put one; the transport is behind `Client`, so it is where that would go.
-- **Open + compile** — the `OpenApp` RPC (`server/proto/api.proto`) opens **every** app (`InspectOpenApi`, `InspectGrpc` and `InspectMcp` are the only app-type-specific RPCs, and none of them creates anything): it returns the `proto_dir` to feed into the existing `Compile` pipeline, the invocation `target` (an upstream URL or `kaja-app://<id>`), and the `protocol` (`"grpc"`/`"twirp"`) the client uses to reach it.
-- **Invoke** — in-process apps are invoked as gRPC via `kaja-app://` targets: the web `/target/{method}` handler detects them and calls `grpc.ServeAppGRPCWeb` (→ `Manager.Invoke`), the desktop Wails `Target` dispatches them to `Manager.Invoke`. grpc/twirp apps keep their existing browser-direct transports (gRPC-Web proxy / Twirp), chosen from the `protocol` returned by `OpenApp`.
-- **Upstream errors** — when an app's upstream REST call fails with HTTP >= 400 (e.g. the OpenAPI app), `Invoke` returns a structured `apps.UpstreamError` — status, a human message extracted from the body (RFC 7807 `detail`/`title`, `{"message"}`, `{"error"}` envelopes), and the raw body — instead of a flat error string. **A failed HTTP call is shown as an HTTP failure, not as the gRPC error it was tunnelled through.** `UpstreamError.JSON` (`message`/`status`/`statusText`/`request`/`body`, the body kept as JSON when it is JSON) is what reaches the client, and both transports arrive at it: the desktop `Target` returns it as the `TargetResult` body, which `wails-transport.ts` splits into the thrown error's fields; the web `ServeAppGRPCWeb` maps the failure to the closest gRPC status (400 → INVALID_ARGUMENT, ...) for any plain gRPC-Web client but sends the whole thing in a `kaja-upstream-error` trailer, which `client.ts` uses **in place of** the `RpcError`. Nothing of the tunnel reaches the response tab: `callError` prefers the trailer, `serializeError` never copies `meta`, and `applyErrorMetadata` routes what `meta` held to the Headers view — the `kaja-*` trailers to the upstream hop, anything a server sent of its own to the response headers. A genuine gRPC/Twirp failure is unaffected and keeps its `code`, which is what labels it in the console; an upstream failure is labelled by its HTTP status (`callErrorCode`).
-  - **But that envelope is the carrier, not the failure** — so the response tab shows the `body` alone (`unwrapFailure` in `upstreamHeaders.ts`), on the same rule as the response envelope above. Everything around it is already stated somewhere that isn't the payload: the status on the console's status line, the `request` line above the upstream request headers in the Headers view (`upstreamRequestLine`, which is where a request line belongs and the only place it is left), and the extracted `message` **only** when the body is empty — an empty 401, a 502 with nothing in it — because then it is all there is to say. A body that is an array or plain text is shown as itself, as any non-object payload is. Recognising one is structural (`asUpstreamFailure`: an HTTP status and a request line, which a gRPC or Twirp failure has neither of), so a stored run displays the same as a live one, and only the display changes: the error object keeps its fields, which is what a script catches and what `classifyFailure` reads. A successful call reports no request line, so the Headers view simply doesn't state one.
-- **Trailer encoding** — every gRPC-Web trailer `writeGRPCWebText` emits, `grpc-message` included, is percent-encoded (`escapeTrailerValue`, undone client-side with `decodeURIComponent`). gRPC-Web trailers are a text block clients split on CRLF and read byte by byte as Latin-1, so unescaped UTF-8 arrives mangled (an em dash as `â€"`) and a newline in a value would end the line early. Only bytes outside printable ASCII and `%` itself are escaped, so ordinary JSON stays readable on the wire. This is also what the gRPC-Web spec asks of `grpc-message`; protobuf-ts does not decode it, so `client.ts` does (`errorMessage`).
-- **UI** — `ui/src/apps.ts` models every app from a `ConfigurationApp` plus a runtime `target`/`protocol` (`Transport`) filled in by `OpenApp`; `useCompilation` always calls `OpenApp` (passing the whole `ConfigurationApp`) and the transport is selected from `protocol`. `ui/src/appTypes.ts` is the single registry of app types (grpc/twirp/openapi + preview built-ins) and also bridges the typed `oneof` to the generic form: `appType` is the set field, `appParameters`/`appHeaders` read the variant, `buildApp` constructs it. Its parameter keys are the generated (camelCase) field names (`protoDir`, `specUrl`).
-- **App type icon** — each app type's `icon` in `ui/src/appTypes.ts` is how the type is shown wherever an app is named: the sidebar row, the compile-status rows, and the app settings tab. `AppTypeIcon` (`Sidebar.tsx`) renders it with the type's label as a hover tooltip, so the word is still there when it is needed. The "Preview" pill is unaffected — a preview app carries both.
-- **App settings tab** — an app's settings are a document identified by the app: the tab is titled with the app's name (a new app is `New <Type> app`, the unsaved instance of the same document) and is opened from the sidebar, by right-clicking an app → **Settings**. New apps are created from the sidebar's **+**, not from inside the editor. The tab opens as a **preview** (see the command row section): it takes the single preview slot, so browsing settings never stacks tabs, and typing in it makes it permanent so work in progress is never replaced. Its `editMode` lives on the tab too, because the control that switches it — the `</>` icon in the command row's action slot — sits in the row rather than in the form. It is disabled while the JSON doesn't parse, which `AppForm` reports up as it is typed.
-- **Editing a tab as JSON** — **the `</>` button in the command row edits the current file's content as JSON.** Same position, same icon, same `⌘J`, on every tab type that has a JSON representation (app settings, Variables); it renders in its active state while the JSON view is showing, and is absent on files that have none — where Run takes the slot instead. Because the button belongs to the row, the view it selects belongs to the tab (`AppFormTab.editMode`, `VariablesTab.editMode`) and the "does it parse" flag belongs to `App.tsx` (`tabJsonValid`), which is what disables the way back. Any future editable tab is the third one to follow it, not a third placement.
-- **App form** — `AppForm.tsx` is the form body: the **Advanced** disclosure that edits the headers every request carries, and the footer, whose left-hand sentence is the receipt of what the button will add. The JSON view opens on what the form currently holds, so switching views loses nothing — and it opens on the **on-disk shape**, dropping a parameter the app doesn't set rather than writing it as an empty string, because that is what protojson does with it on the way to kaja.json. A type marked `customForm` renders its own body instead of the generic parameter list; its `parameters` list stays the contract with the config (which fields exist), and the custom form supplies the labels. A custom form reports what it read back as an `AppSurface`, which the footer counts with the type's own `surfaceNoun` — an OpenAPI app adds operations, a gRPC app adds methods.
-- **The two custom forms read as one screen.** `ChoiceRow.tsx` is the radio row both of them draw — a server, a security scheme, a transport — and `ChoiceCard` the block that holds it together with whatever the selection reveals. It lives beside `AppNameField.tsx` rather than in `ui/src/components/`: it is not a design-system primitive, it is the row these two forms share.
-- **The name is a namespace, not a label.** It is the folder every generated import starts with, so `AppNameField.tsx` — the Name field both forms share — says so by **showing the import line the name produces** rather than by explaining it: `import { … } from "OpenMeter/service"` under the field, the name lit and the rest of the line dimmed, updating as it is typed. That is the whole nudge toward a handle; a name with spaces in it still works and nothing rejects it, but `"OpenMeter Cloud API/…"` argues for itself. The path is exact where the app's type fixes it (`service`, for OpenAPI's single generated file) and `…` where the app's own protos decide it. The line is absent while there is no name, since there is nothing to preview.
-- **OpenAPI app form** — `OpenApiForm.tsx` asks for one thing, the document (URL, uploaded file, or pasted text), and everything after it is a choice between things the document already declared. It calls `InspectOpenApi` 600ms after typing stops (400ms for a pasted document, immediately for a file, an existing app, or ⏎), discarding all but the latest read. One slot under the field carries every state — caption, reading, the document that was read, each classified failure — so nothing jumps; a 401 asks for the fetch header right there and retries. Nothing below the divider exists until a document parses. The server section adapts to the `servers` list: a list of one is stated rather than offered, several become a radio list, `{placeholders}` become selects (with an `enum`) or inputs with the resolved URL underneath, and no servers at all fall back to a plain base URL seeded from the document URL's origin. The chosen server is written out as `base_url` — and matched back to a row when the app is edited (`matchServerUrl` recovers the variable values) — so requests go where the form says they go. Authentication is a row per scheme plus "Send no credentials", with only the selected row asking for a credential in the shape its scheme expects; credentials typed for one scheme survive a flip to another. Every text field here takes a `${NAME}` variable and suggests the configured ones, so a URL a variable can't be checked against (`isUsableBaseUrl`, `isReadableSourceUrl`) is taken on trust and settled by the server. The name is **derived** from the document's title rather than copied from it (`deriveAppName`): a title is written for a docs page, so the words that describe the document — `API`, `REST`, `OpenAPI`, `Swagger`, `Cloud`, a version, a subtitle after a dash or colon — are dropped and what is left is joined in PascalCase, turning `OpenMeter Cloud API` into `OpenMeter` and `Swagger Petstore - OpenAPI 3.0` into `Petstore`. A single surviving word is kept exactly as written, so a title that is already a handle (`grpcb.in`) survives; a title that is nothing but those words keeps them, since a name is needed either way; and anything an import path can't carry is not a word at all. A collision with an app that exists is numbered (`uniqueAppName`) rather than left as an error the user has to resolve. It is only a starting point — the caption saying where the name came from goes the moment the field is edited, and the import line under it stays. The pure parts (URL resolution and matching, scheme labels and notes, the name derivation) live in `ui/src/openApiDocument.ts` and are unit-tested.
-- **MCP app form** — `McpForm.tsx` asks for one thing, where the server is, and everything after it is what that server said about itself. It calls `InspectMcp` 600ms after typing stops (immediately for the demo link, an existing app, or ⏎), discarding all but the latest read; the read is keyed on the endpoint alone, and **not** on the credential, which is sent with it but is typed a character at a time. One slot under the field carries every state, and each classified failure names its move: `unauthorized` opens Authentication right there (preselecting Bearer), `notMcp` says that most endpoints end in `/mcp`, and `empty` is a warning rather than an error — the server answered, it just has nothing to explore. Nothing below the divider exists until something has been read. **Authentication** is a fixed list — Bearer token, API key (with the header name beside it), send nothing — because there is no document declaring schemes, and each selected row states the header it becomes. The name is **derived from what the server calls itself** (`deriveAppName`): a server name is usually already a handle, so unlike an OpenAPI title it is mostly kept, and what goes is the part that says it is an MCP server (`GitHub MCP Server` becomes `GitHub`) and the namespace a registry entry carries in front of it (`io.github.owner/sentry` becomes `Sentry`); a server that names itself nothing useful is named by its host. The pure parts (the endpoint check, the name derivation, the credential notes) live in `ui/src/mcpServer.ts` and are unit-tested.
-- **gRPC app form** — `GrpcForm.tsx` asks for one thing, where the server is, and everything after it is a choice about a server that has already answered. A segmented control on the label row picks where the service definitions come from — **Reflection** or **Proto files** — and it *is* the `reflection` parameter, kept in step by an effect rather than set alongside it. It calls `InspectGrpc` 600ms after typing stops (immediately for the demo link, a picked folder, an existing app, or ⏎), discarding all but the latest read; the read is keyed on the address, the source and the transport, and **not** on the credentials, which are sent with it but are typed a character at a time. One slot under the field carries every state, and each classified failure names its move: `noReflection` / `noServices` / `unreachable` offer the other source, `unauthenticated` and `permissionDenied` open the Authentication section right there (preselecting Bearer, which is what a gRPC service nearly always means) and `tls` opens Transport. Nothing below the divider exists until something has been read. **Transport** is stated rather than offered once a server has answered — `TLS · dns:host:443`, with `Change` — and the settled value is written into the app so it never has to be guessed again; only a server that didn't answer gets the three-way choice, including "decide from the address". Certificates fold away under it: accept-any-certificate, a CA bundle, and a client certificate and key. **Authentication** is a fixed list — Bearer token, API key (with the metadata key beside it), HTTP Basic, send nothing — because there is no document declaring schemes, and each selected row states the metadata it becomes. Every field takes a `${NAME}` variable. The name is **derived from the address** (`deriveAppName`): `dns:seating.kaja.tools:443` becomes `seating`, `grpcb.in:9000` stays `grpcb.in`, a label that says only that it is an API is skipped, and a host that names the machine (`localhost`, an IP) says nothing so the reflected service's package says it instead. The pure parts (host parsing, the name derivation, the credential notes) live in `ui/src/grpcServer.ts` and are unit-tested.
-- **Variables** — the `variables` map in `kaja.json` (managed in the Variables tab, read by scripts as `kaja.variables.<name>`) is also usable in app configuration through `${NAME}` expansion, including inside longer values (e.g. part of a URL). A variable's value either **is** the value, or names the source that holds it outside the file: `"${secret}"` (the OS keychain, else `KAJA_<NAME>` in the environment) or `"${env:X}"` (the environment variable `X`, which may sit inside a longer value). "Secret" is not a kind of variable — there is one list, one namespace, one syntax; the only axis is where the value lives. The invariant everything rests on: **a value that isn't written in `kaja.json` is never displayed and never sent to a remote browser**, so kaja.json is safe to commit and only names what a workspace needs.
-  - **Resolving** — `server/pkg/api/variables.go`. `NewResolver(variables, store)` resolves every variable once against a `VariableStore` (the OS keychain; the web server binds none) and the environment, in the order keychain → `KAJA_<NAME>` → unset. The keychain wins because the desktop app is where the value was typed. A variable whose source holds nothing is not defined at all: `${NAME}` passes through literally, which is what the tab says happens. `VariableStatus` (`FILE`/`KEYCHAIN`/`ENVIRONMENT`/`UNSET` plus the env name consulted) rides on `GetConfigurationResponse` and `UpdateConfigurationResponse`; `GetConfigurationResponse.variable_store_available` says whether this machine can store anything at all.
-  - **Expanding** — creation parameters in `OpenApp` (`expandAppParameters`), and **headers in Go, both builds**: the browser sends `${NAME}` unexpanded (`client.ts`, `wails-transport.ts` no longer expand anything), and the `/target/{method...}` handler / the Wails `Target`+`TargetServerStream` resolve them. `ApiService.InvokeApp` is the single door for in-process apps — it expands the headers and **redacts** the resolved values back out of what the app reports exchanging with its upstream, so the Headers view shows `Bearer ${TOKEN}`. Redaction restores headers the client sent exactly, and masks anything the app synthesized by content (only values ≥ 8 chars, below which a value is indistinguishable from ordinary text).
-  - **Scripts** read resolved values, including stored ones, via the desktop-only `ResolvedVariables` Wails binding — on the desktop the UI runs inside the app's own process, so a value it resolved is one it already holds and there is no asymmetry to observe. On the web `kaja.variables` is the configuration's own text: a script runs in a remote browser there, which is the one place a value kaja.json doesn't carry must not reach.
-  - **Storing** — `desktop/variable_store.go`, service `kaja`, account `<configurationPath>#<NAME>` so two workspaces keep their own value. macOS goes through the **Security framework directly** (`variable_store_darwin.go`, cgo, following `bookmark_darwin.go`): kaja ships sandboxed through the App Store, where shelling out to `/usr/bin/security` — what a keyring library does — neither works nor files items under the app. Queries set `kSecUseDataProtectionKeychain` (TN3137) so items are scoped to the app's access group from its `com.apple.application-identifier` entitlement; the trade-off is that an **unsigned local `wails build` has no such entitlement** and gets `errSecMissingEntitlement`, so the keychain path only works in a signed build. Windows/Linux keep `go-keyring` (`variable_store_other.go`) — it talks to the Credential Manager and Secret Service directly, no CLI. `Available()` probes once for an item that isn't there; anything but success-or-not-found reports false and the UI asks for the environment instead. `SetStoredValue`/`ClearStoredValue` write it; the value never travels back out and there is no reveal. **A stored value is written the moment it is entered** (⏎ or blur in the row's field, `onStoreValue` → `SetStoredValue`), not on Save: it is machine state, not file state. That is the one asymmetry in the screen and the row says so while a value is being typed; Cancel doesn't take it back. Clearing still rides the save, because what clears it is a row that stopped being stored — a file edit Cancel can undo.
-  - **The tab** — `Variables.tsx`, reached from the sidebar's `{}` button, which is only there while the **Scripts** or **Preview Apps** preview is on: variables exist to be read by scripts and by app configuration, so the tab rides along with whichever of those is enabled and an open tab closes when the last one goes off. **No subheader**: the tab is already named Variables with the same `{}` glyph, so the body starts at the table. Three bands — command row, body, and a 52px footer holding Cancel and Save Changes that never scrolls away. The table is Name `168px` · Value `flex` · Used by `64px` · a `20px` actions column, header row `26px`, data rows `44px`, and a trailing `36px` **add row** that sits where the new row will appear. One list; the value cell renders from the value's own text (typing `${secret}` does what the source picker does), so the table and the JSON never diverge. The source is the one decision on a row, so it is stated on the row: a `bg-muted` picker welded to the left edge of the value field names where the value comes from (Value / Keychain / Environment) and changes it in one click, and the field to its right is whatever that source needs — a text box, the keychain's `Held on this machine · Replace` (`Not set · Set`), or an environment reference with a trailing **resolved** / **not set**. Delete isn't a mode, so it left that list for a hover-revealed trash at the row end; while it is under the pointer the row's **Used by** count turns `text-destructive`, because deleting a variable two apps read breaks those references. The empty state is centred in the body band — between the command row and the footer, capped at `340px` — and carries the whole story, since there is no header line to. A read-only configuration (`canUpdateConfiguration` false, i.e. Docker) is a different screen rather than a disabled one: name, source and resolved / not resolved, no footer, under a line saying to set `KAJA_<NAME>` in the container environment. Banners name references no variable defines — read from the rows, so deleting a variable an app uses says so at once — and variables that didn't resolve. Names are validated against `[A-Za-z_][A-Za-z0-9_]*` and `${secret}` must be the whole value (`variableExpansion.ts`, unit-tested; mirrored server-side in `validateVariables`). Saving keeps the tab open; a dirty tab wears a dot after its title and closing it offers Save / Discard / Cancel. Keyboard: `⌘J` switches views, `⏎` in the last row's value opens a new row, `⌫` on an empty new row removes it, `Esc` leaves the JSON view when it parses, `⌘S` saves. Saving a variable recompiles the apps whose parameters reference it (`appReferencesChangedVariable` in `App.tsx`) — an environment change can't be observed, so that only happens on save or config reload. The app form suggests variables when `${` is typed (`VariableSuggestInput` in `AppForm.tsx`, showing the source rather than the value for source-backed rows), and the JSON edit mode does the same via a Monaco completion provider. **Every field that ends up as an app parameter is one of those inputs**, the custom OpenAPI form included — document URL, fetch header, server and base URL, token, username, password — so there is no field a variable can be written into by hand but not suggested in. Credentials are plain text rather than masked: what a field holds may be a `${NAME}` naming where the value is kept, and a masked field can't be read back to tell which.
-  - **The JSON view** — the same Monaco editor the app settings tab uses, on the same `</>` rule (below), seeded from what the table currently holds so switching loses nothing and parsed back into rows on the way out. A line above it says which file and which block, because config-versus-document is the confusion an editor on a tab invites, and that keychain values appear as `${secret}` rather than as themselves. A failure to parse is a `34px` bar above the footer, not a toast, naming the line (`variablesJson.ts`, unit-tested: the editor's own diagnostic when there is one, else the engine's message, whose wording and position differ between V8 and WebKit); Save and the way back to the table are both disabled while it is red. Monaco resolves JSON diagnostics globally, so both editors' schemas are registered together in `jsonSchemas.ts`, each matched to its own model URI.
+### The three custom forms share one shape
 
-### MCP server architecture
+`GrpcForm.tsx`, `OpenApiForm.tsx` and `McpForm.tsx` all ask for **one thing** — where the server is, or which document — and everything after it is a choice between things that answer already declared. All three:
 
-This is kaja's **own** MCP server — the door an agent drives kaja through. The
-MCP **app** above points the other way, at somebody else's server. Nothing is
-shared between them but the protocol's name.
+- call their `Inspect*` RPC 600ms after typing stops (immediately for the demo link, a picked file or folder, an existing app, or ⏎) and discard all but the latest read;
+- key that read on the address/document and **not** on credentials, which are typed a character at a time;
+- carry every state — caption, reading, what was read, each classified failure — in **one slot** under the field, so nothing jumps, and let each failure **name its next move** (an auth failure opens Authentication preselecting Bearer, a transport failure opens Transport, and so on);
+- show nothing below the divider until something has been read;
+- take a `${NAME}` variable in every text field, so a URL a variable can't be checked against is taken on trust and settled by the server;
+- **derive** the app name (`deriveAppName`) rather than copying it, numbering a collision with `uniqueAppName`, and keep the pure parts in a unit-tested module beside the form.
 
-- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/scriptRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into a window. **That is the whole of what differs between the two builds, and it is why the server is one package**: `server/pkg/mcp` is self-contained and Wails-free, reaches the app only through `mcp.Bridge`, and is unit-tested with a fake (`server/pkg/mcp/server_test.go`). The desktop bridges it to its own webview; a deployed kaja bridges it to a browser that offered itself (below).
-- **Server** — JSON-RPC 2.0 over HTTP (MCP Streamable HTTP). On the desktop it is bound to `127.0.0.1` on a fixed port (`41521`, next to the web port `41520`) and guarded by a bearer token persisted at `<kajaHome>/mcp-token`. Fixing the port and persisting the token keep the `claude mcp add` command valid across restarts. If the port is already in use the server does **not** fall back to a random one (that would silently break the configured command); it reports the conflict through `MCPInfo.Error`, which the footer surfaces (`desktop/mcp_bridge.go`).
-  - **A response is a single JSON body, or an SSE stream when something is in front of it** (`Server.Streamed`, taken by the web wiring only). The answer is identical either way — one `event: message` carrying the same JSON-RPC response — and what the stream buys is the `: keepalive` sent every 15s while it is being produced, so a `run_script` that takes a minute is not a request that has carried no bytes for a minute. **The idle timeout belongs to the proxy in front, not to this server**, which is the whole reason this is not measured against one deployment: Fly passes a 75s run today, with or without the keepalive (measured, on a preview app), and 60s is the common default elsewhere — nginx's `proxy_read_timeout` among them. A run cut off at the proxy is indistinguishable from one that failed, so it is not a thing to find out about per deployment. It is offered only when the client's own `Accept` says it takes one, which is what the transport asks of a client anyway. Nothing sits between an agent and the desktop, so there the simpler thing is the right one.
-  - **A tool that writes a file is absent where there is no disk to write** (`Bridge.CanWriteScripts`, `writeTools` in `tools.go`). `tools/list` drops `write_script`/`create_script`/`rename_script`/`delete_script` rather than offering them and then refusing — the same rule that takes the sidebar's **+** away — and a call to one anyway is answered with the sentence that says why. So a deployed kaja's tools are discovery, read and run.
-- **The answer is TypeScript, because that is all a script is.** An author writes `Shows.ListShows({ pageSize: 25 })` against an interface named `ListShowsRequest`; nothing they write is protobuf, and nothing they are shown should be. So the tools hand back **the generated declarations themselves** — the code the script is checked against — rather than a description of the wire format behind them. A declaration can't disagree with the compiler; a second model of one can, and did.
-- **Three tools answer everything, and none grows with the API.** `list_services` is an **index**: every app, service and method as one TypeScript signature (`ListShows(input: ListShowsRequest): Promise<ListShowsResponse>`) with a `read`/`write` mark and its HTTP request — filterable by `app`, `service` or free-text `search`. It carries no declarations; dumping the generated modules is what overflowed an agent's context and forced it to grep a JSON blob. `describe_method "Shows.ListShows"` is the other half: the import line, the signature, and the declarations of **every type that signature names, transitively** (`declarationsFor`), then the call to start from. `describe_type "Show"` looks one type up on its own, which is also where a cut-off answer points. A miss doesn't just say no — an ambiguous name lists its candidates, an unknown one the nearest matches — because a dead end costs a whole round trip. Answers are bounded: declarations are cut after `maxDeclarationLines` (spent line by line, since one response type can be four hundred properties), a run payload after `maxPayload`, and the cut names what to ask for next.
-- **The UI settles what the TypeScript is; Go settles what to show.** `ui/src/declarations.ts` re-emits each generated interface and enum from its own AST — member names and type text verbatim, the API's description kept, the `@generated from protobuf field: …` bookkeeping dropped (it names a wire encoding no script depends on and is the only place protobuf would surface at all), and the app's marks folded into the JSDoc where a reader meets them: `[required]`, `[query parameter]`, `[carries the HTTP payload]`. `ui/src/mcpCatalog.ts` gathers those plus the signatures. `server/pkg/mcp` decides the framing: read versus write, the closure, the cut, the failure advice. The `.client` modules are left out — `I<Service>Client` is the transport's interface, not one a script writes against.
-- **A method's example is the code Kaja already writes.** `describe_method` hands back `generateMethodEditorCode` — the same call clicking the method in the tree puts in a draft. One method, one starting point, whichever way you came at it; a second example generator is a second thing to keep in step.
-- **A generated stub reads as source.** `createServiceInterfaceDefinition` prints its service object `multiLine`; the TypeScript printer puts a synthesized object literal on one line otherwise, so a thirty-method service arrived as one enormous line and any line-based reader — Monaco's hover, an agent grepping a stub — had to pull the whole module to find one signature. It and the `Method` model are both filled from one read of the client interface (`readSignatures`), which is the only place a method's TypeScript names are written down.
-- **`kaja.value` is in the generated request, not just in the guide.** A field typed `Value`, `Struct` or `ListValue` holds any JSON and its wire shape is a `kind` oneof nobody writes by hand, so `defaultInput.ts` used to leave such fields out of a generated request entirely — which meant the one place the builder could be learned didn't mention it, and an agent wrote its own `str`/`bool` helpers for the encoding. The builders postdate that decision: `kaja.value(null)` sends, so it is what the generated request now holds, in the editor and in `describe_method` alike, and `describe_method` names the builder beneath the declarations that mention the type.
-- **The `kaja` object is a declaration too, not a description of one.** It is the other half of what a script is written against and the half no app declares — the canvas verbs, the workspace's variables, `ask`, the JSON builders — so it follows the same rule the service types do: `ui/src/kajaModule.ts` writes it once, Monaco backs the `kaja` import with it (`registerKajaModule`), `buildMcpCatalog` carries it as `Catalog.Runtime`, and `describe_type "kaja"` (or any `kaja.<member>`) hands back that exact text. It was described from memory in the guide before, which is how the canvas verbs came to be documented for the editor and invisible to an agent, which then wrote a Markdown table by hand. `list_services` names it in its preamble, because nothing else in an index of methods would.
-- **A script has no return value, and that is said rather than discovered.** A script is a body of statements: the transpiler accepts a top-level `return` and the runner's `async` wrapper would even honour it, but Monaco flags it (TS 1108, below the 2000 `useSyntaxErrors` counts) and Run goes disabled — so answering by returning works over MCP and produces a file nobody can press Run on. The rule lives in the declaration's own header, in the guide, and in `runtimeNote`; and `RunResult.Result` is still carried the whole way so `renderRun` can **correct** a script that returned something, naming `kaja.table`/`kaja.text`, rather than printing it under `returned` as if it were the answer.
-- **The canvas is the output; `console.log` is where an agent probes.** Both channels exist, but they are not a pair to pick from: a script is a file someone opens and presses Run on, so what it has to say goes on the canvas, and the transcript is read by the agent that asked for the run and by nobody else. Naming them side by side is what taught an agent to end every script with `console.log(response)` — so the guide's first example draws with `kaja.text`, `runtimeNote` states the canvas first and gives `console.log` its scope (probe with it, leave it out of a script you keep), and both say the thing that makes it unnecessary: **`run_script` already reports every call's request and response**, so the only value worth printing is one the script computed. It is not removed and not discouraged in a snippet — that is the one place it is the right tool.
-- **A comment is for what the code cannot say, which in a script is rarely anything.** A call names its own method and a declaration states its own fields, so the comments an agent writes are mostly the code again one line up — a header block over the imports, a banner over each section, a line above every call announcing it. The rule is stated in the guide's own "Rules that matter" and in `commentsNote`, which rides on `run_script`'s `runtimeNote` and on `create_script` and `write_script`, because those two are where a script that is kept is written and a tool description is the one channel a client cannot drop. What is still worth a comment: a magic value the API insists on, a workaround for something broken upstream, an ordering that matters.
-- **A run reports what it drew.** An agent's run has a canvas and nobody looking at it, so `RunResult.Blocks` is the receipt — each block's kind, and a table's columns and row count (`toBlockLog` in `App.tsx`, collected through `mcpBlockCollectorRef` as the blocks are emitted). The contents are not echoed: the agent produced them.
-- **The guide is not the only channel.** `initialize` returns `instructions` (the embedded `guide.md`) and `kaja://guide` is a resource, but a client may drop or summarise either. So the script runtime contract an agent would otherwise discover by probing — top-level `await` works, there is **no return value**, `kaja.text`/`kaja.code`/`kaja.table` are the canvas a script draws its output on and `console.log` is the transcript to probe with, imports are `<app>/<path>` and **named imports only**, `prompt`/`alert`/`confirm` do nothing — is repeated in `run_script`'s **tool description**, which no client can drop.
-- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's draft** (`agentDraft` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row pinned at the top of Drafts under the client's own name, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one draft, which is what makes them comparable, rather than eight rows. It is an ordinary draft in every other way — nameable, discardable — except that it is outside the count and outside the sweep; if it is cleared the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentDraft`, matched on content), on the same rule a person's Name follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path. The client's name arrives with the run (`RunScript(ctx, path, code, client)`), read off the `initialize` handshake — see **The agent's draft**.
-- **The footer says when the server is being used.** An agent works in a window nobody is watching, so the plug in the status bar is the one thing that reports it: while a request is being served it goes emerald and a ring pings out of it (`animate-signal`, sized to stay inside the 30px bar rather than Tailwind's own `ping`, which doubles the element). The **server** counts requests in flight and reports each change through `Bridge.Activity`, which the desktop emits as `mcp:activity`; the **UI** decides how long it lingers, because that is a question about being seen rather than about the protocol. A `ping` is a keepalive and doesn't count. Calls arrive in bursts of a few milliseconds, so the mark holds for `MCP_ACTIVITY_LINGER_MS` (2.5s) after the last one is answered — without it a whole burst would come and go inside one frame — and it stays lit for the whole of a long `run_script` rather than expiring under it.
-- **Nothing yet stops an agent writing.** Visibility is the whole of it for now: a snippet's calls are shown, not gated, and the `read`/`write` mark in `list_services` plus the guide's "confirm before running a write" are advice an agent may ignore. A gate belongs at the one place every call goes through (`client.ts`), keyed on something the run carries — that is where to put it when it is wanted.
-- **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` in place of the response — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.
-- **Resources are the guide and the index, and nothing else.** The generated modules used to be offered one resource per stub; `describe_method` and `describe_type` return the declarations out of them, and a module's full text is hundreds of kilobytes of runtime machinery around the few lines anyone wanted.
-- **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts and stops the server with the process, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the services catalog (`buildMcpCatalog`) via `MCPSetCatalog`, covering every app uniformly and carrying the `kaja` declaration with the configured variable names, and shows the connection command via `MCPServerInfo`. **The catalog follows the apps, not the compiler**: it is pushed from an effect on the app list, so a change that compiles nothing — deleting an app, and above all deleting the last one — is reflected too. Hanging it off the compilation path left the server answering `list_services` from apps that were no longer there. Script mutations made through MCP tools emit a `mcp:scriptsChanged` Wails event; the UI live-reloads the content of an open script tab on `write_script` and keeps the sidebar list and open tabs in step with create/rename/delete, so agent edits show up without switching tabs. The `create` event carries the file's `content` too, which is what lets the UI recognise the agent's own buffer being saved.
+### gRPC apps
 
-### The agent session, which is how a deployed kaja answers an agent
+- **The credential and transport are the app's, not the request's**, resolved in Go on the way out and never handed to the browser — which is what makes `"${secret}"` credentials work, and what makes Basic's base64 kaja's job. `GrpcApp` carries one credential (`auth`: `bearer`/`basic`/`apikey`/`none`, plus `token`, `username`, `password`, `api_key_name`) and the transport the address can't state (`tls`: `on`/`off`/empty to read it off the URL, `insecure_skip_verify`, `ca_file`, `client_cert_file`, `client_key_file`). `rpc.Metadata` and `rpc.TLS` turn those into metadata and a `grpc.TLSOptions`.
+- **The reserved header is how the call finds its app.** Both transports send `X-Kaja-App: <name>` beside the app's headers (`transportHeaders` in `ui/src/appTypes.ts`); both routers call `apps.TakeAppName` to pull it back out before anything is forwarded, and hand the name to `ApiService.AppConnection`, which reads the app out of kaja.json **at call time** — so replacing a token takes effect on the next call rather than the next compile. `apps.MergeMetadata` then applies the credential without touching a header the app configures under the same name (matched case-insensitively). The name travels as a header because the Wails bindings are generated and a header costs no signature.
+- **`grpc.TLSOptions` zero value reads the transport off the URL and verifies against the system roots**, which is what kaja always did, so a caller with nothing to configure passes it. `sharedConnection` keys the connection cache on the options as well as the target. Only `insecure_skip_verify` is genuinely unverified. Certificate paths are workspace-relative via `internal/workspace.Resolve`, the same rule as `proto_dir`.
+- **`InspectGrpc`** (`apps/rpc/inspect.go`) reads the surface an app *would* be opened with without creating it: it reflects the server (sending the credential, since a server that guards its methods usually guards the list) or compiles the proto directory, and reports services, method and streaming counts, which reflection version answered, and **which transport did**. Failures come back as a classified `problem` (`unreachable`, `tls`, `noReflection`, `unauthenticated`, `permissionDenied`, `noServices`, `timeout`, `noProtoFiles`, `protoInvalid`, `target`). When the app leaves the transport to the URL a failure that *could* be the transport is retried the other way round (`worthRetrying` keeps that from doubling the wait on a host that isn't there); when the app pins it, the other is tried only to say **"the server is there, but it only speaks TLS"**.
+- **`GrpcForm.tsx`** — a segmented control picks Reflection or Proto files and *is* the `reflection` parameter. The read is keyed on address, source and transport. **Transport is stated rather than offered** once a server has answered (`TLS · dns:host:443`, with `Change`) and the settled value is written into the app; only a server that didn't answer gets the three-way choice. **Authentication** is a fixed list — Bearer, API key with its metadata key, HTTP Basic, send nothing — because no document declares schemes, and each row states the metadata it becomes. The name is derived from the address: `dns:seating.kaja.tools:443` → `seating`, `grpcb.in:9000` stays, and a host that names the machine (`localhost`, an IP) says nothing so the reflected package says it instead (`ui/src/grpcServer.ts`).
 
-`server/pkg/agent`, `ui/src/agentSession.ts`. The same MCP server, bridged to a
-browser instead of to a webview — so a kaja on `demo.kaja.tools` is driven by a
-local agent exactly as the desktop one is.
+### OpenAPI apps
 
-- **The server cannot run a script, so it forwards it.** The runtime, the `kaja`
-  object and the service clients are JavaScript in a tab; the Go process has none
-  of them. The desktop needs no session because the process **is** the window —
-  one, always there, belonging to whoever launched it — and a server has none of
-  those three things. So the server is a **switchboard**: `run_script` goes down a
-  window's stream, and the answer comes back up. It is the same
-  `runForAgent` in `App.tsx` at the other end, so an agent's run is the same event
-  in both builds — its own console, its row in the sidebar, the `Bot` glyph.
-- **A session is something a browser offers, not something the server has.** The
-  tab makes up a token, holds a stream open under it (`POST /agent-session/attach`,
-  NDJSON, pinged every 20s), and that is the only way a session comes into being.
-  **The token is the address of a browser, not a key to the server**: it is never
-  anywhere but that browser's storage, the server persists nothing, and it opens
-  nothing while no window is listening — a token nobody has attached with is a
-  401. That is the whole of the security model, and it is what makes this safe to
-  leave on at a public demo: a casual visitor holds no session at all, because
-  **nothing is offered until the footer's Connect is pressed**. Disconnect rolls
-  the token, which is the answer to having pasted one during a screenshare.
-- **It is the one thing kept in `localStorage`** rather than in `storage.ts`, and
-  for the reason the design rests on: localStorage is shared between the tabs of
-  an origin *and* fires `storage` when it changes, so connecting in one window
-  attaches the others as they are. The IndexedDB store reads itself once at
-  startup, which would make a second window find out on its next reload.
-- **Several windows on one token is the normal case, so one is on duty.** The
-  most recently focused one (`Focus`, reported on `focus`/`visibilitychange`),
-  and every window is told whether it is (`duty`), because the console of a run
-  is **in memory in the window that ran it** — a run that lands in the wrong
-  window is one you cannot watch. The footer says which.
-- **Discovery does not need a live window; only `run_script` does.** The catalog
-  a window pushed is kept for as long as the session is (`sessionIdle`, 30
-  minutes past the last window), so `list_services` and `describe_method` answer
-  across a reload. With no window `run_script` fails **immediately** with the
-  sentence that says what to do, and a window that goes away mid-run fails its
-  run on the stream's own closed channel rather than leaving the agent to wait
-  out the two minutes.
-- **The server owns the disk, so it reads a saved script itself** and hands the
-  window source; the path travels with it because that is what the run lands
-  under in the console. Nothing an agent asks may write one — `CanWriteScripts`
-  is false here, on the rule the web UI already follows.
-- **Everything is plain HTTP outside the Api service** (`ServeInfo`,
-  `ServeAttach`, `ServeFocus`, `ServeCatalog`, `ServeResult`, `ServeMCP`), the way
-  `/configuration-changes` and `/target` already are: the Api service is about the
-  workspace, and this is about a door. No CORS header is set on any of them, so a
-  page on another origin cannot drive the endpoint.
+`server/pkg/apps/openapi` reads the spec (`sigs.k8s.io/yaml`, JSON or YAML) from `spec_url` or inline `spec_content`, generates one `.proto` plus a per-method HTTP binding manifest, and compiles it with the embedded protoc-go. The upstream base URL comes from the spec's `servers` (relative URLs resolved against the document URL) unless `base_url` overrides it; an **uploaded spec has no document URL**, so it must declare an absolute server or supply `base_url`. Every generated field carries `[json_name = "<openApiName>"]` so proto3-JSON keys match the REST shape. `Invoke` decodes with `dynamicpb`+`protojson`, transcodes to and from REST, then re-encodes.
 
-## Directory Structure
+- Integers map to `int32` unless `format` says otherwise. Both 3.0 (`nullable: true`) and 3.1 are handled: a 3.1 `["string", "null"]` keeps its first non-null entry (`openAPIType` in `spec.go`).
+- **Composition is resolved**: `allOf` merges into the message's fields; a `oneOf`/`anyOf` whose variants are all objects merges into one superset message (a property two variants declare differently becomes a union); a mixed-shape union models its first variant.
+- Bodies and responses accept structured `+json` content types, and the binding remembers which to send. Query parameters honour `style`/`explode` (`explode: false` arrays comma-joined, `deepObject` as `name[key]=value`).
+- **`testdata/kitchensink.yaml` exercises all of this and must generate and compile cleanly end to end. Extend it when adding schema features.**
 
-```
-/
-├── desktop/          # Desktop application (Wails framework)
-├── protoc-gen-kaja/  # Protoc plugin for TypeScript codegen (Go)
-├── server/           # Backend server (Go) - serves both web and desktop
-├── ui/               # Frontend UI (React/TypeScript)
-├── workspace/        # Demo workspace with example proto definitions
-├── scripts/          # Build and development scripts
-└── docs/             # Documentation
-```
+**The HTTP envelope.** Carrying HTTP inside gRPC needs somewhere to put the parts protobuf has no shape for, and the rule is that the envelope exists only where it is unavoidable. An operation whose only input is an object body **is** that body — `rpc CreatePet(Pet)`. An envelope field appears only when the payload can't be the message: a body beside path/query/header parameters, a body that is an array, and every non-object response. Those fields carry `[(kaja.http_payload) = HTTP_PAYLOAD_BODY|ITEMS|VALUE]`, declared in `apps/openapi/http.proto`, which the app writes into the proto directory as `kaja/http.proto`. The mark survives into the generated TypeScript as `options: { "kaja.http_payload": … }`, which is how the client tells an envelope from a property an API happens to call `items`. `ui/src/httpEnvelope.ts` reads it: a message that is **nothing but** a marked field is an envelope, and the console shows the payload instead. **Only the response is unwrapped, and only for display** — the wire and the generated types are untouched, so a script still reads `response.items`.
 
-### Build Directories
+`kaja/http.proto` carries three more marks, for the same reason: `(kaja.http_request) = "GET /pets/{petId}"` on every method (the verb is the only thing saying whether it reads or writes), and `(kaja.http_in) = "path|query|header"` plus `(kaja.http_required) = true` on a field (proto3 has no `required`, so without it every field looks equally optional). Because every method carries an option, `kaja/http.proto` is always written beside the generated service. A property's `description` becomes a leading comment and reaches the TypeScript as JSDoc. Header parameters are ordinary request fields whose `json_name` is the header name; `transcode` sets them **after** the app's configured headers, so a value typed for one call outranks one configured for every call.
 
-There are multiple `build/` directories, each serving a different purpose:
+**Auth** (`auth.go`) resolves the spec's `securitySchemes`/`security` into an `auth` that injects the `token`/`username`/`password` parameters the way the scheme expects: `http` bearer → `Authorization: Bearer`, `http` basic → HTTP Basic, `apiKey` → the declared header/query/cookie, `oauth2`/`openIdConnect` → bearer. Any other `http` scheme is sent under its own name without the challenge handshake. `security_scheme` pins which scheme the credentials belong to (or `"none"`); the form always writes it. An empty value honours the document-level `security`, else the sole declared scheme, else falls back on the credentials given. Spec auth is applied before any per-request header.
 
-| Directory                 | Purpose                                                                                  | Gitignored |
-| ------------------------- | ---------------------------------------------------------------------------------------- | ---------- |
-| `/server/build/`          | Protoc plugins (protoc-gen-\*) and bundled UI assets (main.js, main.css, monaco workers) | Yes        |
-| `/desktop/build/`         | Platform files (app icons, Info.plist) - tracked in git                                  | No         |
-| `/desktop/build/bin/`     | Desktop executable binaries                                                              | Yes        |
-| `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build)                             | Yes        |
-| `$TMPDIR/kaja/`           | Compilation temp folders (auto-cleaned after 60 min)                                     | N/A        |
+**`InspectOpenApi`** (`inspect.go`) reads the document without creating the app and reports title, versions, operation and tag counts, `servers` (with each `{placeholder}`'s default and `enum`, relative URLs resolved) and `securitySchemes` sorted by how many operations accept each. Failures are classified (`unreachable`, `unauthorized`, `httpError`, `html`, `notADocument`, `swagger2`, `malformed`) with a headline. A document behind a login is fetched with `spec_header_name`/`spec_header_value`, kept apart from the API's own credentials because they are usually different tokens. `components.securitySchemes` keeps declaration order (`securitySchemes.UnmarshalJSON`) so the form's preselection is stable.
 
-### Development vs Production Builds
+**`OpenApiForm.tsx`** — the one thing asked for is the document (URL, upload, or pasted text; 400ms for a pasted one). A 401 asks for the fetch header right there and retries. The server section adapts to `servers`: one is stated, several become a radio list, `{placeholders}` become selects (with an `enum`) or inputs showing the resolved URL, and none at all falls back to a base URL seeded from the document's origin. The choice is written out as `base_url` and matched back when the app is edited (`matchServerUrl`). Authentication is a row per declared scheme plus "Send no credentials", and credentials typed for one scheme survive a flip to another. `isUsableBaseUrl`/`isReadableSourceUrl` are what take a variable-bearing URL on trust. The name is derived from the title by dropping the words that describe a document — `API`, `REST`, `OpenAPI`, `Swagger`, `Cloud`, a version, a subtitle after a dash or colon — and joining the rest in PascalCase: `OpenMeter Cloud API` → `OpenMeter`, `Swagger Petstore - OpenAPI 3.0` → `Petstore`. A single surviving word is kept exactly (`grpcb.in`), and a title that is nothing but those words keeps them (`ui/src/openApiDocument.ts`).
 
-The server uses Go build tags to switch between development and production modes:
+### Folder app
 
-**Development** (`-tags development`):
+`server/pkg/apps/folder` binds to one folder on disk (the `path` parameter) and serves four operations: `ListFolder`, `CreateFile`, `ReadFile`, `AppendFile`. It writes a static `protoSource` out as `folder.proto`, compiles it, and dispatches by method name. **It knows nothing about file formats** — content is written and read verbatim. It is local, so it forwards no headers and reports no upstream ones.
 
-- `server/assets_development.go` is used
-- Reads UI files from filesystem at runtime
-- Calls `ui.BuildForDevelopment()` to rebuild assets on startup
-- Allows hot-reload during development
+- **Every path it reports can be handed straight back to another method**: relative to the app's folder, slash-separated (`team/notes.md`), with nothing to join first. That invariant is what makes the app usable one method at a time.
+- **The boundary is `os.Root`**, which enforces the folder at the syscall level, symlinks included. `clean` is a lexical check in front of it (`filepath.IsLocal`), not the fence. `.` is the folder itself, so `resolve` refuses it where a file is wanted rather than leaving it to the open that would fail anyway.
+- **A write creates the folders its path implies** (`makeParents`), which is what keeps the app at four methods — no `CreateFolder`, no `mkdir` flag.
+- **`ListFolder` takes a folder and a `recursive` flag and reports `files`, `folders` and `truncated`.** Two lists rather than one of typed entries, so `files` goes on meaning what it meant. The walk is **breadth-first and capped** (`maxEntries`), so a truncated listing is the top of the tree and says so; `folder` is how a caller narrows past it. Nothing is filtered, `.git` included. Entries are **sorted per folder**, because `File.ReadDir` hands back filesystem order.
+- **One word the whole way down**: the type is `folder`, the service `Folder`, the method `ListFolder({ folder })`. "Directory" is for `proto_dir`. The `File` suffix on the other three is disambiguation, not stutter. It stayed one service because a service name becomes a `new Function` parameter in `scriptRunner.ts` and `File` would shadow the DOM global in every script.
 
-**Production** (default, no tags):
+### MCP app
 
-- `server/assets_production.go` is used
-- All assets are embedded in the binary via `//go:embed`
-- No filesystem access needed for serving UI
-- Single self-contained binary
+`server/pkg/apps/mcp` is an MCP **client**: it connects to somebody else's MCP server and renders what it exposes as a proto surface. (Not kaja's own MCP server below, which points the other way. They share a name and nothing else.)
 
-### Server vs Desktop
+- **A tool is a method and its input schema is the request.** `protogen.go` turns each tool into an rpc on a `Tools` service and its `inputSchema` into the request message, field per property, **in the order the document declares them** — sorting would renumber the message the moment a tool gains a property. Every field carries the property's own name as `json_name`, so the message *is* the arguments object and `invoke.go` needs no mapping table. Prompts become methods of a `Prompts` service; resources get the fixed `ListResources` / `ReadResource` / `ListResourceTemplates`, since a resource is addressed by URI. Only the kinds a server exposes are emitted.
+- **What JSON Schema leaves open stays open.** Nested objects and `$defs` become messages (the name is allocated before the fields are walked, which is what terminates a self-referential schema), `allOf` and an all-object `oneOf`/`anyOf` merge, `["string","null"]` is the same field as its non-null counterpart, and `additionalProperties` with a schema is a `map<string, T>`. Everything else is `google.protobuf.Value`. proto3 has no `required` and no place for an `enum`'s values, so both go in the field's leading comment and reach the editor as JSDoc.
+- **A tool result is a result, not a failure.** `<Method>Response` is `content` + `isError` + `structuredContent`, and a tool reporting `isError: true` comes back as an ordinary response. A declared `outputSchema` gets a typed `structuredContent`. A JSON-RPC error is an error, an HTTP failure is an `apps.UpstreamError`, and a result asking the client for something back (sampling, elicitation, roots) says so rather than arriving empty, because kaja declares none of those capabilities.
+- **The client is dual-era, and that is the whole of `client.go`.** Revision `2026-07-28` dropped the `initialize` handshake: every request carries version, identity and capabilities in `_meta`, mirrored into `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers, with no session. Everything before it opens with `initialize` and may pin an `Mcp-Session-Id`. Which one a server speaks is settled **once**, by sending `server/discover`: only the error the modern revision defines (`-32022`) identifies a modern server, and **anything else at all** is the handshake era, because a server from before the split has no way to say so. Real servers answer the modern probe with `-32600` and their versions in the *message text*. A response arrives as a JSON object or as an SSE stream whose last data event is the response; notifications sent ahead of it are stepped over.
+- **The credential is the app's**: `bearer` (the default — MCP's authorization framework is OAuth) or a key under a header the server names, resolved in Go so a `"${secret}"` token never reaches the browser. The app's own headers are applied after it.
+- **Streamable HTTP only.** A stdio server is a subprocess and the app contract has no place for one; the transport is behind `Client`, which is where that would go.
+- **`McpForm.tsx`** — the read is keyed on the endpoint alone. `notMcp` says most endpoints end in `/mcp`, and `empty` is a warning rather than an error: the server answered, it just has nothing to explore. **Authentication** is a fixed list — Bearer, API key with its header name, send nothing. The name is derived from what the server calls itself, which is usually already a handle: what goes is the part saying it is an MCP server (`GitHub MCP Server` → `GitHub`) and a registry namespace (`io.github.owner/sentry` → `Sentry`); a server that names itself nothing useful is named by its host (`ui/src/mcpServer.ts`).
 
-Both share the same backend code but differ in how they're packaged:
+### Upstream errors
 
-**Server (Web)**:
+When an app's upstream REST call fails with HTTP >= 400, `Invoke` returns a structured `apps.UpstreamError` — status, a human message extracted from the body (RFC 7807 `detail`/`title`, `{"message"}`, `{"error"}` envelopes), and the raw body. **A failed HTTP call is shown as an HTTP failure, not as the gRPC error it was tunnelled through.** `UpstreamError.JSON` is what reaches the client, and both transports arrive at it: the desktop `Target` returns it as the `TargetResult` body, split by `wails-transport.ts`; the web `ServeAppGRPCWeb` maps the failure to the closest gRPC status for any plain gRPC-Web client but sends the whole thing in a `kaja-upstream-error` trailer, which `client.ts` uses **in place of** the `RpcError`. Nothing of the tunnel reaches the response tab: `callError` prefers the trailer, `serializeError` never copies `meta`, and `applyErrorMetadata` routes what `meta` held to the Headers view. A genuine gRPC/Twirp failure keeps its `code`; an upstream failure is labelled by its HTTP status (`callErrorCode`).
 
-- Single Go binary with embedded React UI
-- Serves HTTP API on port 41520
-- Run with: `scripts/server`
-- Assets from `/server/build/` and `/server/static/`
+**But that envelope is the carrier, not the failure** — the response tab shows the `body` alone (`unwrapFailure` in `upstreamHeaders.ts`). Everything around it is stated elsewhere: the status on the console's status line, the `request` line above the upstream request headers in the Headers view (`upstreamRequestLine`), and the extracted `message` **only** when the body is empty. Recognising one is structural (`asUpstreamFailure`: an HTTP status and a request line, which a gRPC or Twirp failure has neither of), so a stored run displays the same as a live one, and only the display changes — the error object keeps its fields, which is what a script catches and what `classifyFailure` reads.
 
-**Desktop (Wails)**:
+**Trailer encoding.** Every gRPC-Web trailer `writeGRPCWebText` emits, `grpc-message` included, is percent-encoded (`escapeTrailerValue`, undone client-side with `decodeURIComponent`). gRPC-Web trailers are a text block clients split on CRLF and read as Latin-1, so unescaped UTF-8 arrives mangled and a newline would end the line early. Only bytes outside printable ASCII and `%` are escaped. protobuf-ts does not decode `grpc-message`, so `client.ts` does (`errorMessage`).
 
-- Uses Wails framework (Go + webview)
-- Embeds frontend via `//go:embed all:frontend/dist`
-- Frontend files copied from server build to `/desktop/frontend/dist/`
-- Native window and file dialogs
-- Run with: `scripts/desktop`
+## Variables
 
-### Source Directories
+The `variables` map in `kaja.json` is read by scripts as `kaja.variables.<name>` and by app configuration through `${NAME}` expansion, including inside longer values. A variable's value either **is** the value or names the source that holds it outside the file: `"${secret}"` (the OS keychain, else `KAJA_<NAME>` in the environment) or `"${env:X}"`. "Secret" is not a kind of variable — one list, one namespace, one syntax; the only axis is where the value lives.
 
-**`/ui/`** - React/TypeScript frontend:
+**The invariant everything rests on: a value that isn't written in `kaja.json` is never displayed and never sent to a remote browser**, so kaja.json is safe to commit and only names what a workspace needs.
 
-- `src/*.tsx` - React components
-- `src/server/` - Generated proto client code (from `/server/proto/api.proto`)
-- `src/wailsjs/` - Generated Wails bindings (auto-generated)
+- **Resolving** (`server/pkg/api/variables.go`) — `NewResolver(variables, store)` resolves every variable once against a `VariableStore` (the OS keychain; the web server binds none) and the environment, keychain → `KAJA_<NAME>` → unset. The keychain wins because the desktop is where the value was typed. A variable whose source holds nothing is **not defined at all**: `${NAME}` passes through literally. `VariableStatus` (`FILE`/`KEYCHAIN`/`ENVIRONMENT`/`UNSET` plus the env name consulted) rides on the configuration responses; `variable_store_available` says whether this machine can store anything.
+- **Expanding** — creation parameters in `OpenApp` (`expandAppParameters`), and **headers in Go, both builds**: the browser sends `${NAME}` unexpanded, and the `/target/{method…}` handler and the Wails `Target`/`TargetServerStream` resolve them. `ApiService.InvokeApp` is the single door for in-process apps — it expands the headers and **redacts** the resolved values back out of what the app reports exchanging upstream, so the Headers view shows `Bearer ${TOKEN}`. Redaction restores client-sent headers exactly and masks anything the app synthesized by content, only for values ≥ 8 chars (below which a value is indistinguishable from ordinary text).
+- **Scripts** read resolved values, stored ones included, via the desktop-only `ResolvedVariables` binding — on the desktop the UI runs inside the app's own process. On the web `kaja.variables` is the configuration's own text, because a script runs in a remote browser there.
+- **Storing** (`desktop/variable_store.go`) — service `kaja`, account `<configurationPath>#<NAME>`, so two workspaces keep their own value. macOS goes through the **Security framework directly** (`variable_store_darwin.go`, cgo, following `bookmark_darwin.go`): kaja ships sandboxed through the App Store, where shelling out to `/usr/bin/security` neither works nor files items under the app. Queries set `kSecUseDataProtectionKeychain` (TN3137) so items are scoped to the app's access group from its `com.apple.application-identifier` entitlement — the trade-off is that an **unsigned local `wails build` has no such entitlement** and gets `errSecMissingEntitlement`, so the keychain path only works in a signed build. Windows/Linux keep `go-keyring`. `Available()` probes once for an item that isn't there; anything but success-or-not-found reports false and the UI asks for the environment instead.
+  - **A stored value is written the moment it is entered** (⏎ or blur, `onStoreValue` → `SetStoredValue`), not on Save: it is machine state, not file state, and Cancel doesn't take it back. The row says so while a value is being typed. **Clearing rides the save**, because what clears it is a row that stopped being stored — a file edit Cancel can undo. The value never travels back out and there is no reveal.
+- **The tab** (`Variables.tsx`), reached from the sidebar's `{}` button. **No subheader** — the view is already named Variables with the same glyph. Three bands: command row, body, and a 52px footer with Cancel and Save Changes that never scrolls away. The table is Name `168px` · Value `flex` · Used by `64px` · a `20px` actions column, header `26px`, rows `44px`, and a trailing `36px` add row where the new row will appear. The value cell renders from the value's own text (typing `${secret}` does what the source picker does), so the table and the JSON can't diverge.
+  - **The source is the one decision on a row, so it is stated on the row**: a `bg-muted` picker welded to the left edge of the value field names where the value comes from and changes it in one click, and the field beside it is whatever that source needs — a text box, the keychain's `Held on this machine · Replace` (`Not set · Set`), or an environment reference with a trailing **resolved** / **not set**.
+  - **Delete isn't a mode**: a hover-revealed trash at the row end, and while it is under the pointer the row's **Used by** count turns `text-destructive`.
+  - The empty state is centred in the body band, capped at `340px`, and carries the whole story. A read-only configuration is a **different screen**, not a disabled one: name, source and resolved / not resolved, no footer, under a line saying to set `KAJA_<NAME>` in the container environment.
+  - Banners name references no variable defines (read from the rows, so deleting a variable an app uses says so at once) and variables that didn't resolve. Names are validated against `[A-Za-z_][A-Za-z0-9_]*`, and `${secret}` must be the whole value (`variableExpansion.ts`, unit-tested; mirrored server-side in `validateVariables`).
+  - Keyboard: `⌘J` switches views, `⏎` in the last row's value opens a new row, `⌫` on an empty new row removes it, `Esc` leaves the JSON view when it parses, `⌘S` saves. Saving keeps the view open; a dirty view wears a dot and closing it offers Save / Discard / Cancel.
+  - **Saving a variable recompiles the apps whose parameters reference it** (`appReferencesChangedVariable` in `App.tsx`). An environment change can't be observed, so that only happens on save or config reload.
+  - The app form suggests variables when `${` is typed (`VariableSuggestInput`, showing the source rather than the value for source-backed rows), and the JSON view does the same via a Monaco completion provider. **Every field that ends up as an app parameter is one of those inputs**, custom forms included. Credentials are plain text rather than masked, because what a field holds may be a `${NAME}` naming where the value is kept, and a masked field can't be read back to tell which.
+  - **The JSON view** is the same Monaco editor the app settings view uses, seeded from what the table holds and parsed back into rows on the way out. A line above it says which file and which block, and that keychain values appear as `${secret}`. A parse failure is a `34px` bar above the footer naming the line (`variablesJson.ts`, unit-tested: the editor's own diagnostic when there is one, else the engine's message, whose wording and position differ between V8 and WebKit); Save and the way back to the table are disabled while it is red. **Monaco resolves JSON diagnostics globally**, so both editors' schemas are registered together in `jsonSchemas.ts`, each matched to its own model URI.
 
-**`/server/`** - Go backend:
+## Generated requests and completions
 
-- `cmd/server/` - Main server application
-- `cmd/build-ui/` - Tool to bundle React UI with esbuild
-- `pkg/api/` - Generated proto code (Go)
-- `pkg/mcp/` - Kaja's own MCP server, bridged to a window by whichever build is running it
-- `pkg/agent/` - The agent sessions a deployed kaja's windows attach under
-- `proto/api.proto` - API service definition (source of truth)
-- `static/` - Static files (index.html, favicon)
+**Values seen in earlier calls are never written into a generated request.** `defaultInput.ts` only ever emits zero values — and a `Value`/`Struct`/`ListValue` field's zero value is its kaja builder, `kaja.value(null)`, since it has no writable literal. `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions instead, each labelled with the field and call it came from.
 
-**`/protoc-gen-kaja/`** - Protoc plugin for TypeScript code generation:
+## Kaja's own MCP server
 
-- A Go-based protoc plugin that generates TypeScript client code from `.proto` files
-- Currently a drop-in replacement for `@protobuf-ts/plugin` (`protoc-gen-ts`), producing identical output. Will eventually diverge and do things differently.
-- Ships as a single native Go binary — no Node.js dependency
-- Has its own `go.mod` (separate Go module from `/server/`); the server imports `protoc-gen-kaja/kaja` via a `replace` directive
-- Core codegen logic lives in the `kaja/` sub-package, which exports `NewPlugin()` and `Generate()`. The `main.go` is a thin CLI wrapper.
-- Built by `scripts/server` into `server/build/protoc-gen-kaja` for development-time codegen scripts
-- At runtime, both protoc-go and protoc-gen-kaja are embedded as Go libraries — no subprocess invocations. The protoc CLI and protoc-gen-kaja binary are only used in development scripts.
-- Used for all TypeScript proto codegen: both Kaja's own API (`server/proto/api.proto` → `ui/src/server/`) and user workspace protos (compiled at runtime)
-- Tests in `protoc-gen-kaja/tests/` compare output against `protoc-gen-ts` to ensure identical codegen; run with `protoc-gen-kaja/scripts/test`
-- `protoc-gen-kaja/tests/000_big` is a comprehensive multi-file integration test (8 proto files across 6 directories) using an e-commerce theme. It covers: all 15 scalar types, all WKTs, all map key types (bool, int64, string, int32), map with message values, all 4 streaming RPC types, custom options (method/message/field extensions), `import public`, proto3 optional, `allow_alias` enums, reserved fields/names, deprecated messages/fields/enums/methods, `jstype` (JS_STRING, JS_NUMBER), `json_name`, TypeScript keyword field names, `__proto__` field, `oneof_kind` field, `constructor` oneof member, 4-level deep nesting, self-referential messages, nested collision (Product_Variant vs Product.Variant), runtime import collision (WireType, MessageType), cross-package name collision (Status, Metadata), empty service, idempotency levels, detached comments, and comments with special chars (`*/`, `<html>`, `\n`). When adding new codegen features, expand this test to cover them.
-- Automated loop: `protoc-gen-kaja/scripts/loop` runs two agents in alternation — RALPH (fixer, reads `protoc-gen-kaja/RALPH.md`) and NELSON (adversarial tester, reads `protoc-gen-kaja/NELSON.md`). RALPH writes "DONE" to `protoc-gen-kaja/status.txt` when all tests pass; NELSON writes "HAHA" when it finds a new failing test. The loop continues until NELSON can't break it.
+This is the door an agent drives kaja through. The MCP **app** above points the other way; nothing is shared but the protocol's name.
 
-**`/desktop/`** - Wails desktop app:
+- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/scriptRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is file I/O the Go side already does; *running* one has to round-trip into a window. **That is the whole of what differs between the two builds, and why the server is one package**: `server/pkg/mcp` is self-contained and Wails-free, reaches the app only through `mcp.Bridge`, and is unit-tested with a fake. The desktop bridges it to its own webview; a deployed kaja bridges it to a browser that offered itself.
+- **Server** — JSON-RPC 2.0 over HTTP (MCP Streamable HTTP). On the desktop it is bound to `127.0.0.1:41521` (next to the web port 41520) and guarded by a bearer token at `<kajaHome>/mcp-token`. Fixing the port and persisting the token keep the `claude mcp add` command valid across restarts; a port already in use is reported through `MCPInfo.Error` rather than falling back to a random one, which would silently break the configured command. **Its lifetime is the process's** — `startup` starts it, `shutdown` stops it, there is no enable/disable call, and the UI only reads `MCPServerInfo` for the footer's plug.
+  - **A response is a single JSON body, or an SSE stream when something is in front of it** (`Server.Streamed`, taken by the web wiring only). The answer is identical either way; what the stream buys is the `: keepalive` every 15s, so a minute-long `run_script` is not a request that has carried no bytes for a minute. **The idle timeout belongs to the proxy in front**, and a run cut off there is indistinguishable from one that failed. It is offered only when the client's `Accept` says it takes one. Nothing sits between an agent and the desktop, so there the simpler thing is right.
+  - **A tool that writes a file is absent where there is no disk to write** (`Bridge.CanWriteScripts`, `writeTools` in `tools.go`): `tools/list` drops `write_script`/`create_script`/`rename_script`/`delete_script` rather than offering them and refusing. A call to one anyway is answered with the sentence saying why.
+- **The answer is TypeScript, because that is all a script is.** An author writes `Shows.ListShows({ pageSize: 25 })` against an interface named `ListShowsRequest`; nothing they write is protobuf. So the tools hand back **the generated declarations themselves** rather than a description of the wire format — a declaration can't disagree with the compiler; a second model of one can, and did.
+- **Three tools answer everything, and none grows with the API.** `list_services` is an **index**: every app, service and method as one TypeScript signature with a `read`/`write` mark and its HTTP request, filterable by `app`, `service` or `search`, carrying no declarations (dumping the generated modules is what overflowed an agent's context). `describe_method "Shows.ListShows"` is the other half: the import line, the signature, the declarations of **every type it names, transitively** (`declarationsFor`), and the call to start from. `describe_type "Show"` looks one type up. A miss lists candidates for an ambiguous name and nearest matches for an unknown one, because a dead end costs a whole round trip. Answers are bounded — declarations cut after `maxDeclarationLines` (spent line by line, since one response type can be four hundred properties), a run payload after `maxPayload` — and the cut names what to ask for next.
+- **The UI settles what the TypeScript is; Go settles what to show.** `ui/src/declarations.ts` re-emits each generated interface and enum from its own AST: member names and type text verbatim, the API's description kept, the `@generated from protobuf field: …` bookkeeping dropped (it names a wire encoding no script depends on and is the only place protobuf would surface), and the app's marks folded into the JSDoc where a reader meets them — `[required]`, `[query parameter]`, `[carries the HTTP payload]`. `ui/src/mcpCatalog.ts` gathers those plus the signatures. `server/pkg/mcp` decides the framing: read versus write, the closure, the cut, the failure advice. The `.client` modules are left out — `I<Service>Client` is the transport's interface, not one a script writes against.
+- **A method's example is the code Kaja already writes** — `describe_method` hands back `generateMethodEditorCode`, the same call clicking the method in the tree puts in a draft.
+- **A generated stub reads as source.** `createServiceInterfaceDefinition` prints its service object `multiLine`; without it the TypeScript printer puts a synthesized object literal on one line, so a thirty-method service arrived as one enormous line and any line-based reader had to pull the whole module. It and the `Method` model are filled from one read of the client interface (`readSignatures`).
+- **`kaja.value` is in the generated request, not just the guide.** A field typed `Value`/`Struct`/`ListValue` holds any JSON and its wire shape is a `kind` oneof nobody writes by hand, so `defaultInput.ts` used to omit such fields — which meant the one place the builder could be learned didn't mention it. `kaja.value(null)` sends, so it is what the generated request holds, and `describe_method` names the builder beneath the declarations that mention the type.
+- **The `kaja` object is a declaration too.** `ui/src/kajaModule.ts` writes it once; Monaco backs the `kaja` import with it (`registerKajaModule`), `buildMcpCatalog` carries it as `Catalog.Runtime`, and `describe_type "kaja"` (or any `kaja.<member>`) hands back that exact text. It was described from memory in the guide before, which is how the canvas verbs came to be documented for the editor and invisible to an agent.
+- **A script has no return value, and that is said rather than discovered.** The transpiler accepts a top-level `return` and the runner's `async` wrapper would honour it, but Monaco flags it (TS 1108) and Run goes disabled — so answering by returning works over MCP and produces a file nobody can press Run on. The rule lives in the declaration's header, in the guide, and in `runtimeNote`; `RunResult.Result` is still carried so `renderRun` can **correct** a script that returned something, naming `kaja.table`/`kaja.text`, rather than printing it under `returned` as if it were the answer.
+- **The canvas is the output; `console.log` is where an agent probes.** A script is a file someone opens and presses Run on, so what it has to say goes on the canvas; the transcript is read by the asking agent and nobody else. Naming them side by side is what taught an agent to end every script with `console.log(response)` — so the guide's first example draws with `kaja.text`, and both `runtimeNote` and the guide say the thing that makes it unnecessary: **`run_script` already reports every call's request and response**, so the only value worth printing is one the script computed. It is the right tool in a snippet.
+- **A comment is for what the code cannot say, which in a script is rarely anything.** The rule is stated in the guide's "Rules that matter" and in `commentsNote`, which rides on `run_script`'s `runtimeNote` and on `create_script` and `write_script`, because those are where a script that is kept is written and a tool description is the one channel a client cannot drop.
+- **A run reports what it drew.** `RunResult.Blocks` is the receipt — each block's kind, and a table's columns and row count (`toBlockLog` in `App.tsx`). The contents are not echoed: the agent produced them. An agent's run reports cells that never landed rather than passing off blanks as values.
+- **An inline run is not anonymous.** `run_script` with `code` stays cheap, but it may not be invisible: an inline snippet runs in **the agent's draft** (`agentDraft` in `App.tsx`), so it has a file, a title read off its own code, a row pinned at the top of Drafts under the client's name, and a console. **One buffer, reused** — eight tries at a call are eight runs of one draft, which is what makes them comparable. The client's name arrives with the run (`RunScript(ctx, path, code, client)`), read off the `initialize` handshake.
+- **The footer says when the server is being used.** An agent works in a window nobody is watching, so the plug in the status bar reports it: while a request is being served it goes emerald and a ring pings out of it (`animate-signal`, sized to stay inside the 30px bar rather than Tailwind's own `ping`, which doubles the element). The **server** counts requests in flight and reports each change through `Bridge.Activity` (emitted as `mcp:activity`); the **UI** decides how long it lingers, because that is a question about being seen. A `ping` is a keepalive and doesn't count. Calls arrive in bursts of a few milliseconds, so the mark holds for `MCP_ACTIVITY_LINGER_MS` (2.5s) after the last is answered, and stays lit for the whole of a long `run_script`.
+- **Nothing yet stops an agent writing.** The `read`/`write` mark and the guide's "confirm before running a write" are advice an agent may ignore. A gate belongs at the one place every call goes through (`client.ts`), keyed on something the run carries.
+- **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.
+- **Resources are the guide and the index, and nothing else.** `initialize` returns `instructions` (the embedded `guide.md`) and `kaja://guide` is a resource, but a client may drop or summarise either — so the script runtime contract (top-level `await` works, there is **no return value**, `kaja.text`/`kaja.code`/`kaja.table` are the canvas and `console.log` the transcript, imports are `<app>/<path>` and **named imports only**, `prompt`/`alert`/`confirm` do nothing) is repeated in `run_script`'s **tool description**.
+- **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts and stops the server, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the catalog via `MCPSetCatalog` and reads `MCPServerInfo` for the connection command. **The catalog follows the apps, not the compiler**: it is pushed from an effect on the app list, so a change that compiles nothing — deleting an app, above all the last one — is reflected too. Script mutations made over MCP emit `mcp:scriptsChanged`; the UI live-reloads an open script on `write_script` and keeps the sidebar and open views in step with create/rename/delete. The `create` event carries the file's `content`, which is what lets the UI recognise the agent's own buffer being saved.
 
-- `main.go` - Wails app entry point
-- `frontend/dist/` - Copied from server build (gitignored)
+### The agent session
 
-**`/workspace/`** - Example workspace for development and testing:
+`server/pkg/agent`, `ui/src/agentSession.ts`. The same MCP server bridged to a browser instead of a webview, so a kaja on `demo.kaja.tools` is driven by a local agent exactly as the desktop one is.
 
-- This is a demo workspace that developers use to test kaja
-- `kaja.json` - Configuration file defining demo apps: grpcb.in (gRPC), plus quirks (Twirp), theatre (OpenAPI), seating (gRPC) and concierge (MCP) hosted on kaja.tools
-- `quirks/proto/`, `grpcbin/proto/` - Proto files for the Twirp service and grpcb.in. Nothing else needs local protos: theatre is OpenAPI (its spec is fetched from `spec_url` at runtime), seating uses gRPC server reflection, and concierge is an MCP server whose surface is read at compile time
-- `scripts/` - The demo scripts the workspace ships, read by the sidebar on the web and the desktop alike. The demo is a chain of cinemas whose Theatre app keeps three lists — a movie catalog, the houses, and a schedule that is *only* the relationship between them — so every script that shows a programme is a join, which is what they are there to demonstrate.
-  - `a-night-out.ts` is the one to read first: three apps and three protocols, ending in the single write the demo has, behind `kaja.approve`
-  - `whats-on.ts` is the one to read next, because it is the join drawn out. Two of its columns are **promises** resolved from one batched `ListMovies` for the whole page, and one is a **function** making a gRPC call per row — so it shows both cell kinds side by side, doing the two things they are for: waiting on work the script already started, and starting work only for the rows you can see.
-  - `movies.ts` is the catalog as one live paged table; `seat-map.ts` is the join in miniature, in front of one house
-- Run `scripts/demo-protos` to update proto files from kaja-tools/website and moul/pb
-- The `scripts/server` script starts kaja with this workspace by default
-- **It is also what both public deployments serve**, baked into the image by the Dockerfile's `demo` stage: `demo.kaja.tools` (`deploy/demo/fly.toml`, deployed by the **main** workflow on every push to main) and each pull request's own app (`deploy/preview/fly.toml`). One image and one workspace rather than a separate public config, so a change is clicked through on exactly what it becomes when it merges — and so the demo can never drift from what a developer sees. The demo services themselves live in kaja-tools/website; nothing of the demo's configuration does any more.
-- **The public demo shows fewer apps, and that is a cut made on the way to the build.** The **main** workflow drops the two apps that exercise kaja rather than read well to a first-time visitor (`jq` over `workspace/kaja.json`, in the `demo` job) before `flyctl deploy` sees the checkout. There is still one kaja.json in the repository and nothing in kaja that knows a deployment can hide an app — the server has no such setting and must not grow one, since a preview and a developer are meant to get every app. The step fails on a name no app is called, because a filter that quietly matches nothing reads as an app that is simply still there.
-
-### Code Generation Flow
-
-```
-/server/proto/api.proto
-         │
-         ├──→ [protoc-go + protoc-gen-go/twirp]  → /server/pkg/api/*.go
-         │
-         └──→ [protoc-go + protoc-gen-kaja]      → /ui/src/server/*.ts
-                                                      │
-                                                      v
-                                    go run cmd/build-ui/main.go (esbuild)
-                                                      │
-                                                      v
-                                            /server/build/
-                                          (main.js, main.css, workers)
-                                                      │
-                         ┌────────────────────────────┼────────────────────────────┐
-                         │                            │                            │
-                         v                            v                            v
-              Server (embedded)           Desktop (copied to             Docker (embedded)
-                                         /desktop/frontend/dist)
-```
-
-## UI primitives (shadcn/ui)
-
-The UI is built on shadcn/ui-style primitives over Base UI
-(`@base-ui-components/react`), styled with Tailwind, stock neutral theme.
-Reusable primitives live in `ui/src/components/`; compose them with Tailwind
-utilities rather than writing bespoke CSS. Add a new primitive only when a
-pattern repeats.
-
-Base UI notes: interactive parts use a `render` prop (not `asChild`); the trigger
-wrappers here re-expose `asChild` for convenience. Overlays use `Popup` +
-`Positioner` + `Backdrop` parts; cursor-anchored menus pass an `anchor` (element
-ref or virtual element) to the menu content. Enter/exit is CSS transitions keyed
-off `data-starting-style` / `data-ending-style`.
-
-### Available primitives (`ui/src/components/`)
-
-- **button** - `Button` (variants: default/secondary/outline/ghost/destructive/link; sizes: default/sm/lg/icon) + `buttonVariants`
-- **icon-button** - `IconButton` (`icon`/`aria-label`, `variant` from `button`, sizes `xs`/`sm`/`default`/`lg`, optional hover tooltip)
-- **input** / **checkbox** / **switch** - form controls (Base UI where interactive)
-- **select** - `Select` (`SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`)
-- **form-control** - `FormControl` with `.Label` / `.Caption` / `.Validation`
-- **segmented-control** - `SegmentedControl` with `.Button`
-- **dialog** - `Dialog` (`title`/`width`/`onClose`/`footerButtons`/`initialFocusRef`)
-- **confirmation-dialog** - `ConfirmationDialog` over Base UI AlertDialog (`onClose(gesture)`)
-- **dropdown-menu** - `DropdownMenu` (`DropdownMenuTrigger`, `DropdownMenuContent` with optional `anchor`, `DropdownMenuItem`, …)
-- **popover** - `Popover` (`PopoverTrigger`, `PopoverContent`)
-- **tooltip** - `SimpleTooltip` (self-contained, `text`/`side`)
-- **action-list** - standalone selectable list (`.Item`, `.LeadingVisual`, `.TrailingVisual`, `.Description`)
-- **tree-view** - `TreeView` with `.Item` / `.SubTree` (supports `state="loading"`) / `.LeadingVisual` / `.TrailingVisual`
-- **alert** - inline banner (variants default/success/warning/danger)
-- **spinner** / **blankslate** - loading indicator (sizes `sm`/`default`/`lg`) and empty-state placeholder
-
-### Conventions
-
-- Icons: import from `lucide-react` directly, under lucide's own names (e.g. `Trash2`, `Ellipsis`, `PanelLeftClose`). Standalone icons take a numeric `size` prop; inside `IconButton` the size comes from the button.
-- Class names: compose with `cn()` from `ui/src/cn.ts` (tailwind-merge over a plain join). The same file holds `cva()` for variant maps and `cnState()` for the Base UI parts whose `className` may be a function of the part's state.
-- Theme tokens: the shadcn CSS variables live in `ui/src/tailwind.css`, stock neutral plus one addition, `--chrome`. Style with Tailwind utilities (`bg-muted`, `text-muted-foreground`, `border-border`). Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately (see below).
-- Surfaces: three planes, and a pane belongs to exactly one of them. **Content** — every tab body (editor, response viewer, compile log, app settings, variables) — is `bg-background`, the deepest plane, so the thing you stare at longest is the quietest. **Chrome** — sidebar, command row, status bar — is `bg-chrome`, one step above it. **Floating** — dialogs, popovers, menus, Monaco's suggest/hover widgets — is `bg-card`/`bg-popover`. `bg-muted` is a highlight for chips and pills, never a pane.
-- Code colors: `ui/src/monacoTheme.ts` is the whole palette, for TypeScript and JSON alike. Structure is carried by the neutral ramp; the only hues are the ones Kaja already owns — emerald for strings, amber for numbers and literals, a muted blue for types — at roughly half the chroma of VS Dark+, so nothing in a request body outshines the Run button. Monaco can't read the CSS variables, so it repeats the surfaces it paints as hex; keep them in step with the tokens.
-- Status colors beyond the tokens: warnings are `text-amber-600 dark:text-amber-400` over `bg-amber-500/10`, successes `text-emerald-600 dark:text-emerald-400` over `bg-emerald-500/10`, errors `text-destructive` over `bg-destructive/10`.
-- Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx` and folded into `main.css`.
+- **The server cannot run a script, so it forwards it.** The runtime, the `kaja` object and the service clients are JavaScript in a tab. The desktop needs no session because the process **is** the window; a server has none of that. So the server is a **switchboard**: `run_script` goes down a window's stream and the answer comes back up, into the same `runForAgent` in `App.tsx`.
+- **A session is something a browser offers, not something the server has.** The tab makes up a token, holds a stream open under it (`POST /agent-session/attach`, NDJSON, pinged every 20s), and that is the only way a session comes into being. **The token is the address of a browser, not a key to the server**: it is never anywhere but that browser's storage, the server persists nothing, and a token nobody has attached with is a 401. That is the whole security model, and what makes this safe at a public demo — **nothing is offered until the footer's Connect is pressed**. Disconnect rolls the token.
+- **It is the one thing kept in `localStorage`** rather than in `storage.ts`, because localStorage is shared between an origin's tabs *and* fires `storage` when it changes, so connecting in one window attaches the others as they are. The IndexedDB store reads itself once at startup.
+- **Several windows on one token is normal, so one is on duty** — the most recently focused (`Focus`, reported on `focus`/`visibilitychange`) — and every window is told whether it is (`duty`), because a run's console is in memory in the window that ran it. The footer says which.
+- **Discovery does not need a live window; only `run_script` does.** The catalog a window pushed is kept as long as the session is (`sessionIdle`, 30 minutes past the last window), so `list_services` and `describe_method` answer across a reload. With no window `run_script` fails **immediately**, and a window that goes away mid-run fails its run on the stream's closed channel rather than waiting out the two minutes.
+- **The server owns the disk, so it reads a saved script itself** and hands the window source; the path travels with it, because that is what the run lands under. Nothing an agent asks may write one — `CanWriteScripts` is false here.
+- **Everything is plain HTTP outside the Api service** (`ServeInfo`, `ServeAttach`, `ServeFocus`, `ServeCatalog`, `ServeResult`, `ServeMCP`), as `/configuration-changes` and `/target` already are: the Api service is about the workspace, this is about a door. **No CORS header is set on any of them**, so a page on another origin cannot drive the endpoint.

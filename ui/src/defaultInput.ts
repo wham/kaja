@@ -2,14 +2,12 @@ import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runt
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
 
-// google.protobuf.Value and friends hold arbitrary JSON through a "kind" oneof,
-// and an OpenAPI spec's free-form properties are generated as them. Written by
-// hand they have no fillable default - leaving the oneof unset is rejected on
-// send, and picking a member means writing out the encoding - so they used to be
-// left out of a generated request entirely. The kaja builders are the default
-// they were missing: `kaja.value(null)` sends, and being in the generated code is
-// the only place the builder can be learned, since the field is otherwise absent
-// from everything a caller reads.
+// google.protobuf.Value and friends hold arbitrary JSON through a "kind" oneof, and
+// an OpenAPI spec's free-form properties are generated as them. Written by hand they
+// have no fillable default — leaving the oneof unset is rejected on send, and picking
+// a member means writing out the encoding — so the kaja builders are the default they
+// were missing. Being in the generated code is also the only place the builder can be
+// learned, since the field is otherwise absent from everything a caller reads.
 const wellKnownBuilders: { [typeName: string]: string } = {
   "google.protobuf.Value": "value",
   "google.protobuf.Struct": "struct",
@@ -22,8 +20,8 @@ const wellKnownArguments: { [typeName: string]: () => ts.Expression } = {
   "google.protobuf.ListValue": () => ts.factory.createArrayLiteralExpression([]),
 };
 
-// kajaBuilderCall writes `kaja.value(null)` for a well-known JSON type, and
-// records the import the call needs.
+// kajaBuilderCall writes `kaja.value(null)` for a well-known JSON type, and records
+// the import the call needs.
 function kajaBuilderCall(typeName: string, imports: Imports): ts.Expression | undefined {
   const builder = wellKnownBuilders[typeName];
   if (!builder) {
@@ -40,12 +38,12 @@ function kajaBuilderCall(typeName: string, imports: Imports): ts.Expression | un
   );
 }
 
-// The module the kaja runtime object is imported from, which the task runner
-// resolves without looking at any app.
+// The module the kaja runtime object is imported from, which the task runner resolves
+// without looking at any app.
 export const KAJA_MODULE = "kaja";
 
-// omitMessage reports whether a message type has no default worth generating,
-// which now only happens on the recursion path.
+// omitMessage reports whether a message type has no default worth generating, which
+// now only happens on the recursion path.
 function omitMessage(typeName: string, visiting: Set<string>): boolean {
   return visiting.has(typeName);
 }
@@ -58,7 +56,7 @@ export function defaultMessage<T extends object>(
 ): ts.ObjectLiteralExpression {
   const typeName = message.typeName;
 
-  // Special case for Timestamp - default to current time
+  // Timestamp defaults to the current time.
   if (typeName === "google.protobuf.Timestamp") {
     const now = new Date();
     const seconds = Math.floor(now.getTime() / 1000);
@@ -71,17 +69,15 @@ export function defaultMessage<T extends object>(
 
   let properties: ts.PropertyAssignment[] = [];
 
-  // Track the message types on the current recursion path so a self-referential
-  // message (e.g. a recursive filter/expression type from an OpenAPI spec) stops
-  // instead of recursing until the stack overflows.
+  // Track the message types on the current recursion path so a self-referential message
+  // stops instead of recursing until the stack overflows.
   const nested = new Set(visiting).add(typeName);
   const oneofs = new Set<string>();
 
   message.fields.forEach((field) => {
-    // A oneof's members live under a single `{ oneofKind, <member> }` property,
-    // so emitting them as fields would be both a type error and, since the group
-    // itself would then be missing, a serialization crash. It is generated once,
-    // empty: which member to set is the caller's choice.
+    // A oneof's members live under a single `{ oneofKind, <member> }` property, so
+    // emitting them as fields would be both a type error and, since the group itself would
+    // then be missing, a serialization crash. It is generated once, empty.
     if (field.oneof) {
       if (!oneofs.has(field.oneof)) {
         oneofs.add(field.oneof);
@@ -95,10 +91,9 @@ export function defaultMessage<T extends object>(
       return;
     }
 
-    // A message type already on the current path can't be filled in without
-    // recursing forever, so it is left out: a repeated field defaults to an empty
-    // array and a singular (optional) field is omitted entirely, so the generated
-    // code stays type-correct instead of holding a placeholder that can't be sent.
+    // A message type already on the current path can't be filled in without recursing
+    // forever, so it is left out: a repeated field defaults to an empty array and a
+    // singular one is omitted, so the generated code stays type-correct.
     if (field.kind === "message" && omitMessage(field.T().typeName, nested)) {
       if (field.repeat) {
         properties.push(ts.factory.createPropertyAssignment(field.localName, ts.factory.createArrayLiteralExpression([])));
@@ -109,12 +104,11 @@ export function defaultMessage<T extends object>(
     let value: ts.Expression;
 
     if (field.repeat) {
-      // A repeated scalar defaults to an empty array. A single placeholder element
-      // (e.g. [""] or [0]) is sent verbatim as an invalid value, and for request
-      // bodies that accept at most one of several array-valued operators it also
-      // makes multiple operators look "set". Repeated message and enum fields keep
-      // one element: there the element carries a nested shape or a concrete valid
-      // value that the field name alone doesn't convey.
+      // A repeated scalar defaults to an empty array: a single placeholder element ([""] or
+      // [0]) is sent verbatim as an invalid value, and for bodies that accept at most one of
+      // several array-valued operators it also makes multiple operators look "set". Repeated
+      // message and enum fields keep one element, which carries a nested shape or a concrete
+      // valid value the field name alone doesn't convey.
       const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested)];
       value = ts.factory.createArrayLiteralExpression(elements);
     } else {
@@ -144,16 +138,16 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
 }
 
 function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>): ts.Expression {
-  // Scalars start at their zero value. Values from earlier calls are offered as
-  // editor completions instead (see valueCompletions), so what is generated
-  // here is only ever the shape of the request, never a guess at its contents.
+  // Scalars start at their zero value. Values from earlier calls are offered as editor
+  // completions instead (valueCompletions), so what is generated here is only ever the
+  // shape of the request, never a guess at its contents.
   if (field.kind === "scalar") {
     return defaultScalar(field.T);
   }
 
   if (field.kind === "map") {
-    // An empty map is valid, so a value type with no default worth generating
-    // leaves the map empty rather than holding an entry that can't be sent.
+    // An empty map is valid, so a value type with no default worth generating leaves the
+    // map empty rather than holding an entry that can't be sent.
     if (field.V.kind === "message" && omitMessage(field.V.T().typeName, visiting)) {
       return ts.factory.createObjectLiteralExpression([]);
     }
@@ -172,7 +166,6 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     if (builder) {
       return builder;
     }
-    // For nested message types, recurse with the nested type name
     return defaultMessage(field.T(), sources, imports, visiting);
   }
 
@@ -180,7 +173,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 }
 
 function defaultScalar(value: ScalarType): ts.Expression {
-  // 64-bit integer types are represented as strings
+  // 64-bit integer types are represented as strings.
   switch (value) {
     case ScalarType.INT64:
     case ScalarType.UINT64:
@@ -262,7 +255,8 @@ function defaultEnum(value: EnumInfo, sources: Sources, imports: Imports): ts.Ex
   const [enumName, source] = result;
   addImport(imports, enumName, source);
 
-  // If the enum has more than one value, use the second one. The first one is usually the "unspecified" value that the API will reject.
+  // The second value, where there is one: the first is usually the "unspecified" value
+  // the API will reject.
   const enumValue = value[1][1] || value[1][0];
 
   return ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(enumName), ts.factory.createIdentifier(enumValue));

@@ -25,68 +25,46 @@ import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
-/**
- * What the counts and the label at the end of the strip need before the marks
- * get any room. The strip is what is left of the row after them, which is what
- * "available width" means: the same run draws ticks in a wide panel and buckets
- * in a narrow one.
- */
+// What the counts and the label at the end of the strip need before the marks get
+// any room. The strip is what is left of the row after them.
 const STRIP_RESERVE = 160;
 
-// How much of a held request is shown before the block starts claiming room the
-// document needs for everything after it. Past this it fades out and says how
-// much it kept back — a decision is never made from a payload you had to leave
-// the screen to read, so Expand is beside the number.
+// How much of a held request is shown before it starts claiming room the document
+// needs. Past this it fades and says how much it kept back, with Expand beside it.
 const APPROVE_CLIP_LINES = 12;
 
-/**
- * How long a table's pull has to be taking before anything is drawn about it. A
- * page off a local server is back inside a frame or two, and a dim that flashes
- * for 40ms reads as a glitch rather than as progress.
- */
+// A page off a local server is back inside a frame or two, and a dim that flashes
+// for 40ms reads as a glitch rather than as progress.
 const TABLE_LOADING_DELAY_MS = 150;
 
-/**
- * Skeleton bar widths, by column index. Fixed rather than random: widths that
- * re-roll on every render look like activity that isn't there, and a column of
- * bars that all end in the same place reads as a column.
- */
+// Fixed rather than random: widths that re-roll on every render look like activity
+// that isn't there.
 const SKELETON_WIDTHS = ["58%", "76%", "44%", "66%", "52%", "70%"];
 
 interface CanvasProps {
   group: RunGroup;
-  // Whether this is the full-screen canvas rather than the console's third of
-  // the window. It is a size and not a mode: everything below reads it only to
-  // decide how much air a block is given.
+  // A size, not a mode: everything below reads it only to decide how much air a
+  // block is given.
   fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for every button of an approve block, because there is one decision
-  // to make and the block records it under this name.
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
-  // Where a failure the script never mentioned leads: its row in the log, which
-  // is where the complete record of every call is.
   onSelectCall: (itemId: string) => void;
-  // Expanding a held request takes the window, so a decision is never made from
-  // a payload you had to leave the screen to read.
   onFullScreen?: () => void;
-  // Kept across entering and leaving full-screen, so the way back lands where
-  // you left rather than at the top of the document.
+  // Carried across entering and leaving full-screen, so the way back lands where you
+  // left rather than at the top.
   scrollRef?: React.MutableRefObject<number>;
-  // Where each table is pointed. It is view state rather than something the run
-  // drew, so it is held above the canvas and survives switching views.
+  // View state rather than something the run drew, so it is held above the canvas
+  // and survives switching views.
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
-  // The cells a drawn page is waiting for, and the retry of one that stopped.
   onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
 /**
- * What the run drew, in emission order, and nothing else. A call is not a block
- * and is not drawn as one — the strip above states every call the run made, so
- * the document is the text, the tables and the questions, with the air between
- * them that the call rows used to take.
+ * What the run drew, in emission order, and nothing else. A call is not a block and
+ * is not drawn as one — the strip above states every call the run made.
  */
 export function Canvas({
   group,
@@ -106,8 +84,8 @@ export function Canvas({
   const unreported = group.unreported;
   const scroller = useRef<HTMLDivElement>(null);
 
-  // Entering and leaving full-screen is the same document in another container,
-  // so the offset is carried rather than the element.
+  // The same document in another container, so the offset is carried rather than the
+  // element.
   useLayoutEffect(() => {
     const element = scroller.current;
     if (!element || !scrollRef) return;
@@ -141,10 +119,8 @@ export function Canvas({
       )}
     >
       {drawn.map((item) => (
-        // Blocks keep their full height and the canvas scrolls. Without this a
-        // long table is squeezed to a couple of rows to make the run fit — the
-        // rows are still there, which is what makes it look like a rendering
-        // bug rather than a layout one.
+        // Blocks keep their full height and the canvas scrolls. Without this a long table
+        // is squeezed to a couple of rows to make the run fit.
         <div key={item.id} className="shrink-0">
           <Canvas.Entry
             item={item}
@@ -175,13 +151,9 @@ interface RunStripProps {
 }
 
 /**
- * The run's calls, as one 28px row under the console header — the only place the
- * canvas states them now that a call is not a block.
- *
- * The mode is decided by the room, not by a count: one mark per call for exactly
- * as long as a mark can still be a call, and buckets past that. So the same run
- * is a list of ticks in a wide panel and a profile in a narrow one, and neither
- * is claiming to draw something it isn't.
+ * The run's calls as one 28px row under the console header. The mode is decided by
+ * the room, not by a count: one tick per call for as long as a tick can still be a
+ * tick, and buckets past that.
  */
 Canvas.RunStrip = function ({ group, onSelectCall }: RunStripProps) {
   const row = useRef<HTMLDivElement>(null);
@@ -237,9 +209,8 @@ Canvas.RunStrip = function ({ group, onSelectCall }: RunStripProps) {
   );
 };
 
-// What a mark says it is. One call names itself; a bucket says how many it holds
-// and how slow the slowest of them was, which is the whole reason it has a
-// height.
+// One call names itself; a bucket says how many it holds and how slow the slowest
+// of them was, which is the whole reason it has a height.
 function slotTitle(slot: StripSlot): string {
   const duration = formatDuration(slot.slowest > 0 ? slot.slowest : undefined);
   if (slot.method !== undefined) return [slot.method, duration].filter(Boolean).join(" · ");
@@ -263,7 +234,6 @@ interface EntryProps {
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
-  // The cells a drawn page is waiting for, and the retry of one that stopped.
   onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
@@ -293,14 +263,11 @@ interface BlockProps {
   fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for every button of an approve block, because there is one decision
-  // to make and the block records it under this name.
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
-  // The cells a drawn page is waiting for, and the retry of one that stopped.
   onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
@@ -360,57 +327,43 @@ interface TableProps {
 }
 
 /**
- * The one block that is wider than the text around it, so it is the one block
- * with a frame: a card with its own toolbar, a header band under it, and the
- * canvas's 16px gap doing the rest. Without the frame the header row reads as
- * another line of the paragraph above it.
+ * The one block wider than the text around it, so the one block with a frame —
+ * without it the header row reads as another line of the paragraph above.
  *
- * A wide table scrolls inside itself; the canvas never scrolls sideways as a
- * whole, because everything above and below it would move with it.
+ * A wide table scrolls inside itself; the canvas never scrolls sideways as a whole.
  *
- * The pager is over rows rather than requests: paging past what is loaded is
- * what pulls the source, and nothing else does. A search that the source takes
- * restarts it; one it doesn't filters the rows already here, and says so — a
- * local filter that fetched would pull an API dry to find three rows.
+ * The pager is over rows rather than requests: paging past what is loaded is what
+ * pulls the source. A search the source takes restarts it; one it doesn't filters
+ * the rows already here and says so, because a local filter that fetched would pull
+ * an API dry to find three rows.
  *
- * **Paging moves nothing.** The frame keeps the height of a full page while the
- * table can still page, so the blocks below it stay where they are; the page
- * that was on screen stays too, dimmed, until the next one is here. Only a first
- * draw has nothing to dim, and that is what the skeleton rows are for.
- *
- * A cell can be waiting on its own, and the same bar says so: a script hands a
- * table a promise or a function where a value would go, and the row is drawn
- * with everything it already has. A cell is asked for when it is drawn, which is
- * what makes the second half of a five-hundred-row table cost nothing until it
- * is looked at.
+ * Paging moves nothing: the frame keeps the height of a full page while the table
+ * can still page, and the page on screen stays, dimmed, until the next is here. Only
+ * a first draw has nothing to dim, which is what the skeleton rows are for.
  */
 Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProps) {
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
   const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
-  // Which chevron was pressed, so the spinner is where the click was. It is the
-  // press that is remembered rather than the direction of the move: the page can
-  // be clamped, and a pull can start without either button being touched.
+  // The press is remembered rather than the direction: the page can be clamped, and a
+  // pull can start without either button being touched.
   const [pressed, setPressed] = useState<"previous" | "next" | undefined>(undefined);
-  // Forgotten once the page it asked for is here — and not a moment before: the
-  // pull it started is one effect away, so a press cleared on "not loading yet"
-  // is a press cleared between the click and the fetch it caused.
+  // Forgotten once the page it asked for is here, and not before: the pull it started
+  // is one effect away, so clearing on "not loading yet" clears between the click and
+  // the fetch it caused.
   if (pressed !== undefined && block.loading !== true && !shown.pending) setPressed(undefined);
 
-  // Nothing is destroyed and nothing resizes: the page that was on screen is
-  // what is on screen until the next one is here. That happens on the click,
-  // never on the delay — the wait decides when to *say* a page is coming, and a
-  // page cleared while the saying waits is the blink the wait was there to
-  // prevent.
+  // The page on screen stays until the next is here. That happens on the click, never
+  // on the delay — the wait decides when to *say* a page is coming, and a page cleared
+  // while the saying waits is the blink the wait was there to prevent.
   const stale = shown.pending && shown.held.length > 0;
   const drawn = stale ? shown.held : shown.rows;
   const drawnIndices = stale ? shown.heldIndices : shown.indices;
   const holding = busy && stale;
   const skeleton = busy && shown.pending && drawn.length === 0;
-  // A search bound for the source is debounced; one that filters what is loaded
-  // is not, because it costs nothing and lagging under the keystrokes is worse.
-  // The text is settled before it is debounced, so the space after a word is not
-  // a second search — and ⏎ says "now", which is what the wait is for.
+  // A search bound for the source is debounced; one that filters what is loaded is
+  // not. The text is settled before it is debounced, so the space after a word is not
+  // a second search, and ⏎ says "now".
   const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
   const numeric = numericColumns(drawn, block.columns.length);
@@ -419,10 +372,8 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProp
     if (needed) onPull(id, search, want);
   }, [needed, id, search, want, onPull]);
 
-  // The cells on screen ask for themselves. The list is read through a ref and
-  // the effect keyed on what is in it, so a repaint that changes nothing about
-  // which cells are waiting doesn't ask again — and asking twice would be free
-  // anyway: a cell is started once, and the table is what knows that.
+  // The list is read through a ref and the effect keyed on what is in it, so a repaint
+  // that changes nothing about which cells are waiting doesn't ask again.
   const waiting = pendingCells(block, drawnIndices);
   const waitingRef = useRef(waiting);
   waitingRef.current = waiting;
@@ -546,8 +497,8 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProp
                     </tr>
                   ))
                 : drawn.map((row, rowIndex) => (
-                    // One row is one line: a cell that wrapped would break the
-                    // 26px rhythm the whole grid is read down.
+                    // One row is one line: a cell that wrapped would break the 26px rhythm the whole
+                    // grid is read down.
                     <tr key={rowIndex} className="last:[&>td]:border-b-0">
                       {row.map((cell, cellIndex) => (
                         <Canvas.TableCell
@@ -611,23 +562,19 @@ interface TableCellProps {
   cell: string;
   column: number;
   numeric: boolean;
-  // What the cell is doing instead of holding a value, if it isn't holding one.
   status?: CellStatus;
   expired: boolean;
   onRetry: () => void;
 }
 
 /**
- * One cell, in one of three states. A value is drawn as itself; a cell that
- * isn't here yet is the same bar a skeleton row draws, so a waiting cell and a
- * waiting page read as one thing; a cell that stopped is a dim `—` with the
- * message on hover — a column of numbers with `429 Too Many Requests` in the
- * middle of it stops being a column, and the width is 12ch on a good day.
+ * One cell, in one of three states. A waiting cell is the same bar a skeleton row
+ * draws; a stopped one is a dim `—` with the message on hover, because a column of
+ * numbers with `429 Too Many Requests` in it stops being a column.
  *
- * Two deliberate differences from the page loader. **No shimmer**: cells fill in
- * one at a time and that is movement enough, where fifty bars pulsing on their
- * own would be a light show. **No delay**: the bar arrives with the row rather
- * than replacing something that was on screen, so there is nothing to flash.
+ * Two deliberate differences from the page loader: no shimmer (cells fill one at a
+ * time, which is movement enough) and no delay (the bar arrives with the row rather
+ * than replacing something, so there is nothing to flash).
  */
 Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }: TableCellProps) {
   const className = cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
@@ -641,8 +588,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }
   }
 
   if (status.error === undefined) {
-    // A run read back has lost the closure that would have filled this, which is
-    // the state the table already says: run it again to load the rest.
+    // A run read back has lost the closure that would have filled this.
     if (expired) {
       return (
         <td className={cn(className, "text-muted-foreground")} title="Run to load">
@@ -657,8 +603,8 @@ Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }
     );
   }
 
-  // Asking again is only offered where it could work: a function can be called
-  // again, a promise is finished whatever it settled as.
+  // Asking again is only offered where it could work: a function can be called again,
+  // a promise is finished whatever it settled as.
   const retry = status.retry === true && !expired;
   return (
     <td className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
@@ -674,9 +620,8 @@ Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }
   );
 };
 
-// A value that settles, and the way to settle it now. Only a search bound for a
-// source needs the wait — restarting on every keystroke would fetch the same
-// first page five times over — and anyone who is done typing shouldn't serve it.
+// Only a search bound for a source needs the wait — restarting on every keystroke
+// would fetch the same first page five times over.
 function useDebounced<T>(value: T, delay: number): [T, () => void] {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
@@ -691,9 +636,8 @@ function useDebounced<T>(value: T, delay: number): [T, () => void] {
 }
 
 /**
- * True once something has been true for this long, and false the moment it
- * stops. A loading state is worth drawing only if it will be read: under the
- * delay the fetch is already back, and what was drawn about it was a flicker.
+ * True once something has been true for this long, and false the moment it stops.
+ * Under the delay the fetch is already back and what was drawn about it was a flicker.
  */
 function useDelayed(active: boolean, delay: number): boolean {
   const [held, setHeld] = useState(false);
@@ -716,17 +660,10 @@ interface AskProps {
 }
 
 /**
- * The question the run is stopped on. Amber is Kaja's "needs you" colour, and it
- * is the whole signal here: the block, the Canvas tab's dot and the run pill all
- * carry it, so a parked run is findable from wherever you happen to be.
- *
- * What is drawn under the question is what the script asked for. A select is a
- * list rather than a field, because an answer that can only be one of five
- * things should not be typeable as a sixth; anything else is a field that
- * refuses to submit until the answer is the kind of thing that was asked for.
- *
- * An answered one is a record and collapses to one row: ten answered asks were
- * ten cards saying nothing the row doesn't.
+ * The question the run is stopped on. A select is a list rather than a field, because
+ * an answer that can only be one of five things should not be typeable as a sixth;
+ * anything else refuses to submit until the answer is the kind that was asked for.
+ * An answered one collapses to one row.
  */
 Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
   const waiting = block.answer === undefined && !block.cancelled;
@@ -745,8 +682,6 @@ Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
   );
 };
 
-// The question dimmed and truncating, the answer as a chip beside it. A long
-// answer truncates in the chip and titles in full.
 Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
   return (
     <div data-testid="canvas-ask-settled" className="flex h-[34px] items-center gap-3 rounded-md border border-border bg-card px-3">
@@ -778,28 +713,23 @@ interface ApproveProps {
 }
 
 /**
- * The call the run is stopped in front of, drawn where it would have happened
- * and holding the request it is about to send — a call is worth approving
- * because of what is in it, so the payload is the block rather than a click
- * away. It wears the same amber as an ask, since it parks the run the same way.
+ * The call the run is stopped in front of, holding the request it is about to send.
  *
- * **The standing approval is in the menu, not on the row.** The method it covers
- * is the whole question anyone hesitates over before pressing it, and a name of
- * any length in the caret's menu costs the row nothing.
+ * The standing approval is in the menu, not on the row: the method it covers is the
+ * whole question anyone hesitates over, and a name of any length costs the row
+ * nothing there.
  *
- * No button takes focus. ⏎ approves this call and only this call; the standing
- * approval always costs a deliberate gesture, and Esc stops the script. A key
- * pressed at the wrong moment must not send the request the block exists to
- * hold.
+ * No button takes focus. ⏎ approves this call only, Esc stops the script: a key
+ * pressed at the wrong moment must not send the request this block exists to hold.
  */
 Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: ApproveProps) {
   const waiting = block.decision === undefined;
   const [expanded, setExpanded] = useState(false);
-  // A settled block is a record: the payload collapses to its size, and View is
-  // the way back to it for the one that is worth re-reading.
+  // A settled block is a record: the payload collapses to its size, and View is the
+  // way back to it.
   const [showRequest, setShowRequest] = useState(false);
-  // Open, ⏎ belongs to the scope menu — otherwise the standing approval it is
-  // sitting on would be settled as "this call" on the way past.
+  // Open, ⏎ belongs to the scope menu — otherwise the standing approval it is sitting
+  // on would be settled as "this call" on the way past.
   const [scopeOpen, setScopeOpen] = useState(false);
   const size = formatBytes(new TextEncoder().encode(block.request).length);
 
@@ -807,21 +737,21 @@ Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: Ap
     if (!waiting || scopeOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      // A table's search box is still typeable while a call is held, and ⏎ in it
-      // means "search now" — it must not be the thing that sends the request.
+      // A table's search box is still typeable while a call is held, and ⏎ in it means
+      // "search now" — it must not be the thing that sends the request.
       if (isTyping(event.target)) return;
       if (event.key === "Enter") {
         event.preventDefault();
         onDecide(id, "approved");
       } else if (event.key === "Escape") {
-        // Claimed here so full-screen doesn't take it: a run held in front of a
-        // call is what Esc is about while one is on screen.
+        // Claimed here so full-screen doesn't take it: a run held in front of a call is what
+        // Esc is about while one is on screen.
         event.preventDefault();
         onDecide(id, "rejected");
       }
     };
-    // On the document rather than the window, so it is answered before
-    // full-screen's own Esc whatever order the two effects happened to run in.
+    // On the document rather than the window, so it is answered before full-screen's own
+    // Esc whatever order the two effects happened to run in.
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [waiting, scopeOpen, id, onDecide]);
@@ -855,8 +785,6 @@ Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: Ap
           expanded={expanded}
           onExpand={() => {
             setExpanded(true);
-            // The room is the point: a request worth reading in full is worth
-            // the window, and the decision stays under it either way.
             onFullScreen?.();
           }}
         />
@@ -906,8 +834,7 @@ Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: Ap
   );
 };
 
-// Whether the keystroke belongs to something being typed in. The canvas's own
-// keys are for the document, and a field on it is not the document.
+// The canvas's own keys are for the document, and a field on it is not the document.
 function isTyping(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
   if (!element?.tagName) return false;
@@ -921,9 +848,8 @@ interface PayloadProps {
 }
 
 /**
- * A request, clipped to the height a decision can be made from. What is left out
- * is stated rather than scrolled past: a payload that quietly continues below
- * the fold is one nobody reads to the end of.
+ * A request, clipped to the height a decision can be made from. What is left out is
+ * stated rather than scrolled past.
  */
 Canvas.Payload = function ({ text, expanded, onExpand }: PayloadProps) {
   const lines = text.split("\n");
@@ -961,9 +887,9 @@ interface AskFieldProps {
   onCancel: () => void;
 }
 
-// A typed answer is checked here rather than in the script, which is the whole
-// point of asking for one: the problem is stated under the field, while the
-// person who typed it is still looking at it.
+// A typed answer is checked here rather than in the script, which is the whole point
+// of asking for one: the problem is stated under the field while the person who
+// typed it is still looking at it.
 Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
   const [value, setValue] = useState("");
   const [problem, setProblem] = useState<string>();
@@ -1001,8 +927,8 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
               event.preventDefault();
               submit();
             } else if (event.key === "Escape") {
-              // A focused field takes Esc before full-screen does; the second
-              // one, with nothing left wanting it, is the way out.
+              // A focused field takes Esc before full-screen does; the second one, with nothing
+              // left wanting it, is the way out.
               event.preventDefault();
               onCancel();
             }
@@ -1021,9 +947,8 @@ interface AskChoicesProps {
   onCancel: () => void;
 }
 
-// The options, as a list you walk with the arrow keys. It is a listbox rather
-// than a Select popup because the canvas has the room and a question the run is
-// parked on should not need a click to read.
+// A listbox rather than a Select popup: the canvas has the room, and a question the
+// run is parked on should not need a click to read.
 Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -1076,10 +1001,8 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
 };
 
 /**
- * A failure nothing was drawn after. The canvas does not interrupt itself for a
- * call whose failure the script reported in a better place — a table with a
- * result column — so what is left is the one the run said nothing about, stated
- * once per method with the way into the complete record beside it.
+ * A failure nothing was drawn after — the canvas does not interrupt itself for one
+ * the script reported in a better place. Stated once per method.
  */
 Canvas.Failure = function ({ failure, onOpen }: { failure: FailureNotice; onOpen: () => void }) {
   const said = [failure.code, failure.message].filter(Boolean).join(" ");
@@ -1101,8 +1024,7 @@ Canvas.Failure = function ({ failure, onOpen }: { failure: FailureNotice; onOpen
   );
 };
 
-// A script that threw is the run's own failure rather than any one call's, so it
-// lands on the canvas as the last thing that happened.
+// A script that threw is the run's own failure rather than any one call's.
 Canvas.Logs = function ({ logs }: { logs: Log[] }) {
   const failed = logs.some((log) => log.level === LogLevel.LEVEL_ERROR);
   return (

@@ -1,8 +1,8 @@
 import { OpenApiDocument, OpenApiSecurityScheme, OpenApiServer } from "./server/api";
 import { variableReferences } from "./variableExpansion";
 
-// Sending no credentials is a choice like any other scheme, so it is a row in the
-// same list. It is stored in security_scheme, which the server understands.
+// Sending no credentials is a choice like any other scheme, so it is a row in the same
+// list. Stored in security_scheme, which the server understands.
 export const NO_CREDENTIALS = "none";
 
 export function isAbsoluteHttpUrl(value: string): boolean {
@@ -14,23 +14,20 @@ export function isAbsoluteHttpUrl(value: string): boolean {
   }
 }
 
-// holdsVariableReference reports whether a value reads a ${NAME} variable. The
-// browser is never handed what one expands to, so a value that reads one is
+// The browser is never handed what a ${NAME} expands to, so a value that reads one is
 // taken on trust here and settled by the server.
 export function holdsVariableReference(value: string): boolean {
   return variableReferences(value).length > 0;
 }
 
-// isUsableBaseUrl also rejects a URL with a {placeholder} left in it, which would
-// otherwise be sent as part of the host.
+// Also rejects a URL with a {placeholder} left in it, which would otherwise be sent
+// as part of the host.
 export function isUsableBaseUrl(value: string): boolean {
   if (holdsVariableReference(value)) return true;
   return isAbsoluteHttpUrl(value) && !value.includes("{");
 }
 
-// Words a title carries because it names a document rather than the API inside
-// it. The app name is the folder every generated import starts with, so it keeps
-// only what identifies the API.
+// Words a title carries because it names a document rather than the API inside it.
 const TITLE_NOISE = new Set([
   "the",
   "api",
@@ -58,9 +55,8 @@ const TITLE_NOISE = new Set([
 ]);
 
 // deriveAppName turns a document title into a name that reads as one word in an
-// import path: "OpenMeter Cloud API" becomes "OpenMeter", "Swagger Petstore -
-// OpenAPI 3.0" becomes "Petstore". It is only a starting point - the field stays
-// editable, and the import line under it says what the name decides.
+// import path: "OpenMeter Cloud API" → "OpenMeter", "Swagger Petstore - OpenAPI 3.0"
+// → "Petstore".
 export function deriveAppName(title: string): string {
   // A subtitle describes the document too, so the title stops at the first one.
   const head = title.split(/\s+[–—|]\s+|\s+-\s+|:\s+|\s+\(/)[0] ?? "";
@@ -69,8 +65,7 @@ export function deriveAppName(title: string): string {
   return joinWords(kept.length > 0 ? kept : words) || joinWords(titleWords(title));
 }
 
-// uniqueAppName keeps a derived name a starting point rather than a collision: a
-// second document that names itself the same becomes "Petstore2".
+// uniqueAppName keeps a derived name a starting point rather than a collision.
 export function uniqueAppName(name: string, taken: string[]): string {
   if (!name || !taken.includes(name)) return name;
   for (let suffix = 2; suffix < 1000; suffix++) {
@@ -80,9 +75,8 @@ export function uniqueAppName(name: string, taken: string[]): string {
   return name;
 }
 
-// Everything that isn't a letter, a digit or an interior dot is a separator, so
-// a title that holds a slash or a quote can't produce a name that breaks the
-// import path it becomes.
+// Everything that isn't a letter, a digit or an interior dot is a separator, so a
+// title holding a slash or a quote can't produce a name that breaks its import path.
 function titleWords(value: string): string[] {
   return value
     .split(/[^\p{L}\p{N}.]+/u)
@@ -94,9 +88,9 @@ function isVersionWord(word: string): boolean {
   return /^v?\d+(\.\d+)*$/i.test(word);
 }
 
-// A single word is kept as it is written, so a title that is already a handle
-// ("openmeter", "grpcb.in") survives untouched; several are joined in
-// PascalCase, since a space in the name is a space in every import path.
+// A single word is kept as written, so a title that is already a handle ("grpcb.in")
+// survives; several are joined in PascalCase, since a space in the name is a space in
+// every import path.
 function joinWords(words: string[]): string {
   if (words.length <= 1) return words[0] ?? "";
   return words.map(capitalizeWord).join("");
@@ -124,9 +118,8 @@ export function resolveServerUrl(server: OpenApiServer, values: Record<string, s
 }
 
 // matchServerUrl reports whether a configured base URL came from this server,
-// recovering the values its {placeholders} were resolved with. That is what lets
-// an app being edited show the server it was created against rather than the
-// document's first one.
+// recovering the values its {placeholders} were resolved with. That is what lets an app
+// being edited show the server it was created against rather than the document's first.
 export function matchServerUrl(server: OpenApiServer, url: string): Record<string, string> | null {
   if (!url) return null;
   if (server.variables.length === 0) {
@@ -151,9 +144,8 @@ function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-// defaultSecurityScheme preselects the scheme the most operations accept, which
-// is the first one the server sorted. A document that declares no schemes pins
-// nothing, leaving the server free to send a token the way the API expects.
+// defaultSecurityScheme preselects the scheme the most operations accept, which is
+// the first one the server sorted. A document that declares none pins nothing.
 export function defaultSecurityScheme(document: OpenApiDocument): string {
   if (document.securitySchemes.length === 0) return "";
   return document.securitySchemes.find((scheme) => scheme.type !== "mutualTLS")?.key ?? NO_CREDENTIALS;
@@ -205,8 +197,8 @@ export function credentialPlaceholder(scheme: OpenApiSecurityScheme): string {
   return "Token";
 }
 
-// credentialNote says what kaja will do with the credential. Where that is a
-// literal wire format, it is shown as one.
+// credentialNote says what kaja will do with the credential, as a literal wire format
+// where that is what it is.
 export function credentialNote(scheme: OpenApiSecurityScheme): { text: string; mono: boolean } {
   if (isBasicScheme(scheme)) {
     return { text: "Base64 encoding is Kaja's to do, never yours.", mono: false };

@@ -1,37 +1,31 @@
 import type { FieldInfo, IMessageType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 
-// What a script actually writes against is TypeScript. Every app compiles down to
-// generated `.ts` declarations, so the answer to "what does this method take" is
-// a declaration, not a description of one — and a declaration read out of the
-// generated source can't disagree with the code the script is checked against.
+// What a script writes against is TypeScript, so the answer to "what does this method
+// take" is a declaration rather than a description of one — and a declaration read out
+// of the generated source can't disagree with the code the script is checked against.
 //
-// The generated text isn't quite it, though: it carries protobuf bookkeeping
-// (`@generated from protobuf field: int32 page_size = 1`) that a script author
-// has no use for and shouldn't have to learn, and it leaves out what the app
-// knows but TypeScript has no way to say — that a field is required, or travels
-// in the query string. So a declaration is re-emitted from its own AST: the
-// member names and type text verbatim, the API's description kept, the protobuf
-// bookkeeping dropped, and the app's marks put where a reader will see them.
+// The generated text isn't quite it: it carries protobuf bookkeeping (`@generated from
+// protobuf field: int32 page_size = 1`) that a script author has no use for, and it
+// leaves out what the app knows but TypeScript can't say — that a field is required,
+// or travels in the query string. So a declaration is re-emitted from its own AST.
 export interface Declaration {
   name: string;
   // The declaration, ready to show.
   text: string;
-  // The other declarations its members mention, so an answer can close over
-  // everything a type reaches.
+  // So an answer can close over everything a type reaches.
   references: string[];
 }
 
-// maxEnumMembers bounds an enum. A hundred-value enum is a page on its own, and
-// its full list is in the generated source.
+// maxEnumMembers bounds an enum. A hundred-value enum is a page on its own, and its
+// full list is in the generated source.
 const maxEnumMembers = 24;
 
-// maxDoc bounds one description. These are the API's own words and can run long;
-// what a reader needs is what the field is, not the whole paragraph.
+// maxDoc bounds one description. These are the API's own words and can run long.
 const maxDoc = 200;
 
-// The marks an app writes onto a field where protobuf has no shape for what it
-// needs to say. Declared in server/pkg/apps/openapi/http.proto.
+// The marks an app writes onto a field where protobuf has no shape for what it needs
+// to say. Declared in server/pkg/apps/openapi/http.proto.
 const HTTP_IN_OPTION = "kaja.http_in";
 const HTTP_REQUIRED_OPTION = "kaja.http_required";
 const HTTP_PAYLOAD_OPTION = "kaja.http_payload";
@@ -58,8 +52,8 @@ export function declareInterface(node: ts.InterfaceDeclaration, file: ts.SourceF
   return { name: node.name.text, text: withDoc(node, file, lines.join("\n")), references: [...references] };
 }
 
-// declareEnum re-emits a generated enum. The values are the point — an enum field
-// is unwritable without them.
+// declareEnum re-emits a generated enum. The values are the point — an enum field is
+// unwritable without them.
 export function declareEnum(node: ts.EnumDeclaration, file: ts.SourceFile): Declaration {
   const lines: string[] = [`export enum ${node.name.text} {`];
   const shown = node.members.slice(0, maxEnumMembers);
@@ -75,9 +69,7 @@ export function declareEnum(node: ts.EnumDeclaration, file: ts.SourceFile): Decl
   return { name: node.name.text, text: withDoc(node, file, lines.join("\n")), references: [] };
 }
 
-// fieldMarks reads what the app said about a field off the runtime field info:
-// whether the API requires it, where it travels in an HTTP request, and whether
-// the field exists only to carry a payload protobuf has no shape for.
+// fieldMarks reads what the app said about a field off the runtime field info.
 function fieldMarks(messageType: IMessageType<any> | undefined, propertyName: string): string[] {
   const field: FieldInfo | undefined = messageType?.fields?.find((candidate) => candidate.localName === propertyName);
   const options = field?.options;
@@ -101,8 +93,8 @@ function joinDoc(description: string, marks: string[]): string {
 }
 
 // docText reads a node's JSDoc, dropping the `@generated from protobuf …`
-// bookkeeping: it names the wire encoding, which nothing written in TypeScript
-// depends on, and it is the only place a reader would meet protobuf at all.
+// bookkeeping: it names the wire encoding, which nothing written in TypeScript depends
+// on, and it is the only place a reader would meet protobuf at all.
 export function docText(node: ts.Node, file: ts.SourceFile): string {
   const fullText = file.getFullText();
   const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart());
@@ -121,9 +113,9 @@ export function docText(node: ts.Node, file: ts.SourceFile): string {
   return text.length > maxDoc ? text.slice(0, maxDoc).trimEnd() + "…" : text;
 }
 
-// collectReferences gathers the type names a member mentions. Every identifier in
-// the type is taken; which of them name a declaration is settled by whoever holds
-// the set of declarations, so nothing here has to model TypeScript's type syntax.
+// collectReferences gathers the type names a member mentions. Every identifier in the
+// type is taken; which of them name a declaration is settled by whoever holds the set,
+// so nothing here has to model TypeScript's type syntax.
 function collectReferences(type: ts.TypeNode, file: ts.SourceFile, into: Set<string>): void {
   const visit = (node: ts.Node) => {
     if (ts.isIdentifier(node)) into.add(node.text);

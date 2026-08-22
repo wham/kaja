@@ -2,29 +2,26 @@ import { Method, Service } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
 /**
- * What the sidebar tree opens with. Expansion is a record of where you have
- * been, not a guess about where you will go: three inputs decide it, in order —
- * the calls you have made, the nodes you have folded yourself, and, only before
- * either of those can say anything, how much of an app fits on screen.
+ * What the sidebar tree opens with. Expansion is a record of where you have been, not
+ * a guess about where you will go: the calls you have made, the nodes you have folded
+ * yourself, and — only before either can say anything — how much of an app fits.
  */
 
 // A fold is a decision, an expansion is a suggestion: nothing derived here ever
-// reopens a node you closed. A node you have never touched is simply absent, and
-// absent is the only state a seed may write into.
+// reopens a node you closed. A node never touched is absent, and absent is the only
+// state a seed may write into.
 export type Fold = "open" | "shut";
 
 export interface FoldMap {
   [nodeId: string]: Fold;
 }
 
-// What the model needs of an app: its name, and the services it compiled to.
 export interface TreeApp {
   name: string;
   services: Service[];
 }
 
-// One call, at the moment it was chosen or run. Only recency is kept — the list
-// is ordered, so there is no timestamp and no count for anything to read.
+// Only recency is kept — the list is ordered, so there is no timestamp and no count.
 export interface MethodUse {
   app: string;
   package: string;
@@ -32,12 +29,10 @@ export interface MethodUse {
   method: string;
 }
 
-// How many recent calls get the path to them opened. Three services is about
-// what stays legible above the fold; past that the tree becomes a list of
-// everything you have ever run.
+// How many recent calls get the path to them opened. Past three the tree becomes a
+// list of everything you have ever run.
 const RECENT_PATHS = 3;
-// Rows an app may open to when its size is all there is to go on. A sidebar with
-// other apps under it can spare about a screenful for one of them.
+// Rows an app may open to when its size is all there is to go on.
 const AUTO_ROWS = 12;
 // The ledger is recency, so its tail is dead weight rather than history.
 const LEDGER_LIMIT = 200;
@@ -75,8 +70,8 @@ export function isOpen(folds: FoldMap, nodeId: string): boolean {
   return folds[nodeId] === "open";
 }
 
-// Levels below an app, outermost first: packages only exist as a level when the
-// app has more than one.
+// Levels below an app, outermost first: packages only exist as a level when the app
+// has more than one.
 function levelSizes(app: TreeApp): number[] {
   const services = app.services.length;
   const methods = app.services.reduce((total, service) => total + service.methods.length, 0);
@@ -84,16 +79,15 @@ function levelSizes(app: TreeApp): number[] {
   return [groupServicesByPackage(app.services).length, services, methods];
 }
 
-// Rows the tree shows under an app opened `depth` levels deep: 1 reveals the
-// app's children, 2 reveals theirs, and so on.
+// Rows the tree shows under an app opened `depth` levels deep.
 function rowsAtDepth(app: TreeApp, depth: number): number {
   return levelSizes(app)
     .slice(0, depth)
     .reduce((total, size) => total + size, 0);
 }
 
-// The nodes that have to be open for that depth. A level opens whole or not at
-// all, which is what keeps this from picking one service out of a list.
+// A level opens whole or not at all, which is what keeps this from picking one
+// service out of a list.
 function nodesAtDepth(app: TreeApp, depth: number): string[] {
   if (depth < 1) return [];
   const nodes = [appNodeId(app.name)];
@@ -107,10 +101,9 @@ function nodesAtDepth(app: TreeApp, depth: number): string[] {
 }
 
 /**
- * How far into an app to open when nothing is known about it: as deep as it goes
- * while staying inside `budget` rows, and never less than its first level, so an
- * app you just added always says what is in it. A small API ends up open to its
- * methods — a click away from a script — and a large one shows its shape.
+ * How far into an app to open when nothing is known about it: as deep as it goes while
+ * staying inside `budget` rows, and never less than its first level, so a new app
+ * always says what is in it.
  */
 export function autoOpenNodes(app: TreeApp, budget: number = AUTO_ROWS): string[] {
   for (let depth = levelSizes(app).length; depth > 1; depth--) {
@@ -133,9 +126,9 @@ export function usePath(app: TreeApp, use: MethodUse): string[] | undefined {
 }
 
 /**
- * Everything under a node, for the ⌥click that takes a whole subtree at once.
- * It is fold-all and unfold-all scoped to where the cursor already is, which is
- * what let the two header buttons go.
+ * Everything under a node, for the ⌥click that takes a whole subtree at once. It is
+ * fold-all and unfold-all scoped to where the cursor already is, which is what let the
+ * two header buttons go.
  */
 export function subtreeNodes(app: TreeApp, nodeId: string): string[] {
   if (nodeId === appNodeId(app.name)) {
@@ -149,15 +142,13 @@ export function subtreeNodes(app: TreeApp, nodeId: string): string[] {
 }
 
 /**
- * What the apps in `targets` open with, given everything already folded and
- * every call made. Apps compile at their own pace, so this seeds some of them
- * against all of them: the recent-call budget is spent globally, and whether
- * this is a cold start is asked of the whole tree rather than of one app.
+ * What the apps in `targets` open with. Apps compile at their own pace, so this seeds
+ * some of them against all of them: the recent-call budget is spent globally, and
+ * whether this is a cold start is asked of the whole tree.
  *
- * An app the ledger cannot speak for stays shut — once there is a history,
- * silence about an app means you don't use it. The exception is an app that is
- * new since the ledger was written, which has nothing to be silent with and so
- * falls back to its size.
+ * An app the ledger cannot speak for stays shut — once there is a history, silence
+ * about an app means you don't use it. An app newer than the ledger has nothing to be
+ * silent with, so it falls back to its size.
  */
 export function seedFolds(apps: TreeApp[], targets: ReadonlySet<string>, folds: FoldMap, ledger: MethodUse[], newApps: ReadonlySet<string>): FoldMap {
   const next = { ...folds };
@@ -173,8 +164,8 @@ export function seedFolds(apps: TreeApp[], targets: ReadonlySet<string>, folds: 
     if (!app) continue;
     const path = usePath(app, use);
     if (!path) continue;
-    // Paths into apps seeded earlier still spend the budget: they are open, and
-    // three is meant to be three across the tree.
+    // Paths into apps seeded earlier still spend the budget: they are open, and three is
+    // meant to be three across the tree.
     paths++;
     spokenFor.add(app.name);
     if (targets.has(app.name)) path.forEach(open);
@@ -191,9 +182,9 @@ export function seedFolds(apps: TreeApp[], targets: ReadonlySet<string>, folds: 
 }
 
 /**
- * Drop folds for nodes that no longer exist. An app that is still compiling — or
- * that has no services for any other reason — has nothing to match against, so
- * its subtree is left alone rather than cleared and re-seeded on every reload.
+ * Drop folds for nodes that no longer exist. An app still compiling has nothing to
+ * match against, so its subtree is left alone rather than cleared and re-seeded on
+ * every reload.
  */
 export function pruneFolds(folds: FoldMap, apps: TreeApp[], compiling: ReadonlySet<string>): FoldMap {
   const live = new Set<string>();
@@ -233,9 +224,9 @@ export function loadLedger(): MethodUse[] {
 }
 
 /**
- * Record a call, from the tree, the finder, or a script that ran it. A method
- * call reports itself many times over while it streams, so a use already at the
- * front writes nothing.
+ * Record a call, from the tree, the finder, or a script that ran it. A method call
+ * reports itself many times over while it streams, so a use already at the front
+ * writes nothing.
  */
 export function recordUse(use: MethodUse): void {
   const ledger = loadLedger();

@@ -120,11 +120,10 @@ type generator struct {
 	usesValue bool // a field maps to google.protobuf.Value, so struct.proto is imported
 }
 
-// anyValueType is the proto type for a schema that admits arbitrary JSON (a
-// free-form object, an untyped schema, or a union mixing primitive and other
-// shapes). google.protobuf.Value round-trips any JSON through protojson, so the
-// upstream response decodes whether the value is an object, string, number,
-// bool, or array — where a plain "string" field would reject everything else.
+// anyValueType is the proto type for a schema that admits arbitrary JSON.
+// google.protobuf.Value round-trips any JSON through protojson, so the upstream
+// response decodes whether the value is an object, string, number, bool or array,
+// where a plain "string" field would reject everything else.
 const anyValueType = "google.protobuf.Value"
 
 func (g *generator) anyValue() string {
@@ -397,9 +396,8 @@ func (g *generator) paramField(param *parameter, number int) fieldDef {
 }
 
 // docComment folds an API description into a single proto comment line. Only the
-// first sentence is kept: the comment travels into the generated TypeScript as
-// JSDoc and from there into every listing, and a paragraph in each of those
-// costs more than it explains.
+// first sentence is kept: the comment travels into the generated TypeScript as JSDoc
+// and from there into every listing.
 func docComment(text string) string {
 	text = strings.TrimSpace(strings.Join(strings.Fields(text), " "))
 	if text == "" {
