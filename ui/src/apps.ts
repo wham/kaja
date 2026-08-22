@@ -2,25 +2,24 @@ import { Call, Kaja } from "./kaja";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
-// Transport used to reach an opened app. "grpc"/"twirp" apps talk to their
-// upstream directly; in-process apps are reached as gRPC. The numeric values
-// match the desktop Wails Target protocol parameter.
+// Transport used to reach an opened app. "grpc"/"twirp" apps talk to their upstream
+// directly; in-process apps are reached as gRPC. The numeric values match the desktop
+// Wails Target protocol parameter.
 export enum Transport {
   GRPC = 1,
   TWIRP = 2,
 }
 
-// transportFromProtocol maps the protocol string returned by OpenApp to a Transport.
 export function transportFromProtocol(protocol: string): Transport {
   return protocol === "twirp" ? Transport.TWIRP : Transport.GRPC;
 }
 
-// Mutable reference that clients read at request time for dynamic access to a
-// app's invocation properties (target URL, transport, headers).
+// Mutable reference clients read at request time, so an app's target URL and headers
+// are picked up without rebuilding the client.
 export interface AppRef {
   configuration: ConfigurationApp;
-  // Invocation target filled in once the app is opened: the upstream URL for
-  // grpc/twirp apps, or "kaja-app://<id>" for in-process apps.
+  // Filled in once the app is opened: the upstream URL for grpc/twirp apps, or
+  // "kaja-app://<id>" for in-process ones.
   target: string;
   protocol: Transport;
 }
@@ -39,16 +38,14 @@ export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp, ta
   if (protocol !== undefined) appRef.protocol = protocol;
 }
 
-// A file in the workspace's scripts directory. A file has a name and a place;
-// that is the whole of what makes it one rather than a draft.
+// A file has a name and a place; that is the whole of what makes it one rather than a
+// draft.
 export interface Script {
-  // Absolute on-disk path of the script file. It is what identifies the script
-  // — its console and its stored runs are keyed on it.
+  // What identifies the script — its console and its stored runs are keyed on it.
   path: string;
-  // Filename (basename), e.g. "ping.ts".
   name: string;
-  // The folder it is filed in, relative to the scripts root and with forward
-  // slashes. Empty for one at the root; a real directory either way.
+  // Relative to the scripts root, forward-slashed. Empty for one at the root; a real
+  // directory either way.
   folder: string;
 }
 
@@ -67,13 +64,12 @@ export interface App {
   clients: Clients;
   sources: Sources;
   stub: Stub;
-  // Invocation target and transport, filled in once the app is opened during
-  // compilation. Mirror appRef.target/protocol for convenient display.
+  // Filled in once the app is opened during compilation. Mirrors appRef.target/protocol
+  // for convenient display.
   target: string;
   protocol: Transport;
 }
 
-// createPendingApp builds a fresh app for an app, ready to be compiled.
 export function createPendingApp(configuration: ConfigurationApp): App {
   return {
     configuration,
@@ -111,14 +107,12 @@ export interface Method {
   name: string;
   serverStreaming?: boolean;
   clientStreaming?: boolean;
-  // The TypeScript a script writes against: the request and response type names,
-  // read off the generated client interface, and the API's own description.
+  // The TypeScript a script writes against, read off the generated client interface.
   input?: string;
   output?: string;
   doc?: string;
-  // The HTTP request the method stands for, e.g. "GET /shows", when the app said
-  // so. It is the only thing that states whether calling the method reads or
-  // writes.
+  // The HTTP request the method stands for, e.g. "GET /shows", when the app said so.
+  // The only thing that states whether calling it reads or writes.
   http?: string;
 }
 
@@ -132,11 +126,10 @@ export interface Methods {
 
 export interface Client {
   /**
-   * The service's methods, bound to one run. A client is built once per app and
-   * shared by every run that imports it, so the run cannot be a field on it —
-   * that field is what used to make two scripts running at once report their
-   * calls to each other. Binding is memoized per `Kaja`, so the ten imports of
-   * one run share one object.
+   * The service's methods, bound to one run. A client is built once per app and shared by
+   * every run that imports it, so the run cannot be a field on it — that field is what
+   * used to make two scripts running at once report their calls to each other. Binding
+   * is memoized per `Kaja`, so the ten imports of one run share one object.
    */
   methodsFor(kaja: Kaja): Methods;
 }

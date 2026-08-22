@@ -28,21 +28,18 @@ type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; 
 
 const READ_DEBOUNCE_MS = 600;
 
-// Servers already read, so flipping between apps in the sidebar doesn't reach a
-// server that hasn't changed. Only successful reads are remembered - a server
-// that was down should be tried again.
+// Servers already read, so flipping between apps doesn't reach a server that hasn't
+// changed. Only successful reads are remembered.
 const inspected = new Map<string, McpServer>();
 const INSPECTED_LIMIT = 20;
 
-// inspectionKey is what the surface depends on: the endpoint, and nothing else.
-// Credentials are sent with the read but are not part of the key - a token is
-// typed a character at a time, and each character is not worth a round trip.
+// inspectionKey is the endpoint and nothing else. Credentials are sent with the read
+// but are not part of the key — a token is typed a character at a time.
 function inspectionKey(parameters: Record<string, string>): string {
   return (parameters.url ?? "").trim();
 }
 
-// Reads already on the wire, so two forms - or one form mounted twice - ask the
-// server the same question once.
+// Reads already on the wire, so two forms ask the server the same question once.
 const reading = new Map<string, Promise<InspectMcpResponse>>();
 
 function inspect(key: string, mcp: McpApp | undefined): Promise<InspectMcpResponse> {
@@ -77,8 +74,7 @@ interface McpFormProps {
   name: string;
   onNameChange: (name: string) => void;
   duplicateName: boolean;
-  // Names already in use, so a derived one doesn't land on a collision the user
-  // has to resolve by hand.
+  // So a derived name doesn't land on a collision the user has to resolve by hand.
   takenNames: string[];
   parameters: Record<string, string>;
   onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
@@ -86,7 +82,6 @@ interface McpFormProps {
   readOnly: boolean;
   // What the form last read, for the receipt in the footer.
   onSurfaceChange: (surface: AppSurface | undefined) => void;
-  // Whether the app can be created from what the form holds.
   onReadyChange: (ready: boolean) => void;
 }
 
@@ -111,8 +106,7 @@ export function McpForm({
   const readIdRef = useRef(0);
   // Whether the name is the user's rather than the one derived from the server.
   const [nameTouched, setNameTouched] = useState(Boolean(name));
-  // Whether the endpoint changed because the user typed into it, which is the
-  // only change that waits for a pause before reading.
+  // Typing is the only change that waits for a pause before reading.
   const typedRef = useRef(false);
 
   const url = parameters.url ?? "";
@@ -159,9 +153,8 @@ export function McpForm({
     }
   }, []);
 
-  // Read once the endpoint settles. Typing is the only change that waits: the
-  // demo link, ⏎, or the app this form was opened on are already complete and
-  // read at once.
+  // Read once the endpoint settles. The demo link, ⏎, or the app this form was opened
+  // on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
     typedRef.current = false;
@@ -188,8 +181,8 @@ export function McpForm({
     if (derived) onNameChange(derived);
   }, [server, nameTouched, takenNames, onNameChange]);
 
-  // A server that won't say what it exposes without a credential is asking for
-  // the one MCP's own authorization framework hands out.
+  // A server that won't say what it exposes without a credential is asking for the one
+  // MCP's own authorization framework hands out.
   useEffect(() => {
     if (readOnly || problem?.kind !== McpProblemKind.MCP_PROBLEM_UNAUTHORIZED) return;
     onParametersChange((previous) => ((previous.auth ?? "") === "" ? { ...previous, auth: AUTH_BEARER } : previous));
@@ -204,8 +197,8 @@ export function McpForm({
   const demo = getAppType("mcp")?.demo;
   const auth = (parameters.auth ?? "").trim() || AUTH_BEARER;
 
-  // A credential the server wants is asked for before anything has been read: it
-  // is the whole reason nothing has been.
+  // A credential the server wants is asked for before anything has been read: it is the
+  // whole reason nothing has been.
   const showAuthentication =
     Boolean(server) || problem?.kind === McpProblemKind.MCP_PROBLEM_UNAUTHORIZED || problem?.kind === McpProblemKind.MCP_PROBLEM_FORBIDDEN;
 
@@ -291,9 +284,8 @@ interface EndpointStatusProps {
   onRetry: () => void;
 }
 
-// EndpointStatus is the one slot under the endpoint that carries every state:
-// the caption, the read in progress, the server that answered, and each way
-// reaching it can fail. All of them name the next move.
+// EndpointStatus is the one slot under the endpoint carrying every state: the caption,
+// the read in progress, the server that answered, and each way reaching it can fail.
 function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry }: EndpointStatusProps) {
   if (state.status === "idle") {
     return (
@@ -410,9 +402,8 @@ interface AuthenticationSectionProps {
   readOnly: boolean;
 }
 
-// AuthenticationSection is a fixed list: there is no document declaring what a
-// server accepts, so the two shapes a credential comes in are offered outright
-// and each selected row states the header it becomes.
+// A fixed list: there is no document declaring what a server accepts, so the two
+// shapes a credential comes in are offered outright.
 function AuthenticationSection({ selected, onSelect, parameters, onParameterChange, variables, readOnly }: AuthenticationSectionProps) {
   return (
     <div className="flex flex-col gap-2">
