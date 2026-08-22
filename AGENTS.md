@@ -1518,14 +1518,15 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 are the app. Scripts are what everything you run is, and Variables is what they
 and app configuration read, so both ship. What the platform still gates is
 narrower than the feature: **writing** a script needs a disk this process owns
-(`canWriteScripts()` in `scriptFiles.ts`, which is `isWailsEnvironment()`), and
-the MCP server needs one to serve — but reading the workspace's scripts is the
-server's to do, so the web lists and runs them. **The MCP server's lifetime is the
-desktop process's** — `startup` starts it and `shutdown` stops it, there is no
-enable/disable call, and the UI's only part in it is reading `MCPServerInfo` for
-the footer's plug. A port already in use is still reported through `MCPInfo.Error`
-rather than falling back to a random one; freeing the port and restarting is the
-fix, since there is no longer a toggle to cycle.
+(`canWriteScripts()` in `scriptFiles.ts`, which is `isWailsEnvironment()`) — but
+reading the workspace's scripts is the server's to do, so the web lists and runs
+them. **The MCP server is both builds'**, and what differs is what it is bridged
+to (below): on the desktop **its lifetime is the process's** — `startup` starts
+it and `shutdown` stops it, there is no enable/disable call, and the UI's only
+part in it is reading `MCPServerInfo` for the footer's plug. A port already in
+use is still reported through `MCPInfo.Error` rather than falling back to a
+random one; freeing the port and restarting is the fix, since there is no longer
+a toggle to cycle.
 
 - **Deeplinks** — `kaja://run/<script>?key=value&key=value` on the desktop, `https://<kaja>/#run/<script>?key=value` on the web, runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`). A URL scheme is a bundle's to register, so the web says the same thing in a fragment — same grammar, same parser, no server route. It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Deeplinks, and the sheet that asks** below.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Folder app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp/OpenAPI always; the experimental built-ins (mcp/openai/folder) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load, as is a legacy `"markdown"` app — the same folder on disk, behind methods that each rendered one Markdown construct — which becomes a `"folder"` app.
@@ -1584,11 +1585,13 @@ This is kaja's **own** MCP server — the door an agent drives kaja through. The
 MCP **app** above points the other way, at somebody else's server. Nothing is
 shared between them but the protocol's name.
 
-- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/scriptRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into the webview. So the MCP server lives in the desktop process but reaches the webview for runs.
-- **Server** — `desktop/mcp` is a self-contained, Wails-free package: JSON-RPC 2.0 over HTTP (MCP Streamable HTTP, single-response — no SSE), bound to `127.0.0.1` on a fixed port (`41521`, next to the web port `41520`) and guarded by a bearer token persisted at `<kajaHome>/mcp-token`. Fixing the port and persisting the token keep the `claude mcp add` command valid across restarts. If the port is already in use the server does **not** fall back to a random one (that would silently break the configured command); it reports the conflict through `MCPInfo.Error`, which the footer surfaces (`desktop/mcp_bridge.go`). It talks to the app only through the `mcp.Bridge` interface, so it is unit-tested with a fake (`desktop/mcp/server_test.go`).
+- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/scriptRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into a window. **That is the whole of what differs between the two builds, and it is why the server is one package**: `server/pkg/mcp` is self-contained and Wails-free, reaches the app only through `mcp.Bridge`, and is unit-tested with a fake (`server/pkg/mcp/server_test.go`). The desktop bridges it to its own webview; a deployed kaja bridges it to a browser that offered itself (below).
+- **Server** — JSON-RPC 2.0 over HTTP (MCP Streamable HTTP). On the desktop it is bound to `127.0.0.1` on a fixed port (`41521`, next to the web port `41520`) and guarded by a bearer token persisted at `<kajaHome>/mcp-token`. Fixing the port and persisting the token keep the `claude mcp add` command valid across restarts. If the port is already in use the server does **not** fall back to a random one (that would silently break the configured command); it reports the conflict through `MCPInfo.Error`, which the footer surfaces (`desktop/mcp_bridge.go`).
+  - **A response is a single JSON body, or an SSE stream when something is in front of it** (`Server.Streamed`, taken by the web wiring only). The answer is identical either way — one `event: message` carrying the same JSON-RPC response — and what the stream buys is the `: keepalive` sent every 15s while it is being produced, so a `run_script` that takes a minute is not a request that has carried no bytes for a minute. **The idle timeout belongs to the proxy in front, not to this server**, which is the whole reason this is not measured against one deployment: Fly passes a 75s run today, with or without the keepalive (measured, on a preview app), and 60s is the common default elsewhere — nginx's `proxy_read_timeout` among them. A run cut off at the proxy is indistinguishable from one that failed, so it is not a thing to find out about per deployment. It is offered only when the client's own `Accept` says it takes one, which is what the transport asks of a client anyway. Nothing sits between an agent and the desktop, so there the simpler thing is the right one.
+  - **A tool that writes a file is absent where there is no disk to write** (`Bridge.CanWriteScripts`, `writeTools` in `tools.go`). `tools/list` drops `write_script`/`create_script`/`rename_script`/`delete_script` rather than offering them and then refusing — the same rule that takes the sidebar's **+** away — and a call to one anyway is answered with the sentence that says why. So a deployed kaja's tools are discovery, read and run.
 - **The answer is TypeScript, because that is all a script is.** An author writes `Shows.ListShows({ pageSize: 25 })` against an interface named `ListShowsRequest`; nothing they write is protobuf, and nothing they are shown should be. So the tools hand back **the generated declarations themselves** — the code the script is checked against — rather than a description of the wire format behind them. A declaration can't disagree with the compiler; a second model of one can, and did.
 - **Three tools answer everything, and none grows with the API.** `list_services` is an **index**: every app, service and method as one TypeScript signature (`ListShows(input: ListShowsRequest): Promise<ListShowsResponse>`) with a `read`/`write` mark and its HTTP request — filterable by `app`, `service` or free-text `search`. It carries no declarations; dumping the generated modules is what overflowed an agent's context and forced it to grep a JSON blob. `describe_method "Shows.ListShows"` is the other half: the import line, the signature, and the declarations of **every type that signature names, transitively** (`declarationsFor`), then the call to start from. `describe_type "Show"` looks one type up on its own, which is also where a cut-off answer points. A miss doesn't just say no — an ambiguous name lists its candidates, an unknown one the nearest matches — because a dead end costs a whole round trip. Answers are bounded: declarations are cut after `maxDeclarationLines` (spent line by line, since one response type can be four hundred properties), a run payload after `maxPayload`, and the cut names what to ask for next.
-- **The UI settles what the TypeScript is; Go settles what to show.** `ui/src/declarations.ts` re-emits each generated interface and enum from its own AST — member names and type text verbatim, the API's description kept, the `@generated from protobuf field: …` bookkeeping dropped (it names a wire encoding no script depends on and is the only place protobuf would surface at all), and the app's marks folded into the JSDoc where a reader meets them: `[required]`, `[query parameter]`, `[carries the HTTP payload]`. `ui/src/mcpCatalog.ts` gathers those plus the signatures. `desktop/mcp` decides the framing: read versus write, the closure, the cut, the failure advice. The `.client` modules are left out — `I<Service>Client` is the transport's interface, not one a script writes against.
+- **The UI settles what the TypeScript is; Go settles what to show.** `ui/src/declarations.ts` re-emits each generated interface and enum from its own AST — member names and type text verbatim, the API's description kept, the `@generated from protobuf field: …` bookkeeping dropped (it names a wire encoding no script depends on and is the only place protobuf would surface at all), and the app's marks folded into the JSDoc where a reader meets them: `[required]`, `[query parameter]`, `[carries the HTTP payload]`. `ui/src/mcpCatalog.ts` gathers those plus the signatures. `server/pkg/mcp` decides the framing: read versus write, the closure, the cut, the failure advice. The `.client` modules are left out — `I<Service>Client` is the transport's interface, not one a script writes against.
 - **A method's example is the code Kaja already writes.** `describe_method` hands back `generateMethodEditorCode` — the same call clicking the method in the tree puts in a draft. One method, one starting point, whichever way you came at it; a second example generator is a second thing to keep in step.
 - **A generated stub reads as source.** `createServiceInterfaceDefinition` prints its service object `multiLine`; the TypeScript printer puts a synthesized object literal on one line otherwise, so a thirty-method service arrived as one enormous line and any line-based reader — Monaco's hover, an agent grepping a stub — had to pull the whole module to find one signature. It and the `Method` model are both filled from one read of the client interface (`readSignatures`), which is the only place a method's TypeScript names are written down.
 - **`kaja.value` is in the generated request, not just in the guide.** A field typed `Value`, `Struct` or `ListValue` holds any JSON and its wire shape is a `kind` oneof nobody writes by hand, so `defaultInput.ts` used to leave such fields out of a generated request entirely — which meant the one place the builder could be learned didn't mention it, and an agent wrote its own `str`/`bool` helpers for the encoding. The builders postdate that decision: `kaja.value(null)` sends, so it is what the generated request now holds, in the editor and in `describe_method` alike, and `describe_method` names the builder beneath the declarations that mention the type.
@@ -1604,6 +1607,57 @@ shared between them but the protocol's name.
 - **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` in place of the response — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.
 - **Resources are the guide and the index, and nothing else.** The generated modules used to be offered one resource per stub; `describe_method` and `describe_type` return the declarations out of them, and a module's full text is hundreds of kilobytes of runtime machinery around the few lines anyone wanted.
 - **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts and stops the server with the process, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the services catalog (`buildMcpCatalog`) via `MCPSetCatalog`, covering every app uniformly and carrying the `kaja` declaration with the configured variable names, and shows the connection command via `MCPServerInfo`. **The catalog follows the apps, not the compiler**: it is pushed from an effect on the app list, so a change that compiles nothing — deleting an app, and above all deleting the last one — is reflected too. Hanging it off the compilation path left the server answering `list_services` from apps that were no longer there. Script mutations made through MCP tools emit a `mcp:scriptsChanged` Wails event; the UI live-reloads the content of an open script tab on `write_script` and keeps the sidebar list and open tabs in step with create/rename/delete, so agent edits show up without switching tabs. The `create` event carries the file's `content` too, which is what lets the UI recognise the agent's own buffer being saved.
+
+### The agent session, which is how a deployed kaja answers an agent
+
+`server/pkg/agent`, `ui/src/agentSession.ts`. The same MCP server, bridged to a
+browser instead of to a webview — so a kaja on `demo.kaja.tools` is driven by a
+local agent exactly as the desktop one is.
+
+- **The server cannot run a script, so it forwards it.** The runtime, the `kaja`
+  object and the service clients are JavaScript in a tab; the Go process has none
+  of them. The desktop needs no session because the process **is** the window —
+  one, always there, belonging to whoever launched it — and a server has none of
+  those three things. So the server is a **switchboard**: `run_script` goes down a
+  window's stream, and the answer comes back up. It is the same
+  `runForAgent` in `App.tsx` at the other end, so an agent's run is the same event
+  in both builds — its own console, its row in the sidebar, the `Bot` glyph.
+- **A session is something a browser offers, not something the server has.** The
+  tab makes up a token, holds a stream open under it (`POST /agent-session/attach`,
+  NDJSON, pinged every 20s), and that is the only way a session comes into being.
+  **The token is the address of a browser, not a key to the server**: it is never
+  anywhere but that browser's storage, the server persists nothing, and it opens
+  nothing while no window is listening — a token nobody has attached with is a
+  401. That is the whole of the security model, and it is what makes this safe to
+  leave on at a public demo: a casual visitor holds no session at all, because
+  **nothing is offered until the footer's Connect is pressed**. Disconnect rolls
+  the token, which is the answer to having pasted one during a screenshare.
+- **It is the one thing kept in `localStorage`** rather than in `storage.ts`, and
+  for the reason the design rests on: localStorage is shared between the tabs of
+  an origin *and* fires `storage` when it changes, so connecting in one window
+  attaches the others as they are. The IndexedDB store reads itself once at
+  startup, which would make a second window find out on its next reload.
+- **Several windows on one token is the normal case, so one is on duty.** The
+  most recently focused one (`Focus`, reported on `focus`/`visibilitychange`),
+  and every window is told whether it is (`duty`), because the console of a run
+  is **in memory in the window that ran it** — a run that lands in the wrong
+  window is one you cannot watch. The footer says which.
+- **Discovery does not need a live window; only `run_script` does.** The catalog
+  a window pushed is kept for as long as the session is (`sessionIdle`, 30
+  minutes past the last window), so `list_services` and `describe_method` answer
+  across a reload. With no window `run_script` fails **immediately** with the
+  sentence that says what to do, and a window that goes away mid-run fails its
+  run on the stream's own closed channel rather than leaving the agent to wait
+  out the two minutes.
+- **The server owns the disk, so it reads a saved script itself** and hands the
+  window source; the path travels with it because that is what the run lands
+  under in the console. Nothing an agent asks may write one — `CanWriteScripts`
+  is false here, on the rule the web UI already follows.
+- **Everything is plain HTTP outside the Api service** (`ServeInfo`,
+  `ServeAttach`, `ServeFocus`, `ServeCatalog`, `ServeResult`, `ServeMCP`), the way
+  `/configuration-changes` and `/target` already are: the Api service is about the
+  workspace, and this is about a door. No CORS header is set on any of them, so a
+  page on another origin cannot drive the endpoint.
 
 ## Directory Structure
 
@@ -1680,6 +1734,8 @@ Both share the same backend code but differ in how they're packaged:
 - `cmd/server/` - Main server application
 - `cmd/build-ui/` - Tool to bundle React UI with esbuild
 - `pkg/api/` - Generated proto code (Go)
+- `pkg/mcp/` - Kaja's own MCP server, bridged to a window by whichever build is running it
+- `pkg/agent/` - The agent sessions a deployed kaja's windows attach under
 - `proto/api.proto` - API service definition (source of truth)
 - `static/` - Static files (index.html, favicon)
 

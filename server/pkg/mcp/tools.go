@@ -35,9 +35,29 @@ const commentsNote = "Keep comments sparse: the calls and the declarations alrea
 	"a magic value the API insists on, a workaround, an ordering that matters. No header block over the file, no banner over a section, " +
 	"and no line above a call restating which call it is."
 
-// toolDefinitions is the static tools/list payload. Schemas are hand-written
-// JSON Schema; keep them in sync with handleToolCall below.
-func toolDefinitions() []map[string]interface{} {
+// writeTools are the tools that put a file on disk. They are listed only where
+// there is a disk to put one on (Bridge.CanWriteScripts).
+var writeTools = map[string]bool{"write_script": true, "create_script": true, "rename_script": true, "delete_script": true}
+
+// toolDefinitions is the tools/list payload. Schemas are hand-written JSON
+// Schema; keep them in sync with handleToolCall below. canWrite drops the tools
+// that write a file, which is the whole of what a read-only workspace changes.
+func toolDefinitions(canWrite bool) []map[string]interface{} {
+	all := allToolDefinitions()
+	if canWrite {
+		return all
+	}
+	kept := make([]map[string]interface{}, 0, len(all))
+	for _, tool := range all {
+		if name, _ := tool["name"].(string); writeTools[name] {
+			continue
+		}
+		kept = append(kept, tool)
+	}
+	return kept
+}
+
+func allToolDefinitions() []map[string]interface{} {
 	str := func(desc string) map[string]interface{} {
 		return map[string]interface{}{"type": "string", "description": desc}
 	}
@@ -160,6 +180,10 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage) (in
 				args[k] = sv
 			}
 		}
+	}
+
+	if writeTools[p.Name] && !s.bridge.CanWriteScripts() {
+		return errorToolResult(fmt.Errorf("this Kaja serves a workspace it does not own, so %s is not available. Scripts here can be read and run, not written", p.Name)), nil
 	}
 
 	switch p.Name {

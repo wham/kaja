@@ -13,13 +13,14 @@ import (
 )
 
 type fakeBridge struct {
-	scripts  map[string]string // path -> content
-	catalog  Catalog
+	scripts    map[string]string // path -> content
+	catalog    Catalog
 	lastRun    string
 	lastClient string
 	runErr     error
 	runValue   RunResult
 	activity   []int // in-flight counts, in the order they were reported
+	readOnly   bool  // a workspace this kaja does not own, so nothing may write it
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -146,7 +147,8 @@ func (f *fakeBridge) RunScript(_ context.Context, path, code, client string) (Ru
 	f.lastClient = client
 	return f.runValue, f.runErr
 }
-func (f *fakeBridge) Catalog() Catalog { return f.catalog }
+func (f *fakeBridge) Catalog() Catalog      { return f.catalog }
+func (f *fakeBridge) CanWriteScripts() bool { return !f.readOnly }
 func (f *fakeBridge) Activity(inFlight int) {
 	f.activity = append(f.activity, inFlight)
 }

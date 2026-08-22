@@ -45,6 +45,7 @@ import {
 import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
+import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
 import { RunButton } from "./RunButton";
@@ -325,6 +326,29 @@ export function App() {
   // Whether an agent is using the server right now, which the footer's plug
   // shows. It outlives the request that set it (see MCP_ACTIVITY_LINGER_MS).
   const [mcpActive, setMcpActive] = useState(false);
+  // On the web the same footer reads the session this browser holds instead: the
+  // MCP server is here too, but the window has to offer itself before there is
+  // anything to connect to.
+  const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
+  const mcpConnection = useMemo(() => {
+    if (isWailsEnvironment()) return mcpInfo;
+    if (!agentState.connected || !agentState.url || !agentState.token) return undefined;
+    return { enabled: true, url: agentState.url, token: agentState.token, error: "" };
+  }, [mcpInfo, agentState.connected, agentState.url, agentState.token]);
+  const agentFooter = useMemo(
+    () =>
+      isWailsEnvironment() || !agentState.available
+        ? undefined
+        : {
+            connected: agentState.connected,
+            attached: agentState.attached,
+            onDuty: agentState.onDuty,
+            error: agentState.error,
+            connect: () => agentSession.connect(),
+            disconnect: () => agentSession.disconnect(),
+          },
+    [agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error],
+  );
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -1670,9 +1694,16 @@ export function App() {
   // the editor's declaration takes them: they are part of what a script is
   // written against.
   useEffect(() => {
-    if (!isWailsEnvironment()) return;
     const variableNames = Object.keys(configuration?.variables ?? {});
-    MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames))).catch(() => {});
+    const catalog = JSON.stringify(buildMcpCatalog(apps, variableNames));
+    if (isWailsEnvironment()) {
+      MCPSetCatalog(catalog).catch(() => {});
+    } else {
+      // The server keeps the last catalog a window pushed for as long as the
+      // session lives, which is what lets discovery answer across a reload —
+      // only run_script actually needs a window that is open right now.
+      agentSession.setCatalog(catalog);
+    }
   }, [apps, configuration?.variables]);
 
   // An agent's calls come in bursts of a few milliseconds each, so the footer's
@@ -1695,56 +1726,83 @@ export function App() {
   }, []);
 
   // Run a script on behalf of the MCP server's run_script tool and report the
-  // console output, what it drew, and the RPCs it made back to the Go side.
+  // console output, what it drew, and the RPCs it made. It is one function for
+  // both builds: the desktop process hands it a run over a Wails event, a
+  // deployed one over the session's stream, and a run is the same event either
+  // way — its own console, its own row in the sidebar, the agent's own name.
+  const runForAgent = useCallback(async ({ path, code, client }: { path: string; code: string; client?: string }): Promise<McpRunReport> => {
+    let source = code;
+    // The desktop asks the window to read the file, because the window is in the
+    // process that holds the disk. A server reads it itself and sends the source
+    // down with the path, so there is nothing left to read here.
+    if (path && !source) {
+      try {
+        // The path is the script's identity, so the listing is what says which
+        // folder it is filed in — the read takes a name within the folder.
+        const known = (scriptsRef.current ?? []).find((script) => script.path === path);
+        const file = known && (await readScriptFile(known));
+        source = file ? file.content : "";
+        if (!file) throw new Error(`No script at ${path}`);
+      } catch (err) {
+        return { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] };
+      }
+    }
+
+    // A saved script runs in its own console under its own name. A snippet has
+    // no file, so it is given one: exploration in Kaja is a draft, and an
+    // agent exploring is not a different kind of event from a person doing it.
+    const draft = path ? undefined : agentDraftRef.current(source, client || "Agent");
+    const fileId = path || draft?.id;
+    // This run's own receipt. Two agents calling run_script at once each get
+    // what their own script did, because the collector reaches the run through
+    // its closures rather than through a slot the later one would take.
+    const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
+    const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
+    let result: McpRunReport;
+    const { run, kaja } = beginRunRef.current(path ? path.split("/").pop()! : (draft?.title ?? "Agent script"), fileId, undefined, {
+      origin: "agent",
+      collect,
+    });
+    try {
+      const captured = await runScriptCaptured(source, kaja, appsRef.current);
+      // An agent's table has nobody to page it, so its receipt is the first
+      // page — which is exactly what it says it is.
+      await kaja.settleTables();
+      result = { ...captured, ...report() };
+    } catch (err) {
+      result = { console: [], error: err instanceof Error ? err.message : String(err), ...report() };
+    } finally {
+      markSettledRef.current(run.id);
+    }
+    return result;
+  }, []);
+  const runForAgentRef = useRef(runForAgent);
+  runForAgentRef.current = runForAgent;
+
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string; client?: string }) => {
-      const reportResult = (result: McpRunReport) => MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
-
-      let source = payload.code;
-      if (payload.path) {
-        try {
-          // The path is the script's identity, so the listing is what says which
-          // folder it is filed in — the read takes a name within the folder.
-          const known = (scriptsRef.current ?? []).find((script) => script.path === payload.path);
-          const file = known && (await readScriptFile(known));
-          source = file ? file.content : "";
-          if (!file) throw new Error(`No script at ${payload.path}`);
-        } catch (err) {
-          reportResult({ console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] });
-          return;
-        }
-      }
-
-      // A saved script runs in its own console under its own name. A snippet has
-      // no file, so it is given one: exploration in Kaja is a draft, and an
-      // agent exploring is not a different kind of event from a person doing it.
-      const draft = payload.path ? undefined : agentDraftRef.current(source, payload.client || "Agent");
-      const fileId = payload.path || draft?.id;
-      // This run's own receipt. Two agents calling run_script at once each get
-      // what their own script did, because the collector reaches the run through
-      // its closures rather than through a slot the later one would take.
-      const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
-      const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
-      let result: McpRunReport;
-      const { run, kaja } = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (draft?.title ?? "Agent script"), fileId, undefined, {
-        origin: "agent",
-        collect,
-      });
-      try {
-        const captured = await runScriptCaptured(source, kaja, appsRef.current);
-        // An agent's table has nobody to page it, so its receipt is the first
-        // page — which is exactly what it says it is.
-        await kaja.settleTables();
-        result = { ...captured, ...report() };
-      } catch (err) {
-        result = { console: [], error: err instanceof Error ? err.message : String(err), ...report() };
-      } finally {
-        markSettledRef.current(run.id);
-      }
-      reportResult(result);
+      const result = await runForAgentRef.current(payload);
+      MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
     });
     return () => unsub();
+  }, []);
+
+  // The web's half of the same thing. There is no window to reach on a server,
+  // so this one offers itself: a token this browser made up, a stream held open
+  // under it, and the runs that come down it. Nothing is offered until the
+  // footer's Connect is pressed, so a casual visitor holds no session at all.
+  useEffect(() => {
+    if (isWailsEnvironment()) return;
+    let timer: number | undefined;
+    agentSession.start(
+      (run) => runForAgentRef.current(run),
+      (active) => {
+        window.clearTimeout(timer);
+        setMcpActive(active);
+      },
+    );
+    return () => window.clearTimeout(timer);
   }, []);
 
   // Reflect a rename or a move that already happened on disk: update the sidebar
@@ -2911,8 +2969,9 @@ export function App() {
           buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
-          mcpInfo={mcpInfo}
+          mcpInfo={mcpConnection}
           mcpActive={mcpActive}
+          agent={agentFooter}
           apps={apps}
           configurationLoaded={configurationLoaded}
           onShowCompileLog={onShowCompileLog}

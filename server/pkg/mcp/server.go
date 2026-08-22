@@ -1,9 +1,15 @@
-// Package mcp implements a localhost Model Context Protocol server that lets an
-// agent read, write, and run the user's saved Kaja scripts and discover the
-// services they can call. It speaks JSON-RPC 2.0 over HTTP (the MCP "Streamable
-// HTTP" transport, single-response flavour — no SSE) and is bridged to the
-// desktop app through the Bridge interface so this package stays free of any
-// Wails dependency and is unit-testable on its own.
+// Package mcp implements the Model Context Protocol server that lets an agent
+// read, write, and run the user's Kaja scripts and discover the services they
+// can call. It speaks JSON-RPC 2.0 over HTTP (the MCP "Streamable HTTP"
+// transport) and reaches the app it serves only through the Bridge interface, so
+// it is the same server in both builds: the desktop process bridges it to its
+// own webview, and the web server bridges it to a browser that attached itself
+// to an agent session. It has no Wails dependency and is unit-testable on its
+// own.
+//
+// This is kaja's own MCP server — the door an agent drives kaja through. The MCP
+// *app* (pkg/apps/mcp) points the other way, at somebody else's server. The two
+// share the protocol's name and nothing else.
 package mcp
 
 import (
@@ -14,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // protocolVersion is the MCP revision this server implements. When a client
@@ -99,6 +106,11 @@ type Bridge interface {
 	// Catalog returns the most recent services/methods picture, possibly empty
 	// if nothing has compiled yet.
 	Catalog() Catalog
+	// CanWriteScripts is whether this kaja owns the disk it serves. The desktop
+	// app does; a server serving a workspace it does not own does not, and the
+	// tools that write a file are absent from tools/list rather than offered and
+	// then refused — the same rule that takes the sidebar's + away.
+	CanWriteScripts() bool
 	// Activity reports that a request started or finished, with the number still
 	// in flight, so the host can show that an agent is using the server. It is
 	// called for every request but ping, which is a keepalive rather than use.
@@ -109,10 +121,20 @@ type Bridge interface {
 // own. The row it labels has to say something, and "Agent" is at least true.
 const defaultClientName = "Agent"
 
-// Server is the localhost MCP HTTP handler.
+// streamKeepalive is how often a streamed answer says it is still coming. A
+// run_script that takes a minute is a request that has carried no bytes for a
+// minute, which is what an idle timeout is measured on, and the timeout belongs
+// to whatever proxy is in front of this server rather than to this server. Fly,
+// which is what kaja is deployed on, passes a 75s one today — but 60s is the
+// common default elsewhere (nginx's proxy_read_timeout among them), and a run
+// cut off at the proxy is indistinguishable from one that failed.
+const streamKeepalive = 15 * time.Second
+
+// Server is the MCP HTTP handler.
 type Server struct {
-	bridge Bridge
-	token  string
+	bridge   Bridge
+	token    string
+	streamed bool
 
 	mu       sync.Mutex
 	inFlight int
@@ -125,6 +147,15 @@ type Server struct {
 // it must be non-empty.
 func NewServer(bridge Bridge, token string) *Server {
 	return &Server{bridge: bridge, token: token}
+}
+
+// Streamed answers over SSE whenever the client says it accepts one, so a slow
+// answer can say it is still coming. On the desktop nothing sits between the
+// agent and the server and a single JSON response is the simpler thing; a server
+// reached over the internet is behind at least one proxy with an idle timeout.
+func (s *Server) Streamed() *Server {
+	s.streamed = true
+	return s
 }
 
 // --- JSON-RPC envelope ---------------------------------------------------
@@ -190,6 +221,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.streamed && acceptsEventStream(r) {
+		s.respondStreamed(w, r, req)
+		return
+	}
+
 	result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
 	resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
 	if rerr != nil {
@@ -198,6 +234,75 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Result = result
 	}
 	writeRPC(w, resp)
+}
+
+func acceptsEventStream(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("Accept"), "text/event-stream")
+}
+
+// respondStreamed answers over SSE, which the Streamable HTTP transport allows
+// for any request. Nothing about the answer changes — it is the same JSON-RPC
+// response, in one event. What it buys is the comment line sent while the answer
+// is still being produced, which is what keeps a long run from looking like an
+// idle connection to whatever sits in front of this server.
+func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// Nothing can be flushed, so a stream would be buffered into a single
+		// write anyway. Answer as JSON rather than pretend.
+		result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
+		resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
+		if rerr != nil {
+			resp.Error = rerr
+		} else {
+			resp.Result = result
+		}
+		writeRPC(w, resp)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	type answer struct {
+		result interface{}
+		err    *rpcError
+	}
+	done := make(chan answer, 1)
+	go func() {
+		result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
+		done <- answer{result: result, err: rerr}
+	}()
+
+	ticker := time.NewTicker(streamKeepalive)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			fmt.Fprint(w, ": keepalive\n\n")
+			flusher.Flush()
+		case a := <-done:
+			resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
+			if a.err != nil {
+				resp.Error = a.err
+			} else {
+				resp.Result = a.result
+			}
+			// json.Marshal never emits a raw newline, so the response is always
+			// the single data line SSE needs it to be.
+			body, err := json.Marshal(resp)
+			if err != nil {
+				return
+			}
+			fmt.Fprintf(w, "event: message\ndata: %s\n\n", body)
+			flusher.Flush()
+			return
+		}
+	}
 }
 
 func (s *Server) activity(delta int) {
@@ -224,7 +329,7 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	case "ping":
 		return map[string]interface{}{}, nil
 	case "tools/list":
-		return map[string]interface{}{"tools": toolDefinitions()}, nil
+		return map[string]interface{}{"tools": toolDefinitions(s.bridge.CanWriteScripts())}, nil
 	case "tools/call":
 		return s.handleToolCall(ctx, params)
 	case "resources/list":
