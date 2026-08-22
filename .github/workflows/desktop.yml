@@ -26,6 +26,17 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
+      # The runner an exported app is made of, embedded into the app. It is built
+      # for this platform, which is what makes an exported app run where Kaja
+      # runs; it carries the player as an embedded bundle, so the UI is built
+      # into server/build first.
+      - name: Build the export runner
+        run: |
+          cd ui && bun install --silent && cd ..
+          cd server
+          go run cmd/build-ui/main.go
+          go build -o ../desktop/build/runner/kaja-run ./cmd/kaja-run
+
       - name: Build desktop app
         run: |
           source ../scripts/common

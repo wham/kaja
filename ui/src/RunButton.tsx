@@ -26,6 +26,9 @@ interface RunButtonProps {
   onCopyDeeplink?: () => void;
   // The file itself, on the disk this process owns.
   onRevealInFinder?: () => void;
+  // The script as something that runs without Kaja: one file, for the platform
+  // this Kaja was built for. Desktop-only.
+  onExportApp?: () => void;
   // What a draft has instead of an address: the sheet that gives it one, and the
   // discard that closes the buffer. Absent on a file.
   onNameDraft?: () => void;
@@ -54,6 +57,7 @@ export function RunButton({
   onRunWithParameters,
   onCopyDeeplink,
   onRevealInFinder,
+  onExportApp,
   onNameDraft,
   onDiscardDraft,
   onDuplicateAsDraft,
@@ -61,7 +65,7 @@ export function RunButton({
   const elapsedMs = useElapsed(running, startedAt);
   const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator above it.
-  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
+  const aboutTheScript = [onCopyDeeplink, onExportApp, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to choose
   // between.
   const split = !running && (aboutTheScript || onRunWithParameters !== undefined);
@@ -123,6 +127,12 @@ export function RunButton({
                 <DropdownMenuItem onSelect={() => onCopyDeeplink()}>
                   <span className="flex-1">Copy deeplink…</span>
                   <Shortcut label={copyDeeplinkShortcutLabel} />
+                </DropdownMenuItem>
+              )}
+              {/* A deeplink needs this Kaja to answer it; this needs no Kaja at all. */}
+              {onExportApp && (
+                <DropdownMenuItem onSelect={() => onExportApp()}>
+                  <span className="flex-1">Export as app…</span>
                 </DropdownMenuItem>
               )}
               {onRevealInFinder && (

@@ -18,7 +18,7 @@ import (
 
 func main() {
 	configurationPath := flag.String("workspace", "../workspace/kaja.json", "the kaja.json the script belongs to")
-	script := flag.String("script", "", "the script to export, by name in the workspace's scripts folder or by path")
+	script := flag.String("script", "", "the script to export, by its name in the workspace's scripts folder")
 	out := flag.String("out", "", "where to write the bundle (default <script>.kaja)")
 	runner := flag.String("runner", "", "a kaja-run binary to append the bundle to, producing one self-contained file")
 	verbose := flag.Bool("verbose", false, "print what each app did while it was being frozen")
