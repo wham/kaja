@@ -1,10 +1,9 @@
 import { Blocks, Globe, FolderOpen, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
 import { ConfigurationApp } from "./server/api";
 
-// Parameter kinds an app exposes in the New form. "file" and "folder" render a
-// native picker on the desktop (and a plain text field everywhere else);
-// "boolean" renders a checkbox; "upload" reads a chosen file's text content into
-// the parameter value (works on both web and desktop).
+// Parameter kinds an app exposes in the New form. "file" and "folder" render a native
+// picker on the desktop and a plain text field elsewhere; "upload" reads a chosen
+// file's text content into the parameter value, on both.
 export type AppParameterType = "text" | "url" | "file" | "folder" | "boolean" | "upload";
 
 export interface AppParameterDefinition {
@@ -17,9 +16,8 @@ export interface AppParameterDefinition {
   optional?: boolean;
 }
 
-// AppSurface is how much an app turned out to expose, which a custom form reads
-// off the server or the document it just read. It is what the footer counts in
-// the receipt for what the button will add.
+// AppSurface is how much an app turned out to expose, which a custom form reads off
+// the server or the document it just read. It is what the footer counts.
 export interface AppSurface {
   count: number;
 }
@@ -30,34 +28,30 @@ export interface AppTypeDefinition {
   description: string;
   icon: LucideIcon;
   parameters: AppParameterDefinition[];
-  // Groups of parameter keys where at least one must be provided (e.g. an OpenAPI
-  // spec supplied as a URL or as an uploaded file). Each group is checked
-  // independently.
+  // Groups of parameter keys where at least one must be provided (e.g. an OpenAPI spec
+  // as a URL or as an uploaded file). Each group is checked independently.
   requireOneOf?: string[][];
-  // Experimental built-ins are gated behind the Apps feature preview. gRPC,
-  // Twirp and OpenAPI are always available.
+  // Experimental built-ins are gated behind the Apps feature preview.
   preview?: boolean;
-  // Types whose form is written by hand rather than rendered from `parameters`.
-  // The parameter list is still the contract with the config: it says which
-  // fields the type has, and the custom form supplies its own labels.
+  // Types whose form is written by hand rather than rendered from `parameters`. The
+  // parameter list is still the contract with the config: it says which fields the type
+  // has, and the custom form supplies its own labels.
   customForm?: boolean;
-  // What one item of the app's surface is called in the footer's receipt: an
-  // OpenAPI app adds operations, a gRPC app adds methods.
+  // What one item of the app's surface is called in the footer's receipt.
   surfaceNoun?: string;
   // Optional one-click demo that prefills the form.
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
-// The app types, in the order shown in the New grid. Keep in sync with the app
-// types registered on the server (server/pkg/api/api.go).
+// In the order shown in the New grid. Keep in sync with the app types registered on
+// the server (server/pkg/api/api.go).
 export const appTypes: AppTypeDefinition[] = [
   {
     type: "grpc",
     label: "gRPC",
     description: "Call a gRPC service from its proto files or via server reflection.",
     icon: Server,
-    // GrpcForm renders these: it reaches the server first and then offers what
-    // answered, instead of asking for it field by field.
+    // GrpcForm renders these: it reaches the server first and then offers what answered.
     customForm: true,
     surfaceNoun: "method",
     requireOneOf: [["protoDir", "reflection"]],
@@ -109,8 +103,7 @@ export const appTypes: AppTypeDefinition[] = [
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
     icon: Globe,
-    // OpenApiForm renders these: it reads the document first and then offers what
-    // the document declares, instead of asking for it field by field.
+    // OpenApiForm renders these: it reads the document first and then offers what it declares.
     customForm: true,
     surfaceNoun: "operation",
     requireOneOf: [["specUrl", "specContent"]],
@@ -137,8 +130,7 @@ export const appTypes: AppTypeDefinition[] = [
     label: "MCP",
     description: "Explore another Model Context Protocol server: its tools, resources and prompts.",
     icon: Blocks,
-    // McpForm renders these: it reads the server first and then shows what it
-    // exposes, instead of asking for it field by field.
+    // McpForm renders these: it reads the server first and then shows what it exposes.
     customForm: true,
     surfaceNoun: "method",
     parameters: [
@@ -218,9 +210,8 @@ function appVariant(app: ConfigurationApp): Record<string, unknown> | undefined 
   return (app.app as Record<string, unknown>)[kind] as Record<string, unknown> | undefined;
 }
 
-// appParameters reads the fields the app's type declares into the string map the
-// form works with. Booleans become "true"/"". Keys are the (camelCase) field names
-// declared in appTypes.
+// appParameters reads the fields the app's type declares into the string map the form
+// works with. Booleans become "true"/"". Keys are the camelCase field names.
 export function appParameters(app: ConfigurationApp): Record<string, string> {
   const variant = appVariant(app);
   const params: Record<string, string> = {};
@@ -231,35 +222,32 @@ export function appParameters(app: ConfigurationApp): Record<string, string> {
   return params;
 }
 
-// appHeaders reads the headers an app forwards to its upstream. They live inside
-// the typed block (every type but the local Folder app has them).
+// appHeaders reads the headers an app forwards upstream. They live inside the typed
+// block (every type but the local Folder app has them).
 export function appHeaders(app: ConfigurationApp): Record<string, string> {
   return (appVariant(app)?.headers as Record<string, string>) ?? {};
 }
 
-// APP_HEADER names the app a call belongs to. Both transports send it alongside
-// the app's own headers and neither the server nor the desktop lets it reach the
-// wire: it is what the credential and the transport security kaja holds for the
-// app are looked up by, so a "${secret}" token is applied where it lives rather
-// than handed to the browser to send.
+// APP_HEADER names the app a call belongs to. Both transports send it alongside the
+// app's own headers and neither lets it reach the wire: it is what the credential and
+// transport security kaja holds for the app are looked up by, so a "${secret}" token
+// is applied where it lives rather than handed to the browser to send.
 export const APP_HEADER = "X-Kaja-App";
 
-// transportHeaders is what a call actually sends: the app's configured headers,
-// plus the reserved header naming it. `appHeaders` stays what the Headers view
-// shows, which is the configuration and nothing kaja added to route the call.
+// transportHeaders is what a call actually sends. `appHeaders` stays what the Headers
+// view shows, which is the configuration and nothing kaja added to route the call.
 export function transportHeaders(app: ConfigurationApp): Record<string, string> {
   return { ...appHeaders(app), [APP_HEADER]: app.name };
 }
 
-// typeForwardsHeaders reports whether an app type sends request headers upstream;
-// only the local Folder app does not.
+// Only the local Folder app does not.
 export function typeForwardsHeaders(type: string): boolean {
   return type !== "folder";
 }
 
-// buildApp constructs a ConfigurationApp from the generic form state: it sets the
-// typed block for `type` with the declared params (coercing booleans) and, for
-// types that forward them, the headers.
+// buildApp constructs a ConfigurationApp from the generic form state: the typed block
+// for `type` with the declared params (coercing booleans) and, for types that forward
+// them, the headers.
 export function buildApp(name: string, type: string, params: Record<string, string>, headers: Record<string, string>): ConfigurationApp {
   const variant: Record<string, unknown> = {};
   for (const parameter of getAppType(type)?.parameters ?? []) {

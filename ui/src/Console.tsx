@@ -163,6 +163,7 @@ export function Console({
     // restored.
     const next = followSelection(selection, groups, isNewRun, tailingRef.current);
     if (next?.runId !== selection?.runId || next?.itemId !== selection?.itemId) onSelect(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId, file.version, tailing]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
@@ -171,6 +172,7 @@ export function Console({
   // that may be thousands long, and both sides only ever grow at the end.
   const rows = useMemo(
     () => (selectedGroup ? callRows(selectedGroup, logFloor) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedGroup, selectedGroup?.calls.length, selectedGroup?.printed.length, logFloor],
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
@@ -249,6 +251,7 @@ export function Console({
       enterFullScreen();
     }
     onPresented?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentRunId, file.version]);
 
   useEffect(() => {

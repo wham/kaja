@@ -23,9 +23,8 @@ import { isWailsEnvironment } from "./wails";
 
 type EditMode = "form" | "json";
 
-// Suggest ${NAME} variable references while editing the app JSON (the only
-// place headers are edited). Values are read from the registry at completion
-// time so the list is always current.
+// Suggest ${NAME} variable references while editing the app JSON. Values are read
+// from the registry at completion time so the list is always current.
 monaco.languages.registerCompletionItemProvider("json", {
   triggerCharacters: ["$", "{"],
   provideCompletionItems: (model, position) => {
@@ -55,8 +54,7 @@ monaco.languages.registerCompletionItemProvider("json", {
   },
 });
 
-// A header the app sends with every request. Kept as a list rather than a map so
-// a name stays where it is while it is being typed.
+// Kept as a list rather than a map so a name stays where it is while it is typed.
 interface HeaderEntry {
   name: string;
   value: string;
@@ -66,16 +64,13 @@ interface AppFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationApp;
   allApps: ConfigurationApp[];
-  // Configured variables, usable in parameter values as ${NAME} and offered as
-  // suggestions when "${" is typed.
+  // Usable in parameter values as ${NAME}, and offered when "${" is typed.
   variables: { [key: string]: string };
   readOnly?: boolean;
-  // Which view the tab is showing. The control that switches it lives in the tab
-  // strip, so the tab owns the choice.
+  // The control that switches it lives in the command row, so the view owns the choice.
   editMode: EditMode;
   onSubmit: (app: ConfigurationApp, originalName?: string) => void;
   onCancel: () => void;
-  // The user has started working here, so the tab should stop being a preview.
   // Whether the JSON parses, which decides if the view can be switched back.
   onJsonValidChange: (valid: boolean) => void;
 }
@@ -85,10 +80,8 @@ function createEmptyApp(): ConfigurationApp {
 }
 
 // appToJson renders an app as the on-disk shape: { name, <type>: { ...params, headers } }.
-// A parameter the app doesn't set is left out rather than written as an empty
-// string, because that is what protojson does with it on the way to kaja.json -
-// and a type with a dozen optional parameters would otherwise open as a screen of
-// empty ones.
+// A parameter the app doesn't set is left out rather than written as an empty string,
+// because that is what protojson does with it on the way to kaja.json.
 function appToJson(app: ConfigurationApp): object {
   const kind = app.app.oneofKind;
   const variant = (kind ? (app.app as Record<string, unknown>)[kind] : undefined) ?? {};
@@ -113,10 +106,8 @@ function jsonToApp(json: any): ConfigurationApp {
   };
 }
 
-// missingRequiredParameter returns the label of the first required parameter the
-// app's type defines but the form leaves empty, or undefined if all are set. It
-// also enforces requireOneOf groups, where at least one of a set of parameters
-// must be provided.
+// missingRequiredParameter returns the label of the first required parameter left
+// empty, or undefined if all are set. It also enforces requireOneOf groups.
 function missingRequiredParameter(type: string, parameters: Record<string, string>): string | undefined {
   const definition = getAppType(type);
   if (!definition) return undefined;
@@ -146,9 +137,8 @@ interface AdvancedSectionProps {
   readOnly: boolean;
 }
 
-// AdvancedSection holds what the app's own configuration can't derive: the
-// headers it sends with every request. Collapsed by default, with a count when
-// there is something inside.
+// AdvancedSection holds what the app's own configuration can't derive: the headers it
+// sends with every request.
 function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variables, readOnly }: AdvancedSectionProps) {
   const configured = headers.filter((header) => header.name.trim()).length;
 
@@ -218,12 +208,11 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   const [parameters, setParameters] = useState<Record<string, string>>({});
   const [headers, setHeaders] = useState<HeaderEntry[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  // Names of files chosen for "upload" parameters, shown next to the picker. The
-  // parameter value itself holds the file's text content.
+  // The parameter value itself holds the file's text content.
   const [uploadNames, setUploadNames] = useState<Record<string, string>>({});
   const [jsonError, setJsonError] = useState<string | null>(null);
-  // What a custom form last read, for the receipt in the footer, and whether it
-  // holds enough to create the app.
+  // What a custom form last read, for the receipt in the footer, and whether it holds
+  // enough to create the app.
   const [surface, setSurface] = useState<AppSurface | undefined>(undefined);
   const [customReady, setCustomReady] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -265,22 +254,20 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     reader.readAsText(file);
   }, []);
 
-  // In create mode initialData carries just the type picked in the New dialog;
-  // in edit mode it is the full app. Either way the form reflects it. This runs
-  // during render rather than in an effect so the fields are already the new
-  // app's when a keyed custom form below mounts - otherwise it would mount
-  // against the previous app's parameters and read the wrong document first.
+  // In create mode initialData carries just the type picked in the New dialog; in edit
+  // mode it is the full app. This runs during render rather than in an effect so the
+  // fields are already the new app's when a keyed custom form below mounts — otherwise
+  // it would mount against the previous app's parameters and read the wrong document.
   const [loaded, setLoaded] = useState<{ mode: string; app?: ConfigurationApp } | null>(null);
   if (loaded?.mode !== mode || loaded?.app !== initialData) {
     setLoaded({ mode, app: initialData });
     updateFormFromApp(initialData ?? createEmptyApp());
   }
 
-  // Track which app is currently loaded in the JSON editor
   const loadedAppNameRef = useRef<string | null>(null);
 
-  // The JSON editor opens on what the form currently holds, so switching between
-  // the two views doesn't drop what was filled in on either side.
+  // The JSON editor opens on what the form currently holds, so switching between the
+  // two views doesn't drop what was filled in on either side.
   const getJsonAppData = getCurrentApp;
 
   useEffect(() => {
@@ -312,8 +299,8 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           readOnly,
         });
 
-        // The editor opens on what the form holds, so it parses; say so, in case
-        // another tab left the shared flag reporting otherwise.
+        // The editor opens on what the form holds, so it parses; say so, in case another view
+        // left the shared flag reporting otherwise.
         onJsonValidChange(true);
 
         monacoModelRef.current.onDidChangeContent(() => {
@@ -359,8 +346,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   }, [editMode, mode, initialData, getJsonAppData, readOnly, onJsonValidChange]);
 
   // Leaving the JSON view carries what was typed there back into the fields. The
-  // control is disabled while the JSON is invalid, so this only has to handle
-  // JSON that parses.
+  // control is disabled while the JSON is invalid, so only JSON that parses gets here.
   const leavingJsonRef = useRef(false);
   if (editMode === "form" && leavingJsonRef.current) {
     leavingJsonRef.current = false;
@@ -446,9 +432,9 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
               {customForm ? (
-                // Keyed by the app being edited: switching apps in the sidebar
-                // starts the form over rather than reading the next server
-                // behind the previous one's transport and credentials.
+                // Keyed by the app being edited: switching apps in the sidebar starts the form over
+                // rather than reading the next server behind the previous one's transport and
+                // credentials.
                 type === "grpc" ? (
                   <GrpcForm
                     key={initialData?.name || "__new__"}
