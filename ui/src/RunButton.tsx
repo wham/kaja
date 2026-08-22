@@ -15,50 +15,36 @@ interface RunButtonProps {
   onRun: () => void;
   onStop: () => void;
   running: boolean;
-  // Wall-clock start of the run in flight, used for the elapsed counter.
+  // Wall-clock start of the run in flight, for the elapsed counter.
   startedAt?: number;
-  // The first error stopping the run, if any. Run goes disabled and says so.
+  // The first error stopping the run. Run goes disabled and says so.
   error?: string;
-  // The second gesture: this file reads `kaja.input`, so there is something to
-  // ask for before it runs. Omitted rather than disabled on a script that reads
-  // nothing — a greyed item makes people hunt for the way to enable it.
+  // Omitted rather than disabled on a script that reads nothing — a greyed item makes
+  // people hunt for the way to enable it.
   onRunWithParameters?: () => void;
-  // A file's address outside Kaja. Absent on the web, which can't register a
-  // scheme.
+  // A file's address outside Kaja.
   onCopyDeeplink?: () => void;
   // The file itself, on the disk this process owns.
   onRevealInFinder?: () => void;
-  // What a draft has instead of an address: the sheet that gives it one, and
-  // the discard that closes the buffer. Absent on a file, which is already on
-  // disk and stays there as you type.
+  // What a draft has instead of an address: the sheet that gives it one, and the
+  // discard that closes the buffer. Absent on a file.
   onNameDraft?: () => void;
   onDiscardDraft?: () => void;
-  // A read-only file's only route to a copy you can change. Absent wherever a
-  // file can simply be copied to another file.
+  // A read-only file's only route to a copy you can change.
   onDuplicateAsDraft?: () => void;
 }
 
-// Run is the last control before the utility icons in the command row: the same
-// 26px as everything else on it, no shadow now that it sits on a bordered row
-// rather than over the code. Running keeps the button's shape and swaps its
-// label for Stop.
+// Run is the last control before the utility icons in the command row. Running keeps
+// the button's shape and swaps its label for Stop.
 //
-// Plain Run keeps its place and its ⌘⏎ — the one-click path is untouched. The
-// caret beside it is where the gestures that need a sheet first live, so
-// pressing Run never opens anything.
+// Plain Run keeps its place and its ⌘⏎; the caret beside it is where the gestures that
+// need a sheet first live, so pressing Run never opens anything. The caret is the
+// script's action menu rather than a parameters affordance, so it is on for every
+// script and the menu is what varies — keying it to `kaja.input` gave the pill two
+// widths, a control moving under the cursor for a reason nothing on screen explains.
 //
-// The caret is the script's action menu rather than a parameters affordance, so
-// it is on for every script and the menu is what varies. Keying it to
-// `kaja.input` instead is what made the pill two widths: it stepped 23px wider
-// the moment you moved from a script that declares a key to one that doesn't,
-// which is a control moving under the cursor for a reason nothing on screen
-// explains — and it also left `Copy deeplink…` in a menu that a file with no
-// parameters had no way to open.
-//
-// What fills the second group is what this script is once the run is over, and
-// every script has an answer to that: a file offers the address it has, a draft
-// offers the sheet that gives it one. That is why the group is never empty and
-// the caret never has to disappear.
+// The second group is what this script is once the run is over, and every script has
+// an answer: a file offers the address it has, a draft the sheet that gives it one.
 export function RunButton({
   onRun,
   onStop,
@@ -74,12 +60,10 @@ export function RunButton({
 }: RunButtonProps) {
   const elapsedMs = useElapsed(running, startedAt);
   const disabled = !running && error !== undefined;
-  // What the second group holds, which decides whether there is a separator
-  // above it.
+  // What the second group holds, which decides whether there is a separator above it.
   const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
-  // Mid-run the button is Stop, which is one thing to press and nothing to
-  // choose between. Otherwise the caret is on whenever the menu says more than
-  // the button already does — which, by the rule above, is always.
+  // Mid-run the button is Stop, which is one thing to press and nothing to choose
+  // between.
   const split = !running && (aboutTheScript || onRunWithParameters !== undefined);
 
   return (
@@ -102,8 +86,8 @@ export function RunButton({
         {running ? (
           <span className="font-mono text-xs tabular-nums text-muted-foreground">{(elapsedMs / 1000).toFixed(1)}s</span>
         ) : (
-          // The hint is the first thing to go as the command row narrows: the
-          // screens that narrow it that far have no keyboard to press.
+          // The hint is the first thing to go as the command row narrows: the screens that
+          // narrow it that far have no keyboard to press.
           !disabled && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runShortcutLabel}</span>
         )}
       </button>

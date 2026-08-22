@@ -4,15 +4,13 @@ import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { FileName } from "./FileName";
 
-// The trigger caps here; over it the app label goes first, then the name
-// truncates from the left so its tail — the part that identifies the call —
-// survives.
+// The trigger caps here; over it the app label goes first, then the name truncates
+// from the left so its tail — the part that identifies the call — survives.
 const TRIGGER_MAX_WIDTH = 260;
-// Icon, gaps, chevron and padding: what the trigger spends on everything that
-// isn't the two labels.
+// Icon, gaps, chevron and padding: what the trigger spends on everything that isn't
+// the two labels.
 const TRIGGER_CHROME = 66;
-// With an empty query the list is where you have been, plus a glance at the
-// rest — not the whole project.
+// With an empty query the list is where you have been, plus a glance at the rest.
 const RESTING_OTHERS = 8;
 const LIST_MAX_HEIGHT = 420;
 
@@ -21,39 +19,35 @@ export interface Destination {
   name: string;
   // Where it sits: "benchling / Folders", "Scripts", "Workspace".
   path: string;
-  // The qualifier the trigger carries beside the name, empty where the name is
-  // already the whole answer.
+  // Empty where the name is already the whole answer.
   origin: string;
   icon: LucideIcon;
-  // A browsing buffer — still exactly its generated code and never run. Dimmed
-  // here and in the sidebar, because the next call you pick takes it over.
+  // A browsing buffer — still exactly its generated code and never run. Dimmed here and
+  // in the sidebar, because the next call you pick takes it over.
   provisional?: boolean;
-  // The name is a filename, so its extension is dimmed — the same two-tone name
-  // the sidebar row draws, because it is the same object.
+  // The name is a filename, so its extension is dimmed — the same two-tone name the
+  // sidebar row draws, because it is the same object.
   file?: boolean;
   go: () => void;
 }
 
 interface FinderProps {
-  // Where you have been, most recent first; the first is where you are.
+  // Most recent first; the first is where you are.
   recent: Destination[];
-  // Everywhere else you can go.
   elsewhere: Destination[];
-  // Errors in the current file. The trigger says so, and Run beside it goes
-  // disabled on the same condition.
+  // The trigger says so, and Run beside it goes disabled on the same condition.
   errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // ⌘P opens on the previous place so ⌘P⏎ is "back"; a click on the trigger
-  // opens on the first row, since a click carries no "back" intent.
+  // ⌘P opens on the previous place so ⌘P⏎ is "back"; a click on the trigger opens on
+  // the first row, since a click carries no "back" intent.
   highlightPrevious: boolean;
 }
 
 /**
- * Where you are, and where you can go. There is no notion of open files — the
- * pane shows one thing, and this is how you reach another without walking the
- * tree. So it is a finder, not a tab list: nothing here can be closed, because
- * nothing was ever opened.
+ * Where you are, and where you can go. There is no notion of open files — the pane
+ * shows one thing, and this is how you reach another without walking the tree. So it
+ * is a finder, not a tab list: nothing here can be closed, because nothing was opened.
  */
 export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, highlightPrevious }: FinderProps) {
   const [query, setQuery] = useState("");
@@ -119,9 +113,8 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           aria-controls="finder"
           aria-label={current ? `${current.name} — go to another file` : "Go to a file"}
           className={cn(
-            // It gives up room before anything else in the row does — a label
-            // that truncates is read; a button that shrinks is one drawn over
-            // the button next to it.
+            // It gives up room before anything else in the row does — a label that truncates is
+            // read; a button that shrinks is one drawn over the button next to it.
             "relative flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
             open && "bg-accent",
             errorCount > 0 ? "border-destructive" : "border-border",
@@ -136,8 +129,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
         id="finder"
         align="start"
         sideOffset={2}
-        // It is a finder: movement makes fast repeated ⌘P feel unstable, so it
-        // only fades.
+        // Movement makes fast repeated ⌘P feel unstable, so it only fades.
         className="flex w-[380px] flex-col overflow-hidden rounded-lg p-0 shadow-lg transition-opacity duration-[120ms] data-[ending-style]:scale-100 data-[starting-style]:scale-100"
       >
         <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-border px-3">
@@ -230,8 +222,8 @@ function DestinationRow({
   );
 }
 
-// The trigger says where you are, in 26px: icon, name, and the one qualifier
-// that tells two identically named calls apart.
+// The trigger says where you are, in 26px: icon, name, and the one qualifier that
+// tells two identically named calls apart.
 function TriggerContent({ destination, errorCount }: { destination?: Destination; errorCount: number }) {
   const [dropLabel, setDropLabel] = useState(false);
   const probeRef = useRef<HTMLSpanElement>(null);
@@ -261,8 +253,7 @@ function TriggerContent({ destination, errorCount }: { destination?: Destination
       <Icon size={13} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
         className={cn("min-w-0 truncate text-sm font-medium", destination.provisional ? "text-muted-foreground" : "text-foreground")}
-        // Truncating from the left keeps the call name, which is the end of a
-        // qualified one.
+        // Truncating from the left keeps the call name, which is the end of a qualified one.
         style={{ direction: "rtl", textAlign: "left" }}
       >
         {destination.file ? <FileName name={destination.name} /> : destination.name}
