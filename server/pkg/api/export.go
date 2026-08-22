@@ -89,9 +89,12 @@ func (s *ApiService) ExportScript(req *ExportRequest) (*ExportResult, error) {
 		return nil, err
 	}
 
+	// Reduced to one path segment here, where the name is made, rather than
+	// trusted to be one everywhere it is later joined onto a directory.
+	exportName := oneSegment(name)
 	manifest := &bundle.Manifest{
-		Name:        strings.TrimSuffix(name, filepath.Ext(name)),
-		Title:       strings.TrimSuffix(name, filepath.Ext(name)),
+		Name:        exportName,
+		Title:       exportName,
 		KajaVersion: s.gitRef,
 		Source:      source,
 		// A script that holds a call back for approval is a script that writes.
@@ -133,9 +136,12 @@ func (s *ApiService) ExportScript(req *ExportRequest) (*ExportResult, error) {
 
 	manifest.Variables, result.Warnings = s.exportVariables(configuration, manifest, source, result.Warnings)
 
+	// The destination is the caller's — a save dialog's answer, or a flag on a
+	// command line — and only the default is composed here, out of a name that
+	// is now known to be a single segment.
 	out := req.Out
 	if out == "" {
-		out = manifest.Name + ".kaja"
+		out = exportName + ".kaja"
 	}
 	if err := writeBundle(out, manifest, script, stub, frozenDir); err != nil {
 		return nil, err
@@ -162,6 +168,21 @@ func (s *ApiService) exportSource(req *ExportRequest) (string, string, error) {
 		return "", "", err
 	}
 	return response.Script.Content, response.Script.Name, nil
+}
+
+// oneSegment is a file name reduced to a name: no directory, no extension, and
+// nothing that could climb out of wherever it is later joined. The script name
+// this is derived from arrives from outside — a request field, an argument —
+// and everything an export writes is named after it, so the invariant is
+// enforced at the one place it is established rather than argued about at each
+// of the four places it is used.
+func oneSegment(name string) string {
+	trimmed := filepath.Base(filepath.FromSlash(name))
+	trimmed = strings.TrimSuffix(trimmed, filepath.Ext(trimmed))
+	if trimmed == "" || trimmed == "." || trimmed == ".." || !filepath.IsLocal(trimmed) {
+		return "script"
+	}
+	return trimmed
 }
 
 // importedApps is the app of every import that isn't kaja's own module, in the
