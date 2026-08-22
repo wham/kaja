@@ -3,10 +3,6 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { codeFontSize } from "./monacoTheme";
 import { drawnText, printJson } from "./payloadText";
 
-// A private language rather than the built-in "json" one: that language is wired
-// to the JSON language service, which validates every JSON model against the app
-// configuration schema (see AppForm) and would flag responses as errors. Only
-// tokenization is needed here, and it runs on the main thread — no worker.
 const LANGUAGE_ID = "kaja-json";
 
 monaco.languages.register({ id: LANGUAGE_ID });
@@ -39,11 +35,8 @@ export interface JsonViewerHandle {
 export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  // The full text, held rather than stored, so drawing a truncated payload
-  // doesn't cost a render and copying still gets the whole thing.
   const jsonTextRef = useRef("");
 
-  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     foldAll: () => {
       editorRef.current?.trigger("fold", "editor.foldAll", null);
@@ -60,7 +53,6 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     },
   }));
 
-  // Create editor (must run before the value-setting effect so editorRef.current is set when it runs)
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -71,22 +63,18 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       language: LANGUAGE_ID,
       automaticLayout: true,
       fontSize: codeFontSize(),
-      // Read-only configuration
       readOnly: true,
       domReadOnly: true,
-      // Disable interactive features
       contextmenu: false,
       cursorStyle: "block",
       cursorBlinking: "solid",
       renderLineHighlight: "none",
       selectionHighlight: false,
       occurrencesHighlight: "off",
-      // Enable folding
       folding: true,
       foldingStrategy: "indentation",
       foldingHighlight: true,
       showFoldingControls: "always",
-      // Visual settings
       minimap: { enabled: false },
       stickyScroll: { enabled: false },
       scrollBeyondLastLine: false,
@@ -94,20 +82,17 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       glyphMargin: false,
       padding: { top: 12, bottom: 12 },
       tabSize: 2,
-      // Scrollbar
       scrollbar: {
         vertical: "auto",
         horizontal: "auto",
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
       },
-      // Disable hints and suggestions
       quickSuggestions: false,
       parameterHints: { enabled: false },
       suggestOnTriggerCharacters: false,
       acceptSuggestionOnEnter: "off",
       wordBasedSuggestions: "off",
-      // Links
       links: false,
     });
 

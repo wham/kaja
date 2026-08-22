@@ -16,18 +16,17 @@ import (
 )
 
 // connections caches one gRPC client connection per (target, TLS) pair. A
-// grpc.ClientConn is safe for concurrent use and manages its own (re)connection
-// and idle handling, so a single long-lived connection is reused across every
-// call to a target instead of dialing and tearing down per request.
+// grpc.ClientConn is safe for concurrent use and manages its own reconnection and idle
+// handling, so one long-lived connection is reused instead of dialing per request.
 var (
 	connectionsMu sync.Mutex
 	connections   = map[string]*grpc.ClientConn{}
 )
 
 // sharedConnection returns the cached connection for the given target, dialing
-// (lazily — grpc.NewClient does not block) and caching one on first use. Two
-// apps pointing at one host with different certificates are two connections, so
-// the options are part of the key.
+// (lazily — grpc.NewClient does not block) and caching one on first use. Two apps
+// pointing at one host with different certificates are two connections, so the options
+// are part of the key.
 func sharedConnection(target string, useTLS bool, options TLSOptions) (*grpc.ClientConn, error) {
 	key := target
 	if useTLS {
@@ -84,24 +83,21 @@ type Client struct {
 	options TLSOptions
 }
 
-// ShouldUseTLS determines if TLS should be used based on the target URL.
-// TLS is used when:
-// - The scheme is "https" or "grpcs"
-// - The port is 443 (common convention for TLS)
+// ShouldUseTLS reads the transport off the target URL: an "https" or "grpcs" scheme,
+// or port 443.
 func ShouldUseTLS(target *url.URL) bool {
 	scheme := strings.ToLower(target.Scheme)
 	if scheme == "https" || scheme == "grpcs" {
 		return true
 	}
 
-	// Check if port is 443 (either explicit or from URL parsing)
 	port := target.Port()
 	if port == "443" {
 		return true
 	}
 
-	// For dns: scheme, the host might contain the port
-	// e.g., dns:kaja.tools:443 parses as Opaque="kaja.tools:443"
+	// For the dns: scheme the host may carry the port, e.g. dns:kaja.tools:443 parses as
+	// Opaque="kaja.tools:443".
 	if target.Opaque != "" && strings.HasSuffix(target.Opaque, ":443") {
 		return true
 	}
@@ -109,23 +105,16 @@ func ShouldUseTLS(target *url.URL) bool {
 	return false
 }
 
-// ToGRPCTarget converts a URL to a gRPC target string.
-// Supported formats:
-// - dns:host:port -> dns:host:port (passthrough)
-// - grpc://host:port -> dns:host:port
-// - grpcs://host:port -> dns:host:port (TLS determined by ShouldUseTLS)
-// - http://host:port -> dns:host:port
-// - https://host:port -> dns:host:port
-// - host:port -> dns:host:port
+// ToGRPCTarget normalizes a URL to a gRPC target: a dns: target passes through, and
+// grpc/grpcs/http/https/bare host:port all become dns:host:port. Whether TLS is used
+// is ShouldUseTLS's answer, not this one's.
 func ToGRPCTarget(target *url.URL) string {
 	scheme := strings.ToLower(target.Scheme)
 
-	// dns: scheme is already in gRPC format
 	if scheme == "dns" {
 		return target.String()
 	}
 
-	// For grpc://, grpcs://, http://, https:// - convert to dns: format
 	if scheme == "grpc" || scheme == "grpcs" || scheme == "http" || scheme == "https" {
 		host := target.Host
 		if host == "" {
@@ -134,13 +123,13 @@ func ToGRPCTarget(target *url.URL) string {
 		return "dns:" + host
 	}
 
-	// Fallback: assume it's already a valid gRPC target
+	// Fallback: assume it is already a valid gRPC target.
 	return target.String()
 }
 
-// NewClient creates a new gRPC client for the given target URL. options carry
-// what the URL can't say about the connection; the zero value reads the
-// transport off the URL and verifies against the system roots.
+// NewClient creates a gRPC client for the given target URL. options carry what the
+// URL can't say about the connection; the zero value reads the transport off the URL
+// and verifies against the system roots.
 func NewClient(target *url.URL, options TLSOptions) *Client {
 	return &Client{
 		target:  ToGRPCTarget(target),
@@ -164,12 +153,9 @@ func (c *Client) UseTLS() bool {
 	return c.useTLS
 }
 
-// Invoke calls a gRPC method on the target server.
-// The method should be in the format "/package.Service/Method".
-// The request and response are raw protobuf bytes.
-// Headers are passed as gRPC metadata.
+// Invoke calls a gRPC method, named "/package.Service/Method". Request and response
+// are raw protobuf bytes; headers are passed as gRPC metadata.
 func (c *Client) Invoke(ctx context.Context, method string, request []byte, headers map[string]string) ([]byte, error) {
-	// Ensure method has leading slash for gRPC
 	if !strings.HasPrefix(method, "/") {
 		method = "/" + method
 	}
@@ -179,7 +165,6 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte, head
 		return nil, err
 	}
 
-	// Add headers as gRPC metadata to the context
 	if len(headers) > 0 {
 		md := metadata.New(headers)
 		ctx = metadata.NewOutgoingContext(ctx, md)
@@ -195,16 +180,14 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte, head
 }
 
 // InvokeWithTimeout calls a gRPC method with a default timeout.
-// Headers are passed as gRPC metadata.
 func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration, headers map[string]string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return c.Invoke(ctx, method, request, headers)
 }
 
-// ServerStream opens a server-streaming gRPC call.
-// It sends a single request and returns a channel that yields response messages.
-// The channel is closed when the stream ends. Errors are sent on the error channel.
+// ServerStream sends a single request and returns a channel that yields response
+// messages, closed when the stream ends. Errors are sent on the error channel.
 func (c *Client) ServerStream(ctx context.Context, method string, request []byte, headers map[string]string) (<-chan []byte, <-chan error) {
 	messages := make(chan []byte, 16)
 	errc := make(chan error, 1)

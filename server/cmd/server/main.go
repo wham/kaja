@@ -28,9 +28,8 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// The server serves a workspace it does not own - a Git checkout, a mounted
-	// volume - so its configuration is read-only. --editable opts out of that for
-	// development, where the workspace is the developer's own.
+	// The server serves a workspace it does not own — a Git checkout, a mounted volume —
+	// so its configuration is read-only. --editable opts out of that for development.
 	editable := flag.Bool("editable", false, "allow the UI to write to the configuration file")
 	flag.Parse()
 
@@ -38,7 +37,6 @@ func main() {
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath)
 	configuration := getConfigurationResponse.Configuration
 
-	// Start configuration file watcher
 	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
 	if err != nil {
 		slog.Warn("Failed to start configuration watcher", "error", err)
@@ -49,16 +47,15 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	// No variable store on the web server: a "${secret}" variable's value comes
-	// from the environment.
+	// No variable store on the web server: a "${secret}" variable's value comes from the
+	// environment.
 	apiService := api.NewApiService(configurationPath, *editable, GitRef, "", nil)
 	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
-	// The agent session. A script runs in a browser, so a deployed kaja can only
-	// answer an agent by forwarding the run to a window that has offered itself.
-	// The window makes up the token and holds the stream; this server holds
-	// nothing at rest, and a token no window has attached with is unknown.
+	// The agent session. A script runs in a browser, so a deployed kaja can only answer
+	// an agent by forwarding the run to a window that has offered itself. The window makes
+	// up the token and holds the stream; this server holds nothing at rest.
 	agentSessions := agent.NewRegistry(agent.NewWorkspaceScripts(apiService))
 	mux.HandleFunc("GET /agent-session", agentSessions.ServeInfo)
 	mux.HandleFunc("POST /agent-session/attach", agentSessions.ServeAttach)
@@ -78,7 +75,7 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /static/{name...}", func(w http.ResponseWriter, r *http.Request) {
-		// index.html must be served via /
+		// index.html must be served via /.
 		if r.PathValue("name") == "index.html" {
 			http.NotFound(w, r)
 			return
@@ -117,14 +114,13 @@ func main() {
 
 	mux.HandleFunc("GET /status", handleStatus)
 
-	// SSE endpoint for configuration change notifications
+	// SSE endpoint for configuration change notifications.
 	mux.HandleFunc("GET /configuration-changes", func(w http.ResponseWriter, r *http.Request) {
 		if configurationWatcher == nil {
 			http.Error(w, "Configuration watcher not available", http.StatusServiceUnavailable)
 			return
 		}
 
-		// Set SSE headers
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
@@ -136,22 +132,19 @@ func main() {
 			return
 		}
 
-		// Send initial connection event
 		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
 		flusher.Flush()
 
-		// Channel to receive change notifications
 		notify := make(chan struct{}, 1)
 		unsubscribe := configurationWatcher.Subscribe(func() {
 			select {
 			case notify <- struct{}{}:
 			default:
-				// Already have a pending notification
+				// Already have a pending notification.
 			}
 		})
 		defer unsubscribe()
 
-		// Keep connection alive and send events
 		for {
 			select {
 			case <-r.Context().Done():
@@ -163,16 +156,13 @@ func main() {
 		}
 	})
 
-	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
 		targetHeader := r.Header.Get("X-Target")
 
-		// Extract headers with X-Header- prefix to forward to target. Their values
-		// still carry ${NAME} variable references: the browser sends them
-		// unexpanded because a variable's value may be one this server holds and
-		// the browser is not allowed to know.
+		// Headers with an X-Header- prefix are forwarded to the target. Their values still
+		// carry ${NAME} references: the browser sends them unexpanded, because a variable's
+		// value may be one this server holds and the browser is not allowed to know.
 		forwardHeaders := make(map[string]string)
 		for name, values := range r.Header {
 			if strings.HasPrefix(name, "X-Header-") && len(values) > 0 {
@@ -181,14 +171,12 @@ func main() {
 			}
 		}
 
-		// The reserved header names the app the call belongs to, and goes no
-		// further: it is what the credential and the transport are looked up by.
+		// The reserved header names the app the call belongs to and goes no further: it is
+		// what the credential and the transport are looked up by.
 		appName := apps.TakeAppName(forwardHeaders)
 
-		// App targets (kaja-app://<id>) are invoked in-process by the app manager
-		// instead of being proxied to an external host. Apps are gRPC apps, so the
-		// request arrives as gRPC-Web like a regular gRPC app. InvokeApp expands
-		// the headers and redacts what it reports back.
+		// App targets (kaja-app://<id>) are invoked in-process by the app manager instead of
+		// being proxied. InvokeApp expands the headers and redacts what it reports back.
 		if apps.IsAppTarget(targetHeader) {
 			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
 				return apiService.InvokeApp(targetHeader, method, message, headers)
@@ -198,8 +186,8 @@ func main() {
 
 		forwardHeaders = apiService.Variables().ExpandAll(forwardHeaders)
 
-		// The app's own credential is applied here rather than sent from the
-		// browser, so a "${secret}" token never leaves this process.
+		// The app's own credential is applied here rather than sent from the browser, so a
+		// "${secret}" token never leaves this process.
 		connection := apiService.AppConnection(appName)
 		forwardHeaders = apps.MergeMetadata(forwardHeaders, connection.Metadata)
 
@@ -223,16 +211,14 @@ func main() {
 			proxy.ServeHTTP(w, r, r.PathValue("method"), forwardHeaders)
 			return
 		} else {
-			// Create a reverse proxy for Twirp requests
 			proxy := httputil.NewSingleHostReverseProxy(target)
 			proxy.Director = func(req *http.Request) {
 				req.Host = target.Host
 				req.URL.Scheme = target.Scheme
 				req.URL.Host = target.Host
-				// Replace /target/ with /twirp/ and append to target path
+				// Replace /target/ with /twirp/ and append to the target path.
 				path := strings.Replace(req.URL.Path, "/target/", "/twirp/", 1)
 				req.URL.Path = target.Path + path
-				// Forward configured headers to target
 				for name, value := range forwardHeaders {
 					req.Header.Set(name, value)
 				}
@@ -244,9 +230,9 @@ func main() {
 	root := http.NewServeMux()
 	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))
 
-	// Used in kaja launch scripts to determine if the server has started.
-	// slog.Info is not visible with Docker's -a STDOUT flag - its output is buffered.
-	// Ideally rewrite the launch scripts to use the /status endpoint.
+	// Used in kaja launch scripts to determine if the server has started. slog.Info is
+	// not visible with Docker's -a STDOUT flag — its output is buffered. Ideally rewrite
+	// the launch scripts to use the /status endpoint.
 	fmt.Println("Server started")
 	slog.Info("Server started", "URL", "http://localhost:41520")
 	slog.Error("Failed to start server", "error", http.ListenAndServe(":41520", root))
