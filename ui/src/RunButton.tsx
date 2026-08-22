@@ -28,6 +28,10 @@ interface RunButtonProps {
   onCopyDeeplink?: () => void;
   // The file itself, on the disk this process owns.
   onRevealInFinder?: () => void;
+  // The script as something that runs without Kaja: one file, for the platform
+  // this Kaja was built for. Desktop-only, because writing an app needs a disk
+  // this process owns and a runner it was built with.
+  onExportApp?: () => void;
   // What a draft has instead of an address: the sheet that gives it one, and
   // the discard that closes the buffer. Absent on a file, which is already on
   // disk and stays there as you type.
@@ -68,6 +72,7 @@ export function RunButton({
   onRunWithParameters,
   onCopyDeeplink,
   onRevealInFinder,
+  onExportApp,
   onNameDraft,
   onDiscardDraft,
   onDuplicateAsDraft,
@@ -76,7 +81,7 @@ export function RunButton({
   const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator
   // above it.
-  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
+  const aboutTheScript = [onCopyDeeplink, onExportApp, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to
   // choose between. Otherwise the caret is on whenever the menu says more than
   // the button already does — which, by the rule above, is always.
@@ -139,6 +144,14 @@ export function RunButton({
                 <DropdownMenuItem onSelect={() => onCopyDeeplink()}>
                   <span className="flex-1">Copy deeplink…</span>
                   <Shortcut label={copyDeeplinkShortcutLabel} />
+                </DropdownMenuItem>
+              )}
+              {/* The other thing a script can be outside Kaja. A deeplink needs
+                  this Kaja to be there to answer it; this one doesn't need Kaja
+                  at all. */}
+              {onExportApp && (
+                <DropdownMenuItem onSelect={() => onExportApp()}>
+                  <span className="flex-1">Export as app…</span>
                 </DropdownMenuItem>
               )}
               {onRevealInFinder && (

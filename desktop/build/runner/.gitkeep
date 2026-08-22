@@ -1,0 +1,4 @@
+# The runner an exported app is made of is built here by scripts/desktop and
+# by the desktop workflow. It is gitignored: it is a build artifact, and it is
+# platform-specific. This file keeps the directory present so the //go:embed in
+# export.go has something to match in a checkout that has not built one yet.

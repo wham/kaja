@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,9 +24,9 @@ import (
 
 // ExportRequest is one script, and where to put what it becomes.
 type ExportRequest struct {
-	// Script is the script's file name in the workspace's scripts folder, or a
-	// path to one anywhere. A script is exported by name because a name is what
-	// makes it visible outside kaja in the first place.
+	// Script is the script's name within the workspace's scripts folder, which
+	// may name a folder ("billing/report.ts"). A script is exported by name
+	// because a name is what makes it visible outside kaja in the first place.
 	Script string
 	// Source overrides what is on disk, for exporting a scratch that was never
 	// saved.
@@ -148,20 +149,19 @@ func (s *ApiService) ExportScript(req *ExportRequest) (*ExportResult, error) {
 	return result, nil
 }
 
+// exportSource reads the script to export. The name is resolved inside the
+// scripts folder and never followed out of it — the same door and the same rule
+// the UI reads a script through, because this one is reachable from the same
+// places: a window, and whatever asks a window.
 func (s *ApiService) exportSource(req *ExportRequest) (string, string, error) {
-	name := filepath.Base(req.Script)
 	if req.Source != "" {
-		return req.Source, name, nil
+		return req.Source, filepath.Base(req.Script), nil
 	}
-	candidate := req.Script
-	if filepath.Base(candidate) == candidate {
-		candidate = filepath.Join(s.scriptsDir(), candidate)
-	}
-	content, err := os.ReadFile(candidate)
+	response, err := s.ReadScript(context.Background(), &ReadScriptRequest{Name: filepath.ToSlash(req.Script)})
 	if err != nil {
-		return "", "", fmt.Errorf("reading the script: %w", err)
+		return "", "", err
 	}
-	return string(content), name, nil
+	return response.Script.Content, response.Script.Name, nil
 }
 
 // importedApps is the app of every import that isn't kaja's own module, in the

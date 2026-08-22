@@ -662,6 +662,39 @@ exporter, `server/cmd/kaja-run` the runner and `ui/src/player/` the screen.
   browser and the process are the same trust boundary, which is the desktop's
   rule; bound anywhere else the runner is the web server, and the values stay in
   the process and leave it only as headers on the way out.
+- **The name is resolved inside the scripts folder, never followed out of it.**
+  `ExportScript` reads through `ReadScript`, so the one rule the folder app and
+  the sidebar already follow (`filepath.IsLocal`, an `os.Root`) is the rule here
+  too — this door is reachable from a window, and from whatever asks a window.
+
+### The button, and the runner it is made of
+
+**`Export as app…` is in the Run caret's menu**, beside `Copy deeplink…`, which
+is where the second group already answers "what is this script once the run is
+over". A deeplink needs this Kaja to be there to answer it; this needs no Kaja
+at all, which is the only difference between them and the reason they are
+neighbours.
+
+- **The desktop has no toolchain and needs none.** The runner is embedded in the
+  app (`//go:embed all:build/runner`, built by `scripts/desktop` and by the
+  desktop workflow), and exporting is a copy of it with the bundle appended.
+  That is what makes the button instant and offline — and what makes an exported
+  app run **where this Kaja runs**, since the runner inside it was built for the
+  platform Kaja was built for. It is a fact about the file rather than a
+  limitation to discover, so the result says it: `runs on macOS · Apple silicon`.
+  Exporting for another platform is that platform's runner, not a compiler
+  here — a release matrix, when it is wanted.
+- **A checkout that has not built a runner still compiles.** The embedded
+  directory holds a `.gitkeep` so the pattern matches, and the button says what
+  is missing rather than the program failing to start.
+- **Only the save dialog is Wails'.** `writeExportedApp` is the export itself and
+  takes a destination, so the whole path — export, freeze, append, chmod, and the
+  file actually running — is covered by an ordinary Go test that starts the thing
+  it just wrote and reads its state back.
+- **The result is a dialog, not a toast**, because two of the three things it says
+  can only be acted on before the file is handed to somebody: where it runs, and
+  what didn't travel — a variable with nowhere to read a value from, an app that
+  still opens over the network.
 
 ## The tree is an index, so it reads as a list of names
 
