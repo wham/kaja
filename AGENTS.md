@@ -1,7 +1,7 @@
 ## Guidelines
 
 - See [Development](README.md#development) for how to run and test.
-- Only add code comments for things the code cannot say: a gotcha, a workaround, a magic value an API insists on, an ordering that matters. Not a restatement of the line below it, and not design rationale.
+- **The default is no comment.** Write one only where the code is tricky and the reason is not obvious from reading it: a gotcha, a workaround, a magic value an API insists on, an ordering that matters. Not a restatement of the line below it, not design rationale, not a heading over a block, not a summary of what a function does. If the comment could be deleted without a reader losing anything, it should be.
 - If an API is called "getConfiguration", use "configuration" not "config" in code.
 - Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done, and check the port is free first.
 - Don't run `scripts/build-ui` separately — a `-tags development` server rebuilds the UI on page load. Testing the server packages needs the same tag, or they embed a production bundle nothing has written.
@@ -13,7 +13,8 @@
 - Use past tense in pull request titles and commit messages ("Fix bug" → "Fixed bug"). Keep PR descriptions to one or two sentences.
 - Use capitalized "Kaja" for user-facing labels; lowercase "kaja" for code, commands and paths.
 - Don't reference specific example services (names of APIs used to reproduce a bug) in code, comments, or tests — they are just random examples.
-- When a change is radically different from what's documented here, update this file.
+- **Keep extending this file** — a change that contradicts what is written here, or adds a rule the next agent would otherwise have to rediscover, belongs in it. Update the sentence that is now wrong rather than adding a second one beside it.
+- **But most changes add nothing to it.** Don't restate what the code, a type or a filename already says, don't record a routine change, and don't add a rule that is already here in other words. If a section is getting a paragraph per change, the change is being logged rather than documented — this file is what is true now, not a history of how it got that way.
 
 ### UI conventions
 
