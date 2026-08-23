@@ -373,9 +373,9 @@ The experimental built-ins (mcp/openai/folder) appear in the sidebar's **New** d
 - **`ChoiceRow.tsx`** is the radio row the custom forms share (a server, a security scheme, a transport), with `ChoiceCard` holding it together with whatever the selection reveals. It lives beside `AppNameField.tsx` rather than in `components/` — it is not a design-system primitive.
 - **The name is a namespace, not a label**, so `AppNameField.tsx` shows the **import line the name produces** (`import { … } from "OpenMeter/service"`, the name lit and the rest dimmed) instead of explaining it. The path is exact where the app's type fixes it and `…` where the app's protos decide it. Absent while there is no name.
 
-### The three custom forms share one shape
+### Three of the custom forms share one shape
 
-`GrpcForm.tsx`, `OpenApiForm.tsx` and `McpForm.tsx` all ask for **one thing** — where the server is, or which document — and everything after it is a choice between things that answer already declared. All three:
+`GrpcForm.tsx`, `OpenApiForm.tsx` and `McpForm.tsx` all ask for **one thing** — where the server is, or which document — and everything after it is a choice between things that answer already declared. `OpenAiForm.tsx` is the fourth custom form and shares none of it, because a chat endpoint declares nothing. All three:
 
 - call their `Inspect*` RPC 600ms after typing stops (immediately for the demo link, a picked file or folder, an existing app, or ⏎) and discard all but the latest read;
 - key that read on the address/document and **not** on credentials, which are typed a character at a time;
@@ -410,6 +410,15 @@ The experimental built-ins (mcp/openai/folder) appear in the sidebar's **New** d
 **`InspectOpenApi`** (`inspect.go`) reads the document without creating the app and reports title, versions, operation and tag counts, `servers` (with each `{placeholder}`'s default and `enum`, relative URLs resolved) and `securitySchemes` sorted by how many operations accept each. Failures are classified (`unreachable`, `unauthorized`, `httpError`, `html`, `notADocument`, `swagger2`, `malformed`) with a headline. A document behind a login is fetched with `spec_header_name`/`spec_header_value`, kept apart from the API's own credentials because they are usually different tokens. `components.securitySchemes` keeps declaration order (`securitySchemes.UnmarshalJSON`) so the form's preselection is stable.
 
 **`OpenApiForm.tsx`** — the one thing asked for is the document (URL, upload, or pasted text; 400ms for a pasted one). A 401 asks for the fetch header right there and retries. The server section adapts to `servers`: one is stated, several become a radio list, `{placeholders}` become selects (with an `enum`) or inputs showing the resolved URL, and none at all falls back to a base URL seeded from the document's origin. The choice is written out as `base_url` and matched back when the app is edited (`matchServerUrl`). Authentication is a row per declared scheme plus "Send no credentials", and credentials typed for one scheme survive a flip to another. `isUsableBaseUrl`/`isReadableSourceUrl` are what take a variable-bearing URL on trust. The name is derived from the title by dropping the words that describe a document — `API`, `REST`, `OpenAPI`, `Swagger`, `Cloud`, a version, a subtitle after a dash or colon — and joining the rest in PascalCase: `OpenMeter Cloud API` → `OpenMeter`, `Swagger Petstore - OpenAPI 3.0` → `Petstore`. A single surviving word is kept exactly (`grpcb.in`), and a title that is nothing but those words keeps them (`ui/src/openApiDocument.ts`).
+
+### Chat app
+
+`server/pkg/apps/openai` calls a chat model, and **`api` says which one**: OpenAI chat completions (`"openai"`, the default) or the Claude Messages API (`"anthropic"`). A gateway serves either at whatever path it likes, and the two differ in the request body, the response and the credential's header — three things an endpoint cannot settle. The proto surface is the same either way, so swapping one app for the other leaves a script working. `wire.go` is that pair of translations and nothing else.
+
+- **The credential is the app's** (`auth`, `token`, `api_key_name`), resolved in Go and never handed to the browser. **An empty `auth` is whichever credential the API's own dashboard hands you** — a bearer token for OpenAI, a key under `x-api-key` for Claude — which is the whole of why the app used to fail against the Claude API. What an API insists on (`anthropic-version`) goes on **before** the app's own headers, so a header configured under the same name outranks it.
+- **A response the wire can't read is reported, not passed off as an empty reply.** Each wire names the answer it wanted (`answer()`), which is the whole diagnosis when an endpoint speaks the other API; the Claude wire has to check `type` to notice at all, since every other field of a Message is optional to a JSON decoder.
+- **`OpenAiForm.tsx` is the custom form with nothing to read.** It calls no `Inspect*` RPC and settles at the first call. Three rows — OpenAI, Claude, and OpenAI-compatible for everything else — and picking one writes `api`, `endpoint` and `auth` together, the endpoint staying editable. `chatApi.ts` is the pure half; `matchApiChoice` reads an app back onto the row that would have written it.
+- **The config key stays `openai`** — it is what every `kaja.json` that has one already says — while the label is **Chat**.
 
 ### Folder app
 

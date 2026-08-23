@@ -3317,12 +3317,27 @@ func (x *OpenApiApp) GetSpecHeaderValue() string {
 	return ""
 }
 
-// OpenAiApp calls the OpenAI chat completions API.
+// OpenAiApp calls a chat model over one of two APIs: OpenAI chat completions, or
+// the Claude Messages API. `api` says which, because the two differ in the body
+// and the response as much as in the credential's header, and an endpoint behind a
+// gateway doesn't say either.
+//
+// The credential is the app's, not the request's: kaja resolves it where it holds
+// it and applies it on the way out, so a "${secret}" token is never handed to the
+// browser.
 type OpenAiApp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Endpoint      string                 `protobuf:"bytes,1,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Token         string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Endpoint string                 `protobuf:"bytes,1,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Token    string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Headers  map[string]string      `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The API the endpoint speaks: "openai" or "anthropic". Empty means "openai".
+	Api string `protobuf:"bytes,4,opt,name=api,proto3" json:"api,omitempty"`
+	// The credential sent with every request: "bearer", "apikey", or "none". Empty
+	// means whichever one the API's own dashboard hands you - a bearer token for
+	// OpenAI, a key under x-api-key for Claude.
+	Auth string `protobuf:"bytes,5,opt,name=auth,proto3" json:"auth,omitempty"`
+	// Header the "apikey" credential is sent under. Empty means "x-api-key".
+	ApiKeyName    string `protobuf:"bytes,6,opt,name=api_key_name,json=apiKeyName,proto3" json:"api_key_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3376,6 +3391,27 @@ func (x *OpenAiApp) GetHeaders() map[string]string {
 		return x.Headers
 	}
 	return nil
+}
+
+func (x *OpenAiApp) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *OpenAiApp) GetAuth() string {
+	if x != nil {
+		return x.Auth
+	}
+	return ""
+}
+
+func (x *OpenAiApp) GetApiKeyName() string {
+	if x != nil {
+		return x.ApiKeyName
+	}
+	return ""
 }
 
 // FolderApp lists, creates, reads and appends to files in a folder on disk. It
@@ -3832,11 +3868,15 @@ const file_proto_api_proto_rawDesc = "" +
 	" \x01(\tR\x0fspecHeaderValue\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf4\x01\n" +
 	"\tOpenAiApp\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x121\n" +
-	"\aheaders\x18\x03 \x03(\v2\x17.OpenAiApp.HeadersEntryR\aheaders\x1a:\n" +
+	"\aheaders\x18\x03 \x03(\v2\x17.OpenAiApp.HeadersEntryR\aheaders\x12\x10\n" +
+	"\x03api\x18\x04 \x01(\tR\x03api\x12\x12\n" +
+	"\x04auth\x18\x05 \x01(\tR\x04auth\x12 \n" +
+	"\fapi_key_name\x18\x06 \x01(\tR\n" +
+	"apiKeyName\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1f\n" +

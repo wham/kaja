@@ -147,31 +147,22 @@ export const appTypes: AppTypeDefinition[] = [
   },
   {
     preview: true,
+    // The config key stays "openai": it is what every kaja.json that has one already
+    // says, and the app spoke only that API when it was written.
     type: "openai",
-    label: "OpenAI",
-    description: "Call the standard OpenAI chat completions API.",
+    label: "Chat",
+    description: "Call a chat model over the OpenAI or the Claude API.",
     icon: Sparkles,
+    // OpenAiForm renders these: which API it is decides the endpoint and the credential.
+    customForm: true,
+    surfaceNoun: "method",
     parameters: [
-      {
-        key: "endpoint",
-        label: "Chat completions endpoint",
-        type: "url",
-        placeholder: "https://api.openai.com/v1/chat/completions",
-        caption: "Full URL of the chat completions endpoint. Requests are POSTed directly to it.",
-      },
-      {
-        key: "token",
-        label: "API token",
-        type: "text",
-        placeholder: "sk-...",
-        caption: "Sent as a Bearer token in the Authorization header of each request.",
-      },
+      { key: "api", label: "API", type: "text", optional: true },
+      { key: "endpoint", label: "Endpoint", type: "url" },
+      { key: "auth", label: "Authentication", type: "text", optional: true },
+      { key: "token", label: "API key", type: "text", optional: true },
+      { key: "apiKeyName", label: "Header name", type: "text", optional: true },
     ],
-    demo: {
-      label: "Use the OpenAI endpoint",
-      name: "OpenAI",
-      parameters: { endpoint: "https://api.openai.com/v1/chat/completions" },
-    },
   },
   {
     preview: true,

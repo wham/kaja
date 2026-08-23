@@ -1087,7 +1087,14 @@ export interface OpenApiApp {
     specHeaderValue: string;
 }
 /**
- * OpenAiApp calls the OpenAI chat completions API.
+ * OpenAiApp calls a chat model over one of two APIs: OpenAI chat completions, or
+ * the Claude Messages API. `api` says which, because the two differ in the body
+ * and the response as much as in the credential's header, and an endpoint behind a
+ * gateway doesn't say either.
+ *
+ * The credential is the app's, not the request's: kaja resolves it where it holds
+ * it and applies it on the way out, so a "${secret}" token is never handed to the
+ * browser.
  *
  * @generated from protobuf message OpenAiApp
  */
@@ -1106,6 +1113,26 @@ export interface OpenAiApp {
     headers: {
         [key: string]: string;
     };
+    /**
+     * The API the endpoint speaks: "openai" or "anthropic". Empty means "openai".
+     *
+     * @generated from protobuf field: string api = 4
+     */
+    api: string;
+    /**
+     * The credential sent with every request: "bearer", "apikey", or "none". Empty
+     * means whichever one the API's own dashboard hands you - a bearer token for
+     * OpenAI, a key under x-api-key for Claude.
+     *
+     * @generated from protobuf field: string auth = 5
+     */
+    auth: string;
+    /**
+     * Header the "apikey" credential is sent under. Empty means "x-api-key".
+     *
+     * @generated from protobuf field: string api_key_name = 6
+     */
+    apiKeyName: string;
 }
 /**
  * FolderApp lists, creates, reads and appends to files in a folder on disk. It
@@ -4254,7 +4281,10 @@ class OpenAiApp$Type extends MessageType<OpenAiApp> {
         super("OpenAiApp", [
             { no: 1, name: "endpoint", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 3, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 4, name: "api", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "auth", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "api_key_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenAiApp>): OpenAiApp {
@@ -4262,6 +4292,9 @@ class OpenAiApp$Type extends MessageType<OpenAiApp> {
         message.endpoint = "";
         message.token = "";
         message.headers = {};
+        message.api = "";
+        message.auth = "";
+        message.apiKeyName = "";
         if (value !== undefined)
             reflectionMergePartial<OpenAiApp>(this, message, value);
         return message;
@@ -4279,6 +4312,15 @@ class OpenAiApp$Type extends MessageType<OpenAiApp> {
                     break;
                 case /* map<string, string> headers */ 3:
                     this.binaryReadMap3(message.headers, reader, options);
+                    break;
+                case /* string api */ 4:
+                    message.api = reader.string();
+                    break;
+                case /* string auth */ 5:
+                    message.auth = reader.string();
+                    break;
+                case /* string api_key_name */ 6:
+                    message.apiKeyName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4317,6 +4359,15 @@ class OpenAiApp$Type extends MessageType<OpenAiApp> {
         /* map<string, string> headers = 3; */
         for (let k of globalThis.Object.keys(message.headers))
             writer.tag(3, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
+        /* string api = 4; */
+        if (message.api !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.api);
+        /* string auth = 5; */
+        if (message.auth !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.auth);
+        /* string api_key_name = 6; */
+        if (message.apiKeyName !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.apiKeyName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

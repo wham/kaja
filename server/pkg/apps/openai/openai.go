@@ -1,11 +1,11 @@
-// Package openai implements the built-in "openai" app: it exposes the standard
-// OpenAI chat completions API as a small gRPC surface kaja can render and invoke.
+// Package openai implements the built-in "openai" app: it exposes a chat model as
+// a small gRPC surface kaja can render and invoke.
 //
-// The app has two creation parameters: "endpoint" (the full chat completions URL,
-// e.g. https://api.openai.com/v1/chat/completions) and "token" (the API key sent
-// as a Bearer token). Method calls arrive as protobuf, are transcoded into a POST
-// against the endpoint, and the JSON response is shaped back into the method's
-// protobuf response.
+// It speaks two APIs, named by the "api" parameter: OpenAI chat completions
+// ("openai", the default) and the Claude Messages API ("anthropic"). They differ
+// in the request body, the response and the header the credential travels under,
+// so the endpoint alone cannot settle which one is meant. The proto surface is
+// the same either way, so swapping one app for the other leaves a script working.
 package openai
 
 import (
@@ -23,15 +23,10 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-const (
-	serviceTypeName = "openai.OpenAI"
-	defaultEndpoint = "https://api.openai.com/v1/chat/completions"
-)
+const serviceTypeName = "openai.OpenAI"
 
-// protoSource is the static proto surface the openai app renders: a single
-// ChatCompletion method exposing the most common chat completion inputs (model,
-// system/user prompt, temperature, ...) and a response carrying the assistant's
-// reply alongside the raw choices and token usage.
+// protoSource is the static proto surface the app renders, the same for either
+// API it speaks.
 //
 // A failed call has no shape here. It is reported as the HTTP call it was, through
 // apps.UpstreamError, the same as any other app that speaks HTTP - so the status, the
@@ -47,7 +42,7 @@ message Message {
 }
 
 message ChatCompletionRequest {
-  // Model name, e.g. "gpt-4o-mini".
+  // Model name, e.g. "gpt-4o-mini" or "claude-opus-4-5".
   string model = 1 [json_name = "model"];
   // System prompt that sets the assistant's behavior (optional).
   string system_prompt = 2 [json_name = "system_prompt"];
@@ -83,7 +78,7 @@ message ChatCompletionResponse {
 }
 
 service OpenAI {
-  // Create a chat completion using the standard OpenAI chat completions API.
+  // Send one prompt to a chat model and read its reply.
   rpc ChatCompletion(ChatCompletionRequest) returns (ChatCompletionResponse);
 }
 `
@@ -94,18 +89,39 @@ type App struct{}
 func New() *App { return &App{} }
 
 func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+	format, err := wireFor(parameters["api"])
+	if err != nil {
+		return nil, err
+	}
+
 	endpoint := strings.TrimSpace(parameters["endpoint"])
 	if endpoint == "" {
-		endpoint = defaultEndpoint
+		endpoint = format.endpoint()
 	}
 	if err := requireHTTPScheme(endpoint); err != nil {
 		return nil, err
 	}
-	log("OpenAI endpoint: " + endpoint)
+	log("Endpoint: " + endpoint + " (" + format.name() + " API)")
+
+	auth, err := authFor(parameters["auth"], format)
+	if err != nil {
+		return nil, err
+	}
+	keyName := strings.TrimSpace(parameters["api_key_name"])
+	if keyName == "" {
+		keyName = defaultAPIKeyName
+	}
 
 	token := strings.TrimSpace(parameters["token"])
-	if token == "" {
-		log("No token configured; requests will be sent without an Authorization header")
+	switch {
+	case auth == authNone:
+		log("Sending no credentials")
+	case token == "":
+		log("No token configured; requests will be sent without a credential")
+	case auth == authAPIKey:
+		log("Sending the API key as " + keyName)
+	default:
+		log("Sending the token as Authorization: Bearer")
 	}
 
 	if err := os.WriteFile(filepath.Join(protoDir, "openai.proto"), []byte(protoSource), 0o644); err != nil {
@@ -120,11 +136,30 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 
 	return &apps.Opened{Instance: &instance{
 		endpoint: endpoint,
+		wire:     format,
+		auth:     auth,
 		token:    token,
+		keyName:  keyName,
 		input:    input,
 		output:   output,
 		client:   &http.Client{Timeout: 120 * time.Second},
 	}}, nil
+}
+
+// An empty auth is whichever credential the chosen API's own dashboard hands you.
+func authFor(value string, format wire) (string, error) {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "":
+		return format.defaultAuth(), nil
+	case authBearer:
+		return authBearer, nil
+	case authAPIKey:
+		return authAPIKey, nil
+	case authNone:
+		return authNone, nil
+	default:
+		return "", fmt.Errorf("unknown auth %q (use %q, %q or %q)", value, authBearer, authAPIKey, authNone)
+	}
 }
 
 // compile compiles the static proto and resolves ChatCompletion's request and
