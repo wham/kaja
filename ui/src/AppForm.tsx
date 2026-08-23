@@ -11,6 +11,7 @@ import { AppSurface, appHeaders, appParameters, appType, buildApp, getAppType, t
 import { AppNameField } from "./AppNameField";
 import { GrpcForm } from "./GrpcForm";
 import { McpForm } from "./McpForm";
+import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
@@ -437,6 +438,20 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 // credentials.
                 type === "grpc" ? (
                   <GrpcForm
+                    key={initialData?.name || "__new__"}
+                    name={name}
+                    onNameChange={setName}
+                    duplicateName={duplicateName}
+                    takenNames={takenNames}
+                    parameters={parameters}
+                    onParametersChange={setParameters}
+                    variables={variables}
+                    readOnly={readOnly}
+                    onSurfaceChange={setSurface}
+                    onReadyChange={setCustomReady}
+                  />
+                ) : type === "openai" ? (
+                  <OpenAiForm
                     key={initialData?.name || "__new__"}
                     name={name}
                     onNameChange={setName}

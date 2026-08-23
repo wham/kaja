@@ -16,12 +16,16 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps"
 )
 
-// instance is a live opened OpenAI app. It is a gRPC app: a ChatCompletion call
-// arrives as protobuf, is transcoded into a POST against the chat completions
-// endpoint, and the JSON response is shaped back into the protobuf response.
+// instance is a live opened chat app. It is a gRPC app: a ChatCompletion call
+// arrives as protobuf, is transcoded into a POST against the endpoint, and the
+// JSON response is shaped back into the protobuf response. The wire says which
+// API's shapes those are.
 type instance struct {
 	endpoint string
+	wire     wire
+	auth     string
 	token    string
+	keyName  string
 	input    protoreflect.MessageDescriptor
 	output   protoreflect.MessageDescriptor
 	client   *http.Client
@@ -39,7 +43,11 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		}
 	}
 
-	body, err := in.buildRequestBody(reqMsg)
+	call, err := in.readChat(reqMsg)
+	if err != nil {
+		return nil, err
+	}
+	body, err := in.wire.request(call)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +65,11 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return in.encodeError(respMsg, parseUpstreamError(status, respBody), reqHeaders, respHeaders)
 	}
 
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(respBody, respMsg); err != nil {
+	shaped, err := in.wire.response(respBody)
+	if err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(shaped, respMsg); err != nil {
 		return nil, fmt.Errorf("decoding response JSON: %w", err)
 	}
 	setReplyContent(respMsg)
@@ -86,11 +98,10 @@ func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]
 	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
 }
 
-// buildRequestBody turns the decoded ChatCompletion request into the JSON body
-// the OpenAI chat completions endpoint expects: the system and user prompts are
-// folded into a messages array and the optional sampling fields are passed
-// through only when the caller set them.
-func (in *instance) buildRequestBody(reqMsg *dynamicpb.Message) ([]byte, error) {
+// readChat reads the decoded ChatCompletion request off the proto surface. The
+// optional sampling fields stay optional - an unset one is left for the wire to
+// omit or to default - which is why they come back as pointers.
+func (in *instance) readChat(reqMsg *dynamicpb.Message) (chat, error) {
 	fields := in.input.Fields()
 	getString := func(name string) string {
 		return reqMsg.Get(fields.ByName(protoreflect.Name(name))).String()
@@ -98,30 +109,27 @@ func (in *instance) buildRequestBody(reqMsg *dynamicpb.Message) ([]byte, error) 
 
 	model := strings.TrimSpace(getString("model"))
 	if model == "" {
-		return nil, fmt.Errorf("model is required")
+		return chat{}, fmt.Errorf("model is required")
 	}
 
-	messages := []map[string]string{}
-	if system := getString("system_prompt"); system != "" {
-		messages = append(messages, map[string]string{"role": "system", "content": system})
-	}
-	messages = append(messages, map[string]string{"role": "user", "content": getString("user_prompt")})
-
-	payload := map[string]any{
-		"model":    model,
-		"messages": messages,
+	call := chat{
+		model:        model,
+		systemPrompt: getString("system_prompt"),
+		userPrompt:   getString("user_prompt"),
 	}
 	if fd := fields.ByName("temperature"); reqMsg.Has(fd) {
-		payload["temperature"] = reqMsg.Get(fd).Float()
+		value := reqMsg.Get(fd).Float()
+		call.temperature = &value
 	}
 	if fd := fields.ByName("max_tokens"); reqMsg.Has(fd) {
-		payload["max_tokens"] = reqMsg.Get(fd).Int()
+		value := reqMsg.Get(fd).Int()
+		call.maxTokens = &value
 	}
 	if fd := fields.ByName("top_p"); reqMsg.Has(fd) {
-		payload["top_p"] = reqMsg.Get(fd).Float()
+		value := reqMsg.Get(fd).Float()
+		call.topP = &value
 	}
-
-	return json.Marshal(payload)
+	return call, nil
 }
 
 // call POSTs the request body to the configured endpoint, returning the raw
@@ -134,14 +142,19 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, m
 	if err != nil {
 		return nil, 0, nil, nil, fmt.Errorf("building request: %w", err)
 	}
+	// What the API insists on and the credential go on first, so a header the app
+	// configures under the same name outranks them - the same rule the other apps
+	// apply to their own credentials. The content type is kaja's either way: the
+	// body it just encoded is JSON whatever the app says.
+	for name, value := range in.wire.required() {
+		httpReq.Header.Set(name, value)
+	}
+	in.setCredential(httpReq.Header)
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("Content-Type", "application/json")
-	if in.token != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+in.token)
-	}
 	reqHeaders := apps.SurfaceHeaders(httpReq.Header)
 
 	resp, err := in.client.Do(httpReq)
@@ -158,10 +171,24 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, m
 	return respBody, resp.StatusCode, reqHeaders, respHeaders, nil
 }
 
+// setCredential applies the app's one credential in the shape its API asks for.
+// Nothing is sent when there is no token to send.
+func (in *instance) setCredential(header http.Header) {
+	if in.auth == authNone || in.token == "" {
+		return
+	}
+	switch in.auth {
+	case authAPIKey:
+		header.Set(in.keyName, in.token)
+	default:
+		header.Set("Authorization", "Bearer "+in.token)
+	}
+}
+
 // parseUpstreamError turns a failed (HTTP >= 400) upstream response into the
 // structured error shape exposed on ChatCompletionResponse.error. It understands
-// the standard OpenAI error envelope ({"error": {"message", "type", "code",
-// "param"}}) and falls back to the raw body for anything else.
+// the OpenAI error envelope ({"error": {"message", "type", "code", "param"}}),
+// which the Claude API shares, and falls back to the raw body for anything else.
 func parseUpstreamError(status int, body []byte) map[string]any {
 	result := map[string]any{
 		"status": status,

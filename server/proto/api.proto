@@ -571,11 +571,26 @@ message OpenApiApp {
   string spec_header_value = 10;
 }
 
-// OpenAiApp calls the OpenAI chat completions API.
+// OpenAiApp calls a chat model over one of two APIs: OpenAI chat completions, or
+// the Claude Messages API. `api` says which, because the two differ in the body
+// and the response as much as in the credential's header, and an endpoint behind a
+// gateway doesn't say either.
+//
+// The credential is the app's, not the request's: kaja resolves it where it holds
+// it and applies it on the way out, so a "${secret}" token is never handed to the
+// browser.
 message OpenAiApp {
   string endpoint = 1;
   string token = 2;
   map<string, string> headers = 3;
+  // The API the endpoint speaks: "openai" or "anthropic". Empty means "openai".
+  string api = 4;
+  // The credential sent with every request: "bearer", "apikey", or "none". Empty
+  // means whichever one the API's own dashboard hands you - a bearer token for
+  // OpenAI, a key under x-api-key for Claude.
+  string auth = 5;
+  // Header the "apikey" credential is sent under. Empty means "x-api-key".
+  string api_key_name = 6;
 }
 
 // FolderApp lists, creates, reads and appends to files in a folder on disk. It
