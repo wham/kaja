@@ -1,6 +1,8 @@
 import { describe, it, expect } from "bun:test";
 import { AskBlock } from "./blocks";
 import { Kaja } from "./kaja";
+import { App, createPendingApp } from "./apps";
+import { Source } from "./sources";
 import { runScriptCaptured } from "./scriptRunner";
 import { LogLevel } from "./server/api";
 
@@ -12,6 +14,14 @@ function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
     onBlockUpdate: () => {},
     onLog: () => {},
   });
+}
+
+// An app with one source and one service, which is all the import resolution reads.
+function teamsApp(): App {
+  const app = createPendingApp({ name: "teams", app: { oneofKind: undefined } });
+  app.services = [{ name: "Teams", packageName: "teams", sourcePath: "teams/teams", clientStubModuleId: "", methods: [] }];
+  app.sources = [{ importPath: "teams/teams" } as Source];
+  return app;
 }
 
 describe("kaja.variables injection", () => {
@@ -94,6 +104,39 @@ describe("orphaned imports", () => {
 
     expect(run.result).toBeUndefined();
     expect(run.error).toContain(`app "teams" was not found`);
+  });
+});
+
+describe("import forms that bind nothing", () => {
+  it("names the kaja import a default clause never made", async () => {
+    const run = await runScriptCaptured(`import kaja from "kaja";\nreturn kaja.uuidV4();`, makeKaja(), []);
+
+    expect(run.result).toBeUndefined();
+    expect(run.error).toBe(`Cannot resolve import "kaja": a default import does not resolve. Use a named import: import { kaja } from "kaja".`);
+  });
+
+  it("names the kaja import a namespace clause never made", async () => {
+    const run = await runScriptCaptured(`import * as kaja from "./kaja";\nreturn kaja.uuidV4();`, makeKaja(), []);
+
+    expect(run.error).toBe(`Cannot resolve import "./kaja": a namespace import does not resolve. Use a named import: import { kaja } from "./kaja".`);
+  });
+
+  it("suggests a service the source declares when an app is imported as a namespace", async () => {
+    const run = await runScriptCaptured(`import * as teams from "teams/teams";\nteams.Teams.GetAllTeams({});`, makeKaja(), [teamsApp()]);
+
+    expect(run.error).toBe(
+      `Cannot resolve import "teams/teams": a namespace import does not resolve. Use a named import: import { Teams } from "teams/teams".`,
+    );
+  });
+
+  it("leaves a named import alone", async () => {
+    const kaja = makeKaja();
+    kaja.variables = { HELLO: "world" };
+
+    const run = await runScriptCaptured(`import { kaja as runtime } from "kaja";\nreturn runtime.variables.HELLO;`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("world");
   });
 });
 
