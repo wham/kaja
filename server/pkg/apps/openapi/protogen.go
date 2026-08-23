@@ -90,6 +90,7 @@ type rpcDef struct {
 	// httpRequest is the "<VERB> <path>" the method transcodes to, emitted as
 	// (kaja.http_request).
 	httpRequest string
+	binding     *methodBinding
 }
 
 // serviceDef is a single generated proto service. Operations are grouped into
@@ -99,6 +100,9 @@ type rpcDef struct {
 type serviceDef struct {
 	name string
 	rpcs []*rpcDef
+	// seenRPC is per service, because a proto method name only has to be unique
+	// within the service it is declared in.
+	seenRPC map[string]bool
 }
 
 type generator struct {
@@ -113,9 +117,10 @@ type generator struct {
 
 	services     []*serviceDef
 	serviceIndex map[string]*serviceDef
-	seenRPC      map[string]bool
 
-	bindingByMethod map[string]*methodBinding
+	// namespace is the dot-separated segment every namespaced tag and operationId
+	// in the spec begins with, dropped from both. See sharedNamespace.
+	namespace string
 
 	usesValue bool // a field maps to google.protobuf.Value, so struct.proto is imported
 }
@@ -144,9 +149,8 @@ func generateProto(s *spec) (*generated, error) {
 		seenMsg:            map[string]bool{},
 		refMsgName:         map[string]string{},
 		resolvingRef:       map[string]bool{},
-		seenRPC:            map[string]bool{},
 		serviceIndex:       map[string]*serviceDef{},
-		bindingByMethod:    map[string]*methodBinding{},
+		namespace:          sharedNamespace(s),
 	}
 
 	paths := make([]string, 0, len(s.Paths))
@@ -175,7 +179,7 @@ func generateProto(s *spec) (*generated, error) {
 		serviceTypeName := g.pkg + "." + svc.name
 		serviceTypeNames = append(serviceTypeNames, serviceTypeName)
 		for _, r := range svc.rpcs {
-			bindings[serviceTypeName+"/"+r.name] = g.bindingByMethod[r.name]
+			bindings[serviceTypeName+"/"+r.name] = r.binding
 		}
 	}
 
@@ -198,14 +202,14 @@ func (g *generator) envelope(f fieldDef, payload string) fieldDef {
 func (g *generator) serviceFor(op *operation) *serviceDef {
 	name := g.defaultServiceName
 	if len(op.Tags) > 0 {
-		if n := pascal(op.Tags[0]); n != "" {
+		if n := pascal(trimNamespace(op.Tags[0], g.namespace)); n != "" {
 			name = n
 		}
 	}
 	if svc, ok := g.serviceIndex[name]; ok {
 		return svc
 	}
-	svc := &serviceDef{name: name}
+	svc := &serviceDef{name: name, seenRPC: map[string]bool{}}
 	g.serviceIndex[name] = svc
 	g.services = append(g.services, svc)
 	return svc
@@ -232,7 +236,11 @@ func (g *generator) resolveServiceNameCollisions() {
 func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	op := vo.op
 
-	methodName := g.uniqueRPCName(operationName(vo.verb, path, op))
+	svc := g.serviceFor(op)
+	// The operation's own name is what messages hang off, because a method name is
+	// only unique within its service while a message name is unique across the file.
+	typeBase := pascal(trimNamespace(operationName(vo.verb, path, op), g.namespace))
+	methodName := svc.uniqueRPCName(trimServiceName(typeBase, svc.name))
 	binding := &methodBinding{verb: vo.verb, pathTemplate: path}
 
 	// Parameters located somewhere other than the body. Whether there are any
@@ -254,21 +262,20 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 		}
 	}
 
-	input := g.requestType(methodName, located, bodySchema, bodyContentType, binding)
+	input := g.requestType(typeBase, located, bodySchema, bodyContentType, binding)
 
 	// Response type + wrap kind.
-	output, wrap := g.responseType(methodName, op)
+	output, wrap := g.responseType(typeBase, op)
 	binding.responseWrap = wrap
 
-	svc := g.serviceFor(op)
 	svc.rpcs = append(svc.rpcs, &rpcDef{
 		name:        methodName,
 		input:       input,
 		output:      output,
 		summary:     op.Summary,
 		httpRequest: strings.ToUpper(vo.verb) + " " + path,
+		binding:     binding,
 	})
-	g.bindingByMethod[methodName] = binding
 }
 
 // requestType resolves a method's input message and fills in the binding's
@@ -279,7 +286,7 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 // envelope appears only where it carries its weight - beside path, query or
 // header parameters, or around a body protobuf has no shape for (an array, a
 // scalar, a free-form value) - and is marked as such when it does.
-func (g *generator) requestType(methodName string, located []*parameter, bodySchema *schema, bodyContentType string, binding *methodBinding) string {
+func (g *generator) requestType(typeBase string, located []*parameter, bodySchema *schema, bodyContentType string, binding *methodBinding) string {
 	bodyType, bodyRepeated := "", false
 	if bodySchema != nil {
 		// The hint decides the generated name of an inline body schema, so it
@@ -288,7 +295,7 @@ func (g *generator) requestType(methodName string, located []*parameter, bodySch
 		if len(located) > 0 {
 			hint = "RequestBody"
 		}
-		bodyType, bodyRepeated = g.protoType(methodName, hint, bodySchema)
+		bodyType, bodyRepeated = g.protoType(typeBase, hint, bodySchema)
 	}
 
 	if len(located) == 0 && bodySchema != nil && !bodyRepeated && g.seenMsg[bodyType] {
@@ -297,7 +304,7 @@ func (g *generator) requestType(methodName string, located []*parameter, bodySch
 		return bodyType
 	}
 
-	reqName := g.uniqueMessageName(methodName + "Request")
+	reqName := g.uniqueMessageName(typeBase + "Request")
 	req := &messageDef{name: reqName}
 	g.addMessage(req)
 
@@ -329,7 +336,7 @@ func (g *generator) requestType(methodName string, located []*parameter, bodySch
 // JSON should be wrapped to match it. The schema is mapped through protoType so
 // refs, unions, and allOf compositions resolve to their effective JSON shape
 // (a $ref can point at an array or scalar, not just an object).
-func (g *generator) responseType(methodName string, op *operation) (string, string) {
+func (g *generator) responseType(typeBase string, op *operation) (string, string) {
 	resp := successResponse(op)
 	var mt mediaType
 	ok := false
@@ -337,7 +344,7 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 		_, mt, ok = jsonContent(resp.Content)
 	}
 	if !ok || mt.Schema == nil {
-		respName := g.uniqueMessageName(methodName + "Response")
+		respName := g.uniqueMessageName(typeBase + "Response")
 		if resp != nil && !ok && textContent(resp.Content) {
 			g.addMessage(&messageDef{name: respName, fields: []fieldDef{
 				g.envelope(fieldDef{typ: "string", name: "value", number: 1, jsonName: "value"}, payloadValue),
@@ -348,10 +355,10 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 		return respName, "empty"
 	}
 
-	typ, repeated := g.protoType(methodName, "Response", mt.Schema)
+	typ, repeated := g.protoType(typeBase, "Response", mt.Schema)
 	switch {
 	case repeated:
-		respName := g.uniqueMessageName(methodName + "Response")
+		respName := g.uniqueMessageName(typeBase + "Response")
 		g.addMessage(&messageDef{name: respName, fields: []fieldDef{
 			g.envelope(fieldDef{typ: typ, name: "items", number: 1, jsonName: "items", repeated: true}, payloadItems),
 		}})
@@ -359,7 +366,7 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 	case g.seenMsg[typ]:
 		return typ, "object"
 	default:
-		respName := g.uniqueMessageName(methodName + "Response")
+		respName := g.uniqueMessageName(typeBase + "Response")
 		g.addMessage(&messageDef{name: respName, fields: []fieldDef{
 			g.envelope(fieldDef{typ: typ, name: "value", number: 1, jsonName: "value"}, payloadValue),
 		}})
@@ -810,13 +817,12 @@ func (g *generator) uniqueMessageName(base string) string {
 	return candidate
 }
 
-func (g *generator) uniqueRPCName(base string) string {
-	name := pascal(base)
+func (svc *serviceDef) uniqueRPCName(name string) string {
 	candidate := name
-	for i := 2; g.seenRPC[candidate]; i++ {
+	for i := 2; svc.seenRPC[candidate]; i++ {
 		candidate = fmt.Sprintf("%s%d", name, i)
 	}
-	g.seenRPC[candidate] = true
+	svc.seenRPC[candidate] = true
 	return candidate
 }
 
@@ -947,6 +953,66 @@ func operationName(verb, path string, op *operation) string {
 		}
 	}
 	return strings.Join(parts, "_")
+}
+
+// sharedNamespace returns the leading dot-separated segment every namespaced tag
+// and operationId in the spec begins with, or "" if they do not agree on one.
+//
+// A spec that names itself in each of its own identifiers - "Benchling.AaSequence.Get"
+// under the tag "Benchling.AaSequence" - says in every method what the app's name
+// already says once, at the import. A segment they all share tells nothing apart,
+// so it is dropped; the moment one of them disagrees the segment is doing work and
+// is kept.
+func sharedNamespace(s *spec) string {
+	shared := ""
+	namespaced := 0
+	for _, item := range s.Paths {
+		for _, vo := range item.operations() {
+			names := []string{vo.op.OperationID}
+			if len(vo.op.Tags) > 0 {
+				names = append(names, vo.op.Tags[0])
+			}
+			for _, name := range names {
+				head, rest, ok := strings.Cut(name, ".")
+				if !ok || head == "" || rest == "" {
+					continue
+				}
+				if shared != "" && head != shared {
+					return ""
+				}
+				shared = head
+				namespaced++
+			}
+		}
+	}
+	if namespaced < 2 {
+		return ""
+	}
+	return shared
+}
+
+// trimNamespace drops the shared namespace from the front of a tag or operationId.
+func trimNamespace(name, namespace string) string {
+	if namespace == "" {
+		return name
+	}
+	if rest, ok := strings.CutPrefix(name, namespace+"."); ok && rest != "" {
+		return rest
+	}
+	return name
+}
+
+// trimServiceName drops the service's own name from the front of a method name.
+// A method is read inside its service, so AaSequence.AaSequenceGet states the
+// resource twice and what is left is what the method adds. The remainder has to
+// start a new word, or the trim is cutting a longer name in half rather than
+// removing a prefix.
+func trimServiceName(method, service string) string {
+	rest, ok := strings.CutPrefix(method, service)
+	if !ok || rest == "" || !(rest[0] >= 'A' && rest[0] <= 'Z') {
+		return method
+	}
+	return rest
 }
 
 // pascal converts an arbitrary string to a PascalCase proto identifier.
