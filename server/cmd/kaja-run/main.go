@@ -1,17 +1,22 @@
-// Command kaja-run runs an exported script.
+// Command kaja-run runs an exported script — on a laptop, and in a container.
 //
 // It is the same bytes for every export, which is what makes exporting one a
-// copy rather than a build: the script, its stubs and its apps are appended to
-// this program as a zip, and everything platform-specific about producing an
-// exported app is choosing which prebuilt copy of this to append to.
+// copy rather than a build: the bundle is read from a path, or from the end of
+// this program when one was appended to it.
 //
 // What it does is what kaja does on every start, minus everything it can skip
 // because the bundle already holds the answer: it puts the frozen proto surface
 // back on disk, opens the apps, and serves one page that runs one script.
+//
+// A deployed one is the same program with the address changed, so the two ways
+// it can be reached are one decision and it is made where it is bound: on the
+// loopback address the browser and this process are the same trust boundary,
+// and anywhere else they are not.
 package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,9 +25,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
+	"time"
 
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/pkg/api"
@@ -30,8 +38,8 @@ import (
 )
 
 func main() {
-	listen := flag.String("listen", "127.0.0.1:0", "address to listen on")
-	open := flag.Bool("open", true, "open the app in a browser")
+	listen := flag.String("listen", "", "address to listen on (default $PORT on every interface, else a loopback port)")
+	open := flag.Bool("open", true, "open the app in a browser, when it is one this machine can reach")
 	flag.Parse()
 
 	app, err := load(flag.Arg(0))
@@ -41,39 +49,175 @@ func main() {
 	}
 	defer app.bundle.Close()
 
-	listener, err := net.Listen("tcp", *listen)
+	address := listenAddress(*listen)
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot listen on %s: %v\n", *listen, err)
+		fmt.Fprintf(os.Stderr, "cannot listen on %s: %v\n", address, err)
 		os.Exit(1)
 	}
-	url := "http://" + listener.Addr().String()
 
 	// Everything the script reads is resolved in this process and the values only
 	// leave it as headers on the way out — unless nothing but this machine can
 	// reach the page, which is the one case where the browser is the same trust
-	// boundary as the process. It is the rule the web server already follows,
-	// stated the other way round.
+	// boundary as the process.
 	app.local = isLoopback(listener.Addr())
+	app.token = strings.TrimSpace(os.Getenv(TokenEnv))
 
+	if err := app.checkReachable(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	url := "http://" + listener.Addr().String()
 	fmt.Printf("%s is running at %s\n", app.state.Manifest.Name, url)
 	for _, warning := range app.warnings() {
 		fmt.Println("  " + warning)
 	}
-	if *open {
+	if *open && app.local {
 		openBrowser(url)
 	}
 
-	if err := http.Serve(listener, app.handler()); err != nil {
+	serve(listener, app.handler())
+}
+
+// serve runs until the process is asked to stop. A container stops by being
+// signalled, so a runner that ignored one would be killed rather than closed,
+// and the run in flight would end as a connection that went quiet.
+func serve(listener net.Listener, handler http.Handler) {
+	server := &http.Server{Handler: handler}
+
+	stopping := make(chan os.Signal, 1)
+	signal.Notify(stopping, os.Interrupt, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		<-stopping
+		context, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = server.Shutdown(context)
+		close(done)
+	}()
+
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		slog.Error("Failed to serve", "error", err)
 		os.Exit(1)
 	}
+	<-done
 }
+
+// listenAddress is where to bind. A container is told by its platform which
+// port to answer on and nothing else, so $PORT means "be reachable"; with
+// neither a flag nor a variable this is somebody's own machine, and a port
+// nobody else can reach is the right default there.
+func listenAddress(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+		return ":" + port
+	}
+	return "127.0.0.1:0"
+}
+
+// The two environment variables a deployed app is configured by. They are read
+// rather than baked, because whether a copy of an app should be reachable is a
+// fact about where it was put, not about the script it was made from.
+const (
+	// TokenEnv holds the secret a request must carry. Setting it is what makes a
+	// deployed app somebody's rather than everybody's.
+	TokenEnv = "KAJA_APP_TOKEN"
+	// PublicEnv is the way to say the app is meant to be open, which is a real
+	// thing to mean — a script that reads a public API and draws a table is a web
+	// page. It has to be said, because the alternative is meaning it by accident.
+	PublicEnv = "KAJA_APP_PUBLIC"
+)
 
 type runner struct {
 	bundle *bundle.Bundle
 	state  *state
 	api    *api.ApiService
-	local  bool
+	// local is whether nothing but this machine can reach the page.
+	local bool
+	// token is what a request must carry when it can be reached from elsewhere.
+	token string
+}
+
+// checkReachable refuses to start an app that can be reached from outside this
+// machine and has not been told who may reach it.
+//
+// A run makes calls with credentials this process holds, so an address anybody
+// can reach is an address anybody can spend them from. That is a deployment
+// decision rather than a defect, and both ways of making it are one line in the
+// environment — so the one thing not to allow is making it silently.
+func (r *runner) checkReachable() error {
+	if r.local || r.token != "" || os.Getenv(PublicEnv) == "1" {
+		return nil
+	}
+	return fmt.Errorf(`%s can be reached from outside this machine, so it needs to know who may run it.
+
+A run makes calls with the credentials this process holds, and %s is bound to an address that is not the loopback one.
+
+  Set %s to a secret, and reach it as ?token=<secret> — or
+  set %s=1 if this app is meant to be open to anyone who finds it.`,
+		r.state.Manifest.Name, r.state.Manifest.Name, TokenEnv, PublicEnv)
+}
+
+// guard is the token check, in front of everything but the health endpoint. The
+// token may arrive as a bearer header, which is what a script calling this uses,
+// or in the query, which is what a person pasting a link has — and that one is
+// put in a cookie and taken back out of the URL, so it is not left in a history
+// or a screenshot.
+func (r *runner) guard(next http.Handler) http.Handler {
+	if r.token == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/status" {
+			next.ServeHTTP(w, req)
+			return
+		}
+		if given := req.URL.Query().Get("token"); given != "" {
+			if !matches(given, r.token) {
+				http.Error(w, "Not this app's token.", http.StatusUnauthorized)
+				return
+			}
+			http.SetCookie(w, &http.Cookie{
+				Name:     tokenCookie,
+				Value:    given,
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   req.TLS != nil || req.Header.Get("X-Forwarded-Proto") == "https",
+			})
+			// Back to the same page without the secret in it.
+			away := *req.URL
+			query := away.Query()
+			query.Del("token")
+			away.RawQuery = query.Encode()
+			http.Redirect(w, req, away.RequestURI(), http.StatusSeeOther)
+			return
+		}
+		if r.authorized(req) {
+			next.ServeHTTP(w, req)
+			return
+		}
+		http.Error(w, "This app needs its token: open it as ?token=<secret>.", http.StatusUnauthorized)
+	})
+}
+
+func (r *runner) authorized(req *http.Request) bool {
+	if bearer := strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer "); matches(bearer, r.token) {
+		return true
+	}
+	cookie, err := req.Cookie(tokenCookie)
+	return err == nil && matches(cookie.Value, r.token)
+}
+
+const tokenCookie = "kaja_app_token"
+
+// matches compares in constant time, so the answer says whether the token was
+// right and not how much of it was.
+func matches(given string, want string) bool {
+	return want != "" && subtle.ConstantTimeCompare([]byte(given), []byte(want)) == 1
 }
 
 // state is what the player is handed: the manifest, plus what could only be
@@ -296,7 +440,14 @@ func (r *runner) handler() http.Handler {
 		return req.PathValue("method")
 	}))
 
-	return mux
+	// Unauthenticated, because it is the one request that must be answerable by
+	// something that has no business running the app: the platform asking whether
+	// this container came up.
+	mux.HandleFunc("GET /status", func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	return r.guard(mux)
 }
 
 func isLoopback(addr net.Addr) bool {

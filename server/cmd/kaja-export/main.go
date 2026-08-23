@@ -22,6 +22,7 @@ func main() {
 	script := flag.String("script", "", "the script to export, by its name in the workspace's scripts folder")
 	out := flag.String("out", "", "where to write the bundle (default <script>.kaja)")
 	runner := flag.String("runner", "", "a kaja-run binary to append the bundle to, producing one self-contained file")
+	deploy := flag.String("deploy", "", "a directory to write a deployable image source into, using -runner as the image's runner")
 	verbose := flag.Bool("verbose", false, "print what each app did while it was being frozen")
 	flag.Parse()
 
@@ -49,6 +50,18 @@ func main() {
 	}
 
 	if *runner == "" {
+		return
+	}
+
+	// A deployment is the same bundle with somewhere to run it: the runner beside
+	// it rather than appended to it, because a container has room for two files
+	// and an image layer has no signature to invalidate.
+	if *deploy != "" {
+		if err := bundle.WriteDeployment(*deploy, result.Manifest, result.Path, *runner); err != nil {
+			fmt.Fprintln(os.Stderr, "cannot write the deployment:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s — docker build, or fly deploy\n", *deploy)
 		return
 	}
 

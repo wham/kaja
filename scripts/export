@@ -3,17 +3,20 @@ set -e
 
 # Export a script as an app that runs on its own.
 #
-# Usage: scripts/export <script> [--workspace kaja.json] [--out app.kaja] [--bundle-only]
+# Usage: scripts/export <script> [--docker <dir>] [--arch amd64|arm64]
+#                                [--workspace kaja.json] [--out app.kaja] [--bundle-only]
 #
-# It writes two things by default: the .kaja bundle, and — because the runner is
-# the same bytes for every export — a copy of that runner with the bundle
-# appended to it, which is one file you can hand to somebody. Nothing here
-# compiles the script or the app: what the bundle holds was frozen at export.
+# Three shapes of the same thing, and the bundle is what they are all made of:
 #
-# The runner is built for this machine. Building it for another is the same
-# command with GOOS/GOARCH set, which is what a release matrix does — the point
-# of appending rather than generating is that no toolchain is involved in the
-# export itself.
+#   --bundle-only   the .kaja alone, which any kaja-run runs
+#   (default)       that runner with the bundle appended, one file for this machine
+#   --docker <dir>  a directory to `docker build` or `fly deploy`
+#
+# Nothing here compiles the script or the app: what the bundle holds was frozen
+# at export. The runner is built — for this machine by default, and for linux
+# when the answer is an image. That cross-build is free and needs nothing
+# installed: the runner is pure Go, so GOOS=linux is the whole of it, and on
+# linux there is no signature to invalidate by putting the binary in a layer.
 
 source "$(dirname "$0")/common"
 
@@ -22,19 +25,23 @@ cd "$(dirname "$0")/.."
 SCRIPT=""
 WORKSPACE="../workspace/kaja.json"
 OUT=""
+DEPLOY=""
+ARCH=""
 BUNDLE_ONLY=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --workspace) WORKSPACE="$2"; shift 2 ;;
         --out) OUT="$2"; shift 2 ;;
+        --docker) DEPLOY="$2"; shift 2 ;;
+        --arch) ARCH="$2"; shift 2 ;;
         --bundle-only) BUNDLE_ONLY=true; shift ;;
         *) SCRIPT="$1"; shift ;;
     esac
 done
 
 if [ -z "$SCRIPT" ]; then
-    echo "Usage: scripts/export <script> [--workspace kaja.json] [--out app.kaja] [--bundle-only]"
+    echo "Usage: scripts/export <script> [--docker <dir>] [--arch amd64|arm64] [--workspace kaja.json] [--out app.kaja] [--bundle-only]"
     exit 2
 fi
 
@@ -52,7 +59,15 @@ fi
 ARGS=(-script "$SCRIPT" -workspace "$WORKSPACE")
 [ -n "$OUT" ] && ARGS+=(-out "$OUT")
 
-if [ "$BUNDLE_ONLY" = false ]; then
+if [ -n "$DEPLOY" ]; then
+    # The image runs on linux whatever this machine is, and CGO is off so the
+    # binary needs nothing in the image but the certificates the Dockerfile adds.
+    [ -z "$ARCH" ] && ARCH=$(go env GOARCH)
+    RUNNER="server/build/kaja-run-linux-$ARCH"
+    echo "Building the runner for linux/$ARCH..."
+    (cd server && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -o "../$RUNNER" ./cmd/kaja-run)
+    ARGS+=(-runner "$PWD/$RUNNER" -deploy "$DEPLOY")
+elif [ "$BUNDLE_ONLY" = false ]; then
     # One binary for this platform, appended to once per export.
     (cd server && go build -o build/kaja-run ./cmd/kaja-run)
     ARGS+=(-runner "$PWD/server/build/kaja-run")
