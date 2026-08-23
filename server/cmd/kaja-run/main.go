@@ -23,9 +23,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -188,12 +190,15 @@ func (r *runner) guard(next http.Handler) http.Handler {
 				SameSite: http.SameSiteLaxMode,
 				Secure:   req.TLS != nil || req.Header.Get("X-Forwarded-Proto") == "https",
 			})
-			// Back to the same page without the secret in it.
-			away := *req.URL
-			query := away.Query()
+			// Back to the same page without the secret in it. The destination is
+			// built rather than reflected: a path beginning with two slashes is read
+			// by a browser as a host, so reflecting one into a Location is a
+			// redirect to somebody else's site. Only the path survives, rooted and
+			// cleaned, which is what makes the answer always this app.
+			query := req.URL.Query()
 			query.Del("token")
-			away.RawQuery = query.Encode()
-			http.Redirect(w, req, away.RequestURI(), http.StatusSeeOther)
+			away := &url.URL{Path: path.Clean("/" + req.URL.Path), RawQuery: query.Encode()}
+			http.Redirect(w, req, away.String(), http.StatusSeeOther)
 			return
 		}
 		if r.authorized(req) {

@@ -130,3 +130,42 @@ func TestGuardIsAbsentWithoutAToken(t *testing.T) {
 		t.Error("an app with no token should not be guarded")
 	}
 }
+
+// The token redirect hands back a Location, and a Location taken from the
+// request is a redirect to wherever the request asked for — a path starting
+// with two slashes is another site to a browser. Whatever was asked for, what
+// comes back has to be this app.
+func TestGuardRedirectsOnlyToItself(t *testing.T) {
+	guarded := (&runner{token: "s3cr3t"}).guard(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	for _, target := range []string{
+		"//evil.example.com/?token=s3cr3t",
+		"///evil.example.com/?token=s3cr3t",
+		"http://evil.example.com/?token=s3cr3t",
+		"/canvas?token=s3cr3t&keep=1",
+	} {
+		recorder := httptest.NewRecorder()
+		guarded.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+
+		away := recorder.Result().Header.Get("Location")
+		if recorder.Code != http.StatusSeeOther {
+			t.Fatalf("%s: code = %d", target, recorder.Code)
+		}
+		if !strings.HasPrefix(away, "/") || strings.HasPrefix(away, "//") {
+			t.Errorf("%s: Location %q leaves this app", target, away)
+		}
+		if strings.Contains(away, "evil.example.com") && !strings.HasPrefix(away, "/evil.example.com") {
+			t.Errorf("%s: Location %q names another host", target, away)
+		}
+		if strings.Contains(away, "token") {
+			t.Errorf("%s: Location %q still carries the token", target, away)
+		}
+	}
+
+	// What is not the token is kept, because the redirect is the same page.
+	recorder := httptest.NewRecorder()
+	guarded.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/canvas?token=s3cr3t&keep=1", nil))
+	if away := recorder.Result().Header.Get("Location"); away != "/canvas?keep=1" {
+		t.Errorf("Location = %q, want /canvas?keep=1", away)
+	}
+}
