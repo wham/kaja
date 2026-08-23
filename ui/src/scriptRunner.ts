@@ -33,6 +33,20 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
   return message;
 }
 
+// Only named imports bind, because the bindings are looked up by name. A default or
+// namespace clause would otherwise drop through and surface as "X is not defined"
+// pointing at the use rather than at the import that never bound anything.
+function requireNamedImport(importClause: ts.ImportClause | undefined, path: string, example: string): void {
+  if (!importClause) return;
+  const form = importClause.name
+    ? "a default import"
+    : importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)
+      ? "a namespace import"
+      : undefined;
+  if (!form) return;
+  throw new Error(`Cannot resolve import "${path}": ${form} does not resolve. Use a named import: import { ${example} } from "${path}".`);
+}
+
 // prepareTask resolves a script's imports against the loaded apps and splits out the
 // runnable body, returning the args every binding maps to plus the code.
 function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
@@ -52,6 +66,7 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
       // Monaco backs the kaja module with a model at ts:/kaja.ts, so its auto-import and
       // go-to-definition can emit the relative "./kaja" form.
       if (path === "kaja" || path === "./kaja") {
+        requireNamedImport(statement.importClause, path, "kaja");
         const importClause = statement.importClause;
         if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
           importClause.namedBindings.elements.forEach((importSpecifier) => {
@@ -74,6 +89,8 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
       if (!source) {
         throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
       }
+
+      requireNamedImport(statement.importClause, path, app.services.find((service) => service.sourcePath === source.importPath)?.name ?? "Service");
 
       const importClause = statement.importClause;
       if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
