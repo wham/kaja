@@ -14,7 +14,7 @@ import { isJsonObject, type JsonValue } from "@protobuf-ts/runtime";
 import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { transportHeaders } from "../appTypes";
-import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
+import { UPSTREAM_DURATION_TRAILER, UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
@@ -89,6 +89,7 @@ function upstreamError(result: {
   status: string;
   requestHeaders?: { [key: string]: string };
   responseHeaders?: { [key: string]: string };
+  durationMs?: number;
 }): UpstreamError {
   let errorJson: unknown;
   try {
@@ -110,6 +111,9 @@ function upstreamError(result: {
   }
   if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
     meta[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+  }
+  if (typeof result.durationMs === "number") {
+    meta[UPSTREAM_DURATION_TRAILER] = String(result.durationMs);
   }
   if (Object.keys(meta).length > 0) {
     (error as unknown as { meta: RpcMetadata }).meta = meta;
@@ -192,12 +196,17 @@ export class WailsTransport implements RpcTransport {
       }),
     );
 
-    // Listen for stream end
+    // Listen for stream end. The event carries the stream's upstream duration,
+    // mirrored as the same trailer a unary call arrives with.
     unsubscribers.push(
-      EventsOn("stream:" + streamID + ":end", () => {
+      EventsOn("stream:" + streamID + ":end", (durationMs?: unknown) => {
         responseStream.notifyComplete();
         statusDeferred.resolve({ code: "OK", detail: "" });
-        trailersDeferred.resolve({});
+        const trailers: RpcMetadata = {};
+        if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0) {
+          trailers[UPSTREAM_DURATION_TRAILER] = String(durationMs);
+        }
+        trailersDeferred.resolve(trailers);
         cleanup();
       }),
     );
@@ -312,6 +321,13 @@ export class WailsTransport implements RpcTransport {
         }
         if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
           trailers[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+        }
+        // The Go side stamps the upstream exchange; mirrored the same way. Read
+        // structurally rather than off the generated TargetResult model, which only
+        // gains the field when the next desktop build regenerates the bindings.
+        const upstreamDurationMs = (result as { durationMs?: number }).durationMs;
+        if (typeof upstreamDurationMs === "number") {
+          trailers[UPSTREAM_DURATION_TRAILER] = String(upstreamDurationMs);
         }
 
         responseBody = result.body;

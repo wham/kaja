@@ -79,6 +79,29 @@ func TestServeAppGRPCWebSuccess(t *testing.T) {
 	}
 }
 
+// TestServeAppGRPCWebUpstreamDuration locks in that the invocation's server-side
+// timing rides its own trailer, on the success and the failure alike, so the
+// client can show the API's time instead of its own round trip.
+func TestServeAppGRPCWebUpstreamDuration(t *testing.T) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return &apps.InvokeResult{Body: []byte{9}, DurationMs: 42}, nil
+	})
+	_, trailers := parseGRPCWebText(t, w.Body.String())
+	if got := trailerValue(t, trailers, "kaja-upstream-duration-ms"); got != "42" {
+		t.Errorf("duration trailer = %q, want 42", got)
+	}
+
+	w = serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		failure := apps.NewUpstreamError(http.MethodGet, "https://api.example.com/x", http.StatusNotFound, nil)
+		failure.DurationMs = 17
+		return nil, failure
+	})
+	_, trailers = parseGRPCWebText(t, w.Body.String())
+	if got := trailerValue(t, trailers, "kaja-upstream-duration-ms"); got != "17" {
+		t.Errorf("duration trailer on failure = %q, want 17", got)
+	}
+}
+
 // TestServeAppGRPCWebUpstreamHeaders locks in that an app's exchanged upstream
 // headers are surfaced as their own JSON trailers alongside the response.
 func TestServeAppGRPCWebUpstreamHeaders(t *testing.T) {

@@ -112,6 +112,11 @@ type InvokeResult struct {
 	Body            []byte
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	// DurationMs is the wall-clock time of the invocation as this process measured
+	// it — the upstream exchange plus the app's own encode/decode, and nothing of the
+	// trip between the UI and here. Stamped by ApiService.InvokeApp, the one door both
+	// request routers call, so an app never fills it in itself.
+	DurationMs int64
 }
 
 // Manager owns the registry of app types and the set of live instances.

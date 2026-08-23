@@ -9,7 +9,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/grpc"
@@ -222,6 +224,15 @@ func main() {
 				for name, value := range forwardHeaders {
 					req.Header.Set(name, value)
 				}
+			}
+			started := time.Now()
+			// The one Kaja process in the call's path stamps the upstream exchange.
+			// Twirp has no trailers, so the measurement rides a reserved response
+			// header (kaja-upstream-*, the same namespace the gRPC paths use as
+			// trailers), which the client strips before showing response headers.
+			proxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Set("Kaja-Upstream-Duration-Ms", strconv.FormatInt(time.Since(started).Milliseconds(), 10))
+				return nil
 			}
 			proxy.ServeHTTP(w, r)
 		}

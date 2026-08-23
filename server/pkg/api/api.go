@@ -6,6 +6,7 @@ import (
 	fmt "fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/pkg/apps"
@@ -76,19 +77,25 @@ func (s *ApiService) variableStoreAvailable() bool {
 // because a variable's value may be one it is not allowed to know - and masks
 // every resolved value back out of the headers the app reports exchanging with
 // its upstream. Both request routers go through here, so neither can surface a
-// value kaja.json doesn't carry.
+// value kaja.json doesn't carry. It also stamps the invocation's duration, on the
+// result and the failure alike: measured here, it is server-side time with nothing
+// of the trip between the UI and this process in it.
 func (s *ApiService) InvokeApp(target string, method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
 	resolver := s.Variables()
 
+	started := time.Now()
 	result, err := s.apps.Invoke(target, method, message, resolver.ExpandAll(headers))
+	durationMs := time.Since(started).Milliseconds()
 	if err != nil {
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
+			upstream.DurationMs = durationMs
 			upstream.RequestHeaders = resolver.Redact(upstream.RequestHeaders, headers)
 		}
 		return nil, err
 	}
 
+	result.DurationMs = durationMs
 	result.RequestHeaders = resolver.Redact(result.RequestHeaders, headers)
 	return result, nil
 }

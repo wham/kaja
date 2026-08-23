@@ -55,6 +55,12 @@ describe("slowestOf", () => {
     expect(slowestOf([call("a", "r", { durationMs: 120 }), call("b", "r", { durationMs: 690 })])).toBe(690);
   });
 
+  // The bars compare what the rows show: the upstream exchange once Kaja measured
+  // it, not the round trip that carried it here.
+  it("compares upstream durations where Kaja measured them", () => {
+    expect(slowestOf([call("a", "r", { durationMs: 900, upstreamDurationMs: 120 }), call("b", "r", { durationMs: 700, upstreamDurationMs: 650 })])).toBe(650);
+  });
+
   // A bar only means something against another bar, so a run of one gets none.
   it("has nothing to compare in a run of one call", () => {
     expect(slowestOf([call("a", "r", { durationMs: 120 })])).toBeUndefined();
@@ -88,6 +94,7 @@ describe("ItemStats", () => {
       [call("a", "r", { durationMs: 120 }), call("b", "r", { durationMs: 690 })],
       [call("a", "r", { durationMs: 120 })],
       [call("a", "r", { durationMs: 120 }), call("b", "r", { output: undefined })],
+      [call("a", "r", { durationMs: 900, upstreamDurationMs: 120 }), call("b", "r", { durationMs: 700, upstreamDurationMs: 650 })],
     ];
 
     for (const items of runs) {
