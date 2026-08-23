@@ -98,9 +98,8 @@ func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]
 	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
 }
 
-// readChat reads the decoded ChatCompletion request off the proto surface. The
-// optional sampling fields stay optional - an unset one is left for the wire to
-// omit or to default - which is why they come back as pointers.
+// The optional sampling fields come back as pointers because an unset one is
+// left for the wire to omit or to default.
 func (in *instance) readChat(reqMsg *dynamicpb.Message) (chat, error) {
 	fields := in.input.Fields()
 	getString := func(name string) string {
@@ -171,8 +170,6 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, m
 	return respBody, resp.StatusCode, reqHeaders, respHeaders, nil
 }
 
-// setCredential applies the app's one credential in the shape its API asks for.
-// Nothing is sent when there is no token to send.
 func (in *instance) setCredential(header http.Header) {
 	if in.auth == authNone || in.token == "" {
 		return

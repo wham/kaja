@@ -6,15 +6,11 @@ import (
 	"strings"
 )
 
-// The APIs this app speaks. The method surface is the same either way; what
-// differs is the body sent, the response read back, and the header the credential
-// travels under.
 const (
 	apiOpenAI    = "openai"
 	apiAnthropic = "anthropic"
 )
 
-// The credential kinds an app can send.
 const (
 	authBearer = "bearer"
 	authAPIKey = "apikey"
@@ -32,8 +28,6 @@ const anthropicVersion = "2023-06-01"
 // unset gets this rather than a 400.
 const anthropicDefaultMaxTokens = 4096
 
-// chat is a ChatCompletion request read off kaja's own proto surface, before
-// either API has had its say about how to write it down.
 type chat struct {
 	model        string
 	systemPrompt string
@@ -43,20 +37,16 @@ type chat struct {
 	topP         *float64
 }
 
-// wire is the pair of translations that differ between the two APIs: what a
-// ChatCompletion becomes on the way out, and what the upstream's JSON becomes on
-// the way back. Both ends speak kaja's own proto surface, so a script that swaps
-// one app for the other keeps working.
+// wire is the pair of translations that differ between the two APIs. Both ends
+// speak kaja's own proto surface, so a script that swaps one app for the other
+// keeps working.
 type wire interface {
-	// name is the value written in the app's `api` parameter.
 	name() string
-	// endpoint the API is served at when the app names none.
 	endpoint() string
 	// defaultAuth is the credential the API's own dashboard hands you.
 	defaultAuth() string
 	// required is what the API insists on beside the credential.
 	required() map[string]string
-	// request encodes the call as the API's own request body.
 	request(call chat) ([]byte, error)
 	// response reshapes the API's own response into ChatCompletionResponse's
 	// shape. It hands back bytes rather than a message so protojson stays the one
@@ -64,8 +54,8 @@ type wire interface {
 	response(body []byte) ([]byte, error)
 }
 
-// wireFor resolves the app's `api` parameter. An empty value is the OpenAI API,
-// which is the only one this app spoke before there was a choice.
+// An empty api is the OpenAI one, which is all this app spoke before there was a
+// choice.
 func wireFor(name string) (wire, error) {
 	switch strings.TrimSpace(strings.ToLower(name)) {
 	case "", apiOpenAI:
@@ -77,19 +67,14 @@ func wireFor(name string) (wire, error) {
 	}
 }
 
-// openAIWire is the OpenAI chat completions API, which is also what every
-// OpenAI-compatible endpoint speaks.
+// openAIWire is also what every OpenAI-compatible endpoint speaks.
 type openAIWire struct{}
 
-func (openAIWire) name() string     { return apiOpenAI }
-func (openAIWire) endpoint() string { return "https://api.openai.com/v1/chat/completions" }
-func (openAIWire) defaultAuth() string {
-	return authBearer
-}
+func (openAIWire) name() string                { return apiOpenAI }
+func (openAIWire) endpoint() string            { return "https://api.openai.com/v1/chat/completions" }
+func (openAIWire) defaultAuth() string         { return authBearer }
 func (openAIWire) required() map[string]string { return nil }
 
-// request folds the system and user prompts into a messages array and passes the
-// optional sampling fields through only when the caller set them.
 func (openAIWire) request(call chat) ([]byte, error) {
 	messages := []map[string]string{}
 	if call.systemPrompt != "" {
@@ -113,9 +98,6 @@ func (openAIWire) request(call chat) ([]byte, error) {
 // The response already is the shape the proto surface was written from.
 func (openAIWire) response(body []byte) ([]byte, error) { return body, nil }
 
-// anthropicWire is the Claude Messages API. The system prompt is a top-level
-// field rather than a message, max_tokens is required, and the reply arrives as a
-// list of content blocks.
 type anthropicWire struct{}
 
 func (anthropicWire) name() string        { return apiAnthropic }
@@ -133,7 +115,8 @@ func (anthropicWire) request(call chat) ([]byte, error) {
 	payload := map[string]any{
 		"model":      call.model,
 		"max_tokens": maxTokens,
-		"messages":   []map[string]string{{"role": "user", "content": call.userPrompt}},
+		// The system prompt is a field of its own here, not a message.
+		"messages": []map[string]string{{"role": "user", "content": call.userPrompt}},
 	}
 	if call.systemPrompt != "" {
 		payload["system"] = call.systemPrompt
@@ -147,10 +130,6 @@ func (anthropicWire) request(call chat) ([]byte, error) {
 	return json.Marshal(payload)
 }
 
-// response turns a Message into the one-choice completion the proto surface
-// describes. stop_reason travels as the finish reason verbatim rather than
-// translated into OpenAI's vocabulary: what the API said is what the response tab
-// should show.
 func (anthropicWire) response(body []byte) ([]byte, error) {
 	var message struct {
 		ID      string `json:"id"`
@@ -180,8 +159,10 @@ func (anthropicWire) response(body []byte) ([]byte, error) {
 		"id":    message.ID,
 		"model": message.Model,
 		"choices": []any{map[string]any{
-			"index":         0,
-			"message":       map[string]any{"role": "assistant", "content": reply.String()},
+			"index":   0,
+			"message": map[string]any{"role": "assistant", "content": reply.String()},
+			// Verbatim rather than translated into OpenAI's vocabulary: what the
+			// API said is what the response tab should show.
 			"finish_reason": message.StopReason,
 		}},
 		"usage": map[string]any{

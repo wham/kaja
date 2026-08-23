@@ -1,13 +1,10 @@
 import { variableReferences } from "./variableExpansion";
 
-// The two APIs a chat app can speak. They differ in the request body, the response
-// and the header the credential travels under, so the endpoint alone cannot settle
-// which one is meant - a gateway or a proxy serves either at any path it likes.
+// The endpoint alone cannot settle which of these is meant: a gateway serves either
+// at any path it likes.
 export const API_OPENAI = "openai";
 export const API_ANTHROPIC = "anthropic";
 
-// The credential a chat app sends with every request. One per app: an API either
-// takes a bearer token or a key under a header it names. Anything else is a header.
 export const AUTH_NONE = "none";
 export const AUTH_BEARER = "bearer";
 export const AUTH_APIKEY = "apikey";
@@ -15,15 +12,10 @@ export const AUTH_APIKEY = "apikey";
 // The header an API key travels under when the app doesn't name one.
 export const DEFAULT_API_KEY_NAME = "x-api-key";
 
-// The three rows the form offers. Two are an API and the endpoint it is served at;
-// the third is the same API with nowhere in particular to reach it, which is what
-// every OpenAI-compatible server is.
 export interface ApiChoiceDefinition {
   key: string;
   label: string;
-  // What the API is, in the words of the dashboard the credential came from.
   summary: string;
-  // The value written into the app's `api` parameter.
   api: string;
   // Prefilled into the endpoint, and left editable: a gateway serves the same API
   // somewhere else.
@@ -72,10 +64,9 @@ export function getApiChoice(key: string): ApiChoiceDefinition {
   return apiChoices.find((choice) => choice.key === key) ?? apiChoices[0];
 }
 
-// matchApiChoice reads an app back onto the row that would have written it. The API
-// picks the row where there is one; an OpenAI app pointed anywhere but OpenAI's own
-// endpoint is the compatible one, which is how an Azure or a gateway URL survives
-// being edited.
+// matchApiChoice reads an app back onto the row that would have written it. An
+// OpenAI app pointed anywhere but OpenAI's own endpoint is the compatible row,
+// which is how an Azure or a gateway URL survives being edited.
 export function matchApiChoice(api: string, endpoint: string): string {
   if (api.trim().toLowerCase() === API_ANTHROPIC) return CHOICE_ANTHROPIC;
   const target = endpoint.trim();

@@ -81,9 +81,8 @@ export function OpenAiForm({
     onParametersChange((previous) => ({ ...previous, [key]: value }));
   };
 
-  // Picking an API writes all three things that follow from it. The endpoint is
-  // prefilled rather than fixed, so a gateway serving the same API is a matter of
-  // editing the field the row just filled.
+  // The endpoint is prefilled rather than fixed, so a gateway serving the same API
+  // is a matter of editing the field the row just filled.
   const selectChoice = (key: string) => {
     setChoice(key);
     const picked = getApiChoice(key);
@@ -186,7 +185,7 @@ interface AuthenticationSectionProps {
 }
 
 // The same fixed list the MCP form offers, for the same reason: nothing declares
-// what the endpoint accepts, and each row states the header it becomes.
+// what the endpoint accepts.
 function AuthenticationSection({ selected, onSelect, parameters, onParameterChange, variables, readOnly }: AuthenticationSectionProps) {
   return (
     <div className="flex flex-col gap-2">

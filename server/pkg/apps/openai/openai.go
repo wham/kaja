@@ -2,16 +2,10 @@
 // a small gRPC surface kaja can render and invoke.
 //
 // It speaks two APIs, named by the "api" parameter: OpenAI chat completions
-// ("openai", the default, and what every OpenAI-compatible endpoint speaks) and
-// the Claude Messages API ("anthropic"). They differ in the request body, the
-// response and the header the credential travels under, so the endpoint alone
-// cannot settle which one is meant. The proto surface is the same either way -
-// swapping one app for the other leaves a script working.
-//
-// The other parameters are "endpoint" (the full URL, defaulted per API), "auth"
-// ("bearer", "apikey" or "none"), "token" and "api_key_name". Method calls arrive
-// as protobuf, are transcoded into a POST against the endpoint, and the JSON
-// response is shaped back into the method's protobuf response.
+// ("openai", the default) and the Claude Messages API ("anthropic"). They differ
+// in the request body, the response and the header the credential travels under,
+// so the endpoint alone cannot settle which one is meant. The proto surface is
+// the same either way, so swapping one app for the other leaves a script working.
 package openai
 
 import (
@@ -32,9 +26,7 @@ import (
 const serviceTypeName = "openai.OpenAI"
 
 // protoSource is the static proto surface the app renders, the same for either
-// API it speaks: a single ChatCompletion method exposing the most common chat
-// inputs (model, system/user prompt, temperature, ...) and a response carrying
-// the assistant's reply alongside the raw choices and token usage.
+// API it speaks.
 const protoSource = `syntax = "proto3";
 
 package openai;
@@ -71,9 +63,9 @@ message Choice {
   string finish_reason = 3 [json_name = "finish_reason"];
 }
 
-// Error carries the details of a failed upstream request. It mirrors the
-// OpenAI error envelope - which the Claude API shares the shape of - so the
-// status code, message, type, code and raw body are all visible on the response.
+// Error mirrors the OpenAI error envelope, which the Claude API shares the shape
+// of, so the status code, message, type, code and raw body are all visible on the
+// response.
 message Error {
   // HTTP status code returned by the upstream API, e.g. 401.
   int32 status = 1 [json_name = "status"];
@@ -170,8 +162,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}}, nil
 }
 
-// authFor resolves the app's "auth" parameter, falling back to whichever
-// credential the chosen API's own dashboard hands you.
+// An empty auth is whichever credential the chosen API's own dashboard hands you.
 func authFor(value string, format wire) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case "":
