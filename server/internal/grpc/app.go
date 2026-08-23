@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
@@ -128,31 +130,64 @@ func grpcStatusFromHTTP(status int) int {
 	return 2 // UNKNOWN
 }
 
+// A trailer block is metadata about a response, not a place to put one, and nothing in
+// it is a size kaja chose: a header set an upstream sent, a body it only truncated, and
+// escapeTrailerValue can triple either on the way in. So the block is bounded, and a
+// value that does not fit is dropped whole rather than cut - half a JSON object is
+// worse than none, and the client already reads a missing trailer as one that never
+// came. Names are written in order, which puts the failure itself ahead of the headers
+// that merely describe the hop, so what is dropped under pressure is the lesser thing.
+const maxTrailerBytes = 64 << 10
+
 // writeGRPCWebText writes a base64 gRPC-Web-text response: an optional data frame
 // followed by a trailer frame carrying grpc-status, grpc-message, and any extra
 // trailers.
 func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMessage string, extraTrailers map[string]string) {
 	var full []byte
 	if message != nil {
-		frame := make([]byte, 5+len(message))
-		frame[0] = 0 // data frame
-		binary.BigEndian.PutUint32(frame[1:5], uint32(len(message)))
-		copy(frame[5:], message)
-		full = frame
+		full = grpcWebFrame(0, message)
 	}
 
-	trailers := fmt.Sprintf("grpc-status: %d\r\ngrpc-message: %s\r\n", status, escapeTrailerValue(grpcMessage))
-	for name, value := range extraTrailers {
-		trailers += fmt.Sprintf("%s: %s\r\n", name, escapeTrailerValue(value))
+	var trailers strings.Builder
+	// grpc-message is a sentence rather than a document, so it is cut to fit instead of
+	// dropped: a truncated reason still reads as the reason.
+	fmt.Fprintf(&trailers, "grpc-status: %d\r\ngrpc-message: %s\r\n", status, escapeTrailerValue(cut(grpcMessage, maxTrailerBytes/4)))
+	names := make([]string, 0, len(extraTrailers))
+	for name := range extraTrailers {
+		names = append(names, name)
 	}
-	trailerBytes := []byte(trailers)
-	trailerFrame := make([]byte, 5+len(trailerBytes))
-	trailerFrame[0] = 0x80 // trailer frame
-	binary.BigEndian.PutUint32(trailerFrame[1:5], uint32(len(trailerBytes)))
-	copy(trailerFrame[5:], trailerBytes)
-	full = append(full, trailerFrame...)
+	sort.Strings(names)
+	for _, name := range names {
+		line := name + ": " + escapeTrailerValue(extraTrailers[name]) + "\r\n"
+		if trailers.Len()+len(line) > maxTrailerBytes {
+			continue
+		}
+		trailers.WriteString(line)
+	}
+
+	full = append(full, grpcWebFrame(0x80, []byte(trailers.String()))...)
 
 	w.Write([]byte(base64.StdEncoding.EncodeToString(full)))
+}
+
+// grpcWebFrame prefixes a payload with its gRPC-Web frame header: a flag byte (0 for
+// data, 0x80 for trailers) and the payload length as a big-endian uint32. Appended
+// rather than sized up front, so the length arithmetic cannot be what goes wrong.
+func grpcWebFrame(flag byte, payload []byte) []byte {
+	frame := []byte{flag, 0, 0, 0, 0}
+	binary.BigEndian.PutUint32(frame[1:5], uint32(len(payload)))
+	return append(frame, payload...)
+}
+
+// cut bounds a string to n bytes without splitting the UTF-8 sequence at the end.
+func cut(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // escapeTrailerValue percent-encodes everything a gRPC-Web trailer line cannot
