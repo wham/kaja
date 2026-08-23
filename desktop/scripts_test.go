@@ -141,15 +141,38 @@ func TestFoldersAreDirectories(t *testing.T) {
 		t.Fatalf("a path was accepted as a folder name")
 	}
 
-	// A folder holding scripts is not removed as a side effect of tidying up.
+	if err := app.DeleteScriptFolder("billing/quarterly"); err != nil {
+		t.Fatalf("an empty folder was not removed: %v", err)
+	}
+
+	// A folder is a place, so deleting one takes what is filed there with it.
 	if _, err := app.CreateScript("billing/invoices.ts", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.DeleteScriptFolder("billing"); err == nil {
-		t.Fatalf("a folder holding scripts was removed")
+	if _, err := app.CreateScript("billing/2024/january.ts", ""); err != nil {
+		t.Fatal(err)
 	}
-	if err := app.DeleteScriptFolder("billing/quarterly"); err != nil {
-		t.Fatalf("an empty folder was not removed: %v", err)
+	if err := app.DeleteScriptFolder("billing"); err != nil {
+		t.Fatalf("a folder holding scripts was not removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(app.scriptsDir(), "billing")); !os.IsNotExist(err) {
+		t.Fatalf("the folder is still there")
+	}
+	scripts, _ := app.ListScripts()
+	if len(scripts) != 0 {
+		t.Fatalf("scripts = %+v", scripts)
+	}
+
+	// Deleting one that is already gone is the act asked for, not a failure.
+	if err := app.DeleteScriptFolder("billing"); err != nil {
+		t.Fatalf("a folder that was already gone reported %v", err)
+	}
+	// The scripts root itself is not a folder anything may delete.
+	if err := app.DeleteScriptFolder("."); err == nil {
+		t.Fatalf("the scripts root was accepted")
+	}
+	if err := app.DeleteScriptFolder("../scripts"); err == nil {
+		t.Fatalf("a path leaving the scripts root was accepted")
 	}
 }
 

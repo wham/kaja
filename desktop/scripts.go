@@ -268,8 +268,10 @@ func (a *App) RenameScriptFolder(name string, newName string) (string, error) {
 	return to, nil
 }
 
-// DeleteScriptFolder removes an empty directory. A folder holding scripts is never
-// removed as a side effect of tidying the sidebar.
+// DeleteScriptFolder removes a folder and everything under it. A folder is a
+// place rather than a container of its own, so deleting one is deleting the
+// files filed there; what that costs is named in the confirmation, not refused
+// here. A folder that is already gone is not an error — the act asked for is done.
 func (a *App) DeleteScriptFolder(name string) error {
 	relative, err := relativeFolderPath(name)
 	if err != nil {
@@ -277,10 +279,13 @@ func (a *App) DeleteScriptFolder(name string) error {
 	}
 	root, err := os.OpenRoot(a.scriptsDir())
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 	defer root.Close()
-	return root.Remove(relative)
+	return root.RemoveAll(relative)
 }
 
 // scriptPath is the absolute path a name resolves to, which is what identifies a

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { buildScriptTree, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, folderNameError, folderPaths, isWithinFolder, scriptNameParts, scriptsWithin, TreeNode, visibleRows } from "./scriptTree";
 
 function script(folder: string, name: string): Script {
   return { path: `/w/scripts/${folder ? folder + "/" : ""}${name}`, name, folder };
@@ -48,6 +48,28 @@ describe("scriptNameParts", () => {
     expect(scriptNameParts("notes.d.ts")).toEqual({ base: "notes.d", extension: ".ts" });
     expect(scriptNameParts("README")).toEqual({ base: "README", extension: "" });
     expect(scriptNameParts(".gitignore")).toEqual({ base: ".gitignore", extension: "" });
+  });
+});
+
+describe("isWithinFolder", () => {
+  it("takes the folder itself and everything under it, and nothing that merely starts the same", () => {
+    expect(isWithinFolder("billing", "billing")).toBe(true);
+    expect(isWithinFolder("billing", "billing/2024")).toBe(true);
+    expect(isWithinFolder("billing", "billing-2024")).toBe(false);
+    expect(isWithinFolder("billing", "reports")).toBe(false);
+    expect(isWithinFolder("billing", "")).toBe(false);
+    // The root holds everything, files at the top level included.
+    expect(isWithinFolder("", "reports")).toBe(true);
+  });
+});
+
+describe("scriptsWithin", () => {
+  it("is what deleting a folder takes with it", () => {
+    const scripts = [script("billing", "invoices.ts"), script("billing/2024", "january.ts"), script("billing-2024", "old.ts"), script("", "root.ts")];
+
+    expect(scriptsWithin(scripts, "billing").map((s) => s.name)).toEqual(["invoices.ts", "january.ts"]);
+    expect(scriptsWithin(scripts, "billing/2024").map((s) => s.name)).toEqual(["january.ts"]);
+    expect(scriptsWithin(scripts, "reports")).toEqual([]);
   });
 });
 
