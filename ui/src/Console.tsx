@@ -12,7 +12,7 @@ import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
-import { Stats } from "./Stats";
+import { scheduleNote, Stats } from "./Stats";
 import {
   callRows,
   ConsoleItem,
@@ -307,6 +307,7 @@ export function Console({
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
       onFullScreen={enterFullScreen}
+      onOpenStats={() => onViewChange("stats")}
       scrollRef={canvasScroll}
       tableViews={tableViews}
       onTableView={onTableView}
@@ -382,6 +383,11 @@ export function Console({
             everything else in this header: a control over nothing is chrome. */}
         {activeView === "calls" && printed.lines > 0 && (
           <Console.LogFloorSelect floor={logFloor} lines={printed.lines} errors={printed.errors} onChange={onLogFloorChange} />
+        )}
+        {/* What the run was told to do. It belongs to the page the schedule is
+            drawn on, and that page is the one with nothing in this slot. */}
+        {activeView === "stats" && selectedGroup?.run.perf !== undefined && (
+          <span className="ml-auto shrink-0 truncate font-mono text-xs text-muted-foreground @max-[520px]:hidden">{scheduleNote(selectedGroup.run.perf)}</span>
         )}
         {showUtilities && (
           <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">

@@ -460,6 +460,7 @@ export function App() {
           logScriptLine(logFileLevel(level), message);
           consoles.recordPrinted(run.fileId, run.id, level, message, Date.now());
         },
+        onPerfSchedule: (schedule) => consoles.recordPerfSchedule(run.fileId, run.id, schedule, Date.now()),
         // Blocks arrive more than once — a table paints row by row — so they are recorded
         // against their own id rather than appended.
         onBlockUpdate: (blockId: string, block: Block) => {

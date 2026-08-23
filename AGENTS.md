@@ -260,9 +260,24 @@ The **log** is the flat audit log — one row per call, in wall order, always co
 - **Percentiles are exact while the values are few and a log histogram once they are many** (`Latencies`, `EXACT_LIMIT`). A script making a dozen calls reads its own numbers back; a perf test gets 4.4%-at-worst accuracy in bounded memory, and the histogram *is* the distribution chart.
 - **Time buckets double rather than being sized in advance** — a run has no length while it is running. A bucket index is derived from a timestamp rather than remembered, so the pairwise collapse that halves every index leaves a call that settles afterwards landing where it belongs. **Concurrency rides on the same buckets as a delta** (+1 issued, −1 settled): summing two deltas is what makes them mergeable, and prefix-summing is the line.
 - **A slice is never finer than the calls it holds.** Eighty slices over fourteen calls is a chart that is mostly gaps.
+- **A schedule is the only perf-test-specific ink on the page** (`Run.perf`, drawn by `Stats.PhaseBands`). Bands behind all three charts so they read as one ruler, named only in the tall one; the plateau gets no tint, because the bands exist to show where the schedule was doing something other than holding still. A plain run has none and loses nothing else.
+- **The percentiles are of the calls that succeeded outside the warm-up**, and the tile strip's trailing cell says what that left out (`excl. 50 warm-up · 40 failed`). A failed call's latency is how long it took to be refused; a warm-up call measured a cold server. Both are counted in requests, throughput, concurrency and the error rate — the exclusion is from the latency alone, and it is stated rather than silently applied.
 - **Failures say the same thing three times**: red marks on the chart floor, a red segment at the foot of the rps bar, a red count in the method table. The segment has a floor, because one failure in three hundred calls rounds to nothing and still has to be visible.
 - **The tile strip is the only thing pinned**; the charts, distribution and table scroll under it as one column, so a console at 300px is the same page as one dragged open. Its trailing empty cell is where a schedule states what it excluded.
 - **Two degenerate cases are stated rather than drawn.** One call has a duration and an outcome, so the tiles collapse to those two and the table is the rest. Zero calls is one line of muted text — not an empty dashboard with six dashes in it.
+
+### The run a script asks for
+
+`kaja.perfTest(body, options)` runs a body over and over on a schedule (`perfTest.ts`). **The body is one iteration**: `concurrency` virtual users each run it in a loop, and every call inside it is sampled. It is what makes a run *shaped* for the Stats page — and the page is a view over any run, so the two halves stay independent.
+
+- **The budget is `iterations` or `duration`, never both**, and `duration` is the whole test with its ramps inside it. `rampDown` needs `duration`: with iterations the test ends when the last one does, which is nothing to ramp down from.
+- **A numeric `warmup` is iterations and a string is time** — the unit a warm-up is naturally said in depends on what is being primed. Either way it resolves to one boundary in time, which is the whole of what the stats are told.
+- **A warm-up whose end is not known yet holds its samples** (`RunMetrics.declareWarmup`), because a sample counted under the wrong phase cannot be taken back out of a histogram. It runs at one virtual user, so no call issued after the boundary started before it. A test stopped inside its own warm-up excludes nothing.
+- **A failed call fails the iteration, not the test.** It runs to the end and the failures are the data. A body that throws is counted the same way and reported as `failedIterations`, which is not the same number as a failed call.
+- **The report is the same computation the page is** — `perfTest` feeds a `RunMetrics` from the same funnel every call already passes through (`KajaInternal.watchers`), so a script's own assertion and the Stats page can never disagree.
+- **Asks and approvals throw inside the body.** Ten virtual users parked on one question is a deadlock wearing a dialog, so the verb refuses and names where the value should have come from — before the test, or `kaja.input`.
+- **The plan is made once and never chases the run.** A schedule that adjusted to the observed rate would report the server's behaviour as if it were the test's.
+- **A perf run opens on its stats** (`defaultView`), outranking the canvas it drew on: the block it leaves there is a headline and a way to the page the charts are on, not a second copy of them.
 
 ### The console belongs to the file
 
@@ -302,7 +317,7 @@ The **log** is the flat audit log — one row per call, in wall order, always co
 
 ## The canvas is what a run drew
 
-**A script says what it made, never how it looks.** The block set is closed and tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask*`, `kaja.approve` — and that is the guard, not a starting point: the moment a script can paint pixels the console is a rendering engine. There is no `kaja.html`, no styling arguments, no layout control. Blocks stack in emission order; free 2D positioning would turn this into a quarter of work.
+**A script says what it made, never how it looks.** The block set is closed and tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask*`, `kaja.approve`, `kaja.perfTest` — and that is the guard, not a starting point: the moment a script can paint pixels the console is a rendering engine. There is no `kaja.html`, no styling arguments, no layout control. Blocks stack in emission order; free 2D positioning would turn this into a quarter of work.
 
 - **A table is a handle, because a loop is why tables exist here.** `kaja.table` returns something with `.row(...)`, and rows land one at a time so the canvas repaints as the loop runs. Blocks are recorded against their own id (`recordBlock`), so a block that fills in stays where it was emitted.
 - **A row is a handle too**, with one verb: `.update(...cells)`, taking the same cells in the same order — a row is declared when its work starts and rewritten when it finishes. The block is unchanged by any of it: `rows` is `string[][]` and an update is the same wholesale re-emit an append is. **A row is as wide as the table** (`padCells`): fewer cells draws blanks, and `.column(name)` widens rows already drawn along with the header. Extra cells are left alone. Renaming a column, removing a row and flashing a changed cell are all **out**. A handle into a table filled from a **source** goes quiet rather than throwing, since a restart makes it point at a row nobody is asking about.

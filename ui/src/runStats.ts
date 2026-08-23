@@ -196,8 +196,12 @@ class Timeline {
     this.#at(timestamp).failures++;
   }
 
-  settled(startedAt: number, durationMs: number, reportedMs: number): void {
+  // Every call that settles leaves the air, whether or not its latency counts.
+  drained(startedAt: number, durationMs: number): void {
     this.#at(startedAt + durationMs).inFlightDelta--;
+  }
+
+  measured(startedAt: number, reportedMs: number): void {
     this.#at(startedAt).latencies.add(reportedMs);
   }
 
@@ -330,8 +334,17 @@ export interface RunStats {
   peakRps: number;
   maxInFlight: number;
   p50?: number;
+  p90?: number;
   p95?: number;
   p99?: number;
+  min?: number;
+  max?: number;
+  mean?: number;
+  // Calls left out of the percentiles and stated on the tile strip. A failed call is
+  // counted everywhere else — it is the latency of a call that failed fast that would
+  // poison the distribution, not its existence.
+  excludedFailures: number;
+  excludedWarmup: number;
   // The window the charts cover: the run's own wall clock where it has one, else how
   // far its calls reach.
   spanMs: number;
@@ -342,6 +355,16 @@ export interface RunStats {
   markers: { label: string; position: number; valueMs: number }[];
   methods: MethodRow[];
   slowest?: SlowestCall;
+}
+
+/** One settled call, before it is known whether it counts. */
+interface Sample {
+  itemId: string;
+  method: string;
+  key?: string;
+  startedAt: number;
+  reported: number;
+  failed: boolean;
 }
 
 class MethodTotals {
@@ -366,6 +389,11 @@ export class RunMetrics {
   readonly #of = new Map<string, Seen>();
   #calls = 0;
   #failures = 0;
+  #excludedFailures = 0;
+  #excludedWarmup = 0;
+  #warmupEndsAt: number | undefined;
+  // Non-null only while a declared warm-up has no end yet.
+  #held: Sample[] | null = null;
   #slowest: SlowestCall | undefined;
 
   constructor(startedAt: number) {
@@ -408,13 +436,56 @@ export class RunMetrics {
       // What the rows and bars are drawn against everywhere else: the upstream
       // exchange where Kaja measured it, the whole round trip where nothing did.
       const reported = callDurationMs(call) ?? call.durationMs;
-      this.#overall.add(reported);
-      this.#totals(method).latencies.add(reported);
-      this.#timeline.settled(seen.startedAt, call.durationMs, reported);
-      if (this.#slowest === undefined || reported > this.#slowest.durationMs) {
-        this.#slowest = { itemId: item.id, method, key: item.key, durationMs: reported };
-      }
+      this.#timeline.drained(seen.startedAt, call.durationMs);
+      this.#sample({ itemId: item.id, method, key: item.key, startedAt: seen.startedAt, reported, failed: seen.failed });
       this.version++;
+    }
+  }
+
+  /**
+   * A warm-up whose end is not known yet — an iteration warm-up has none until it
+   * happens. Samples are held rather than counted, because a sample counted under the
+   * wrong phase cannot be taken back out of a histogram.
+   */
+  declareWarmup(): void {
+    if (this.#held === null) this.#held = [];
+  }
+
+  /**
+   * Where the warm-up ended, or that it never did. Either way the held samples are
+   * released — a test stopped inside its own warm-up excludes nothing, since the
+   * alternative is a page reporting a run of no calls at all.
+   */
+  resolveWarmup(endsAt: number | undefined): void {
+    if (endsAt !== undefined && this.#warmupEndsAt === endsAt && this.#held === null) return;
+    this.#warmupEndsAt = endsAt;
+    const held = this.#held;
+    this.#held = null;
+    if (held !== null) for (const sample of held) this.#count(sample);
+    this.version++;
+  }
+
+  #sample(sample: Sample): void {
+    if (this.#held !== null) this.#held.push(sample);
+    else this.#count(sample);
+  }
+
+  // The one place the sample set is decided, so the tiles, the charts, the method
+  // table and the slowest row can never disagree about what they are describing.
+  #count(sample: Sample): void {
+    if (sample.failed) {
+      this.#excludedFailures++;
+      return;
+    }
+    if (this.#warmupEndsAt !== undefined && sample.startedAt < this.#warmupEndsAt) {
+      this.#excludedWarmup++;
+      return;
+    }
+    this.#overall.add(sample.reported);
+    this.#totals(sample.method).latencies.add(sample.reported);
+    this.#timeline.measured(sample.startedAt, sample.reported);
+    if (this.#slowest === undefined || sample.reported > this.#slowest.durationMs) {
+      this.#slowest = { itemId: sample.itemId, method: sample.method, key: sample.key, durationMs: sample.reported };
     }
   }
 
@@ -456,8 +527,14 @@ export class RunMetrics {
       peakRps: timeline.reduce((peak, slot) => Math.max(peak, slot.rps), 0),
       maxInFlight: this.#timeline.peakInFlight,
       p50: percentiles[0][1],
+      p90: this.#overall.percentile(0.9),
       p95: percentiles[1][1],
       p99: percentiles[2][1],
+      min: this.#overall.min,
+      max: this.#overall.max,
+      mean: this.#overall.mean,
+      excludedFailures: this.#excludedFailures,
+      excludedWarmup: this.#excludedWarmup,
       spanMs,
       slots: timeline,
       distribution,

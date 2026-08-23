@@ -270,3 +270,62 @@ describe("slicing", () => {
     expect(metrics.view(80, 16, 1_000).slots.length).toBeGreaterThan(3);
   });
 });
+
+describe("what the percentiles are of", () => {
+  it("leaves a failed call out of the latency but counts it everywhere else", () => {
+    const metrics = new RunMetrics(START);
+    for (let index = 0; index < 9; index++) issueThenSettle(metrics, call(`ok-${index}`, { at: index * 10 }), 40);
+    // A call that failed fast would drag the median to 20 if it were a sample.
+    issueThenSettle(metrics, call("bad", { at: 90 }), 1, { status: 503 });
+    const stats = metrics.view(20, 16, 1_000);
+    expect(stats.calls).toBe(10);
+    expect(stats.failures).toBe(1);
+    expect(stats.p50).toBe(40);
+    expect(stats.excludedFailures).toBe(1);
+    expect(stats.methods[0]).toMatchObject({ calls: 10, failures: 1, p50: 40 });
+  });
+
+  it("holds samples while a declared warm-up has no end, then splits them at it", () => {
+    const metrics = new RunMetrics(START);
+    metrics.declareWarmup();
+    for (let index = 0; index < 4; index++) issueThenSettle(metrics, call(`warm-${index}`, { at: index * 10 }), 500);
+    // Nothing is counted yet: which side of the boundary they fall on is unknown.
+    expect(metrics.view(20, 16, 1_000).p50).toBeUndefined();
+
+    metrics.resolveWarmup(START + 50);
+    for (let index = 0; index < 6; index++) issueThenSettle(metrics, call(`hot-${index}`, { at: 60 + index * 10 }), 40);
+    const stats = metrics.view(20, 16, 1_000);
+    expect(stats.calls).toBe(10);
+    expect(stats.excludedWarmup).toBe(4);
+    expect(stats.p50).toBe(40);
+    expect(stats.methods[0].calls).toBe(10);
+  });
+
+  it("excludes nothing when the warm-up never ended", () => {
+    const metrics = new RunMetrics(START);
+    metrics.declareWarmup();
+    for (let index = 0; index < 4; index++) issueThenSettle(metrics, call(`warm-${index}`, { at: index * 10 }), 40);
+    metrics.resolveWarmup(undefined);
+    const stats = metrics.view(20, 16, 1_000);
+    expect(stats.excludedWarmup).toBe(0);
+    expect(stats.p50).toBe(40);
+  });
+
+  it("keeps a warm-up call in the throughput and the concurrency it was part of", () => {
+    const metrics = new RunMetrics(START);
+    metrics.declareWarmup();
+    for (let index = 0; index < 4; index++) issueThenSettle(metrics, call(`warm-${index}`, { at: index * 10 }), 40);
+    metrics.resolveWarmup(START + 50);
+    const stats = metrics.view(20, 16, 1_000);
+    expect(stats.slots.reduce((total, slot) => total + slot.calls, 0)).toBe(4);
+    expect(stats.meanRps).toBeCloseTo(4);
+  });
+
+  it("names the slowest call the percentiles are actually of", () => {
+    const metrics = new RunMetrics(START);
+    issueThenSettle(metrics, call("ok", { at: 0, key: "page 1" }), 200);
+    // Slower, but it failed — so it is not what "slowest" is describing.
+    issueThenSettle(metrics, call("bad", { at: 10, key: "page 2" }), 9_000, { status: 503 });
+    expect(metrics.view(20, 16, 1_000).slowest).toMatchObject({ itemId: "ok", durationMs: 200 });
+  });
+});

@@ -106,7 +106,30 @@ export interface ApproveBlock {
  */
 export type ApproveGesture = "approved" | "all" | "rejected";
 
-export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock;
+/**
+ * What a perf test drew: the same tiles the Stats page opens with, and the way there.
+ * A test that ran for a minute has to leave something on the canvas — a presented run
+ * (a deeplink, an agent) would otherwise have nothing to show for it — but the canvas
+ * is not where the charts belong, so the block is the headline and a link.
+ */
+export interface PerfBlock {
+  kind: "perf";
+  // What the schedule was: "1000 iter · 10 vu", or "30s · 10 vu".
+  schedule: string;
+  running?: boolean;
+  requests: number;
+  failures: number;
+  errorRate: number;
+  meanRps: number;
+  p50?: number;
+  p95?: number;
+  p99?: number;
+  durationMs?: number;
+  excludedWarmup?: number;
+  excludedFailures?: number;
+}
+
+export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock | PerfBlock;
 
 export function cellStatus(block: TableBlock, row: number, column: number): CellStatus | undefined {
   return block.cells?.[row]?.[column];
@@ -180,6 +203,8 @@ export function blockLabel(block: Block): string {
         default:
           return `Approve ${block.method}`;
       }
+    case "perf":
+      return block.running ? `Perf test · ${block.schedule}` : `Perf test · ${block.requests.toLocaleString()} requests`;
   }
 }
 

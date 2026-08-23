@@ -15,7 +15,10 @@ import {
   TextBlock,
   withCellStatus,
   withoutRowStatus,
+  PerfBlock,
 } from "./blocks";
+import { describeSchedule, PerfBody, PerfPlan, PerfReport, perfReport, PerfSchedule, PerfTestOptions, runPerfTest } from "./perfTest";
+import { RunMetrics } from "./runStats";
 import { LogSink } from "./scriptConsole";
 import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
@@ -306,6 +309,9 @@ export interface RunContext {
   onApprove: ApproveRequest;
   onBlockUpdate: BlockUpdate;
   onLog: LogSink;
+  // The phases a perf test ran through. The only thing the perf half tells the console
+  // about itself, and what the Stats page draws its bands from.
+  onPerfSchedule?: (schedule: PerfSchedule) => void;
   // Given at the start rather than assigned afterwards, so one link's parameters can
   // never be found by the next run.
   input?: { [key: string]: string };
@@ -390,6 +396,7 @@ export class Kaja {
   #onAsk: AskRequest;
   #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
+  #onPerfSchedule?: (schedule: PerfSchedule) => void;
 
   constructor(context: RunContext, host: KajaHost = new KajaHost()) {
     this._internal = new KajaInternal(context.onMethodCallUpdate, context.onLog);
@@ -398,6 +405,7 @@ export class Kaja {
     this.#onAsk = context.onAsk;
     this.#onApprove = context.onApprove;
     this.#onBlockUpdate = context.onBlockUpdate;
+    this.#onPerfSchedule = context.onPerfSchedule;
   }
 
   // Read through to the host, so every run in flight sees the same values.
@@ -434,6 +442,7 @@ export class Kaja {
   }
 
   async #ask<T>(question: AskBlock, take: (answer: string) => T): Promise<T> {
+    this.#refuseInsidePerfTest("kaja.ask*");
     const blockId = newBlockId();
     this.#onBlockUpdate(blockId, question);
     try {
@@ -452,6 +461,7 @@ export class Kaja {
    * never learns of it.
    */
   async approve<T>(call: Call<T>): Promise<T> {
+    this.#refuseInsidePerfTest("kaja.approve");
     if (call.started) {
       throw new Error(`kaja.approve: ${call.label} has already been sent. Write the call inside it — kaja.approve(${call.label}({ … })).`);
     }
@@ -480,6 +490,77 @@ export class Kaja {
       this.#onBlockUpdate(blockId, { ...block, decision: "approved" });
     }
     return call.start();
+  }
+
+  /**
+   * Run a body over and over on a schedule. The body is one iteration: `concurrency`
+   * virtual users each run it in a loop, and every call inside it is sampled.
+   *
+   * A failed call fails the iteration, not the test — running to the end is half of
+   * what a perf test is for, and the failures are the data. The report mirrors what
+   * the Stats page shows, so a script can assert its own threshold.
+   */
+  async perfTest(body: PerfBody, options: PerfTestOptions = {}): Promise<PerfReport> {
+    if (this._internal.inPerfTest) throw new Error("kaja.perfTest: a perf test cannot be run inside another one.");
+    const plan = new PerfPlan(options);
+    const blockId = newBlockId();
+    const scheduleLabel = describeSchedule(plan);
+
+    // Its own metrics, fed from the same funnel the console's are, so the report and
+    // the Stats page are two readings of one computation rather than two of them.
+    const metrics = new RunMetrics(Date.now());
+    if (plan.warmupIterations !== undefined) metrics.declareWarmup();
+    const watch: MethodCallUpdate = (methodCall) => metrics.add({ id: methodCall.id, runId: "", timestamp: methodCall.timestamp, call: methodCall });
+    this._internal.watchers.add(watch);
+    this._internal.inPerfTest = true;
+
+    let latest: PerfSchedule | undefined;
+    const draw = (running: boolean) => {
+      const stats = metrics.view(1, 1, latest === undefined ? undefined : (latest.endedAt ?? Date.now()) - latest.startedAt);
+      const block: PerfBlock = {
+        kind: "perf",
+        schedule: scheduleLabel,
+        running: running || undefined,
+        requests: stats.calls,
+        failures: stats.failures,
+        errorRate: stats.errorRate,
+        meanRps: stats.meanRps,
+        p50: stats.p50,
+        p95: stats.p95,
+        p99: stats.p99,
+        durationMs: latest?.endedAt === undefined ? undefined : latest.endedAt - latest.startedAt,
+        excludedWarmup: stats.excludedWarmup || undefined,
+        excludedFailures: stats.excludedFailures || undefined,
+      };
+      this.#onBlockUpdate(blockId, block);
+      return stats;
+    };
+
+    draw(true);
+    try {
+      const outcome = await runPerfTest(body, plan, {
+        signal: this._internal.abortSignal,
+        onSchedule: (schedule) => {
+          latest = schedule;
+          // The boundary is what the exclusion is, so the console's metrics learn it
+          // the moment the test does.
+          if (schedule.warmupEndsAt !== undefined || schedule.endedAt !== undefined) metrics.resolveWarmup(schedule.warmupEndsAt);
+          this.#onPerfSchedule?.(schedule);
+        },
+      });
+      const stats = draw(false);
+      return perfReport(outcome.iterations, outcome.failedIterations, stats);
+    } finally {
+      this._internal.inPerfTest = false;
+      this._internal.watchers.delete(watch);
+    }
+  }
+
+  #refuseInsidePerfTest(verb: string): void {
+    if (!this._internal.inPerfTest) return;
+    throw new Error(
+      `${verb} cannot be used inside kaja.perfTest — ${verb === "kaja.approve" ? "a held call" : "a question"} would park every virtual user on one answer. Ask before the test, or take the value from kaja.input.`,
+    );
   }
 
   text(text: string): void {
@@ -887,6 +968,14 @@ export function isCallInFlight(methodCall: MethodCall): boolean {
 class KajaInternal {
   abortSignal?: AbortSignal;
   /**
+   * Set while a perf test's body is running. Ten virtual users parked on one question
+   * is a deadlock wearing a dialog, so the asks refuse rather than deadlock.
+   */
+  inPerfTest = false;
+  // Every call in the run passes through methodCallUpdate, which is what lets a perf
+  // test total up its own calls without a second path for them to arrive by.
+  readonly watchers = new Set<MethodCallUpdate>();
+  /**
    * Methods approved for the rest of the run, by their "Service.Method" label. The set
    * belongs to one run's `Kaja` and goes when it does, so the guard is back the next
    * time Run is pressed and a concurrent script can't be let through on it.
@@ -918,6 +1007,7 @@ class KajaInternal {
         }
       }
     }
+    for (const watch of this.watchers) watch(methodCall);
     this.#onMethodCallUpdate(methodCall);
   }
 }
