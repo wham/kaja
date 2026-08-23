@@ -2,9 +2,11 @@ package openai
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -54,6 +56,16 @@ func decodeResponse(t *testing.T, in *instance, result *apps.InvokeResult) map[s
 		t.Fatalf("decode response json: %v", err)
 	}
 	return out
+}
+
+// asUpstreamError asserts a failed Invoke reported the HTTP call it made.
+func asUpstreamError(t *testing.T, err error) *apps.UpstreamError {
+	t.Helper()
+	var upstream *apps.UpstreamError
+	if !errors.As(err, &upstream) {
+		t.Fatalf("expected an *apps.UpstreamError, got %v", err)
+	}
+	return upstream
 }
 
 func TestChatCompletion(t *testing.T) {
@@ -167,30 +179,31 @@ func TestChatCompletionUpstreamError(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/chat/completions", "nope")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
-	if err != nil {
-		t.Fatalf("an HTTP error should be returned as a structured response, not a transport error: %v", err)
-	}
+	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
 
-	out := decodeResponse(t, in, resp)
-	errObj, ok := out["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected a structured error field, got %v", out)
+	upstream := asUpstreamError(t, err)
+	if upstream.Status != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", upstream.Status)
 	}
-	if errObj["status"].(float64) != 401 {
-		t.Errorf("status = %v, want 401", errObj["status"])
+	if upstream.Message != "Incorrect API key provided" {
+		t.Errorf("message = %q", upstream.Message)
 	}
-	if errObj["message"] != "Incorrect API key provided" {
-		t.Errorf("message = %v", errObj["message"])
+	if upstream.Method != http.MethodPost || upstream.URL != server.URL+"/chat/completions" {
+		t.Errorf("request = %s %s", upstream.Method, upstream.URL)
 	}
-	if errObj["type"] != "invalid_request_error" {
-		t.Errorf("type = %v", errObj["type"])
+	if upstream.Unreadable {
+		t.Error("an HTTP failure is not an unreadable response")
 	}
-	if errObj["code"] != "invalid_api_key" {
-		t.Errorf("code = %v", errObj["code"])
+	// The API's own body reaches the console whole, rather than being picked apart
+	// into fields the app declares.
+	if !strings.Contains(string(upstream.Body), "invalid_api_key") {
+		t.Errorf("body = %q", upstream.Body)
 	}
-	if body, _ := errObj["body"].(string); body == "" {
-		t.Errorf("expected the raw body to be included, got %v", errObj["body"])
+	if upstream.RequestHeaders["Authorization"] == "" {
+		t.Errorf("expected the exchanged request headers, got %v", upstream.RequestHeaders)
+	}
+	if upstream.ResponseHeaders["Content-Type"] == "" {
+		t.Errorf("expected the exchanged response headers, got %v", upstream.ResponseHeaders)
 	}
 }
 
@@ -203,22 +216,59 @@ func TestChatCompletionUpstreamErrorPlainBody(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/chat/completions", "x")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
-	if err != nil {
-		t.Fatalf("Invoke: %v", err)
-	}
+	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
 
-	out := decodeResponse(t, in, resp)
-	errObj := out["error"].(map[string]any)
-	if errObj["status"].(float64) != 502 {
-		t.Errorf("status = %v, want 502", errObj["status"])
+	upstream := asUpstreamError(t, err)
+	if upstream.Status != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502", upstream.Status)
 	}
-	// No JSON envelope: message falls back to the HTTP status text, body keeps the raw text.
-	if errObj["message"] != "Bad Gateway" {
-		t.Errorf("message = %v, want Bad Gateway", errObj["message"])
+	// A short plain-text body is its own best summary.
+	if upstream.Message != "upstream unavailable" {
+		t.Errorf("message = %q", upstream.Message)
 	}
-	if errObj["body"] != "upstream unavailable" {
-		t.Errorf("body = %v", errObj["body"])
+	if string(upstream.Body) != "upstream unavailable" {
+		t.Errorf("body = %q", upstream.Body)
+	}
+}
+
+// An endpoint that answers 200 with something other than a chat completion - another
+// API at the same address, most often - is reported as the call it was, with the body
+// it answered with, rather than as a codec error naming neither.
+func TestChatCompletionUnreadableResponse(t *testing.T) {
+	const answer = `{"id":"msg_1","role":"assistant","content":[{"type":"text","text":"Hello"}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, answer)
+	}))
+	defer server.Close()
+
+	in := openTestApp(t, server.URL+"/messages", "x")
+	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
+	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+
+	upstream := asUpstreamError(t, err)
+	if !upstream.Unreadable {
+		t.Error("expected the response to be reported as unreadable")
+	}
+	if upstream.Status != http.StatusOK {
+		t.Errorf("status = %d, want the status the API answered with", upstream.Status)
+	}
+	if !strings.Contains(upstream.Message, "not an OpenAI chat completion") {
+		t.Errorf("message = %q", upstream.Message)
+	}
+	if string(upstream.Body) != answer {
+		t.Errorf("body = %q, want the answer verbatim", upstream.Body)
+	}
+	if upstream.URL != server.URL+"/messages" {
+		t.Errorf("url = %q", upstream.URL)
+	}
+	if upstream.ResponseHeaders["Content-Type"] == "" {
+		t.Errorf("expected the exchanged response headers, got %v", upstream.ResponseHeaders)
+	}
+	// The desktop's TargetResult has one field for "this is a failure" and "this is
+	// the status", so an unreadable response has to read as a failure there.
+	if upstream.TransportStatus() < 400 {
+		t.Errorf("TransportStatus() = %d, want a failure status", upstream.TransportStatus())
 	}
 }
 

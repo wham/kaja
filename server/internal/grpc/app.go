@@ -57,7 +57,7 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 			// exchanged headers come along too (a 401 is exactly when they matter).
 			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
 			trailers[upstreamErrorTrailer] = string(upstream.JSON())
-			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), trailers)
+			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.TransportStatus()), upstream.Error(), trailers)
 			return
 		}
 		// gRPC status 2 = UNKNOWN; the browser surfaces grpc-message as the error.

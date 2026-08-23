@@ -12,6 +12,12 @@ export const UPSTREAM_ERROR_TRAILER = "kaja-upstream-error";
 
 // An upstream HTTP call that failed, as the app reported it: the request that was
 // made, what came back, and nothing about the gRPC frame it travelled in.
+//
+// A response the app could not read is the other half of the same report and carries
+// its status under `responseStatus` instead. The API answered, so the message is the
+// app's reading of that answer rather than a summary lifted out of it — showing it as
+// an HTTP failure would label the call with a success code and drop the one line that
+// explains it, so the whole report is shown as it stands.
 export interface UpstreamFailure {
   message: string;
   status: number;
@@ -99,7 +105,10 @@ export function unwrapFailure(error: unknown): unknown {
 
 // upstreamRequestLine is the HTTP request an app made, for the Headers view to state
 // above the headers that went with it — the only place a request line is left once the
-// response is just the body.
+// response is just the body. Read off the request alone, so an unreadable response
+// states its call the same way a refused one does.
 export function upstreamRequestLine(error: unknown): string | undefined {
-  return asUpstreamFailure(error)?.request;
+  if (!error || typeof error !== "object") return undefined;
+  const request = (error as { request?: unknown }).request;
+  return typeof request === "string" && request !== "" ? request : undefined;
 }
