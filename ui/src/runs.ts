@@ -2,6 +2,7 @@ import { Block, blockLabel, isAwaitingUser } from "./blocks";
 import { callDurationMs, isCallInFlight, MethodCall } from "./kaja";
 // Type only: the strip is maintained in runStrip, which reads its items from here.
 // Importing the value would close the circle.
+import type { RunMetrics } from "./runStats";
 import type { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
@@ -60,7 +61,12 @@ export type RunStatus = "pending" | "streaming" | "success" | "error";
 // Remembered per file along with the selection.
 export type ConsoleTab = "request" | "response" | "headers";
 
-export type ConsoleView = "calls" | "canvas";
+/**
+ * The three readings of one run: every call in wall order, what the script drew, and
+ * what the calls add up to. Stats is always there — a run has statistics whether or
+ * not it was shaped as a test.
+ */
+export type ConsoleView = "calls" | "canvas" | "stats";
 
 /**
  * How much of what the script printed the calls view mixes in. A floor rather than
@@ -100,6 +106,9 @@ export interface RunGroup {
   // A call is not a block and is not in here — the strip is where the run's calls are.
   drawn: ConsoleItem[];
   strip: RunStrip;
+  // What the Stats view reads. Accumulated as the run happens for the same reason the
+  // strip is: a perf test's twenty thousand calls are not re-walked per repaint.
+  metrics: RunMetrics;
   // The only kind of failure the canvas interrupts itself for.
   unreported: FailureNotice[];
   stats: ItemStats;

@@ -218,7 +218,7 @@ Expansion is a record of where you have been (`treeExpansion.ts`). Three inputs,
 - **There are no fold-all/unfold-all buttons.** **⌥click a row** takes its subtree instead. Folding the **Apps** section writes nothing into the fold map.
 - The old `expandedApps`/`expandedServices` keys are **not migrated**.
 
-## A run has two views
+## A run has three views
 
 **A run is the unit** (`runs.ts`): one press of Run, one duration, one verdict, everything it produced under it.
 
@@ -230,9 +230,9 @@ Expansion is a record of where you have been (`treeExpansion.ts`). Three inputs,
 - **A run leaves the live list one way, and that way gives it its duration** (`endRuns`). Settling and dropping are one act: the list is where the settle check looks, so a record taken off it without a duration is a run nothing can settle — and a run without a duration is a *running* run to everything that reports one.
 - **Stop is about one run**: it aborts the runs of the file the button is on and cancels only the questions those runs are parked on. It **ends** the run rather than asking the script to end it — a run parked on a question that will never be asked again has nothing left to settle it.
 
-The **log** is the flat audit log — one row per call, in wall order, always complete. The **canvas** is the rendered output, free to fold what is repetitive. A segmented control (**Calls** / **Canvas**, `ConsoleView`, in-memory only) switches them and **everything else about the header stops moving**; that is what pays for the split. Request/Response/Headers moved down onto the payload pane, so the pane never reflows as you step through the log.
+The **log** is the flat audit log — one row per call, in wall order, always complete. The **canvas** is the rendered output, free to fold what is repetitive. The **stats** are what the calls add up to. A segmented control (**Calls** / **Canvas** / **Stats**, `ConsoleView`, in-memory only) switches them and **everything else about the header stops moving**; that is what pays for the split. Request/Response/Headers moved down onto the payload pane, so the pane never reflows as you step through the log.
 
-`RunLog.tsx`, `Canvas.tsx` and `Console.tsx` are peers: `RunLog.CallRow` / `TailBar` / `PayloadPane` belong to the log, `Console.RunSelect` / `RunRow` to the frame.
+`RunLog.tsx`, `Canvas.tsx`, `Stats.tsx` and `Console.tsx` are peers: `RunLog.CallRow` / `TailBar` / `PayloadPane` belong to the log, `Console.RunSelect` / `RunRow` to the frame.
 
 ### What a script printed
 
@@ -249,6 +249,20 @@ The **log** is the flat audit log — one row per call, in wall order, always co
 ### The payload pane
 
 **A response is printed, not formatted** (`payloadText.ts`). The pane follows the selection, which follows a run as it happens, so prettier's ~2 ms and a parser download per payload buy nothing over `JSON.stringify`. Being synchronous is the other half: a slow payload can't land over a newer one. Prettier stays where it earns its keep — generated TypeScript, and the JSON *documents* in the app form and Variables. Past 2 MB the pane draws the head and says how much it left.
+
+### What the calls added up to
+
+`runStats.ts` computes it, `statsChart.ts` is the arithmetic behind the drawing, `Stats.tsx` draws it. **Nothing on the page is specific to a perf test** — everything is derived from what a call already records, so a paging loop has latency, throughput and concurrency like anything else; they are just not *shaped*.
+
+- **The segment is always there**, on the same rule as the other two. A Stats tab that appeared once a run was big enough would be a control you have to notice to know exists, and a run of twelve calls has percentiles worth reading.
+- **Charts are plain SVG in the view and numbers in a module.** Every one of them is a linear scale into a fixed box, so there is no axis to negotiate and no library to take: `fill="currentColor"` over a `text-foreground` element is what makes day and night free, and there is no second hex table to keep in step the way `monacoTheme.ts` is. **The hard half is bucketing, not drawing** — which is the half no chart library does.
+- **The metrics are a buffer, maintained as the run happens** (`RunGroup.metrics`, added to beside `strip` in `consoles.ts`), never re-derived per repaint. `RunMetrics.version` is what the view memoises against.
+- **Percentiles are exact while the values are few and a log histogram once they are many** (`Latencies`, `EXACT_LIMIT`). A script making a dozen calls reads its own numbers back; a perf test gets 4.4%-at-worst accuracy in bounded memory, and the histogram *is* the distribution chart.
+- **Time buckets double rather than being sized in advance** — a run has no length while it is running. A bucket index is derived from a timestamp rather than remembered, so the pairwise collapse that halves every index leaves a call that settles afterwards landing where it belongs. **Concurrency rides on the same buckets as a delta** (+1 issued, −1 settled): summing two deltas is what makes them mergeable, and prefix-summing is the line.
+- **A slice is never finer than the calls it holds.** Eighty slices over fourteen calls is a chart that is mostly gaps.
+- **Failures say the same thing three times**: red marks on the chart floor, a red segment at the foot of the rps bar, a red count in the method table. The segment has a floor, because one failure in three hundred calls rounds to nothing and still has to be visible.
+- **The tile strip is the only thing pinned**; the charts, distribution and table scroll under it as one column, so a console at 300px is the same page as one dragged open. Its trailing empty cell is where a schedule states what it excluded.
+- **Two degenerate cases are stated rather than drawn.** One call has a duration and an outcome, so the tiles collapse to those two and the table is the rest. Zero calls is one line of muted text — not an empty dashboard with six dashes in it.
 
 ### The console belongs to the file
 
