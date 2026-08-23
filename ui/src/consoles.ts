@@ -15,6 +15,7 @@ import {
   RunSelection,
   RunStatus,
 } from "./runs";
+import { RunMetrics } from "./runStats";
 import { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
@@ -54,6 +55,7 @@ class Group implements RunGroup {
   readonly drawn: ConsoleItem[] = [];
   readonly stats = new ItemStats();
   readonly strip = new RunStrip();
+  readonly metrics: RunMetrics;
   drew = false;
   dropped = 0;
   // There are a handful in a run at most, so the one it is parked on is found rather
@@ -69,7 +71,9 @@ class Group implements RunGroup {
   #drawnAt = 0;
   readonly #failed = new Map<string, { item: ConsoleItem; seq: number }>();
 
-  constructor(public run: Run) {}
+  constructor(public run: Run) {
+    this.metrics = new RunMetrics(run.startedAt);
+  }
 
   // A script that reports its own — a table with a result column — keeps drawing past
   // them, and the canvas stays quiet.
@@ -119,6 +123,7 @@ class Group implements RunGroup {
     if (item.block !== undefined && isAwaitingUser(item.block)) this.#asked.push(item);
     this.stats.add(item);
     this.strip.add(item);
+    this.metrics.add(item);
     this.#mark(item);
     return true;
   }
@@ -129,6 +134,7 @@ class Group implements RunGroup {
     if (item.block !== undefined && isAwaitingUser(item.block) && !this.#asked.includes(item)) this.#asked.push(item);
     this.stats.add(item);
     this.strip.add(item);
+    this.metrics.add(item);
     this.#mark(item);
   }
 

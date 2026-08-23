@@ -12,6 +12,7 @@ import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
+import { Stats } from "./Stats";
 import {
   callRows,
   ConsoleItem,
@@ -293,7 +294,9 @@ export function Console({
     );
   }
 
-  const showUtilities = activeView === "canvas" || selectedCall !== undefined;
+  // Fold, unfold and copy are about a payload, and full screen is about the canvas.
+  // Stats has neither, so it carries none of them.
+  const showUtilities = activeView === "canvas" || (activeView === "calls" && selectedCall !== undefined);
 
   const canvas = selectedGroup && (
     <Canvas
@@ -362,6 +365,18 @@ export function Console({
                 script — the others are the tail of the log and the run pill. */}
             {waiting && activeView !== "canvas" && <span data-testid="canvas-badge" className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
           </SegmentedControl.Button>
+          {/* Always there, and never carrying a count: a run has statistics whether
+              or not anyone shaped it as a test, and a segment that appears once a
+              run is big enough would be a control you have to notice to know
+              exists. */}
+          <SegmentedControl.Button
+            selected={activeView === "stats"}
+            className="h-[20px] px-2.5 py-0 text-xs"
+            onClick={() => onViewChange("stats")}
+            data-testid="console-view-stats"
+          >
+            Stats
+          </SegmentedControl.Button>
         </SegmentedControl>
         {/* Only there when the run printed something, on the same rule as
             everything else in this header: a control over nothing is chrome. */}
@@ -418,6 +433,8 @@ export function Console({
           {selectedGroup.strip.calls > 0 && <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} />}
           {canvas}
         </>
+      ) : selectedGroup && activeView === "stats" ? (
+        <Stats group={selectedGroup} onSelectCall={selectFromCanvas} />
       ) : selectedGroup ? (
         <RunLog
           group={selectedGroup}
