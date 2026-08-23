@@ -1,7 +1,7 @@
 ## Guidelines
 
 - See [Development](README.md#development) for how to run and test.
-- Only add code comments for things the code cannot say: a gotcha, a workaround, a magic value an API insists on, an ordering that matters. Not a restatement of the line below it, and not design rationale.
+- **The default is no comment.** Write one only where the code is tricky and the reason is not obvious from reading it: a gotcha, a workaround, a magic value an API insists on, an ordering that matters. Not a restatement of the line below it, not design rationale, not a heading over a block, not a summary of what a function does. If the comment could be deleted without a reader losing anything, it should be.
 - If an API is called "getConfiguration", use "configuration" not "config" in code.
 - Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done, and check the port is free first.
 - Don't run `scripts/build-ui` separately — a `-tags development` server rebuilds the UI on page load. Testing the server packages needs the same tag, or they embed a production bundle nothing has written.
@@ -13,7 +13,8 @@
 - Use past tense in pull request titles and commit messages ("Fix bug" → "Fixed bug"). Keep PR descriptions to one or two sentences.
 - Use capitalized "Kaja" for user-facing labels; lowercase "kaja" for code, commands and paths.
 - Don't reference specific example services (names of APIs used to reproduce a bug) in code, comments, or tests — they are just random examples.
-- When a change is radically different from what's documented here, update this file.
+- **Keep extending this file** — a change that contradicts what is written here, or adds a rule the next agent would otherwise have to rediscover, belongs in it. Update the sentence that is now wrong rather than adding a second one beside it.
+- **But most changes add nothing to it.** Don't restate what the code, a type or a filename already says, don't record a routine change, and don't add a rule that is already here in other words. If a section is getting a paragraph per change, the change is being logged rather than documented — this file is what is true now, not a history of how it got that way.
 
 ### UI conventions
 
@@ -131,6 +132,7 @@ One word throughout — a **draft** (`drafts.ts`, `Draft`, `draftTitle.ts`, Inde
 - **A folder in Files is a real directory** under the workspace's scripts root. Creating, renaming and moving hit disk immediately. An **empty folder persists**. Folders sort first, alphabetically, files after (`scriptTree.ts`, unit-tested).
 - **Making one is inline, never a dialog.** The row is real from the first keystroke: `⏎` creates, `Esc` or an empty name cancels, a duplicate shows `border-destructive` and refuses `⏎`. **Rename is the same row.** Three doors: the Files group menu (`⇧⌘N`, at the root), right-clicking a folder, and the naming sheet's own `New folder…`.
 - **A file's path is its name**, so renaming and moving are one write (`RenameScript`, `renameScriptFile`), and the naming sheet is **one sheet for three moments** — naming a draft, renaming a file, moving one — differing only in title and button. The folder select lists existing folders plus `New folder…`, defaulting to the last one used.
+- **Deleting a folder deletes what is filed there.** A folder is a place, not a container of its own, so `DeleteScriptFolder` is a `RemoveAll` and the confirmation is what carries the cost — it names the files that go with it (`scriptsWithin`) rather than refusing the folders that hold any. One that is already gone is not a failure. The UI prunes the folder, its subfolders and each of those files (consoles and stored runs included) only **after** the disk says yes.
 - **Drafts stay flat, permanently.** A place is half of what a file is.
 - **A name is resolved inside the folder, never followed out of it.** Everything crossing into `desktop/scripts.go` — UI, agent, browser — is reduced to a relative path (`filepath.IsLocal`, no dot segments) and opened through an `os.Root`. That is the whole access boundary, and it is why the MCP bridge guards no paths of its own.
 

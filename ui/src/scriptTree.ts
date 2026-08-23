@@ -109,6 +109,22 @@ export function scriptNameParts(name: string): { base: string; extension: string
   return at <= 0 ? { base: name, extension: "" } : { base: name.slice(0, at), extension: name.slice(at) };
 }
 
+/**
+ * Whether a folder path is that folder or somewhere under it. Renaming a folder
+ * and deleting one both act on everything filed there, and both read the flat
+ * listing rather than the tree, so the prefix rule is written once. A path is
+ * compared segment by segment: `billing-2024` is not inside `billing`.
+ */
+export function isWithinFolder(folder: string, path: string): boolean {
+  if (!folder) return true;
+  return path === folder || path.startsWith(folder + "/");
+}
+
+/** The files a folder holds, its subfolders included — what deleting it takes with it. */
+export function scriptsWithin(scripts: Script[], folder: string): Script[] {
+  return scripts.filter((script) => isWithinFolder(folder, script.folder));
+}
+
 export function folderName(path: string): string {
   const at = path.lastIndexOf("/");
   return at === -1 ? path : path.slice(at + 1);

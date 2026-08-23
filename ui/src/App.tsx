@@ -1,5 +1,4 @@
 import { useMediaQuery } from "./useMediaQuery";
-import { Alert } from "./components/alert";
 import { ConfirmationDialog } from "./components/confirmation-dialog";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
@@ -7,7 +6,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, Code, FileCode, Folder, PenLine, Plug, Save as SaveIcon, ScrollText, X } from "lucide-react";
+import { Braces, Code, FileCode, Folder, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -44,6 +43,7 @@ import {
 } from "./drafts";
 import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
+import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
@@ -195,6 +195,17 @@ interface NameSheet {
   script?: Script;
 }
 
+/**
+ * What a failed file operation says. A rejection reaches here as an Error, as a
+ * string from the Wails bridge, or as neither, and interpolating one straight
+ * into a sentence prints `Error: …` inside it or, worse, `[object Object]`.
+ */
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return String(error);
+}
+
 function sortScripts(scripts: Script[]): Script[] {
   return [...scripts].sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
 }
@@ -327,7 +338,7 @@ export function App() {
 
   const showFileError = useCallback((message: string) => {
     setFileError(message);
-    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
+    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 6000);
   }, []);
 
   const persistViews = useCallback(() => {
@@ -364,7 +375,7 @@ export function App() {
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
-      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${errorText(err)}`));
     },
     [showFileError],
   );
@@ -1100,7 +1111,7 @@ export function App() {
         if (!file) return;
         applyViews((views) => showScript(views, file.script, file.content));
       } catch (err) {
-        showFileError(`Open failed: ${err}`);
+        showFileError(`Open failed: ${errorText(err)}`);
       }
     },
     [applyViews, showFileError],
@@ -1113,7 +1124,7 @@ export function App() {
         const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
         setLinkSheet({ script, parameters: content ? readInputKeys(content) : [] });
       } catch (err) {
-        showFileError(`Copy deeplink failed: ${err}`);
+        showFileError(`Copy deeplink failed: ${errorText(err)}`);
       }
     },
     [showFileError],
@@ -1156,7 +1167,7 @@ export function App() {
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
       } catch (err) {
-        showFileError(`Run failed: ${err}`);
+        showFileError(`Run failed: ${errorText(err)}`);
       }
     },
     [apps, showFileError, reportScriptError, beginRun, markSettled],
@@ -1211,7 +1222,7 @@ export function App() {
             id,
             setTimeout(() => {
               scriptSaveTimers.current.delete(id);
-              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${errorText(err)}`));
             }, 500),
           );
         }),
@@ -1316,7 +1327,7 @@ export function App() {
     if (!isWailsEnvironment()) return;
     MCPServerInfo()
       .then((info) => setMcpInfo(info))
-      .catch((err) => showFileError(`MCP server: ${err}`));
+      .catch((err) => showFileError(`MCP server: ${errorText(err)}`));
   }, [showFileError]);
 
   // The catalog follows the apps, not the compiler: a change that compiles nothing —
@@ -1358,7 +1369,7 @@ export function App() {
         source = file ? file.content : "";
         if (!file) throw new Error(`No script at ${path}`);
       } catch (err) {
-        return { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] };
+        return { console: [], error: errorText(err), methodCalls: [] };
       }
     }
 
@@ -1376,7 +1387,7 @@ export function App() {
       await kaja.settleTables();
       result = { ...captured, ...report() };
     } catch (err) {
-      result = { console: [], error: err instanceof Error ? err.message : String(err), ...report() };
+      result = { console: [], error: errorText(err), ...report() };
     } finally {
       markSettledRef.current(run.id);
     }
@@ -1464,7 +1475,7 @@ export function App() {
       setNameSheet(null);
       setNameSheetError(undefined);
     } catch (err) {
-      setNameSheetError(String(err));
+      setNameSheetError(errorText(err));
     }
   }, [nameSheet, applyDrafts, applyViews, applyScriptRename, flushScriptWrite]);
 
@@ -1504,7 +1515,7 @@ export function App() {
       try {
         await deleteScriptFile(script);
       } catch (err) {
-        showFileError(`Delete failed: ${err}`);
+        showFileError(`Delete failed: ${errorText(err)}`);
         return;
       }
       removeScriptFromUI(script.path);
@@ -1518,7 +1529,7 @@ export function App() {
         const created = await createScriptFolder(path);
         setScriptFolders((prev) => (prev.includes(created) ? prev : [...prev, created].sort()));
       } catch (err) {
-        showFileError(`New folder failed: ${err}`);
+        showFileError(`New folder failed: ${errorText(err)}`);
       }
     },
     [showFileError],
@@ -1531,9 +1542,8 @@ export function App() {
         setScriptFolders((prev) =>
           prev.map((folder) => (folder === path ? moved : folder.startsWith(path + "/") ? moved + folder.slice(path.length) : folder)).sort(),
         );
-        const within = (folder: string) => folder === path || folder.startsWith(path + "/");
         for (const script of scriptsRef.current ?? []) {
-          if (!within(script.folder)) continue;
+          if (!isWithinFolder(path, script.folder)) continue;
           const folder = moved + script.folder.slice(path.length);
           applyScriptRename(script.path, {
             ...script,
@@ -1542,22 +1552,28 @@ export function App() {
           });
         }
       } catch (err) {
-        showFileError(`Rename failed: ${err}`);
+        showFileError(`Rename failed: ${errorText(err)}`);
       }
     },
     [applyScriptRename, showFileError],
   );
 
+  // A folder is a place, so deleting one deletes what is filed there — the files
+  // and the folders under it alike. Disk first: nothing leaves the sidebar until
+  // it is gone, so a refused delete leaves a list that still matches the disk.
   const onConfirmDeleteFolder = useCallback(
     async (path: string) => {
+      const scripts = scriptsWithin(scriptsRef.current ?? [], path);
       try {
         await deleteScriptFolder(path);
-        setScriptFolders((prev) => prev.filter((folder) => folder !== path));
       } catch (err) {
-        showFileError(`Delete failed: ${err}`);
+        showFileError(`Delete failed: ${errorText(err)}`);
+        return;
       }
+      setScriptFolders((prev) => prev.filter((folder) => !isWithinFolder(path, folder)));
+      for (const script of scripts) removeScriptFromUI(script.path);
     },
-    [showFileError],
+    [showFileError, removeScriptFromUI],
   );
 
   const onRevealScripts = useCallback(() => {
@@ -1927,6 +1943,9 @@ export function App() {
   const onAppFormCancel = () => {
     dropAppForm();
   };
+
+  // What deleting the folder on the confirmation would take with it.
+  const deleteFolderFiles = useMemo(() => (deleteFolder ? scriptsWithin(scripts ?? [], deleteFolder) : []), [deleteFolder, scripts]);
 
   // Names no variable defines are in here too: the Variables view shows them as a warning.
   const variableUsage = useMemo(() => {
@@ -2648,6 +2667,9 @@ export function App() {
           </div>
         </Dialog>
       )}
+      {/* A folder is a place, so deleting one deletes the files filed there. The
+          dialog is where that is said, and it names what it costs rather than
+          refusing the folders that cost anything. */}
       {deleteFolder && (
         <ConfirmationDialog
           title="Delete folder?"
@@ -2659,12 +2681,37 @@ export function App() {
             if (gesture === "confirm" && path) void onConfirmDeleteFolder(path);
           }}
         >
-          Delete <strong>{deleteFolder}</strong>? Only an empty folder can go — the files in one are deleted a file at a time.
+          Permanently delete <strong>{deleteFolder}</strong>
+          {deleteFolderFiles.length > 0
+            ? ` and the ${deleteFolderFiles.length === 1 ? "file" : `${deleteFolderFiles.length} files`} in it?`
+            : "? Anything filed there goes with it."}
+          {deleteFolderFiles.length > 0 && (
+            <div className="mt-3 flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-card p-2">
+              {deleteFolderFiles.map((script) => {
+                // A file deeper down is named by where it sits, so two `january.ts`
+                // in different subfolders are two different lines.
+                const under = script.folder.slice(deleteFolder.length + 1);
+                return (
+                  <span key={script.path} className="truncate text-sm text-foreground">
+                    {under && <span className="text-muted-foreground">{under}/</span>}
+                    <FileName name={script.name} />
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </ConfirmationDialog>
       )}
+      {/* A floating surface, so it is opaque: at 10% the destructive tint let the
+          console header read straight through the message it was covering. */}
       {fileError && (
-        <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
-          <Alert variant="danger">{fileError}</Alert>
+        <div
+          role="alert"
+          className="fixed left-1/2 top-12 z-[1000] flex max-w-[640px] -translate-x-1/2 items-start gap-2 rounded-md border border-destructive/40 bg-popover px-3 py-2 shadow-lg"
+        >
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-destructive" />
+          <span className="min-w-0 break-words text-sm text-destructive">{fileError}</span>
+          <IconButton icon={X} aria-label="Dismiss" size="xs" variant="ghost" onClick={() => setFileError(undefined)} />
         </div>
       )}
       {/* Nothing was on disk, so discarding is taken back rather than confirmed
