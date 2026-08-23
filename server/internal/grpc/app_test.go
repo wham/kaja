@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
@@ -225,5 +226,91 @@ func TestGRPCStatusFromHTTP(t *testing.T) {
 		if got := grpcStatusFromHTTP(httpStatus); got != want {
 			t.Errorf("grpcStatusFromHTTP(%d) = %d, want %d", httpStatus, got, want)
 		}
+	}
+}
+
+// TestTrailerBlockIsBounded locks in that nothing an upstream sends can decide how big
+// the trailer block gets. The failure is written before the headers that describe the
+// hop, so a header set too big to carry is what gets left behind.
+func TestTrailerBlockIsBounded(t *testing.T) {
+	huge := strings.Repeat("x", 4*maxTrailerBytes)
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return nil, apps.NewUpstreamError(http.MethodGet, "https://api.example.com/x", http.StatusBadGateway, []byte(`{"detail":"gone"}`)).
+			WithHeaders(map[string]string{"X-Huge": huge}, map[string]string{"X-Also-Huge": huge})
+	})
+
+	_, trailers := parseGRPCWebText(t, w.Body.String())
+	if len(trailers) > maxTrailerBytes {
+		t.Errorf("trailer block is %d bytes, want at most %d", len(trailers), maxTrailerBytes)
+	}
+	if !strings.Contains(trailers, "grpc-status: 13") {
+		t.Errorf("trailers = %q, want the status to survive", trailers[:200])
+	}
+	// The failure is the one trailer that has to get through.
+	failure := map[string]any{}
+	if err := json.Unmarshal([]byte(trailerValue(t, trailers, "kaja-upstream-error")), &failure); err != nil {
+		t.Fatalf("upstream error trailer: %v", err)
+	}
+	if failure["message"] != "gone" {
+		t.Errorf("upstream error message = %v", failure["message"])
+	}
+	if strings.Contains(trailers, "X-Also-Huge") {
+		t.Errorf("a header trailer that could not fit should be dropped whole")
+	}
+}
+
+// grpc-message is cut before it is escaped, and escaping can triple what it is given,
+// so the cut has to leave room for that.
+func TestLongGRPCMessageFitsOnceEscaped(t *testing.T) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return nil, fmt.Errorf("%s", strings.Repeat("→", 4*maxTrailerBytes))
+	})
+
+	_, trailers := parseGRPCWebText(t, w.Body.String())
+	if len(trailers) > maxTrailerBytes {
+		t.Errorf("trailer block is %d bytes, want at most %d", len(trailers), maxTrailerBytes)
+	}
+	if !utf8.ValidString(trailerValue(t, trailers, "grpc-message")) {
+		t.Error("the truncated message is not valid UTF-8")
+	}
+}
+
+// A dropped trailer is dropped whole: a value cut in half would reach the client as
+// JSON it cannot parse, which is worse than the trailer never arriving.
+func TestOversizedTrailerIsDroppedNotCut(t *testing.T) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return &apps.InvokeResult{
+			Body:           []byte{9},
+			RequestHeaders: map[string]string{"X-Huge": strings.Repeat("y", 4*maxTrailerBytes)},
+		}, nil
+	})
+
+	message, trailers := parseGRPCWebText(t, w.Body.String())
+	if string(message) != string([]byte{9}) {
+		t.Errorf("the response itself must be unaffected, got %v", message)
+	}
+	for _, line := range strings.Split(trailers, "\r\n") {
+		if line == "" {
+			continue
+		}
+		if _, _, found := strings.Cut(line, ": "); !found {
+			t.Errorf("trailer line is not whole: %q", line)
+		}
+	}
+	if strings.Contains(trailers, "X-Huge") {
+		t.Errorf("trailers = %q, want the oversized one dropped", trailers)
+	}
+}
+
+func TestCutKeepsRunesWhole(t *testing.T) {
+	if got := cut("hello", 10); got != "hello" {
+		t.Errorf("cut under the limit = %q", got)
+	}
+	// "é" is two bytes: cutting at 2 must not leave half of it behind.
+	if got := cut("aé", 2); got != "a" {
+		t.Errorf("cut = %q, want the partial rune dropped", got)
+	}
+	if !utf8.ValidString(cut(strings.Repeat("→", 100), 55)) {
+		t.Error("cut produced invalid UTF-8")
 	}
 }

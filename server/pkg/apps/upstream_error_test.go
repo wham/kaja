@@ -122,3 +122,51 @@ func TestUpstreamErrorJSON(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", e.Error(), want)
 	}
 }
+
+func TestUnreadableResponseJSON(t *testing.T) {
+	const answer = `{"content":[{"type":"text","text":"Hello"}]}`
+	e := NewUnreadableResponse("POST", "https://api.example.com/v1/messages", 200, []byte(answer),
+		"the response is not an OpenAI chat completion: invalid value for string field content")
+
+	var got struct {
+		Message            string          `json:"message"`
+		Request            string          `json:"request"`
+		Body               json.RawMessage `json:"body"`
+		Status             int             `json:"status"`
+		ResponseStatus     int             `json:"responseStatus"`
+		ResponseStatusText string          `json:"responseStatusText"`
+	}
+	if err := json.Unmarshal(e.JSON(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// "status" is what the client reads as an HTTP failure: it labels the call with the
+	// code and shows the body in place of the message. Neither holds here, so the status
+	// the API answered with is named as the response's.
+	if got.Status != 0 {
+		t.Errorf("status = %d, want it absent", got.Status)
+	}
+	if got.ResponseStatus != 200 || got.ResponseStatusText != "OK" {
+		t.Errorf("responseStatus = %d %q", got.ResponseStatus, got.ResponseStatusText)
+	}
+	if !strings.Contains(got.Message, "not an OpenAI chat completion") {
+		t.Errorf("message = %q", got.Message)
+	}
+	if got.Request != "POST https://api.example.com/v1/messages" {
+		t.Errorf("request = %q", got.Request)
+	}
+	if string(got.Body) != answer {
+		t.Errorf("body = %s, want the answer verbatim", got.Body)
+	}
+}
+
+func TestTransportStatus(t *testing.T) {
+	// The transports carry one field for "this is a failure" and "this is the status",
+	// so a response the app could not read has to read as a failure there.
+	if got := NewUnreadableResponse("POST", "https://api.example.com", 200, nil, "nope").TransportStatus(); got != 502 {
+		t.Errorf("TransportStatus() = %d, want 502", got)
+	}
+	if got := NewUpstreamError("POST", "https://api.example.com", 401, nil).TransportStatus(); got != 401 {
+		t.Errorf("TransportStatus() = %d, want the upstream's own status", got)
+	}
+}

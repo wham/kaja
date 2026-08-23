@@ -407,11 +407,13 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		if errors.As(err, &upstream) {
 			// Hand the structured upstream failure to the transport instead of rejecting the
 			// promise with a flat string. The exchanged headers ride along so the Headers view is
-			// populated even on a failure.
+			// populated even on a failure. StatusCode is the transport's, not the report's: it is
+			// the one field saying the body is a failure, and the upstream's own status travels
+			// inside the JSON.
 			return &TargetResult{
 				Body:            upstream.JSON(),
-				StatusCode:      upstream.Status,
-				Status:          upstream.StatusText,
+				StatusCode:      upstream.TransportStatus(),
+				Status:          http.StatusText(upstream.TransportStatus()),
 				RequestHeaders:  upstream.RequestHeaders,
 				ResponseHeaders: upstream.ResponseHeaders,
 			}, nil

@@ -80,11 +80,31 @@ test("leaves a failure that is not an HTTP one alone", () => {
   expect(unwrapFailure(failure({ request: "" }))).toEqual(failure({ request: "" }));
 });
 
-test("reports the request line for the Headers view, and only for an HTTP failure", () => {
+test("reports the request line for the Headers view, and only for a call an app made", () => {
   expect(upstreamRequestLine(failure())).toBe("POST https://api.example.com/events");
+  expect(upstreamRequestLine(unreadable())).toBe("POST https://api.example.com/messages");
   expect(upstreamRequestLine({ message: "invalid argument", code: "INVALID_ARGUMENT" })).toBeUndefined();
   expect(upstreamRequestLine(undefined)).toBeUndefined();
 });
+
+// The API answered, so its answer is not the failure — what the app made of it is. The
+// report is shown whole: the message that explains it, the status it arrived with, and
+// the body it arrived as.
+test("shows a response the app could not read as the report it is", () => {
+  const report = unreadable();
+  expect(unwrapFailure(report)).toBe(report);
+});
+
+function unreadable(overrides: Record<string, unknown> = {}) {
+  return {
+    message: "the response is not an OpenAI chat completion: invalid value for string field content",
+    request: "POST https://api.example.com/messages",
+    body: { content: [{ type: "text", text: "Hello" }] },
+    responseStatus: 200,
+    responseStatusText: "OK",
+    ...overrides,
+  };
+}
 
 test("returns undefined for a missing or unparseable trailer", () => {
   expect(parseUpstreamError(undefined)).toBeUndefined();
