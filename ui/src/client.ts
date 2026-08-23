@@ -5,9 +5,12 @@ import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders, transportHeaders } from "./appTypes";
 import { Call, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import {
+  UPSTREAM_DURATION_TRAILER,
   UPSTREAM_ERROR_TRAILER,
   UPSTREAM_REQUEST_HEADERS_TRAILER,
   UPSTREAM_RESPONSE_HEADERS_TRAILER,
+  UPSTREAM_TRAILER_PREFIX,
+  parseUpstreamDuration,
   parseUpstreamError,
   parseUpstreamHeaders,
 } from "./upstreamHeaders";
@@ -17,16 +20,28 @@ import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
 
+// absorbReserved routes one kaja-upstream-* entry onto the call. The prefix is
+// Kaja's own out-of-band channel — what Kaja measured or exchanged upstream, never a
+// header the server sent — so a key it doesn't know is consumed rather than shown as
+// a response header. The error trailer is among those: it is already the call's error.
+function absorbReserved(methodCall: MethodCall, key: string, value: unknown): boolean {
+  if (!key.startsWith(UPSTREAM_TRAILER_PREFIX)) return false;
+  if (key === UPSTREAM_REQUEST_HEADERS_TRAILER) {
+    methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
+  } else if (key === UPSTREAM_RESPONSE_HEADERS_TRAILER) {
+    methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
+  } else if (key === UPSTREAM_DURATION_TRAILER) {
+    methodCall.upstreamDurationMs = parseUpstreamDuration(value);
+  }
+  return true;
+}
+
 function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, trailers?: RpcMetadata): void {
   const responseHeaders: MethodCallHeaders = {};
   const absorb = (meta?: RpcMetadata) => {
     if (!meta) return;
     for (const [key, value] of Object.entries(meta)) {
-      if (key === UPSTREAM_REQUEST_HEADERS_TRAILER) {
-        methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
-      } else if (key === UPSTREAM_RESPONSE_HEADERS_TRAILER) {
-        methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
-      } else {
+      if (!absorbReserved(methodCall, key, value)) {
         responseHeaders[key] = String(value);
       }
     }
@@ -46,18 +61,8 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
 
   const responseHeaders: MethodCallHeaders = {};
   for (const [key, value] of Object.entries(metaRecord)) {
-    switch (key) {
-      case UPSTREAM_REQUEST_HEADERS_TRAILER:
-        methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
-        break;
-      case UPSTREAM_RESPONSE_HEADERS_TRAILER:
-        methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
-        break;
-      case UPSTREAM_ERROR_TRAILER:
-        // The failure itself, already shown as the error.
-        break;
-      default:
-        responseHeaders[key] = String(value);
+    if (!absorbReserved(methodCall, key, value)) {
+      responseHeaders[key] = String(value);
     }
   }
   if (Object.keys(responseHeaders).length > 0) {

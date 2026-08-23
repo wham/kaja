@@ -36,6 +36,7 @@ interface StoredCall {
   url?: string;
   timestamp: number;
   durationMs?: number;
+  upstreamDurationMs?: number;
 }
 
 // A block is already plain JSON, so it survives the store as itself.
@@ -83,6 +84,7 @@ function toStoredCall(call: MethodCall): StoredCall {
     url: call.url,
     timestamp: call.timestamp,
     durationMs: call.durationMs,
+    upstreamDurationMs: call.upstreamDurationMs,
   };
 }
 
@@ -113,6 +115,7 @@ function fromStoredCall(stored: StoredCall): MethodCall {
     url: stored.url,
     timestamp: stored.timestamp,
     durationMs: stored.durationMs,
+    upstreamDurationMs: stored.upstreamDurationMs,
   };
 }
 

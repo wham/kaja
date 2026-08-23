@@ -9,21 +9,29 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
 
-// Trailers carrying what an in-process app exchanged with its upstream service,
-// out of band from the response message. The headers ones are a JSON object of
-// header name to value each, surfaced in the client's Headers view; the error
-// one is the structured HTTP failure (apps.UpstreamError.JSON), which the client
-// shows *instead of* the gRPC error, so the tunnel doesn't show through.
+// Trailers carrying what happened upstream of this process, out of band from the
+// response message — the response side of the reserved X-Kaja-App request header:
+// everything under kaja-upstream-* is Kaja's own channel, never something the
+// upstream sent, and the client strips the whole prefix out of what it shows as
+// response headers. The headers ones are a JSON object of header name to value
+// each, surfaced in the client's Headers view; the error one is the structured
+// HTTP failure (apps.UpstreamError.JSON), which the client shows *instead of*
+// the gRPC error, so the tunnel doesn't show through; the duration one is the
+// upstream exchange in milliseconds as this process measured it, emitted by the
+// app path and the gRPC proxy alike, which the client shows in place of its own
+// round-trip timing.
 const (
 	upstreamRequestHeadersTrailer  = "kaja-upstream-request-headers"
 	upstreamResponseHeadersTrailer = "kaja-upstream-response-headers"
 	upstreamErrorTrailer           = "kaja-upstream-error"
+	upstreamDurationTrailer        = "kaja-upstream-duration-ms"
 )
 
 // AppInvoker invokes an in-process app method given the de-framed request message
@@ -59,6 +67,7 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 			// exchanged headers come along too (a 401 is exactly when they matter).
 			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
 			trailers[upstreamErrorTrailer] = string(upstream.JSON())
+			trailers[upstreamDurationTrailer] = strconv.FormatInt(upstream.DurationMs, 10)
 			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.TransportStatus()), upstream.Error(), trailers)
 			return
 		}
@@ -66,7 +75,9 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 		writeGRPCWebText(w, nil, 2, err.Error(), nil)
 		return
 	}
-	writeGRPCWebText(w, result.Body, 0, "", upstreamHeaderTrailers(result.RequestHeaders, result.ResponseHeaders))
+	trailers := upstreamHeaderTrailers(result.RequestHeaders, result.ResponseHeaders)
+	trailers[upstreamDurationTrailer] = strconv.FormatInt(result.DurationMs, 10)
+	writeGRPCWebText(w, result.Body, 0, "", trailers)
 }
 
 // upstreamHeaderTrailers encodes an app's exchanged upstream headers as gRPC-Web

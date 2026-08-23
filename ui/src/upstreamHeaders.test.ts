@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseUpstreamError, parseUpstreamHeaders, unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
+import { parseUpstreamDuration, parseUpstreamError, parseUpstreamHeaders, unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
 
 // Trailers are percent-encoded on the way out because a gRPC-Web client reads
 // them byte by byte as Latin-1; without it an em dash arrives as "â€"".
@@ -111,4 +111,20 @@ test("returns undefined for a missing or unparseable trailer", () => {
   expect(parseUpstreamError("not json")).toBeUndefined();
   expect(parseUpstreamError(escape("[1,2]"))).toBeUndefined();
   expect(parseUpstreamHeaders(undefined)).toBeUndefined();
+});
+
+test("reads the milliseconds the server stamped, from a string or a metadata array", () => {
+  expect(parseUpstreamDuration("42")).toBe(42);
+  expect(parseUpstreamDuration("0")).toBe(0);
+  expect(parseUpstreamDuration(["1200"])).toBe(1200);
+});
+
+// A mangled duration reads as never measured, so the client falls back to its own
+// round-trip timing instead of showing a number nothing produced.
+test("refuses a duration that is not a non-negative number", () => {
+  expect(parseUpstreamDuration(undefined)).toBeUndefined();
+  expect(parseUpstreamDuration("")).toBeUndefined();
+  expect(parseUpstreamDuration("fast")).toBeUndefined();
+  expect(parseUpstreamDuration("-5")).toBeUndefined();
+  expect(parseUpstreamDuration("Infinity")).toBeUndefined();
 });

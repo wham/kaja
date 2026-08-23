@@ -366,13 +366,16 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 
 // TargetResult holds the response from a Target call, including HTTP status for
 // Twirp. RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
-// upstream, surfaced in the Headers view.
+// upstream, surfaced in the Headers view. DurationMs is the upstream exchange as this
+// process measured it — the call without the webview round trip — which the UI shows
+// in place of its own timing.
 type TargetResult struct {
 	Body            []byte            `json:"body"`
 	StatusCode      int               `json:"statusCode"`
 	Status          string            `json:"status"`
 	RequestHeaders  map[string]string `json:"requestHeaders,omitempty"`
 	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
+	DurationMs      int64             `json:"durationMs"`
 }
 
 // Target proxies external API calls to configured endpoints (the desktop's
@@ -416,6 +419,7 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 				Status:          http.StatusText(upstream.TransportStatus()),
 				RequestHeaders:  upstream.RequestHeaders,
 				ResponseHeaders: upstream.ResponseHeaders,
+				DurationMs:      upstream.DurationMs,
 			}, nil
 		}
 		if err != nil {
@@ -425,6 +429,7 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 			Body:            result.Body,
 			RequestHeaders:  result.RequestHeaders,
 			ResponseHeaders: result.ResponseHeaders,
+			DurationMs:      result.DurationMs,
 		}, nil
 	}
 
@@ -435,11 +440,12 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	headers = apps.MergeMetadata(headers, connection.Metadata)
 	switch protocol {
 	case 1: // gRPC
+		started := time.Now()
 		resp, err := a.targetGRPC(target, method, req, headers, connection.TLS)
 		if err != nil {
 			return nil, err
 		}
-		return &TargetResult{Body: resp}, nil
+		return &TargetResult{Body: resp, DurationMs: time.Since(started).Milliseconds()}, nil
 	case 2: // Twirp
 		return a.targetTwirp(target, method, req, headers)
 	default:
@@ -491,6 +497,7 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 	}
 
 	client := &http.Client{}
+	started := time.Now()
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		slog.Error("Failed to make HTTP request", "target", target, "method", method, "error", err)
@@ -504,6 +511,7 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 		slog.Error("Failed to read response body", "target", target, "method", method, "error", err)
 		return nil, err
 	}
+	durationMs := time.Since(started).Milliseconds()
 
 	response := responseBuffer.Bytes()
 	slog.Info("Target response", "target", target, "method", method, "status", resp.StatusCode, "response_length", len(response))
@@ -512,6 +520,7 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 		Body:       response,
 		StatusCode: resp.StatusCode,
 		Status:     http.StatusText(resp.StatusCode),
+		DurationMs: durationMs,
 	}, nil
 }
 
@@ -578,6 +587,7 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	a.activeStreams.Store(streamID, cancel)
 
+	started := time.Now()
 	messages, errc := client.ServerStream(ctx, method, req, headers)
 
 	go func() {
@@ -593,7 +603,9 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 			slog.Error("Server stream error", "streamID", streamID, "error", err)
 			runtime.EventsEmit(a.ctx, "stream:"+streamID+":error", err.Error())
 		} else {
-			runtime.EventsEmit(a.ctx, "stream:"+streamID+":end")
+			// The stream's upstream duration rides the end event, mirroring the
+			// kaja-upstream-duration-ms trailer of a unary call.
+			runtime.EventsEmit(a.ctx, "stream:"+streamID+":end", time.Since(started).Milliseconds())
 		}
 	}()
 

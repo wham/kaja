@@ -22,7 +22,7 @@ import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
-import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, KajaHost, MethodCall } from "./kaja";
+import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
@@ -2849,7 +2849,9 @@ function toMethodCallLog(call: MethodCall) {
     app: call.appName,
     service: call.service.name,
     method: call.method.name,
-    durationMs: call.durationMs,
+    // The API's time when Kaja measured it — what an agent reasoning about
+    // latency wants — the round trip when nothing did.
+    durationMs: callDurationMs(call),
     input: call.input,
     output: call.output,
     failure: call.error === undefined ? undefined : classifyFailure(call.error),

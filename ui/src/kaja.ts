@@ -858,6 +858,19 @@ export interface MethodCall {
   // Wall-clock time the call took, set once it succeeds, fails, or its stream
   // completes. Undefined while still in flight.
   durationMs?: number;
+  // The upstream exchange as the Kaja process in the call's path measured it — the
+  // call without the trip between this UI and Kaja. Absent when nothing measured it
+  // (a stored run from before it existed, a call that never left this process).
+  upstreamDurationMs?: number;
+}
+
+/**
+ * The duration a call is described by, everywhere one is shown: what the API took
+ * when Kaja measured it, the whole round trip when nothing did. Both stay on the
+ * call, so the Headers view can state the hop they differ by.
+ */
+export function callDurationMs(methodCall: MethodCall): number | undefined {
+  return methodCall.upstreamDurationMs ?? methodCall.durationMs;
 }
 
 export interface MethodCallUpdate {

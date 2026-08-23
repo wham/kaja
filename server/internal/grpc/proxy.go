@@ -2,16 +2,18 @@ package grpc
 
 import (
 	"encoding/base64"
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	pkggrpc "github.com/wham/kaja/v2/pkg/grpc"
+	"google.golang.org/grpc/status"
 )
 
 type Proxy struct {
@@ -25,66 +27,45 @@ func NewProxy(target *url.URL, options pkggrpc.TLSOptions) (*Proxy, error) {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string, headers map[string]string) {
-	// Check if using text format
 	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
 
-	// Read gRPC-Web message
-	var message []byte
-	message, err := p.readGRPCWebMessage(r.Body, isText)
+	message, err := readGRPCWebMessage(r.Body, isText)
 	if err != nil {
 		slog.Error("Failed to read gRPC-Web request", "error", err)
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
 		return
 	}
-	slog.Info("Received message", "length", len(message))
 
-	slog.Info("Invoking gRPC server", "method", method, "tls", p.client.UseTLS(), "headers", len(headers))
+	w.Header().Set("Content-Type", "application/grpc-web-text")
 
-	res, err := p.client.InvokeWithTimeout(method, message, 5*time.Second, headers)
+	// The one Kaja process in the call's path stamps the upstream exchange, so what
+	// the client shows as the call's duration is the API's time, not the trip here.
+	started := time.Now()
+	res, err := p.client.InvokeWithTimeout(method, message, 30*time.Second, headers)
+	trailers := map[string]string{upstreamDurationTrailer: strconv.FormatInt(time.Since(started).Milliseconds(), 10)}
+
 	if err != nil {
-		slog.Error("gRPC invocation failed", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		slog.Error("gRPC invocation failed", "method", method, "error", err)
+		// The upstream's own status rides back in the trailer frame, so the browser
+		// sees the NOT_FOUND the API answered rather than a 500 from the proxy.
+		code, grpcMessage := grpcStatusOf(err)
+		writeGRPCWebText(w, nil, code, grpcMessage, trailers)
 		return
 	}
 
-	slog.Info("Received gRPC response", "length", len(res))
-
-	// Build the gRPC-Web data frame:
-	// - 1 byte flag (0 for data frame)
-	// - 4 byte big-endian uint32 length
-	// - followed by the response message bytes
-	frame := make([]byte, 5+len(res))
-	frame[0] = 0 // flag for data frame
-	binary.BigEndian.PutUint32(frame[1:5], uint32(len(res)))
-	copy(frame[5:], res)
-
-	// Build the trailers frame containing the gRPC status code.
-	// The trailers frame has:
-	// - 1 byte flag (0x80 for trailers)
-	// - 4 byte big-endian uint32 length
-	// - trailers formatted as "key: value\r\n", ending with an extra "\r\n" line.
-	trailers := "grpc-status: 0\r\ngrpc-message: \r\n"
-	trailersBytes := []byte(trailers)
-	trailerFrame := make([]byte, 5+len(trailersBytes))
-	trailerFrame[0] = 0x80 // flag for trailer frame
-	binary.BigEndian.PutUint32(trailerFrame[1:5], uint32(len(trailersBytes)))
-	copy(trailerFrame[5:], trailersBytes)
-
-	// Concatenate data frame and trailer frame to form complete response.
-	fullResponse := append(frame, trailerFrame...)
-
-	// Optionally, if sending gRPC-Web text response, base64-encode the fullResponse:
-	encodedResponse := base64.StdEncoding.EncodeToString(fullResponse)
-
-	w.Header().Set("Content-Type", "application/grpc-web-text")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(encodedResponse)))
-	if _, err := w.Write([]byte(encodedResponse)); err != nil {
-		slog.Error("Error writing response", "error", err)
-	}
+	writeGRPCWebText(w, res, 0, "", trailers)
 }
 
-func (p *Proxy) readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
-	return readGRPCWebMessage(r, isText)
+// grpcStatusOf reads the status a gRPC error carries, however deep the client
+// wrapped it. An error with no status never left this process, which is what
+// UNKNOWN says.
+func grpcStatusOf(err error) (int, string) {
+	var carrier interface{ GRPCStatus() *status.Status }
+	if errors.As(err, &carrier) {
+		s := carrier.GRPCStatus()
+		return int(s.Code()), s.Message()
+	}
+	return 2, err.Error()
 }
 
 func readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {

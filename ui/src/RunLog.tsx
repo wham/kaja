@@ -8,7 +8,7 @@ import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { KajaTrace } from "./KajaTrace";
-import { MethodCall } from "./kaja";
+import { callDurationMs, MethodCall } from "./kaja";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
@@ -150,9 +150,9 @@ export function RunLog({
                     timestamp={item.timestamp}
                     loopKey={item.key}
                     status={itemStatus(item)}
-                    durationMs={item.call.durationMs}
+                    durationMs={callDurationMs(item.call)}
                     errorCode={callErrorCode(item.call)}
-                    fraction={barFraction(item.call.durationMs, slowest)}
+                    fraction={barFraction(callDurationMs(item.call), slowest)}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
                     onSelect={onSelectRow}
@@ -580,7 +580,13 @@ interface ResponseSummaryProps {
 RunLog.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
-  const duration = formatDuration(methodCall.durationMs);
+  const duration = formatDuration(callDurationMs(methodCall));
+  // The stated time is the API's once Kaja measured it; the round trip stays a
+  // hover away, and the Headers view states the two hops apart.
+  const durationTitle =
+    methodCall.upstreamDurationMs !== undefined && methodCall.durationMs !== undefined
+      ? `API ${formatDuration(methodCall.upstreamDurationMs)} · end to end ${formatDuration(methodCall.durationMs)}`
+      : undefined;
   const size = formatBytes(payloadBytes(content, rawText));
   const streamCount = methodCall.streamOutputs?.length;
 
@@ -589,7 +595,11 @@ RunLog.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSum
       <span data-testid="console-status" className={cn("shrink-0 font-medium", statusClass(status))}>
         {label}
       </span>
-      {duration && <span className="shrink-0 tabular-nums text-muted-foreground @max-[430px]:hidden">{duration}</span>}
+      {duration && (
+        <span title={durationTitle} className="shrink-0 tabular-nums text-muted-foreground @max-[430px]:hidden">
+          {duration}
+        </span>
+      )}
       {size && <span className="shrink-0 tabular-nums text-muted-foreground @max-[500px]:hidden">{size}</span>}
       {streamCount !== undefined && (
         <span className="shrink-0 text-muted-foreground @max-[560px]:hidden">
@@ -628,23 +638,34 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     </div>
   );
 
-  const groupHeading = (text: string, caption: string, requestLine?: string) => (
+  const groupHeading = (text: string, caption: string, requestLine?: string, time?: string) => (
     <div className="mb-3">
-      <div className="font-semibold uppercase tracking-wider text-foreground">{text}</div>
+      <div className="font-semibold uppercase tracking-wider text-foreground">
+        {text}
+        {time && <span className="ml-2 font-normal normal-case tracking-normal tabular-nums text-muted-foreground">{time}</span>}
+      </div>
       <div className="text-muted-foreground">{caption}</div>
       {requestLine && <div className="mt-1 break-all text-foreground">{requestLine}</div>}
     </div>
   );
 
+  // Each hop states its own time: the upstream exchange as Kaja measured it, and
+  // what the trip between here and Kaja added on top. Their sum is the round trip.
+  const upstreamTime = formatDuration(methodCall.upstreamDurationMs);
+  const transportTime =
+    methodCall.upstreamDurationMs !== undefined && methodCall.durationMs !== undefined
+      ? formatDuration(Math.max(0, methodCall.durationMs - methodCall.upstreamDurationMs))
+      : undefined;
+
   return (
     <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs">
       {hasUpstream ? (
         <>
-          {groupHeading("Upstream", "Headers Kaja exchanged with the API", upstreamRequest)}
+          {groupHeading("Upstream", "Headers Kaja exchanged with the API", upstreamRequest, upstreamTime)}
           {section("Request headers", upstreamRequestHeaders)}
           {section("Response headers", upstreamResponseHeaders)}
           <div className="mb-6 h-px bg-border" />
-          {groupHeading("Transport", "Headers between the browser and Kaja")}
+          {groupHeading("Transport", "Headers between the browser and Kaja", undefined, transportTime)}
           {section("Request headers", requestHeaders)}
           {section("Response headers", responseHeaders)}
         </>

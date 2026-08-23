@@ -1,5 +1,5 @@
 import { Block, blockLabel, isAwaitingUser } from "./blocks";
-import { isCallInFlight, MethodCall } from "./kaja";
+import { callDurationMs, isCallInFlight, MethodCall } from "./kaja";
 // Type only: the strip is maintained in runStrip, which reads its items from here.
 // Importing the value would close the circle.
 import type { RunStrip } from "./runStrip";
@@ -249,11 +249,12 @@ export class ItemStats {
     if (inFlight) this.#inFlight++;
 
     // A duration is written once, when the call settles, so it only ever moves the
-    // window outward.
+    // window outward. The wall window keeps the full round trip — it is about this
+    // client's clock — while slowest compares what the rows show (callDurationMs).
     const duration = item.call?.durationMs;
     if (duration !== undefined && was?.duration === undefined) {
       this.#settled++;
-      this.#slowest = Math.max(this.#slowest, duration);
+      this.#slowest = Math.max(this.#slowest, callDurationMs(item.call!) ?? duration);
       this.#start = Math.min(this.#start, item.timestamp);
       this.#end = Math.max(this.#end, item.timestamp + duration);
     }
@@ -367,7 +368,10 @@ export function presentRun(group: RunGroup | undefined): Presentation {
 // Kept for reading a list that is already complete, and as the definition
 // `ItemStats` is tested against.
 export function slowestOf(items: ConsoleItem[]): number | undefined {
-  const durations = items.map((item) => item.call?.durationMs).filter((duration): duration is number => duration !== undefined);
+  const durations = items
+    .filter((item) => item.call?.durationMs !== undefined)
+    .map((item) => callDurationMs(item.call!))
+    .filter((duration): duration is number => duration !== undefined);
   return durations.length > 1 ? Math.max(...durations) : undefined;
 }
 

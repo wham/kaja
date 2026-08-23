@@ -1,3 +1,4 @@
+import { callDurationMs } from "./kaja";
 import { ConsoleItem } from "./runs";
 
 /**
@@ -109,8 +110,9 @@ export class RunStrip {
       bucket.failures++;
     }
     if (call.durationMs !== undefined && seen.duration === undefined) {
-      seen.duration = call.durationMs;
-      bucket.slowest = Math.max(bucket.slowest, call.durationMs);
+      const duration = callDurationMs(call) ?? call.durationMs;
+      seen.duration = duration;
+      bucket.slowest = Math.max(bucket.slowest, duration);
     }
   }
 

@@ -1,14 +1,23 @@
 import { MethodCallHeaders } from "./kaja";
 
-// Trailers carrying what an in-process app exchanged with its upstream service, out
-// of band from the response message. The server emits them as gRPC-Web trailers and
-// the Wails transport mirrors them, so the client reads both transports the same way.
+// Trailers carrying what happened upstream of Kaja, out of band from the response
+// message. The server emits them as gRPC-Web trailers (a Twirp response carries the
+// duration as a response header under the same name) and the Wails transport mirrors
+// them, so the client reads every transport the same way.
+//
+// The prefix is the response side of the reserved X-Kaja-App request header: anything
+// under it is Kaja's own channel, never a header the server sent, and the client
+// strips the whole prefix out of what it shows as response headers.
 //
 // The headers ones are a JSON object of header name to value. The error one is the
-// HTTP failure itself, shown in place of the gRPC error the call was tunnelled through.
+// HTTP failure itself, shown in place of the gRPC error the call was tunnelled
+// through. The duration one is the upstream exchange in milliseconds as the Kaja
+// process measured it, shown in place of the client's own round-trip timing.
+export const UPSTREAM_TRAILER_PREFIX = "kaja-upstream-";
 export const UPSTREAM_REQUEST_HEADERS_TRAILER = "kaja-upstream-request-headers";
 export const UPSTREAM_RESPONSE_HEADERS_TRAILER = "kaja-upstream-response-headers";
 export const UPSTREAM_ERROR_TRAILER = "kaja-upstream-error";
+export const UPSTREAM_DURATION_TRAILER = "kaja-upstream-duration-ms";
 
 // An upstream HTTP call that failed, as the app reported it: the request that was
 // made, what came back, and nothing about the gRPC frame it travelled in.
@@ -57,6 +66,15 @@ export function parseUpstreamHeaders(value: unknown): MethodCallHeaders | undefi
     // Not valid JSON; ignore rather than surfacing a broken trailer.
   }
   return undefined;
+}
+
+// parseUpstreamDuration decodes the duration trailer: a non-negative integer of
+// milliseconds, and nothing else — a mangled value reads as never measured.
+export function parseUpstreamDuration(value: unknown): number | undefined {
+  const decoded = decodeTrailer(value);
+  if (decoded === undefined || decoded === "") return undefined;
+  const parsed = Number(decoded);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined;
 }
 
 // parseUpstreamError decodes the structured HTTP failure trailer.
