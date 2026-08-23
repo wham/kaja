@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1510,6 +1512,171 @@ components:
 	} {
 		if !strings.Contains(ts, frag) {
 			t.Errorf("generated TypeScript missing %q\n---\n%s", frag, ts)
+		}
+	}
+}
+
+// namespacedSpec mirrors an API whose tags and operationIds are dotted paths
+// that all restate the API's own name, and restate the resource again in every
+// operation: "Benchling.AaSequence.Get" under the tag "Benchling.AaSequence".
+const namespacedSpec = `
+openapi: 3.0.0
+info:
+  title: Lab
+  version: 1.0.0
+paths:
+  /sequences:
+    get:
+      operationId: Lab.Sequence.List
+      tags: ["Lab.Sequence", "Tier 5 Rate Limit"]
+      responses:
+        "200": { description: ok }
+  /sequences/{id}:
+    get:
+      operationId: Lab.Sequence.Get
+      tags: ["Lab.Sequence"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: ok }
+  /sequences/{id}/authors:
+    get:
+      operationId: Lab.Sequence.authors.List
+      tags: ["Lab.Sequence"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: ok }
+  /schemas/{id}:
+    get:
+      operationId: Lab.SequenceSchema.Get
+      tags: ["Lab.SequenceSchema"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: ok }
+  /tasks/{id}:
+    get:
+      operationId: Lab.BulkTask.Get
+      tags: ["Lab.Tasks"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: ok }
+`
+
+func TestGenerateProtoTrimsRepeatedNames(t *testing.T) {
+	s, err := parseSpec([]byte(namespacedSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		// "Lab." is on every tag and every operationId, so it says nothing the
+		// app's own name does not, and the service is what is left of the tag.
+		"service Sequence {",
+		"service SequenceSchema {",
+		// A method is read inside its service, so it drops the service's name and
+		// keeps what it adds. Two services may both declare Get.
+		"rpc List(SequenceListRequest) returns (SequenceListResponse) {",
+		"rpc Get(SequenceGetRequest) returns (SequenceGetResponse) {",
+		"rpc AuthorsList(SequenceAuthorsListRequest) returns (SequenceAuthorsListResponse) {",
+		"rpc Get(SequenceSchemaGetRequest) returns (SequenceSchemaGetResponse) {",
+		// An operationId that does not start with its own tag is left whole
+		// rather than trimmed at a guess.
+		"rpc BulkTaskGet(BulkTaskGetRequest) returns (BulkTaskGetResponse) {",
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	for _, key := range []string{
+		"openapi.lab.Sequence/List",
+		"openapi.lab.Sequence/Get",
+		"openapi.lab.Sequence/AuthorsList",
+		"openapi.lab.SequenceSchema/Get",
+		"openapi.lab.Tasks/BulkTaskGet",
+	} {
+		if _, ok := gen.bindings[key]; !ok {
+			t.Errorf("missing binding %q, have %v", key, slices.Sorted(maps.Keys(gen.bindings)))
+		}
+	}
+}
+
+func TestSharedNamespace(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{"agreed", namespacedSpec, "Lab"},
+		{"undotted names have no namespace to share", petstoreSpec, ""},
+		{
+			name: "a segment two operations disagree on is telling them apart",
+			spec: `
+openapi: 3.0.0
+info: { title: Lab, version: 1.0.0 }
+paths:
+  /a: { get: { operationId: One.Get, responses: { "200": { description: ok } } } }
+  /b: { get: { operationId: Two.Get, responses: { "200": { description: ok } } } }
+`,
+			want: "",
+		},
+		{
+			name: "one namespaced operation is not a convention",
+			spec: `
+openapi: 3.0.0
+info: { title: Lab, version: 1.0.0 }
+paths:
+  /a: { get: { operationId: One.Get, responses: { "200": { description: ok } } } }
+  /b: { get: { operationId: plain, responses: { "200": { description: ok } } } }
+`,
+			want: "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := parseSpec([]byte(tc.spec))
+			if err != nil {
+				t.Fatalf("parseSpec: %v", err)
+			}
+			if got := sharedNamespace(s); got != tc.want {
+				t.Errorf("sharedNamespace = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTrimServiceName(t *testing.T) {
+	for _, tc := range []struct{ method, service, want string }{
+		{"SequenceGet", "Sequence", "Get"},
+		{"SequenceSchemaGet", "SequenceSchema", "Get"},
+		// The remainder has to start a new word, or the trim is cutting a longer
+		// name in half.
+		{"SequenceSchemaGet", "Sequences", "SequenceSchemaGet"},
+		{"Sequences", "Sequence", "Sequences"},
+		// A method that is nothing but its service's name keeps it.
+		{"Sequence", "Sequence", "Sequence"},
+		{"ListPets", "Pets", "ListPets"},
+	} {
+		if got := trimServiceName(tc.method, tc.service); got != tc.want {
+			t.Errorf("trimServiceName(%q, %q) = %q, want %q", tc.method, tc.service, got, tc.want)
 		}
 	}
 }
