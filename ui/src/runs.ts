@@ -2,6 +2,7 @@ import { Block, blockLabel, isAwaitingUser } from "./blocks";
 import { callDurationMs, isCallInFlight, MethodCall } from "./kaja";
 // Type only: the strip is maintained in runStrip, which reads its items from here.
 // Importing the value would close the circle.
+import type { PerfSchedule } from "./perfTest";
 import type { RunMetrics } from "./runStats";
 import type { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
@@ -31,6 +32,9 @@ export interface Run {
   stale?: boolean;
   // Set on a stale run whose payloads have aged out.
   payloadsExpired?: boolean;
+  // A run shaped by kaja.perfTest. The only thing the perf half tells the rest of the
+  // console about itself, and the only perf-test-specific ink on the Stats page.
+  perf?: PerfSchedule;
 }
 
 /**
@@ -358,6 +362,9 @@ export function printedCounts(group: RunGroup): { lines: number; errors: number 
  * outranks this and sticks per file.
  */
 export function defaultView(group: RunGroup | undefined): ConsoleView {
+  // A perf test is a run whose point is the numbers, and it draws a block on the way
+  // past — so it outranks the canvas it drew on.
+  if (group?.run.perf !== undefined) return "stats";
   return group?.drew ? "canvas" : "calls";
 }
 

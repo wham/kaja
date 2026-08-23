@@ -1,7 +1,7 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, PerfBlock, TableBlock, TextBlock } from "./blocks";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
 import { Button } from "./components/button";
@@ -23,6 +23,8 @@ import {
 } from "./tableView";
 import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
+import { exclusionNote, StatTiles, TileCell } from "./Stats";
+import { formatErrorRate, formatMs, formatRps } from "./statsChart";
 import { Log, LogLevel } from "./server/api";
 
 // What the counts and the label at the end of the strip need before the marks get
@@ -51,6 +53,9 @@ interface CanvasProps {
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onSelectCall: (itemId: string) => void;
   onFullScreen?: () => void;
+  // Handed down to a perf block, which is a headline and the way to the page
+  // its charts are on.
+  onOpenStats?: () => void;
   // Carried across entering and leaving full-screen, so the way back lands where you
   // left rather than at the top.
   scrollRef?: React.MutableRefObject<number>;
@@ -74,6 +79,7 @@ export function Canvas({
   onDecide,
   onSelectCall,
   onFullScreen,
+  onOpenStats,
   scrollRef,
   tableViews,
   onTableView,
@@ -129,6 +135,7 @@ export function Canvas({
             onCancelAsk={onCancelAsk}
             onDecide={onDecide}
             onFullScreen={onFullScreen}
+            onOpenStats={onOpenStats}
             tableViews={tableViews}
             onTableView={onTableView}
             onTablePull={onTablePull}
@@ -231,13 +238,27 @@ interface EntryProps {
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
+  // The perf block's way to the page its charts are on.
+  onOpenStats?: () => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
-Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull, onTableCells }: EntryProps) {
+Canvas.Entry = function ({
+  item,
+  fullScreen,
+  onAnswer,
+  onCancelAsk,
+  onDecide,
+  onFullScreen,
+  onOpenStats,
+  tableViews,
+  onTableView,
+  onTablePull,
+  onTableCells,
+}: EntryProps) {
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
   return (
@@ -249,6 +270,7 @@ Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, on
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
       onFullScreen={onFullScreen}
+      onOpenStats={onOpenStats}
       tableViews={tableViews}
       onTableView={onTableView}
       onTablePull={onTablePull}
@@ -265,6 +287,8 @@ interface BlockProps {
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
+  // The perf block's way to the page its charts are on.
+  onOpenStats?: () => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
@@ -279,6 +303,7 @@ Canvas.Block = function ({
   onCancelAsk,
   onDecide,
   onFullScreen,
+  onOpenStats,
   tableViews,
   onTableView,
   onTablePull,
@@ -295,7 +320,48 @@ Canvas.Block = function ({
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
     case "approve":
       return <Canvas.Approve id={id} block={block} fullScreen={fullScreen} onDecide={onDecide} onFullScreen={onFullScreen} />;
+    case "perf":
+      return <Canvas.Perf block={block} onOpenStats={onOpenStats} />;
   }
+};
+
+/**
+ * What a perf test leaves on the canvas: the headline, and the way to the rest of it.
+ * A test that ran for a minute has to show for itself here — a presented run has no
+ * other surface — but the charts belong on the page built for them, so this is the
+ * tile strip and a link rather than a second copy of it.
+ */
+Canvas.Perf = function ({ block, onOpenStats }: { block: PerfBlock; onOpenStats?: () => void }) {
+  const cells: TileCell[] = [
+    { label: "requests", value: block.requests.toLocaleString() },
+    {
+      label: "error rate",
+      value: formatErrorRate(block.errorRate, block.failures),
+      className: block.failures > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+    },
+    { label: "mean rps", value: formatRps(block.meanRps) },
+    { label: "p50", value: formatMs(block.p50) },
+    { label: "p95", value: formatMs(block.p95) },
+    { label: "p99", value: formatMs(block.p99) },
+  ];
+  return (
+    <div data-testid="canvas-perf" className="overflow-hidden rounded-lg border border-border">
+      <div className="flex h-[28px] items-center gap-2 border-b border-border bg-card px-3">
+        {block.running && <Spinner className="h-3 w-3 shrink-0" />}
+        <span className="shrink-0 text-xs text-muted-foreground">perf test</span>
+        <span className="min-w-0 truncate font-mono text-xs text-foreground">{block.schedule}</span>
+        {block.durationMs !== undefined && (
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatDuration(Math.round(block.durationMs))}</span>
+        )}
+        {onOpenStats && (
+          <button type="button" className="ml-auto shrink-0 font-mono text-xs text-primary hover:underline" onClick={onOpenStats}>
+            Open stats
+          </button>
+        )}
+      </div>
+      <StatTiles cells={cells} note={exclusionNote({ excludedWarmup: block.excludedWarmup ?? 0, excludedFailures: block.excludedFailures ?? 0 })} />
+    </div>
+  );
 };
 
 // Prose is measured rather than left to the container: a table wants the whole

@@ -15,6 +15,7 @@ import {
   RunSelection,
   RunStatus,
 } from "./runs";
+import { PerfSchedule } from "./perfTest";
 import { RunMetrics } from "./runStats";
 import { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
@@ -292,6 +293,27 @@ export class FileConsole {
     return true;
   }
 
+  /**
+   * What the perf test running in this run has done so far. The schedule rides on the
+   * run so a stale one still draws its bands, and the warm-up boundary reaches the
+   * metrics here rather than through the calls — one boundary, not a mark per call.
+   */
+  recordPerfSchedule(runId: string, schedule: PerfSchedule): boolean {
+    const index = this.runs.findIndex((run) => run.id === runId);
+    if (index === -1) return false;
+    this.runs[index] = { ...this.runs[index], perf: schedule };
+    const group = this.#groups.get(runId);
+    if (group) {
+      group.run = this.runs[index];
+      // Held until the boundary is known, because a sample counted under the wrong
+      // phase cannot be taken back out of a histogram.
+      if (schedule.warmupEndsAt !== undefined || schedule.endedAt !== undefined) group.metrics.resolveWarmup(schedule.warmupEndsAt);
+      else group.metrics.declareWarmup();
+    }
+    this.#ordered = null;
+    return true;
+  }
+
   findBlock(blockId: string): { run: Run; block: Block } | undefined {
     const known = this.#byItem.get(blockId);
     return known?.item.block ? { run: known.group.run, block: known.item.block } : undefined;
@@ -452,6 +474,14 @@ export class Consoles {
     this.#touch(fileId, file.waiting !== wasWaiting);
     if (file.waiting !== wasWaiting) this.#flagsChanged();
     this.#maybeQuiet(fileId, runId);
+  }
+
+  recordPerfSchedule(fileId: string | undefined, runId: string, schedule: PerfSchedule, now: number): void {
+    if (!fileId) return;
+    const file = this.#ensure(fileId, now);
+    // A phase opening or closing is a gesture's worth of news: the bands move under
+    // the cursor and the page has to keep up with the run rather than with the frame.
+    if (file.recordPerfSchedule(runId, schedule)) this.#touch(fileId, true);
   }
 
   recordLogs(fileId: string | undefined, runId: string, logs: Log[], now: number): void {

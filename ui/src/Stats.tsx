@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { callDurationMs } from "./kaja";
 import { cn } from "./cn";
+import { PerfPhase, PerfSchedule } from "./perfTest";
 import { RunGroup } from "./runs";
 import { MethodRow, RunStats, StatsSlot } from "./runStats";
 import {
@@ -80,6 +81,8 @@ export function Stats({ group, onSelectCall }: StatsProps) {
   // One call has no distribution, no throughput and no concurrency — it has a
   // duration and an outcome, and the table is the rest of what there is to say.
   const single = stats.calls === 1;
+  const schedule = group.run.perf;
+  const bands = schedule === undefined ? [] : phaseBands(schedule.phases, group.run.startedAt, stats.spanMs, group.run.startedAt + stats.spanMs);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -87,9 +90,9 @@ export function Stats({ group, onSelectCall }: StatsProps) {
       <div ref={body} className="min-h-0 flex-1 overflow-y-auto">
         {!single && (
           <>
-            <Stats.Latency stats={stats} />
-            <Stats.Throughput stats={stats} />
-            <Stats.InFlight stats={stats} />
+            <Stats.Latency stats={stats} bands={bands} />
+            <Stats.Throughput stats={stats} bands={bands} />
+            <Stats.InFlight stats={stats} bands={bands} />
             <Stats.Distribution stats={stats} />
           </>
         )}
@@ -107,7 +110,7 @@ export function Stats({ group, onSelectCall }: StatsProps) {
  */
 Stats.Tiles = function ({ group, stats, single }: { group: RunGroup; stats: RunStats; single: boolean }) {
   const only = single ? group.calls[0] : undefined;
-  const cells: { label: string; value: string; className?: string }[] = only
+  const cells: TileCell[] = only
     ? [
         { label: "duration", value: formatMs(callDurationMs(only.call!) ?? undefined) },
         {
@@ -129,6 +132,24 @@ Stats.Tiles = function ({ group, stats, single }: { group: RunGroup; stats: RunS
         { label: "p99", value: formatMs(stats.p99) },
       ];
 
+  // The cell that closes the strip. A schedule states what it left out of the numbers
+  // beside it; a run that is only a run has nothing to put there and says so by
+  // leaving it empty rather than by ending the row early.
+  return <StatTiles cells={cells} note={exclusionNote(stats)} />;
+};
+
+export interface TileCell {
+  label: string;
+  value: string;
+  className?: string;
+}
+
+/**
+ * One row of borderless cells divided by hairlines, not cards — the same weight as
+ * the tail bar. Shared with the canvas's perf block, which is this strip and the way
+ * to the rest of the page.
+ */
+export function StatTiles({ cells, note }: { cells: TileCell[]; note?: string }) {
   return (
     <div data-testid="stats-tiles" className="flex shrink-0 items-stretch overflow-hidden border-b border-border bg-card">
       {cells.map((cell, index) => (
@@ -137,20 +158,100 @@ Stats.Tiles = function ({ group, stats, single }: { group: RunGroup; stats: RunS
           <span className={cn("truncate font-mono text-sm", cell.className ?? "text-foreground")}>{cell.value}</span>
         </div>
       ))}
-      {/* The cell that closes the strip. A schedule states what it excluded here;
-          a run that is only a run has nothing to put in it, and says so by leaving
-          it empty rather than by ending the row early. */}
-      <div className="flex flex-1 items-center border-l border-border px-3" />
+      <div className="flex flex-1 items-center overflow-hidden border-l border-border px-3">
+        {note !== undefined && <span className="truncate text-xs text-muted-foreground">{note}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the percentiles beside it are not of. A failed call's latency is the time it
+ * took to be refused, which is not the number anyone reads a p99 for; a warm-up call
+ * measured a cold server. Both are counted everywhere else, so the exclusion has to
+ * be said rather than silently applied.
+ */
+export function exclusionNote(stats: { excludedWarmup: number; excludedFailures: number }): string | undefined {
+  const parts: string[] = [];
+  if (stats.excludedWarmup > 0) parts.push(`${stats.excludedWarmup.toLocaleString()} warm-up`);
+  if (stats.excludedFailures > 0) parts.push(`${stats.excludedFailures.toLocaleString()} failed`);
+  return parts.length === 0 ? undefined : `excl. ${parts.join(" · ")}`;
+}
+
+/** The header note: what the run was told to do. */
+export function scheduleNote(schedule: PerfSchedule): string {
+  const budget = schedule.iterations !== undefined ? `${schedule.iterations.toLocaleString()} iter` : formatScheduleSeconds(schedule.durationMs ?? 0);
+  return `perf test · ${budget} · ${schedule.concurrency} vu`;
+}
+
+function formatScheduleSeconds(ms: number): string {
+  const seconds = ms / 1000;
+  return seconds < 100 ? `${Number(seconds.toFixed(1))}s` : `${Math.round(seconds)}s`;
+}
+
+// A tint per phase, and none for the plateau: the bands exist to show where the
+// schedule was doing something other than holding still.
+const PHASE_TINT: { [name: string]: string } = {
+  "warm-up": "bg-foreground/[0.06]",
+  "ramp-up": "bg-foreground/[0.03]",
+  "ramp-down": "bg-foreground/[0.03]",
+  steady: "",
+};
+
+/**
+ * The schedule, drawn behind the charts. The only perf-test-specific ink on the page,
+ * and the only background tint on it — a plain run has none and loses nothing else.
+ *
+ * The same bands go behind all three charts so they read as one ruler; only the tall
+ * one has the room to name them.
+ */
+Stats.PhaseBands = function ({ bands, labels }: { bands: PhaseBand[]; labels?: boolean }) {
+  if (bands.length === 0) return null;
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      {bands.map((band) => (
+        <div
+          key={`${band.name}-${band.left}`}
+          className={cn("absolute inset-y-0", PHASE_TINT[band.name] ?? "")}
+          style={{ left: `${band.left}%`, width: `${band.width}%` }}
+        >
+          {labels && <span className="absolute left-1.5 top-1 whitespace-nowrap text-[9px] text-muted-foreground">{band.name}</span>}
+        </div>
+      ))}
     </div>
   );
 };
+
+export interface PhaseBand {
+  name: string;
+  left: number;
+  width: number;
+}
+
+/**
+ * The phases as percentages of the chart's own axis. The schedule is in epoch
+ * milliseconds and the axis starts at the run, which began before the test did — a
+ * script that fetched its fixtures first has a stretch of chart before the bands.
+ */
+export function phaseBands(phases: PerfPhase[], runStartedAt: number, spanMs: number, endedAt: number): PhaseBand[] {
+  if (spanMs <= 0) return [];
+  const bands: PhaseBand[] = [];
+  for (const phase of phases) {
+    const from = ((phase.startedAt - runStartedAt) / spanMs) * 100;
+    const to = (((phase.endedAt ?? endedAt) - runStartedAt) / spanMs) * 100;
+    const left = Math.max(0, Math.min(100, from));
+    const width = Math.max(0, Math.min(100, to) - left);
+    if (width > 0) bands.push({ name: phase.name, left, width });
+  }
+  return bands;
+}
 
 /**
  * p50 with the p50–p95 and p95–p99 envelopes behind it. Three bands rather than three
  * lines: the tail is a region the run spent time in, and drawing it as a line invites
  * reading a p99 spike as one call's story.
  */
-Stats.Latency = function ({ stats }: { stats: RunStats }) {
+Stats.Latency = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
   const ceiling = niceCeiling(Math.max(...stats.slots.map((slot) => slot.p99 ?? 0), 0));
   const tail = bandPoints(
     stats.slots,
@@ -180,6 +281,8 @@ Stats.Latency = function ({ stats }: { stats: RunStats }) {
         </div>
       </div>
       <div data-testid="stats-latency" className="relative rounded border border-border" style={{ height: LATENCY_HEIGHT }}>
+        {/* The only chart with the room to name them, so it is the one that does. */}
+        <Stats.PhaseBands bands={bands} labels />
         <svg
           viewBox={`0 0 ${CHART_WIDTH} ${LATENCY_HEIGHT}`}
           preserveAspectRatio="none"
@@ -214,7 +317,7 @@ Stats.FailureMarks = function ({ stats }: { stats: RunStats }) {
   );
 };
 
-Stats.Throughput = function ({ stats }: { stats: RunStats }) {
+Stats.Throughput = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
   const ceiling = niceCeiling(stats.peakRps);
   return (
     <div className="px-3 pt-3">
@@ -222,7 +325,8 @@ Stats.Throughput = function ({ stats }: { stats: RunStats }) {
         <span className="text-xs text-muted-foreground">Requests / s</span>
         <span className="font-mono text-xs text-muted-foreground">peak {formatRps(stats.peakRps)}</span>
       </div>
-      <div data-testid="stats-throughput" className="mt-1 flex items-end gap-0.5 rounded border border-border px-1" style={{ height: RPS_HEIGHT }}>
+      <div data-testid="stats-throughput" className="relative mt-1 flex items-end gap-0.5 rounded border border-border px-1" style={{ height: RPS_HEIGHT }}>
+        <Stats.PhaseBands bands={bands} />
         {stats.slots.map((slot, index) => (
           <Stats.Bar key={index} slot={slot} ceiling={ceiling} height={RPS_HEIGHT} />
         ))}
@@ -253,13 +357,14 @@ Stats.Bar = function ({ slot, ceiling, height }: { slot: StatsSlot; ceiling: num
  * it. Flatlining at one is the honest reading of a serial loop and explains a low rps
  * better than the throughput chart does.
  */
-Stats.InFlight = function ({ stats }: { stats: RunStats }) {
+Stats.InFlight = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
   const ceiling = Math.max(MIN_IN_FLIGHT_CEILING, stats.maxInFlight);
   const ticks = timeTicks(stats.spanMs);
   return (
     <div className="px-3 pt-3">
       <span className="text-xs text-muted-foreground">In flight</span>
       <div data-testid="stats-in-flight" className="relative mt-1 rounded border border-border" style={{ height: IN_FLIGHT_HEIGHT }}>
+        <Stats.PhaseBands bands={bands} />
         <svg viewBox={`0 0 ${CHART_WIDTH} ${IN_FLIGHT_HEIGHT}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
           <polyline
             points={stepPoints(stats.slots, ceiling, IN_FLIGHT_HEIGHT)}

@@ -297,6 +297,34 @@ export declare const kaja: {
    */
   table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
   /**
+   * Run a body over and over on a schedule, and give the run's Stats page a shape
+   * worth charting. The body is one iteration: \`concurrency\` virtual users each
+   * run it in a loop, and every call inside it is sampled.
+   *
+   *   const report = await kaja.perfTest(
+   *     async ({ iteration }) => {
+   *       await Shows.GetShow({ showId: ids[iteration % ids.length] });
+   *     },
+   *     { iterations: 1000, concurrency: 10, warmup: 50, rampUp: "10s" },
+   *   );
+   *   kaja.text(\`p95 \${report.latency.p95} ms over \${report.requests} requests\`);
+   *
+   * The budget is \`iterations\` or \`duration\` ("30s"), not both; \`duration\` is the
+   * whole test, ramps included. A numeric \`warmup\` is iterations and a string is
+   * time; either way those calls are measured and then left out of the percentiles.
+   * \`rampDown\` needs \`duration\` — with iterations the test ends when the last one
+   * does, which is nothing to ramp down from.
+   *
+   * A failed call fails the iteration, not the test: it runs to the end and the
+   * failures are the data. Failed calls are left out of the latency and counted
+   * everywhere else.
+   *
+   * kaja.askStr and kaja.approve throw inside the body — ten virtual users parked
+   * on one question is a deadlock wearing a dialog. Ask before the test, or take
+   * the value from kaja.input.
+   */
+  perfTest(body: (context: { iteration: number; vu: number }) => unknown, options?: PerfTestOptions): Promise<PerfReport>;
+  /**
    * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
    *
    *   const id = kaja.uuidV4();
@@ -323,5 +351,43 @@ export declare const kaja: {
    */
   listValue(input: JsonValue[]): ListValue;
 };
+
+/** How a perf test is shaped. The budget is iterations or duration, never both. */
+export interface PerfTestOptions {
+  iterations?: number;
+  /** The whole test, ramps and warm-up included: "30s", "2m", or milliseconds. */
+  duration?: number | string;
+  /** Virtual users at the plateau. Default 1. */
+  concurrency?: number;
+  /** A number is iterations, a string is time. Measured, then left out of the percentiles. */
+  warmup?: number | string;
+  rampUp?: number | string;
+  /** Needs duration: with iterations there is no moment to start draining from. */
+  rampDown?: number | string;
+}
+
+/** Of the calls that succeeded outside the warm-up — the sample set Stats describes. */
+export interface PerfLatency {
+  min?: number;
+  p50?: number;
+  p90?: number;
+  p95?: number;
+  p99?: number;
+  max?: number;
+  mean?: number;
+}
+
+export interface PerfReport {
+  iterations: number;
+  /** An iteration whose body threw. A failed call does not throw, so this is not that. */
+  failedIterations: number;
+  requests: number;
+  failures: number;
+  errorRate: number;
+  durationMs: number;
+  rps: number;
+  latency: PerfLatency;
+  methods: { method: string; calls: number; failures: number; p50?: number; p95?: number; p99?: number; max?: number; rps: number }[];
+}
 `;
 }
