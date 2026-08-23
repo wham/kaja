@@ -2,7 +2,6 @@ package openai
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,40 +56,26 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, err
 	}
 
-	respMsg := dynamicpb.NewMessage(in.output)
+	// Whatever comes back, what is reported is the HTTP call that was made: the
+	// request line, the status, the headers exchanged and the body verbatim. The
+	// app models none of it in its own response, so nothing it can't model is lost.
 	if status >= 400 {
-		// Surface the upstream failure as a structured error on the response
-		// rather than a flat transport error, so the status code, the OpenAI
-		// error type/code/param and the raw body are all visible in the response.
-		return in.encodeError(respMsg, parseUpstreamError(status, respBody), reqHeaders, respHeaders)
+		return nil, apps.NewUpstreamError(http.MethodPost, in.endpoint, status, respBody).WithHeaders(reqHeaders, respHeaders)
 	}
 
+	respMsg := dynamicpb.NewMessage(in.output)
 	shaped, err := in.wire.response(respBody)
-	if err != nil {
-		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	if err == nil {
+		err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(shaped, respMsg)
 	}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(shaped, respMsg); err != nil {
-		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	if err != nil {
+		// The API answered and what it answered is not what this one answers - usually
+		// an endpoint speaking the other API. Saying so with the body attached is what
+		// tells the two apart; a codec error on its own names neither.
+		reason := fmt.Sprintf("the response is not %s: %v", in.wire.answer(), err)
+		return nil, apps.NewUnreadableResponse(http.MethodPost, in.endpoint, status, respBody, reason).WithHeaders(reqHeaders, respHeaders)
 	}
 	setReplyContent(respMsg)
-	out, err := proto.Marshal(respMsg)
-	if err != nil {
-		return nil, err
-	}
-	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
-}
-
-// encodeError populates the response's "error" field from the structured upstream
-// error and marshals it into an InvokeResult that still carries the upstream
-// headers exchanged.
-func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]any, reqHeaders, respHeaders map[string]string) (*apps.InvokeResult, error) {
-	payload, err := json.Marshal(map[string]any{"error": upstream})
-	if err != nil {
-		return nil, fmt.Errorf("encoding error response: %w", err)
-	}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(payload, respMsg); err != nil {
-		return nil, fmt.Errorf("encoding error response: %w", err)
-	}
 	out, err := proto.Marshal(respMsg)
 	if err != nil {
 		return nil, err
@@ -182,63 +167,6 @@ func (in *instance) setCredential(header http.Header) {
 	}
 }
 
-// parseUpstreamError turns a failed (HTTP >= 400) upstream response into the
-// structured error shape exposed on ChatCompletionResponse.error. It understands
-// the OpenAI error envelope ({"error": {"message", "type", "code", "param"}}),
-// which the Claude API shares, and falls back to the raw body for anything else.
-func parseUpstreamError(status int, body []byte) map[string]any {
-	result := map[string]any{
-		"status": status,
-		"body":   truncate(body, 4000),
-	}
-
-	var envelope struct {
-		Error   json.RawMessage `json:"error"`
-		Message string          `json:"message"`
-	}
-	if json.Unmarshal(body, &envelope) == nil {
-		if len(bytes.TrimSpace(envelope.Error)) > 0 {
-			var detail struct {
-				Message string          `json:"message"`
-				Type    string          `json:"type"`
-				Code    json.RawMessage `json:"code"`
-				Param   json.RawMessage `json:"param"`
-			}
-			if json.Unmarshal(envelope.Error, &detail) == nil && detail.Message != "" {
-				result["message"] = detail.Message
-				result["type"] = detail.Type
-				result["code"] = rawString(detail.Code)
-				result["param"] = rawString(detail.Param)
-			} else if s := rawString(envelope.Error); s != "" {
-				result["message"] = s
-			}
-		} else if envelope.Message != "" {
-			result["message"] = envelope.Message
-		}
-	}
-	if _, ok := result["message"]; !ok {
-		if text := http.StatusText(status); text != "" {
-			result["message"] = text
-		} else {
-			result["message"] = fmt.Sprintf("upstream returned HTTP %d", status)
-		}
-	}
-	return result
-}
-
-// rawString renders a JSON value as a plain string, treating null/absent as "".
-func rawString(raw json.RawMessage) string {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" || trimmed == "null" {
-		return ""
-	}
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		return s
-	}
-	return trimmed
-}
-
 // setReplyContent copies the first choice's message content into the top-level
 // convenience "content" field of the response.
 func setReplyContent(respMsg *dynamicpb.Message) {
@@ -268,14 +196,6 @@ func setReplyContent(respMsg *dynamicpb.Message) {
 func lastSegment(s string) string {
 	if i := strings.LastIndex(s, "/"); i >= 0 {
 		return s[i+1:]
-	}
-	return s
-}
-
-func truncate(b []byte, n int) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > n {
-		return s[:n] + "…"
 	}
 	return s
 }

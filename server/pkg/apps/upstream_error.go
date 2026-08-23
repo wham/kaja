@@ -8,16 +8,23 @@ import (
 	"strings"
 )
 
-// UpstreamError is a failed HTTP call an app made to its upstream API. Apps
-// return it from Invoke instead of a flat error so the transports can surface
-// the status code, a clean human message, and the raw response body.
+// UpstreamError is an HTTP call an app made to its upstream API and could not turn
+// into the method's response. Apps return it from Invoke instead of a flat error so
+// the transports can surface the status code, a clean human message, and the raw
+// response body.
 type UpstreamError struct {
 	Method     string // HTTP verb of the upstream request
 	URL        string // full upstream URL
 	Status     int    // HTTP status code, e.g. 400
 	StatusText string // e.g. "Bad Request"
-	Message    string // human summary extracted from the response body
+	Message    string // human summary of what went wrong
 	Body       []byte // raw response body, truncated
+	// Unreadable marks a response that arrived without an HTTP failure and still
+	// could not be shaped into the method's response message. The API answered, so
+	// Body is its answer and Message is kaja's reading of it rather than a summary
+	// taken out of it - which is why both are shown, and why the status is reported
+	// as the answer's rather than as the failure's.
+	Unreadable bool
 	// RequestHeaders/ResponseHeaders are the headers exchanged with the upstream,
 	// surfaced in the client's Headers view even though the call failed. A 401 is
 	// exactly when they matter most.
@@ -52,6 +59,29 @@ func NewUpstreamError(method, url string, status int, body []byte) *UpstreamErro
 	}
 }
 
+// NewUnreadableResponse builds an UpstreamError for a response that arrived without
+// an HTTP failure and still could not be shaped into the method's response message.
+// The call reached the API, so what it sent back is the only thing that explains the
+// failure: it travels whole, under a reason naming what could not be read.
+func NewUnreadableResponse(method, url string, status int, body []byte, reason string) *UpstreamError {
+	e := NewUpstreamError(method, url, status, body)
+	e.Message = reason
+	e.Unreadable = true
+	return e
+}
+
+// TransportStatus is the status the transports gate on to tell a structured failure
+// from a response: the desktop's TargetResult carries one field for both, and a
+// success status there would be read as a call that worked. An unreadable response is
+// kaja failing as the gateway it is here, which is what 502 means. The status the user
+// is shown is the one in JSON, which is always the one the upstream sent.
+func (e *UpstreamError) TransportStatus() int {
+	if e.Status >= 400 {
+		return e.Status
+	}
+	return http.StatusBadGateway
+}
+
 func (e *UpstreamError) Error() string {
 	return fmt.Sprintf("%s %s returned %d %s: %s", e.Method, e.URL, e.Status, e.StatusText, e.Message)
 }
@@ -59,19 +89,30 @@ func (e *UpstreamError) Error() string {
 // JSON renders the error as the structured body the client transports hand to
 // the UI: the message, the status, the request line, and the raw body (kept as
 // JSON when it is JSON, carried as a string otherwise).
+//
+// An unreadable response names its status under a different key, because "status"
+// is what the client reads as an HTTP failure - it labels the call with the code and
+// drops the message in favour of the body. Here the message is the only thing that
+// explains the failure and the status is a success, so neither reading holds.
 func (e *UpstreamError) JSON() []byte {
 	body := json.RawMessage(e.Body)
 	if !json.Valid(e.Body) {
 		body, _ = json.Marshal(string(e.Body))
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"message":    e.Message,
-		"status":     e.Status,
-		"statusText": e.StatusText,
-		"request":    e.Method + " " + e.URL,
-		"body":       body,
-	})
-	return payload
+	payload := map[string]any{
+		"message": e.Message,
+		"request": e.Method + " " + e.URL,
+		"body":    body,
+	}
+	if e.Unreadable {
+		payload["responseStatus"] = e.Status
+		payload["responseStatusText"] = e.StatusText
+	} else {
+		payload["status"] = e.Status
+		payload["statusText"] = e.StatusText
+	}
+	encoded, _ := json.Marshal(payload)
+	return encoded
 }
 
 // upstreamMessage extracts a human summary from an error response body. It

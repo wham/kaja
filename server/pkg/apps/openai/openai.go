@@ -27,6 +27,11 @@ const serviceTypeName = "openai.OpenAI"
 
 // protoSource is the static proto surface the app renders, the same for either
 // API it speaks.
+//
+// A failed call has no shape here. It is reported as the HTTP call it was, through
+// apps.UpstreamError, the same as any other app that speaks HTTP - so the status, the
+// request line, the headers exchanged and the API's own body all reach the console,
+// and none of it has to be squeezed through a message this proto declares.
 const protoSource = `syntax = "proto3";
 
 package openai;
@@ -63,24 +68,6 @@ message Choice {
   string finish_reason = 3 [json_name = "finish_reason"];
 }
 
-// Error mirrors the OpenAI error envelope, which the Claude API shares the shape
-// of, so the status code, message, type, code and raw body are all visible on the
-// response.
-message Error {
-  // HTTP status code returned by the upstream API, e.g. 401.
-  int32 status = 1 [json_name = "status"];
-  // Human-readable error message.
-  string message = 2 [json_name = "message"];
-  // Error category, e.g. "invalid_request_error".
-  string type = 3 [json_name = "type"];
-  // Machine-readable error code, e.g. "invalid_api_key".
-  string code = 4 [json_name = "code"];
-  // The request parameter the error relates to, if any.
-  string param = 5 [json_name = "param"];
-  // Raw response body, for any detail not captured above.
-  string body = 6 [json_name = "body"];
-}
-
 message ChatCompletionResponse {
   string id = 1 [json_name = "id"];
   string model = 2 [json_name = "model"];
@@ -88,9 +75,6 @@ message ChatCompletionResponse {
   string content = 3 [json_name = "content"];
   repeated Choice choices = 4 [json_name = "choices"];
   Usage usage = 5 [json_name = "usage"];
-  // Set when the upstream API returns an error (HTTP >= 400) instead of a
-  // completion. The other fields are empty in that case.
-  Error error = 6 [json_name = "error"];
 }
 
 service OpenAI {

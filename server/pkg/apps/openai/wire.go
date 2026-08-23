@@ -43,6 +43,9 @@ type chat struct {
 type wire interface {
 	name() string
 	endpoint() string
+	// answer names what a good response is, for the report on one that isn't:
+	// pointed at the other API's endpoint, that sentence is the whole diagnosis.
+	answer() string
 	// defaultAuth is the credential the API's own dashboard hands you.
 	defaultAuth() string
 	// required is what the API insists on beside the credential.
@@ -71,6 +74,7 @@ func wireFor(name string) (wire, error) {
 type openAIWire struct{}
 
 func (openAIWire) name() string                { return apiOpenAI }
+func (openAIWire) answer() string              { return "an OpenAI chat completion" }
 func (openAIWire) endpoint() string            { return "https://api.openai.com/v1/chat/completions" }
 func (openAIWire) defaultAuth() string         { return authBearer }
 func (openAIWire) required() map[string]string { return nil }
@@ -101,6 +105,7 @@ func (openAIWire) response(body []byte) ([]byte, error) { return body, nil }
 type anthropicWire struct{}
 
 func (anthropicWire) name() string        { return apiAnthropic }
+func (anthropicWire) answer() string      { return "a Claude message" }
 func (anthropicWire) endpoint() string    { return "https://api.anthropic.com/v1/messages" }
 func (anthropicWire) defaultAuth() string { return authAPIKey }
 func (anthropicWire) required() map[string]string {
@@ -133,6 +138,7 @@ func (anthropicWire) request(call chat) ([]byte, error) {
 func (anthropicWire) response(body []byte) ([]byte, error) {
 	var message struct {
 		ID      string `json:"id"`
+		Type    string `json:"type"`
 		Model   string `json:"model"`
 		Content []struct {
 			Type string `json:"type"`
@@ -146,6 +152,12 @@ func (anthropicWire) response(body []byte) ([]byte, error) {
 	}
 	if err := json.Unmarshal(body, &message); err != nil {
 		return nil, err
+	}
+	// Every field here is optional to a JSON decoder, so a chat completion decodes
+	// into an empty message rather than failing. The discriminator is what stops an
+	// endpoint speaking the other API from coming back as a blank reply.
+	if message.Type != "message" {
+		return nil, fmt.Errorf("no message in the response (its type is %q)", message.Type)
 	}
 
 	var reply strings.Builder
