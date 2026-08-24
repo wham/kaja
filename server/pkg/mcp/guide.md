@@ -13,8 +13,9 @@ lists no tool that writes a file.
    method. Filter with `app`, `service` or `search` on a large API.
 2. `describe_method "Shows.ListShows"` — the declarations of every type that
    method's signature names, whether the call reads or writes, and a call to
-   start from. `describe_type "Show"` looks one type up on its own, and
-   `describe_type "kaja"` is the runtime a script writes its output with.
+   start from, carrying the required fields alone. `describe_type "Show"` looks
+   one type up on its own, and `describe_type "kaja"` is the runtime a script
+   writes its output with.
 3. `run_script` with `code` to try it, then `create_script` to keep it — where
    there is one.
 
@@ -86,9 +87,12 @@ Rules that matter:
   write what `list_services` reports rather than assembling it. **Named imports
   only**: `import * as ns from "..."` does not resolve.
 - Every method call returns a `Promise`; always `await` it.
-- **Send only the fields you mean.** A field is optional unless its declaration
-  is marked `[required]`, and an omitted field takes its zero value rather than
-  failing. Filling every parameter with `""` and `0` sends those values.
+- **Send only the fields you mean.** A request is an `Input<T>` — the generated
+  type with every field optional — and an omitted field takes its zero value
+  rather than failing. Filling every parameter with `""` and `0` sends those
+  values, and buries the two or three that carry the meaning of the call. The
+  declarations say what a method takes, so a call never has to restate the shape;
+  a field the API insists on is marked `[required]`.
 - A declaration may carry other marks the type system can't state: `[query
   parameter]`, `[path parameter]`, `[header parameter]` say where a field travels
   in the HTTP request behind the method, and `[carries the HTTP payload]` marks a
@@ -310,8 +314,8 @@ What each member is for:
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
   typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire
   shape is a `kind` oneof you must never write by hand and never re-implement as
-  your own `str`/`num`/`bool` helpers. The generated call `describe_method` gives
-  you already uses the right builder; keep it and change the argument.
+  your own `str`/`num`/`bool` helpers. Where the call `describe_method` gives you
+  already fills one in, keep the builder and change the argument.
 
 ```ts
 import { kaja } from "kaja";

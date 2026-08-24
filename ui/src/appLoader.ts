@@ -1,15 +1,17 @@
 import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
-import { addImport, defaultMessage, Imports } from "./defaultInput";
+import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId, Transport } from "./apps";
 import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
 
-// Generate editor code for a method on demand.
-export function generateMethodEditorCode(app: App, service: Service, method: Method): string {
+// Generate editor code for a method on demand. `fields` is how much of the request is
+// written out: the whole shape for a person clicking the method in the tree, the
+// required fields alone for a reader who has the declarations already (see FieldSet).
+export function generateMethodEditorCode(app: App, service: Service, method: Method, fields: FieldSet = "all"): string {
   const source = app.sources.find((s) => s.importPath === service.sourcePath);
   if (!source) {
     return `// Error: Could not find source for service ${service.name}`;
@@ -25,7 +27,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
     return `// Error: Could not find method info for ${method.name}`;
   }
 
-  return methodEditorCode(methodInfo, service.name, source, app);
+  return methodEditorCode(methodInfo, service.name, source, app, fields);
 }
 
 export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string, protocol: Transport): Promise<App> {
@@ -94,9 +96,10 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       file: ts.createSourceFile(
         source.file.fileName,
         // TODO: won't work if there are multiple services in the source file.
-        // A method hands back a Call rather than a Promise, so the source that declares one
-        // says where the type comes from — the same module a script imports `kaja` from.
-        printStatements([...(serviceInterfaceDefinitions.length > 0 ? [callTypeImport()] : []), ...kajaStatements, ...serviceInterfaceDefinitions]),
+        // A method hands back a Call rather than a Promise and takes an Input rather than the
+        // request type itself, so the source that declares one says where those types come
+        // from — the same module a script imports `kaja` from.
+        printStatements([...(serviceInterfaceDefinitions.length > 0 ? [kajaTypeImport()] : []), ...kajaStatements, ...serviceInterfaceDefinitions]),
         ts.ScriptTarget.Latest,
       ),
       serviceNames: source.serviceNames,
@@ -180,9 +183,9 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
   return undefined;
 }
 
-function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App): string {
+function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet): string {
   const imports = addImport({}, serviceName, source);
-  const input = defaultMessage(methodInfo.I, app.sources, imports);
+  const input = defaultMessage(methodInfo.I, app.sources, imports, new Set(), fields);
 
   let statements: ts.Statement[] = [];
 
@@ -284,15 +287,16 @@ function readSignatures(
   return signatures;
 }
 
-// `import type { Call } from "kaja";` — what a generated service's methods return.
-// Type-only, so nothing about it survives into what a script runs.
-function callTypeImport(): ts.ImportDeclaration {
+// `import type { Call, Input } from "kaja";` — what a generated service's methods
+// return, and what they take. Type-only, so nothing about it survives into what a
+// script runs.
+function kajaTypeImport(): ts.ImportDeclaration {
   return ts.factory.createImportDeclaration(
     undefined,
     ts.factory.createImportClause(
       true,
       undefined,
-      ts.factory.createNamedImports([ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier("Call"))]),
+      ts.factory.createNamedImports(["Call", "Input"].map((name) => ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name)))),
     ),
     ts.factory.createStringLiteral("kaja"),
   );
@@ -329,7 +333,12 @@ function createServiceInterfaceDefinition(
             undefined,
             "input",
             undefined,
-            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
+            // Input<T>, so a request may be written with the fields it means and no others.
+            // Nothing in a proto is required and the wire format omits a zero anyway, so a
+            // spelled-out `""` is a value being sent rather than a field being satisfied.
+            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Input"), [
+              ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
+            ]),
           ),
         ],
         ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Call"), [

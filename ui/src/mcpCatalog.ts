@@ -38,8 +38,9 @@ export interface McpService {
 export interface McpMethod {
   name: string;
   // The TypeScript a script writes, e.g.
-  // "ListShows(input: ListShowsRequest): Call<ListShowsResponse>" — a Call is
-  // awaited like a promise, and is what kaja.approve holds back.
+  // "ListShows(input: Input<ListShowsRequest>): Call<ListShowsResponse>" — a Call
+  // is awaited like a promise, and is what kaja.approve holds back, and an Input
+  // is the request with every field optional.
   signature: string;
   input: string;
   output: string;
@@ -49,8 +50,10 @@ export interface McpMethod {
   http?: string;
   streaming?: "server" | "client" | "bidirectional";
   // The generated call, which is the same code clicking the method in the tree
-  // writes into a draft. Not a second example generator: one method, one
-  // starting point, wherever you came at it from.
+  // writes into a draft — minus the fields the API doesn't insist on, since the
+  // declarations are printed above it here and a page of `""` and `0` reads as
+  // values being sent. Not a second example generator: one method, one starting
+  // point, wherever you came at it from.
   example: string;
 }
 
@@ -91,10 +94,10 @@ function describeMethod(app: App, service: Service, method: Method): McpMethod {
   const output = method.output ?? "unknown";
   const described: McpMethod = {
     name: method.name,
-    signature: `${method.name}(input: ${input}): Call<${output}>`,
+    signature: `${method.name}(input: Input<${input}>): Call<${output}>`,
     input,
     output,
-    example: generateMethodEditorCode(app, service, method),
+    example: generateMethodEditorCode(app, service, method, "required"),
   };
   if (method.doc) described.doc = method.doc;
   if (method.http) described.http = method.http;

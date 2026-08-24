@@ -27,7 +27,7 @@ const maxDoc = 200;
 // The marks an app writes onto a field where protobuf has no shape for what it needs
 // to say. Declared in server/pkg/apps/openapi/http.proto.
 const HTTP_IN_OPTION = "kaja.http_in";
-const HTTP_REQUIRED_OPTION = "kaja.http_required";
+export const HTTP_REQUIRED_OPTION = "kaja.http_required";
 const HTTP_PAYLOAD_OPTION = "kaja.http_payload";
 
 // declareInterface re-emits a generated interface as a script would read it.

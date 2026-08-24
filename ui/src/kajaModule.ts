@@ -46,6 +46,24 @@ export function kajaModuleDeclaration(variableNames: string[]): string {
  */
 export interface Call<T> extends PromiseLike<T> {}
 
+/**
+ * The request a service method takes: the generated type with every field
+ * optional, at every depth.
+ *
+ * A field that is left out is sent as its zero value, which is what the wire
+ * format does with a zero anyway — so \`Shows.ListShows({ pageSize: 25 })\` and a
+ * call that also spells out every other field as \`""\` and \`0\` send the same
+ * request. Write the fields you mean; a field the API insists on is marked
+ * \`[required]\` in its declaration.
+ */
+export type Input<T> = T extends Uint8Array
+  ? T
+  : T extends (infer Element)[]
+    ? Input<Element>[]
+    : T extends object
+      ? { [K in keyof T]?: Input<T[K]> }
+      : T;
+
 /** A plain JSON value, as accepted by kaja.value and friends. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 

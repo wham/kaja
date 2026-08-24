@@ -1,6 +1,24 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
+import { HTTP_REQUIRED_OPTION } from "./declarations";
 import { findEnum, Source, Sources } from "./sources";
+
+// How much of a message a generated call writes out. `all` is the whole shape, which
+// is what clicking a method in the tree is for: the generated call is where a person
+// meets the request, and a field they never see is a field they never send. `required`
+// is the same call with everything the API doesn't insist on left out — an omitted
+// field is sent as its zero value, so the two calls send the same request, and a reader
+// who already has the declarations in front of them is only slowed down by a page of
+// `""` and `0`. That reader is an agent, which is handed the declarations of every type
+// a method names before it is handed the call.
+export type FieldSet = "all" | "required";
+
+// A field is required only where the app said so (see
+// server/pkg/apps/openapi/http.proto). Nothing in a proto is, so a gRPC or Twirp
+// method's `required` call is `{}` — its declarations are the whole of what it takes.
+function writesField(field: FieldInfo, fields: FieldSet): boolean {
+  return fields === "all" || field.options?.[HTTP_REQUIRED_OPTION] === true;
+}
 
 // google.protobuf.Value and friends hold arbitrary JSON through a "kind" oneof, and
 // an OpenAPI spec's free-form properties are generated as them. Written by hand they
@@ -53,6 +71,7 @@ export function defaultMessage<T extends object>(
   sources: Sources,
   imports: Imports,
   visiting: Set<string> = new Set(),
+  fields: FieldSet = "all",
 ): ts.ObjectLiteralExpression {
   const typeName = message.typeName;
 
@@ -75,6 +94,10 @@ export function defaultMessage<T extends object>(
   const oneofs = new Set<string>();
 
   message.fields.forEach((field) => {
+    if (!writesField(field, fields)) {
+      return;
+    }
+
     // A oneof's members live under a single `{ oneofKind, <member> }` property, so
     // emitting them as fields would be both a type error and, since the group itself would
     // then be missing, a serialization crash. It is generated once, empty.
@@ -109,10 +132,10 @@ export function defaultMessage<T extends object>(
       // several array-valued operators it also makes multiple operators look "set". Repeated
       // message and enum fields keep one element, which carries a nested shape or a concrete
       // valid value the field name alone doesn't convey.
-      const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested)];
+      const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested, fields)];
       value = ts.factory.createArrayLiteralExpression(elements);
     } else {
-      value = defaultMessageField(field, sources, imports, nested);
+      value = defaultMessageField(field, sources, imports, nested, fields);
     }
 
     properties.push(ts.factory.createPropertyAssignment(field.localName, value));
@@ -137,7 +160,7 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>): ts.Expression {
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): ts.Expression {
   // Scalars start at their zero value. Values from earlier calls are offered as editor
   // completions instead (valueCompletions), so what is generated here is only ever the
   // shape of the request, never a guess at its contents.
@@ -152,7 +175,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
       return ts.factory.createObjectLiteralExpression([]);
     }
     const properties: ts.PropertyAssignment[] = [];
-    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting)));
+    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting, fields)));
 
     return ts.factory.createObjectLiteralExpression(properties);
   }
@@ -166,7 +189,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     if (builder) {
       return builder;
     }
-    return defaultMessage(field.T(), sources, imports, visiting);
+    return defaultMessage(field.T(), sources, imports, visiting, fields);
   }
 
   return ts.factory.createNull();
@@ -234,14 +257,14 @@ type mapValueType =
       T: () => IMessageType<any>;
     };
 
-function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, visiting: Set<string>): ts.Expression {
+function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): ts.Expression {
   switch (value.kind) {
     case "scalar":
       return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
     case "message":
-      return kajaBuilderCall(value.T().typeName, imports) ?? defaultMessage(value.T(), sources, imports, visiting);
+      return kajaBuilderCall(value.T().typeName, imports) ?? defaultMessage(value.T(), sources, imports, visiting, fields);
   }
 }
 

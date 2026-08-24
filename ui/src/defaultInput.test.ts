@@ -190,3 +190,48 @@ test("defaultInput terminates on recursive map value", () => {
 
   expect(expr).toContain("children: {}");
 });
+
+// The "required" field set is the same call with everything the app doesn't insist
+// on left out. An omitted field is sent as its zero value, so the two calls send
+// the same request — one of them without a page of `""` and `0` over the fields
+// that carry the meaning.
+test("defaultInput writes only the required fields when asked for them", () => {
+  const nested: MessageType<any> = new MessageType("openapi.demo.Filter", [
+    { no: 1, name: "field", kind: "scalar", T: 9 /*ScalarType.STRING*/, options: { "kaja.http_required": true } },
+    { no: 2, name: "operator", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+  ]);
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/, options: { "kaja.http_required": true } },
+    { no: 2, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+    { no: 3, name: "name_any_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+    { no: 4, name: "filter", kind: "message", T: () => nested, options: { "kaja.http_required": true } },
+    { no: 5, name: "sort", kind: "scalar", oneof: "order", T: 9 /*ScalarType.STRING*/ },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}, new Set(), "required"))]);
+
+  expect(expr).toContain('projectId: ""');
+  expect(expr).not.toContain("pageSize");
+  expect(expr).not.toContain("nameAnyOf");
+  // A required message keeps its own required fields and drops the rest.
+  expect(expr).toContain('filter: { field: "" }');
+  // An unset oneof group is shape and nothing else, so it goes with the rest.
+  expect(expr).not.toContain("oneofKind");
+});
+
+// A request nothing is required in is the whole point: the declarations say what it
+// takes, so the call says nothing at all.
+test("defaultInput writes an empty request when nothing is required", () => {
+  const request: MessageType<any> = new MessageType("demo.ListRequest", [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+    { no: 2, name: "next_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+  ]);
+
+  const sources: Sources = [];
+  const imports: Imports = {};
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, imports, new Set(), "required"))]);
+
+  expect(expr.trim()).toBe("({});");
+  expect(imports).toEqual({});
+});

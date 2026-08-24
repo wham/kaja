@@ -54,7 +54,7 @@ func (c Catalog) describeMethod(resolved resolvedMethod) string {
 	b.WriteString("\n" + strings.TrimRight(resolved.app.renderDeclarations(method.Input, method.Output), "\n") + "\n")
 
 	if example := strings.TrimSpace(method.Example); example != "" {
-		b.WriteString("\nA call to start from:\n\n")
+		b.WriteString("\nA call to start from - the fields the API requires and no others, since the rest are declared above and an omitted field is sent as its zero value:\n\n")
 		b.WriteString(example + "\n")
 	}
 
