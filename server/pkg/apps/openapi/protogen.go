@@ -958,9 +958,9 @@ func operationName(verb, path string, op *operation) string {
 // sharedNamespace returns the leading dot-separated segment every namespaced tag
 // and operationId in the spec begins with, or "" if they do not agree on one.
 //
-// A spec that names itself in each of its own identifiers - "Benchling.AaSequence.Get"
-// under the tag "Benchling.AaSequence" - says in every method what the app's name
-// already says once, at the import. A segment they all share tells nothing apart,
+// A spec that names itself in each of its own identifiers - "Lab.Sequence.Get"
+// under the tag "Lab.Sequence" - says in every method what the app's name already
+// says once, at the import. A segment they all share tells nothing apart,
 // so it is dropped; the moment one of them disagrees the segment is doing work and
 // is kept.
 func sharedNamespace(s *spec) string {
