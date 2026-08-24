@@ -45,6 +45,7 @@ import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitl
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
+import { barrel } from "./appImports";
 import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -213,6 +214,23 @@ function sortScripts(scripts: Script[]): Script[] {
 interface RunCollector {
   calls: MethodCall[];
   blocks: Map<string, Block>;
+}
+
+// writeSourceModel backs a generated module with a Monaco model, reporting whether
+// anything moved. A model that appears after a script's own does not retroactively
+// clear its "cannot find module", so the callers poke the open editors.
+function writeSourceModel(path: string, content: string): boolean {
+  const uri = monaco.Uri.parse("ts:/" + path);
+  const existing = monaco.editor.getModel(uri);
+  if (!existing) {
+    monaco.editor.createModel(content, "typescript", uri);
+    return true;
+  }
+  if (existing.getValue() !== content) {
+    existing.setValue(content);
+    return true;
+  }
+  return false;
 }
 
 export function App() {
@@ -615,22 +633,16 @@ export function App() {
 
   const disposeMonacoModelsForApp = useCallback((appName: string) => {
     monaco.editor.getModels().forEach((model) => {
-      if (model.uri.path.startsWith("/" + appName + "/")) {
+      if (model.uri.path.startsWith("/" + appName + "/") || model.uri.path === "/" + appName + ".ts") {
         model.dispose();
       }
     });
   }, []);
 
   const createMonacoModelsForApp = useCallback((app: AppModel) => {
-    app.sources.forEach((source) => {
-      const uri = monaco.Uri.parse("ts:/" + source.path);
-      const existingModel = monaco.editor.getModel(uri);
-      if (!existingModel) {
-        monaco.editor.createModel(source.file.text, "typescript", uri);
-      } else {
-        existingModel.setValue(source.file.text);
-      }
-    });
+    app.sources.forEach((source) => writeSourceModel(source.path, source.file.text));
+    const module = barrel(app);
+    writeSourceModel(module.path, module.content);
   }, []);
 
   const refreshOpenDraftEditors = useCallback(() => {
@@ -906,17 +918,12 @@ export function App() {
     // failing app used to keep scripts from resolving the ones that were ready.
     let sourceModelsChanged = false;
     updatedApps.forEach((app) => {
-      app.sources?.forEach((source) => {
-        const uri = monaco.Uri.parse("ts:/" + source.path);
-        const existingModel = monaco.editor.getModel(uri);
-        if (!existingModel) {
-          monaco.editor.createModel(source.file.text, "typescript", uri);
-          sourceModelsChanged = true;
-        } else if (existingModel.getValue() !== source.file.text) {
-          existingModel.setValue(source.file.text);
-          sourceModelsChanged = true;
-        }
+      if (!app.sources) return;
+      app.sources.forEach((source) => {
+        sourceModelsChanged = writeSourceModel(source.path, source.file.text) || sourceModelsChanged;
       });
+      const module = barrel(app);
+      sourceModelsChanged = writeSourceModel(module.path, module.content) || sourceModelsChanged;
     });
 
     // A source model appearing after a script's own model does not retroactively clear

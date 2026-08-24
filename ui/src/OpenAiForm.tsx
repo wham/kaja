@@ -157,7 +157,6 @@ export function OpenAiForm({
             }}
             duplicate={duplicateName}
             readOnly={readOnly}
-            sourcePath="openai"
             caption={nameTouched ? undefined : "From the API. Rename if you'd rather."}
           />
 

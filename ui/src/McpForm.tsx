@@ -254,7 +254,6 @@ export function McpForm({
               }}
               duplicate={duplicateName}
               readOnly={readOnly}
-              sourcePath="mcp"
               caption={nameTouched ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}. Rename if you'd rather.`}
             />
           )}

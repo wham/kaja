@@ -1518,7 +1518,7 @@ components:
 
 // namespacedSpec mirrors an API whose tags and operationIds are dotted paths
 // that all restate the API's own name, and restate the resource again in every
-// operation: "Benchling.AaSequence.Get" under the tag "Benchling.AaSequence".
+// operation: "Lab.Sequence.Get" under the tag "Lab.Sequence".
 const namespacedSpec = `
 openapi: 3.0.0
 info:

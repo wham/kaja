@@ -68,8 +68,8 @@ one you were not asked for.
 
 ```ts
 import { kaja } from "kaja";
-import { Seating } from "seating/proto/seating";
-import { BoxOffice } from "boxoffice/proto/boxoffice";
+import { Seating } from "seating";
+import { BoxOffice } from "boxoffice";
 
 const { seatMap } = await Seating.GetSeatMap({ performanceId: "matinee-1" });
 const { reservation } = await BoxOffice.Reserve({
@@ -81,8 +81,10 @@ kaja.text(`Reserved ${reservation.seatIds.join(", ")} — ${reservation.id}`);
 
 Rules that matter:
 
-- The import path is the `importPath` in `list_services` — the app name, then the
-  module. **Named imports only**: `import * as ns from "..."` does not resolve.
+- The import path is the `importPath` in `list_services`. It is usually just the
+  app's name; a module follows it only where the app declares one name twice, so
+  write what `list_services` reports rather than assembling it. **Named imports
+  only**: `import * as ns from "..."` does not resolve.
 - Every method call returns a `Promise`; always `await` it.
 - **Send only the fields you mean.** A field is optional unless its declaration
   is marked `[required]`, and an omitted field takes its zero value rather than
@@ -131,7 +133,7 @@ the run's Calls view, so they are not private — but they are not output either
 
 ```ts
 import { kaja } from "kaja";
-import { Shows } from "theatre/proto/theatre";
+import { Shows } from "theatre";
 
 const table = kaja.table(["id", "title", "seats"]);
 let pageToken = "";
@@ -313,7 +315,7 @@ What each member is for:
 
 ```ts
 import { kaja } from "kaja";
-import { Seating } from "seating/proto/seating";
+import { Seating } from "seating";
 
 await Seating.Annotate({
   performanceId: "matinee-1",
