@@ -93,8 +93,8 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			wantKind: authBasic,
 		},
 		{
-			// Benchling-style: oauth is the first document security requirement,
-			// but a username means the user wants the basic API-key scheme.
+			// oauth is the first document security requirement, but a username
+			// means the user wants the basic API-key scheme.
 			name: "username selects basic over oauth-first security",
 			schemes: map[string]*securityScheme{
 				"oAuth":           {Type: "oauth2"},
@@ -283,7 +283,7 @@ func TestTranscodeSurfacesHeaders(t *testing.T) {
 
 // TestTranscodeSurfacesBasicAuthUsername checks that a basic-auth username is
 // sent and shows up in the surfaced request headers as the Basic Authorization
-// header (the shape APIs like Benchling expect, with the key as the username).
+// header (the shape an API-key-as-username scheme expects).
 func TestTranscodeSurfacesBasicAuthUsername(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{}`)

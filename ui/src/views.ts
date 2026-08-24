@@ -169,7 +169,7 @@ export function setVariablesEditMode(views: View[], id: string, editMode: "table
 
 export interface ViewIdentity {
   name: string;
-  // Where it sits, for the finder's list: "benchling / Folders", "Drafts".
+  // Where it sits, for the finder's list: "theatre / Shows", "Drafts".
   path: string;
   // Empty where the name is already the whole answer.
   origin: string;

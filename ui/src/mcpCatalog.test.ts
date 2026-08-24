@@ -133,7 +133,8 @@ describe("buildMcpCatalog", () => {
 
     const service = built.apps[0].services[0];
     expect(service.name).toBe("Shows");
-    expect(service.importPath).toBe("theatre/proto/theatre");
+    // The app declares Shows once, so the app is the whole import.
+    expect(service.importPath).toBe("theatre");
 
     const method = service.methods[0];
     expect(method.name).toBe("ListShows");
@@ -189,7 +190,7 @@ describe("buildMcpCatalog", () => {
     const built = await catalog();
     const [listShows, getShow] = built.apps[0].services[0].methods;
 
-    expect(listShows.example).toContain('import { Shows } from "theatre/proto/theatre"');
+    expect(listShows.example).toContain('import { Shows } from "theatre"');
     expect(listShows.example).toContain("Shows.ListShows({})");
     // Nothing in this request is required, so nothing is written out — including the
     // enum, whose import goes with it.

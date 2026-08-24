@@ -1,4 +1,5 @@
 import { generateMethodEditorCode } from "./appLoader";
+import { moduleSpecifier } from "./appImports";
 import { App, Method, Service } from "./apps";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
@@ -79,7 +80,7 @@ export function buildMcpCatalog(apps: App[], variableNames: string[] = []): McpC
       declarations,
       services: app.services.map((service) => ({
         name: service.name,
-        importPath: service.sourcePath,
+        importPath: importSpecifierFor(app, service),
         methods: service.methods.map((method) => describeMethod(app, service, method)),
       })),
     });
@@ -110,4 +111,11 @@ function streamingKind(method: Method): McpMethod["streaming"] {
   if (method.serverStreaming) return "server";
   if (method.clientStreaming) return "client";
   return undefined;
+}
+
+// importSpecifierFor is what a script writes to import the service — the app's
+// name, or the module's path where the app declares that name twice.
+function importSpecifierFor(app: App, service: Service): string {
+  const source = app.sources.find((s) => s.importPath === service.sourcePath);
+  return source ? moduleSpecifier(app, source, service.name) : service.sourcePath;
 }

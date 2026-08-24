@@ -101,8 +101,8 @@ func resolveAuth(s *spec, schemeKey, token, username, password string) *auth {
 	// The credential the user supplied decides the scheme. A username/password is
 	// unambiguously HTTP Basic, so honour it even when the spec's first security
 	// requirement is something else - specs commonly list oauth before an API-key
-	// basic scheme (e.g. Benchling: security [{oAuth}, {basicApiKeyAuth}]), and
-	// the app form's username field means "use Basic auth".
+	// basic scheme (security [{oAuth}, {basicApiKeyAuth}]), and the app form's
+	// username field means "use Basic auth".
 	if username != "" || password != "" {
 		a.kind = authBasic
 		return a

@@ -10,7 +10,8 @@ import (
 // The runtime contract every tool description leans on. It is repeated in the
 // guide, but a tool description is the one channel a client cannot drop, so the
 // facts a script would otherwise be discovered by probing live here too.
-const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, and imports resolve as `<app>/<path>` " +
+const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, and an import names an app - " +
+	"write the `importPath` from `list_services` verbatim, which is the app's name unless it declares one name in two modules " +
 	"(named imports only - `import * as ns` does not resolve). " +
 	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
 	"It draws what it produced instead: `kaja.text(...)`, `kaja.code(...)` and `kaja.table(columns).row(...)` draw on the run's canvas, " +

@@ -422,7 +422,6 @@ export function OpenApiForm({
             }}
             duplicate={duplicateName}
             readOnly={readOnly}
-            sourcePath="service"
             caption={nameTouched ? undefined : "From the document's title. Rename if you'd rather."}
           />
 

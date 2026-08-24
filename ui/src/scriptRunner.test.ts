@@ -20,7 +20,8 @@ function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
 function teamsApp(): App {
   const app = createPendingApp({ name: "teams", app: { oneofKind: undefined } });
   app.services = [{ name: "Teams", packageName: "teams", sourcePath: "teams/teams", clientStubModuleId: "", methods: [] }];
-  app.sources = [{ importPath: "teams/teams" } as Source];
+  app.sources = [{ importPath: "teams/teams", serviceNames: ["Teams"], enums: {} } as unknown as Source];
+  app.clients["teams.Teams"] = { methodsFor: () => ({ GetAllTeams: () => undefined }) } as any;
   return app;
 }
 
@@ -127,6 +128,30 @@ describe("import forms that bind nothing", () => {
     expect(run.error).toBe(
       `Cannot resolve import "teams/teams": a namespace import does not resolve. Use a named import: import { Teams } from "teams/teams".`,
     );
+  });
+
+  it("resolves a service under the app's own name", async () => {
+    const run = await runScriptCaptured(`import { Teams } from "teams";\nreturn typeof Teams;`, makeKaja(), [teamsApp()]);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("object");
+  });
+
+  it("names the modules to choose between when the app declares the name twice", async () => {
+    const app = teamsApp();
+    app.services.push({ name: "Teams", packageName: "teams.v2", sourcePath: "teams/v2", clientStubModuleId: "", methods: [] });
+    app.sources.push({ importPath: "teams/v2", serviceNames: ["Teams"], enums: {} } as unknown as Source);
+
+    const run = await runScriptCaptured(`import { Teams } from "teams";\nTeams.GetAllTeams({});`, makeKaja(), [app]);
+
+    expect(run.error).toBe(`Cannot resolve "Teams" from "teams": app "teams" declares it in "teams/teams" and "teams/v2". Import it from one of those.`);
+  });
+
+  it("binds nothing for a type imported alongside a service", async () => {
+    const run = await runScriptCaptured(`import { Teams, GetAllTeamsRequest } from "teams";\nreturn typeof Teams;`, makeKaja(), [teamsApp()]);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("object");
   });
 
   it("leaves a named import alone", async () => {

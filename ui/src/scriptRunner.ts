@@ -1,6 +1,7 @@
 import ts from "typescript";
 import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
+import { appFor, resolve as resolveImport } from "./appImports";
 import { printStatements } from "./appLoader";
 import { scriptConsole } from "./scriptConsole";
 import { deviceConsole } from "./uiLog";
@@ -79,24 +80,34 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
         }
         return;
       }
-      const app = apps.find((app) => path.startsWith(app.configuration.name + "/"));
+      const app = appFor(apps, path);
       if (!app) {
         // A silent drop here surfaces later as an opaque "X is not defined" when the body
         // uses the binding; name the unresolved app instead.
         throw new Error(`Cannot resolve import "${path}": app "${path.split("/")[0]}" was not found (it may have been deleted).`);
       }
-      const source = app.sources.find((source) => source.importPath === path);
-      if (!source) {
-        throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
-      }
 
-      requireNamedImport(statement.importClause, path, app.services.find((service) => service.sourcePath === source.importPath)?.name ?? "Service");
+      requireNamedImport(statement.importClause, path, app.services[0]?.name ?? "Service");
 
       const importClause = statement.importClause;
       if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
         importClause.namedBindings.elements.forEach((importSpecifier) => {
           const alias = importSpecifier.name.text;
           const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
+          // Resolved per name rather than per statement: the app's bare name is answered
+          // by whichever of its modules declares the name, so one import line may reach
+          // into two of them.
+          const resolution = resolveImport(app, path, name);
+          if ("unknownPath" in resolution) {
+            throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
+          }
+          if ("ambiguous" in resolution) {
+            const paths = resolution.ambiguous.map((s) => `"${s.importPath}"`).join(" and ");
+            throw new Error(`Cannot resolve "${name}" from "${path}": app "${app.configuration.name}" declares it in ${paths}. Import it from one of those.`);
+          }
+          // An interface a script imports for its type has nothing to bind at run time.
+          if ("absent" in resolution) return;
+          const source = resolution.source;
           // Matched on source path too, to handle duplicate service names.
           const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
           if (service) {
