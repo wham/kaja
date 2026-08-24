@@ -179,6 +179,10 @@ export interface PerfRunnerOptions {
   signal?: AbortSignal;
   // Called whenever the schedule changes, so the bands grow as the test runs.
   onSchedule: (schedule: PerfSchedule) => void;
+  // Called on every tick of the supervisor, so what has been measured so far can be
+  // drawn. The supervisor's clock rather than a timer of the caller's: it runs for
+  // exactly as long as the test does, and stops with it.
+  onTick?: () => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -291,6 +295,7 @@ export async function runPerfTest(body: PerfBody, plan: PerfPlan, options: PerfR
       break;
     }
     if (signal?.aborted) break;
+    options.onTick?.();
     await sleep(TICK_MS);
   }
 

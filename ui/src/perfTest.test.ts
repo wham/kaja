@@ -198,6 +198,15 @@ describe("runPerfTest", () => {
     expect(schedules[0]).not.toBe(schedules[schedules.length - 1]);
   });
 
+  it("ticks while it runs, which is what a live report is drawn on", async () => {
+    let ticks = 0;
+    await runPerfTest(() => new Promise((resolve) => setTimeout(resolve, 10)), new PerfPlan({ duration: 120, concurrency: 2 }), {
+      onSchedule: collect,
+      onTick: () => ticks++,
+    });
+    expect(ticks).toBeGreaterThan(1);
+  });
+
   it("holds a duration budget open for its whole length", async () => {
     let ran = 0;
     const outcome = await runPerfTest(() => void ran++, new PerfPlan({ duration: 120, concurrency: 2 }), { onSchedule: collect });

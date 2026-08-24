@@ -204,6 +204,11 @@ const MAX_CELLS_IN_FLIGHT = 6;
 // the first few didn't — and a loop is where that adds up.
 const SAMPLED_CALLS_PER_METHOD = 5;
 
+// How often a running perf test redraws its block. Reading the metrics is real work
+// and the test is the thing being measured, so the card is redrawn on its own beat
+// rather than on every tick of the supervisor or every call that lands.
+const PERF_DRAW_MS = 250;
+
 function isAsyncIterable(value: any): value is AsyncIterable<unknown[]> {
   return value != null && typeof value[Symbol.asyncIterator] === "function";
 }
@@ -515,8 +520,14 @@ export class Kaja {
     this._internal.inPerfTest = true;
 
     let latest: PerfSchedule | undefined;
+    let drawnAt = 0;
     const draw = (running: boolean) => {
-      const stats = metrics.view(1, 1, latest === undefined ? undefined : (latest.endedAt ?? Date.now()) - latest.startedAt);
+      drawnAt = Date.now();
+      // The test's own clock: what has elapsed while it runs, what it took once it is
+      // over. It is what the numbers are per second of, so the card and the page are
+      // reading one span.
+      const elapsedMs = latest === undefined ? undefined : (latest.endedAt ?? drawnAt) - latest.startedAt;
+      const stats = metrics.view(1, 1, elapsedMs);
       const block: PerfBlock = {
         kind: "perf",
         schedule: scheduleLabel,
@@ -528,7 +539,7 @@ export class Kaja {
         p50: stats.p50,
         p95: stats.p95,
         p99: stats.p99,
-        durationMs: latest?.endedAt === undefined ? undefined : latest.endedAt - latest.startedAt,
+        durationMs: elapsedMs,
         excludedWarmup: stats.excludedWarmup || undefined,
         excludedFailures: stats.excludedFailures || undefined,
       };
@@ -546,6 +557,9 @@ export class Kaja {
           // the moment the test does.
           if (schedule.warmupEndsAt !== undefined || schedule.endedAt !== undefined) metrics.resolveWarmup(schedule.warmupEndsAt);
           this.#onPerfSchedule?.(schedule);
+        },
+        onTick: () => {
+          if (Date.now() - drawnAt >= PERF_DRAW_MS) draw(true);
         },
       });
       const stats = draw(false);

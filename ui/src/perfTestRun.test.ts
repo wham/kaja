@@ -7,17 +7,23 @@ import { PerfSchedule } from "./perfTest";
 // perf test draws and what it tells the console can both be read back.
 function testing() {
   const blocks = new Map<string, Block>();
+  // Every draw rather than the last, which is what says whether the card moved while
+  // the test was running.
+  const draws: PerfBlock[] = [];
   const schedules: PerfSchedule[] = [];
   const kaja = new Kaja({
     onMethodCallUpdate: () => {},
     onAsk: () => Promise.resolve("an answer"),
     onApprove: () => Promise.resolve("approved" as const),
-    onBlockUpdate: (blockId, block) => void blocks.set(blockId, block),
+    onBlockUpdate: (blockId, block) => {
+      blocks.set(blockId, block);
+      if (block.kind === "perf") draws.push(block);
+    },
     onLog: () => {},
     onPerfSchedule: (schedule) => schedules.push(schedule),
   });
   const perfBlocks = (): PerfBlock[] => [...blocks.values()].filter((block): block is PerfBlock => block.kind === "perf");
-  return { kaja, blocks, schedules, perfBlocks };
+  return { kaja, blocks, draws, schedules, perfBlocks };
 }
 
 describe("kaja.perfTest", () => {
@@ -40,6 +46,18 @@ describe("kaja.perfTest", () => {
     expect(blocks.size).toBe(1);
     expect(perfBlocks()[0].running).toBeUndefined();
     expect(perfBlocks()[0].schedule).toBe("5 iter · 1 vu");
+  });
+
+  it("redraws the block as the test runs rather than only when it is over", async () => {
+    const { kaja, draws } = testing();
+    await kaja.perfTest(() => new Promise((resolve) => setTimeout(resolve, 10)), { duration: "600ms", concurrency: 2 });
+    const live = draws.slice(1, -1);
+    expect(live.length).toBeGreaterThan(1);
+    expect(live.every((block) => block.running === true)).toBe(true);
+    expect(draws[draws.length - 1].running).toBeUndefined();
+    // The card counts the test's own clock while it runs, so the header moves even
+    // before a call has landed.
+    expect(live[live.length - 1].durationMs!).toBeGreaterThan(live[0].durationMs!);
   });
 
   it("says what the schedule was in the words it was written in", async () => {
