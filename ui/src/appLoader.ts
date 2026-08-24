@@ -1,11 +1,12 @@
 import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
-import { addImport, defaultMessage } from "./defaultInput";
+import { addImport, defaultMessage, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId, Transport } from "./apps";
 import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { moduleSpecifier } from "./appImports";
 
 // Generate editor code for a method on demand.
 export function generateMethodEditorCode(app: App, service: Service, method: Method): string {
@@ -24,7 +25,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
     return `// Error: Could not find method info for ${method.name}`;
   }
 
-  return methodEditorCode(methodInfo, service.name, source, app.sources);
+  return methodEditorCode(methodInfo, service.name, source, app);
 }
 
 export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string, protocol: Transport): Promise<App> {
@@ -179,13 +180,25 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
   return undefined;
 }
 
-function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
+function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App): string {
   const imports = addImport({}, serviceName, source);
-  const input = defaultMessage(methodInfo.I, sources, imports);
+  const input = defaultMessage(methodInfo.I, app.sources, imports);
 
   let statements: ts.Statement[] = [];
 
+  // Imports are collected against the module each name is declared in, and only
+  // turned into specifiers here: two modules that both answer to the app's name
+  // are one import line, not two.
+  const bySpecifier: Imports = {};
   for (const path in imports) {
+    const declaring = app.sources.find((s) => s.importPath === path);
+    for (const name of imports[path]) {
+      const specifier = declaring ? moduleSpecifier(app, declaring, name) : path;
+      (bySpecifier[specifier] ??= new Set()).add(name);
+    }
+  }
+
+  for (const path in bySpecifier) {
     statements.push(
       ts.factory.createImportDeclaration(
         undefined, // modifiers
@@ -193,7 +206,7 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
           false, // isTypeOnly
           undefined, // name
           ts.factory.createNamedImports(
-            [...imports[path]].map((enumName) => {
+            [...bySpecifier[path]].map((enumName) => {
               return ts.factory.createImportSpecifier(
                 false, // propertyName
                 undefined,

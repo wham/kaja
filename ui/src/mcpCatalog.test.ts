@@ -117,7 +117,8 @@ describe("buildMcpCatalog", () => {
 
     const service = built.apps[0].services[0];
     expect(service.name).toBe("Shows");
-    expect(service.importPath).toBe("theatre/proto/theatre");
+    // The app declares Shows once, so the app is the whole import.
+    expect(service.importPath).toBe("theatre");
 
     const method = service.methods[0];
     expect(method.name).toBe("ListShows");
@@ -167,7 +168,7 @@ describe("buildMcpCatalog", () => {
     const built = await catalog();
     const example = built.apps[0].services[0].methods[0].example;
 
-    expect(example).toContain('import { Shows, Sort } from "theatre/proto/theatre"');
+    expect(example).toContain('import { Shows, Sort } from "theatre"');
     expect(example).toContain("Shows.ListShows(");
     expect(example).toContain("pageSize: 0");
     expect(example).toContain("sort: Sort.NEWEST");
