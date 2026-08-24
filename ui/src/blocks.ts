@@ -124,6 +124,8 @@ export interface PerfBlock {
   p50?: number;
   p95?: number;
   p99?: number;
+  // What has elapsed while the test runs, what it took once it is over — the card is
+  // redrawn on a beat, so the header counts up rather than appearing at the end.
   durationMs?: number;
   excludedWarmup?: number;
   excludedFailures?: number;
