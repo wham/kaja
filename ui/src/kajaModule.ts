@@ -307,7 +307,19 @@ export declare const kaja: {
    *     },
    *     { iterations: 1000, concurrency: 10, warmup: 50, rampUp: "10s" },
    *   );
-   *   kaja.text(\`p95 \${report.latency.p95} ms over \${report.requests} requests\`);
+   *   if ((report.latency.p99 ?? 0) > budgetMs) {
+   *     kaja.text(\`p99 \${report.latency.p99} ms, over the \${budgetMs} ms budget\`);
+   *   }
+   *
+   * The test reports itself. The run opens on its Stats page — requests,
+   * throughput, error rate, the percentiles, latency over time, the distribution,
+   * concurrency and a row per method — and leaves a tile block on the canvas
+   * carrying the same headline. So don't draw those numbers a second time: a
+   * table of p50/p90/p99 is the Stats page retyped, and a narrower reading of it.
+   *
+   * The report is handed back to be judged against something — a budget, another
+   * schedule, the method that got slow — which is the one thing Stats cannot say.
+   * Draw that sentence, or draw nothing.
    *
    * The budget is \`iterations\` or \`duration\` ("30s"), not both; \`duration\` is the
    * whole test, ramps included. A numeric \`warmup\` is iterations and a string is
