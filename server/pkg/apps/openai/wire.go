@@ -43,9 +43,13 @@ type chat struct {
 type wire interface {
 	name() string
 	endpoint() string
-	// answer names what a good response is, for the report on one that isn't:
-	// pointed at the other API's endpoint, that sentence is the whole diagnosis.
+	// answer names what a good response is, for the report on one that isn't.
 	answer() string
+	// recognizes says whether a body is this API's own answer. A request meant for
+	// one API is often accepted by the other - they agree on model, messages and
+	// max_tokens - so the response is where the mix-up surfaces, and naming the API
+	// that did answer is the diagnosis a codec error cannot give.
+	recognizes(body []byte) bool
 	// defaultAuth is the credential the API's own dashboard hands you.
 	defaultAuth() string
 	// required is what the API insists on beside the credential.
@@ -68,6 +72,17 @@ func wireFor(name string) (wire, error) {
 	default:
 		return nil, fmt.Errorf("unknown api %q (use %q or %q)", name, apiOpenAI, apiAnthropic)
 	}
+}
+
+// otherWire is the API a body did come from, where that is the other one this app
+// speaks.
+func otherWire(body []byte, current wire) wire {
+	for _, candidate := range []wire{openAIWire{}, anthropicWire{}} {
+		if candidate.name() != current.name() && candidate.recognizes(body) {
+			return candidate
+		}
+	}
+	return nil
 }
 
 // openAIWire is also what every OpenAI-compatible endpoint speaks.
@@ -102,6 +117,24 @@ func (openAIWire) request(call chat) ([]byte, error) {
 // The response already is the shape the proto surface was written from.
 func (openAIWire) response(body []byte) ([]byte, error) { return body, nil }
 
+func (openAIWire) recognizes(body []byte) bool {
+	var completion struct {
+		Object  string `json:"object"`
+		Choices []struct {
+			Message *struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &completion); err != nil {
+		return false
+	}
+	if completion.Object == "chat.completion" {
+		return true
+	}
+	return len(completion.Choices) > 0 && completion.Choices[0].Message != nil
+}
+
 type anthropicWire struct{}
 
 func (anthropicWire) name() string        { return apiAnthropic }
@@ -135,21 +168,28 @@ func (anthropicWire) request(call chat) ([]byte, error) {
 	return json.Marshal(payload)
 }
 
+type anthropicMessage struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Model   string `json:"model"`
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	StopReason string `json:"stop_reason"`
+	Usage      struct {
+		InputTokens  int64 `json:"input_tokens"`
+		OutputTokens int64 `json:"output_tokens"`
+	} `json:"usage"`
+}
+
+func (anthropicWire) recognizes(body []byte) bool {
+	var message anthropicMessage
+	return json.Unmarshal(body, &message) == nil && message.Type == "message"
+}
+
 func (anthropicWire) response(body []byte) ([]byte, error) {
-	var message struct {
-		ID      string `json:"id"`
-		Type    string `json:"type"`
-		Model   string `json:"model"`
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-		StopReason string `json:"stop_reason"`
-		Usage      struct {
-			InputTokens  int64 `json:"input_tokens"`
-			OutputTokens int64 `json:"output_tokens"`
-		} `json:"usage"`
-	}
+	var message anthropicMessage
 	if err := json.Unmarshal(body, &message); err != nil {
 		return nil, err
 	}

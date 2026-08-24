@@ -441,31 +441,67 @@ func TestAnthropicUpstreamError(t *testing.T) {
 	}
 }
 
-// The failure the two APIs make easy: an endpoint answering 200 with the other
-// one's shape. The report has to name which answer was expected, or it says
-// nothing a reader can act on.
+// The failure the two APIs make easy: a request meant for one is accepted by the
+// other - they agree on model, messages and max_tokens - so the app only finds out
+// at the response. The report has to name the API that answered and the setting
+// that reads it, or it says nothing a reader can act on.
 func TestResponseFromTheOtherApi(t *testing.T) {
-	completion := `{"id": "chatcmpl-1", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}}]}`
+	completion := `{"id": "chatcmpl-1", "object": "chat.completion", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}}]}`
+	message := `{"id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-4-5", "content": [{"type": "text", "text": "hi"}]}`
+
+	for _, test := range []struct {
+		name   string
+		api    string
+		answer string
+		want   string
+	}{
+		// A chat completion read as a Claude message: content is an array there, so the
+		// decode fails rather than quietly handing back an empty reply.
+		{name: "completion from a Claude app", api: apiAnthropic, answer: completion, want: `the response is an OpenAI chat completion, not a Claude message: set the app's api to "openai"`},
+		{name: "message from an OpenAI app", api: apiOpenAI, answer: message, want: `the response is a Claude message, not an OpenAI chat completion: set the app's api to "anthropic"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, test.answer)
+			}))
+			defer server.Close()
+
+			in := openTestAppWith(t, map[string]string{"api": test.api, "endpoint": server.URL, "token": "x"})
+			_, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
+
+			upstream := asUpstreamError(t, err)
+			if !upstream.Unreadable {
+				t.Error("a 200 that could not be read is an unreadable response, not an HTTP failure")
+			}
+			if upstream.Message != test.want {
+				t.Errorf("message = %q, want %q", upstream.Message, test.want)
+			}
+			if string(upstream.Body) != test.answer {
+				t.Errorf("body = %q, want what the endpoint actually answered", upstream.Body)
+			}
+		})
+	}
+}
+
+// A body neither API would have sent is still reported as the call it was, with the
+// codec error saying what could not be read.
+func TestUnrecognizedResponseKeepsTheCodecError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, completion)
+		io.WriteString(w, `{"detail": "not found"}`)
 	}))
 	defer server.Close()
 
-	// A chat completion read as a Claude message: content is an array there, so the
-	// decode fails rather than quietly handing back an empty reply.
 	in := openTestAppWith(t, map[string]string{"api": apiAnthropic, "endpoint": server.URL, "token": "x"})
 	_, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
 
 	upstream := asUpstreamError(t, err)
-	if !upstream.Unreadable {
-		t.Error("a 200 that could not be read is an unreadable response, not an HTTP failure")
-	}
-	if !strings.Contains(upstream.Message, "a Claude message") {
+	if !strings.Contains(upstream.Message, "not a Claude message") {
 		t.Errorf("message = %q, want it to name the answer that was expected", upstream.Message)
 	}
-	if !strings.Contains(string(upstream.Body), "chatcmpl-1") {
-		t.Errorf("body = %q, want what the endpoint actually answered", upstream.Body)
+	if strings.Contains(upstream.Message, "set the app's api") {
+		t.Errorf("message = %q, want no setting named for a body neither API sent", upstream.Message)
 	}
 }
 

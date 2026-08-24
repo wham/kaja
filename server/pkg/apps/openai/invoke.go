@@ -73,6 +73,13 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		// an endpoint speaking the other API. Saying so with the body attached is what
 		// tells the two apart; a codec error on its own names neither.
 		reason := fmt.Sprintf("the response is not %s: %v", in.wire.answer(), err)
+		// A request meant for one API is often accepted by the other, so an app on the
+		// wrong one fails here rather than at the call - with a decode error about a
+		// field, which is the least useful half of what happened. Where the body is
+		// the other API's own answer, the setting that reads it is the whole report.
+		if other := otherWire(respBody, in.wire); other != nil {
+			reason = fmt.Sprintf("the response is %s, not %s: set the app's api to %q", other.answer(), in.wire.answer(), other.name())
+		}
 		return nil, apps.NewUnreadableResponse(http.MethodPost, in.endpoint, status, respBody, reason).WithHeaders(reqHeaders, respHeaders)
 	}
 	setReplyContent(respMsg)
