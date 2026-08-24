@@ -49,6 +49,13 @@ export interface ListShowsRequest {
 export interface ListShowsResponse {
     items: Show[];
 }
+export interface GetShowRequest {
+    /**
+     * @generated from protobuf field: string show_id = 1
+     */
+    showId: string;
+    fields: string[];
+}
 export enum Sort { UNSPECIFIED = 0, NEWEST = 1 }
 export const Shows = new ServiceType("Shows", []);
 `;
@@ -63,6 +70,10 @@ export interface IShowsClient {
      * @generated from protobuf rpc: ListShows
      */
     listShows(input: ListShowsRequest, options?: RpcOptions): UnaryCall<ListShowsRequest, ListShowsResponse>;
+    /**
+     * @generated from protobuf rpc: GetShow
+     */
+    getShow(input: GetShowRequest, options?: RpcOptions): UnaryCall<GetShowRequest, Show>;
 }
 `;
 
@@ -84,10 +95,15 @@ const ListShowsRequest = { typeName: "theatre.ListShowsRequest", fields: [
 const ListShowsResponse = { typeName: "theatre.ListShowsResponse", fields: [
   { no: 1, name: "items", localName: "items", jsonName: "items", kind: "message", repeat: 2, T: () => Show, options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }
 ] };
+const GetShowRequest = { typeName: "theatre.GetShowRequest", fields: [
+  { no: 1, name: "show_id", localName: "showId", jsonName: "showId", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
+  { no: 2, name: "fields", localName: "fields", jsonName: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } }
+] };
 export const proto$theatre = {
-  Show, Venue, ListShowsRequest, ListShowsResponse, Sort,
+  Show, Venue, ListShowsRequest, ListShowsResponse, GetShowRequest, Sort,
   Shows: { typeName: "theatre.Shows", methods: [
-    { name: "ListShows", options: { "kaja.http_request": "GET /shows" }, I: ListShowsRequest, O: ListShowsResponse }
+    { name: "ListShows", options: { "kaja.http_request": "GET /shows" }, I: ListShowsRequest, O: ListShowsResponse },
+    { name: "GetShow", options: { "kaja.http_request": "GET /shows/{showId}" }, I: GetShowRequest, O: Show }
   ] },
 };
 export const proto$theatre$client = { ShowsClient: class { listShows() {} } };
@@ -121,7 +137,9 @@ describe("buildMcpCatalog", () => {
 
     const method = service.methods[0];
     expect(method.name).toBe("ListShows");
-    expect(method.signature).toBe("ListShows(input: ListShowsRequest): Call<ListShowsResponse>");
+    // Input<T> is the request with every field optional, which is what the call the
+    // agent is handed leans on.
+    expect(method.signature).toBe("ListShows(input: Input<ListShowsRequest>): Call<ListShowsResponse>");
     expect(method.input).toBe("ListShowsRequest");
     expect(method.output).toBe("ListShowsResponse");
     expect(method.doc).toBe("Lists the shows on sale.");
@@ -133,7 +151,7 @@ describe("buildMcpCatalog", () => {
     const built = await catalog();
     const declarations = built.apps[0].declarations;
 
-    expect(Object.keys(declarations).sort()).toEqual(["ListShowsRequest", "ListShowsResponse", "Show", "Sort", "Venue"]);
+    expect(Object.keys(declarations).sort()).toEqual(["GetShowRequest", "ListShowsRequest", "ListShowsResponse", "Show", "Sort", "Venue"]);
 
     const show = declarations["Show"];
     expect(show.text).toBe(
@@ -163,14 +181,24 @@ describe("buildMcpCatalog", () => {
     expect(declarations["Sort"].text).toBe(["export enum Sort {", "    UNSPECIFIED = 0,", "    NEWEST = 1,", "}"].join("\n"));
   });
 
-  it("carries the call Kaja itself writes for the method", async () => {
+  // The call Kaja writes into a draft spells out every field, because that is where
+  // a person meets the request. Here the declarations are printed right above it, so
+  // the same page of `""` and `0` says nothing the reader hasn't just read and reads
+  // as values being sent — only the fields the API insists on are written out.
+  it("carries the call Kaja itself writes for the method, required fields only", async () => {
     const built = await catalog();
-    const example = built.apps[0].services[0].methods[0].example;
+    const [listShows, getShow] = built.apps[0].services[0].methods;
 
-    expect(example).toContain('import { Shows, Sort } from "theatre/proto/theatre"');
-    expect(example).toContain("Shows.ListShows(");
-    expect(example).toContain("pageSize: 0");
-    expect(example).toContain("sort: Sort.NEWEST");
+    expect(listShows.example).toContain('import { Shows } from "theatre/proto/theatre"');
+    expect(listShows.example).toContain("Shows.ListShows({})");
+    // Nothing in this request is required, so nothing is written out — including the
+    // enum, whose import goes with it.
+    expect(listShows.example).not.toContain("pageSize");
+    expect(listShows.example).not.toContain("Sort");
+
+    expect(getShow.example).toContain("Shows.GetShow(");
+    expect(getShow.example).toContain('showId: ""');
+    expect(getShow.example).not.toContain("fields");
   });
 
   it("leaves out an app that has not compiled", async () => {

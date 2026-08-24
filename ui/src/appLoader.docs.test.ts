@@ -53,8 +53,10 @@ describe("proto doc comments in service model", () => {
 
     expect(text).toContain("Sums two integers.");
     // A method hands back a Call, and the source says where that type comes from.
-    expect(text).toContain('import type { Call } from "kaja";');
-    expect(text).toContain("Sum: (input: SumRequest): Call<SumResponse>");
+    expect(text).toContain('import type { Call, Input } from "kaja";');
+    // Input<T>, so a script may write the fields it means: nothing in a request is
+    // required, and an omitted field is sent as its zero value.
+    expect(text).toContain("Sum: (input: Input<SumRequest>): Call<SumResponse>");
     // JSDoc must be attached to the method, not floating elsewhere.
     const idx = text.indexOf("Sum: (input");
     const before = text.slice(Math.max(0, idx - 200), idx);

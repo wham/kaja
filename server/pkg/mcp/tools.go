@@ -24,6 +24,9 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with an ordinary loop if you need it. " +
 	"Get the runtime's full declaration with describe_type \"kaja\"; it comes from `import { kaja } from \"kaja\";`. " +
 	"A method hands back a `Call`, not a promise: it is sent when you await it, and `await Service.Method({…})` is unchanged by that. " +
+	"A request is an `Input<T>` - every field optional - and a field you leave out is sent as its zero value, so write the fields you mean and no others: " +
+	"spelling out the whole shape as `\"\"` and `0` sends those values and buries the ones that carry meaning. " +
+	"describe_method prints the declarations, so the request shape is never something a call has to restate. " +
 	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. " +
 	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, options)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
 	"until it is approved, all park the run on a human, so use them only when a person is at the app."
