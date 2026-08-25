@@ -1,6 +1,6 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
+import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, PerfBlock, TableBlock, TextBlock } from "./blocks";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
@@ -1018,10 +1018,16 @@ interface AskChoicesProps {
 Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+  const typed = useRef({ text: "", at: 0 });
 
   useEffect(() => {
     listRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
   return (
     <div
@@ -1041,12 +1047,22 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
         } else if (event.key === "Escape") {
           event.preventDefault();
           onCancel();
+        } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          const now = Date.now();
+          const text = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.text : "") + event.key;
+          if (text.trim() === "") return;
+          typed.current = { text, at: now };
+          const index = typeaheadIndex(choices, text, active);
+          if (index === undefined) return;
+          event.preventDefault();
+          setActive(index);
         }
       }}
     >
       {choices.map((choice, index) => (
         <button
           key={index}
+          ref={index === active ? activeRef : undefined}
           type="button"
           role="option"
           aria-selected={index === active}
