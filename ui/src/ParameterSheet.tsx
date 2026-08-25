@@ -5,7 +5,6 @@ import { cn } from "./cn";
 import { Dialog } from "./components/dialog";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { SimpleTooltip } from "./components/tooltip";
 import { FileName } from "./FileName";
 import { LINK_SCHEME, scriptLinkParts } from "./scriptLink";
 
@@ -169,12 +168,12 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
                     {key}
                   </label>
                   <div className="col-span-3">
-                    <ParameterField
+                    <Input
                       id={`parameter-${index}`}
                       ref={index === 0 ? firstFieldRef : undefined}
                       value={entered[key] ?? ""}
                       placeholder={door === "copy" ? "leave blank to fill in later" : door === "run" ? "leave blank" : undefined}
-                      onChange={(value) => setEntered((previous) => ({ ...previous, [key]: value }))}
+                      onChange={(event) => setEntered((previous) => ({ ...previous, [key]: event.target.value }))}
                     />
                   </div>
                 </Fragment>
@@ -255,30 +254,5 @@ function Guidance({ door, parameters }: { door: ParameterDoor; parameters: strin
       Sets <span className="font-mono">{parameters.length === 1 ? `kaja.input.${parameters[0]}` : "kaja.input"}</span> for this run only. Blank behaves exactly
       like a plain Run.
     </>
-  );
-}
-
-// A clipped field still hides its tail, so the whole value is one hover away. Only
-// where there is one: a tooltip over an empty field says nothing.
-function ParameterField({
-  id,
-  ref,
-  value,
-  placeholder,
-  onChange,
-}: {
-  id: string;
-  ref?: React.Ref<HTMLInputElement>;
-  value: string;
-  placeholder?: string;
-  onChange: (value: string) => void;
-}) {
-  const field = <Input id={id} ref={ref} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />;
-  return value ? (
-    <SimpleTooltip text={value} side="top">
-      {field}
-    </SimpleTooltip>
-  ) : (
-    field
   );
 }
