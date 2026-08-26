@@ -49,3 +49,24 @@ export function normalizeAnswer(answerType: AskAnswerType, text: string): string
 export function answerPlaceholder(answerType: AskAnswerType): string {
   return answerType === "int" ? "Whole number…" : "Answer…";
 }
+
+/** How long a typeahead keeps collecting letters before the next one starts a new search. */
+export const TYPEAHEAD_MS = 800;
+
+/**
+ * Where typing `typed` lands in a list of choices, or undefined if nothing starts
+ * with it. A letter typed over and over is the one thing a prefix search reads
+ * wrong: `mm` matches nothing, while what was meant is the next choice starting
+ * with `m`. So a repeat cycles and anything else is a prefix, and only a search
+ * that has somewhere to move from moves off the choice it is on.
+ */
+export function typeaheadIndex(choices: string[], typed: string, active: number): number | undefined {
+  const repeat = typed.length > 1 && [...typed].every((letter) => letter === typed[0]);
+  const prefix = (repeat ? typed[0] : typed).toLowerCase();
+  const from = repeat ? active + 1 : active;
+  for (let step = 0; step < choices.length; step++) {
+    const index = (from + step + choices.length) % choices.length;
+    if (choices[index].toLowerCase().startsWith(prefix)) return index;
+  }
+  return undefined;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { answerPlaceholder, answerProblem, normalizeAnswer, parseInteger } from "./ask";
+import { answerPlaceholder, answerProblem, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
 
 describe("parseInteger", () => {
   it("reads a whole number, signed or padded", () => {
@@ -54,5 +54,41 @@ describe("answerPlaceholder", () => {
   it("says what the field is after", () => {
     expect(answerPlaceholder("int")).toBe("Whole number…");
     expect(answerPlaceholder("str")).toBe("Answer…");
+  });
+});
+
+describe("typeaheadIndex", () => {
+  const names = ["adam", "chinmay", "mia", "nao", "nikita", "Mora"];
+
+  it("lands on the first choice starting with the letter", () => {
+    expect(typeaheadIndex(names, "n", 0)).toBe(3);
+    expect(typeaheadIndex(names, "c", 0)).toBe(1);
+  });
+
+  it("stays where it is when the choice it is on already matches", () => {
+    expect(typeaheadIndex(names, "m", 2)).toBe(2);
+  });
+
+  it("cycles through the matches when the letter is typed again", () => {
+    expect(typeaheadIndex(names, "mm", 2)).toBe(5);
+    expect(typeaheadIndex(names, "mmm", 5)).toBe(2);
+  });
+
+  it("narrows as more letters are typed", () => {
+    expect(typeaheadIndex(names, "ni", 3)).toBe(4);
+    expect(typeaheadIndex(names, "na", 4)).toBe(3);
+  });
+
+  it("wraps rather than stopping at the end", () => {
+    expect(typeaheadIndex(names, "a", 4)).toBe(0);
+  });
+
+  it("ignores case, on both sides", () => {
+    expect(typeaheadIndex(names, "MO", 0)).toBe(5);
+  });
+
+  it("has nowhere to go when nothing starts with it", () => {
+    expect(typeaheadIndex(names, "z", 0)).toBeUndefined();
+    expect(typeaheadIndex([], "a", 0)).toBeUndefined();
   });
 });
