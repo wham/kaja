@@ -50,6 +50,7 @@ import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
 import { RunButton } from "./RunButton";
+import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
 import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
@@ -1380,6 +1381,12 @@ export function App() {
       }
     }
 
+    // Started before the run and read after it: type-checking is the editor worker's
+    // job, so it costs the run no time. Nothing here waits on it to decide anything —
+    // a type error is reported, not refused, exactly as pressing Run in the window
+    // leaves one to the person who wrote it.
+    const checking = checkScript(source);
+
     const draft = path ? undefined : agentDraftRef.current(source, client || "Agent");
     const fileId = path || draft?.id;
     const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
@@ -1398,7 +1405,7 @@ export function App() {
     } finally {
       markSettledRef.current(run.id);
     }
-    return result;
+    return { ...result, diagnostics: await checking };
   }, []);
   const runForAgentRef = useRef(runForAgent);
   runForAgentRef.current = runForAgent;
@@ -2825,6 +2832,9 @@ interface McpRunReport {
   error?: string;
   methodCalls: unknown[];
   blocks?: unknown[];
+  // What the type checker made of the script. A run reports them; it is never
+  // stopped by one (see scriptDiagnostics).
+  diagnostics?: ScriptDiagnostic[];
 }
 
 function toBlockLog(block: Block) {

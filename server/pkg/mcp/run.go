@@ -30,6 +30,10 @@ const maxPayload = 4000
 // maxConsoleLines caps the console output echoed back.
 const maxConsoleLines = 200
 
+// maxDiagnostics caps the type errors listed. One mistyped import can put an error
+// on every line that uses it, and the first few say the same thing the rest do.
+const maxDiagnostics = 20
+
 // renderRun reports a run the way a caller reads it: what it printed, what each
 // call did, and - when it stopped early - that it stopped and why.
 func renderRun(label string, result RunResult) string {
@@ -46,6 +50,26 @@ func renderRun(label string, result RunResult) string {
 		fmt.Fprintf(&b, ", %d failed", failed)
 	}
 	b.WriteString("\n")
+
+	// Ahead of what the run did, because it is about the script rather than the run:
+	// what a person opening this file is shown before they press anything.
+	if len(result.Diagnostics) > 0 {
+		b.WriteString("\ntype errors\n")
+		shown := result.Diagnostics
+		dropped := 0
+		if len(shown) > maxDiagnostics {
+			dropped = len(shown) - maxDiagnostics
+			shown = shown[:maxDiagnostics]
+		}
+		for _, diagnostic := range shown {
+			fmt.Fprintf(&b, "  %d:%d  %s\n", diagnostic.Line, diagnostic.Column, diagnostic.Message)
+		}
+		if dropped > 0 {
+			fmt.Fprintf(&b, "  … %d more\n", dropped)
+		}
+		b.WriteString("  These did not stop the run: a script is transpiled rather than compiled, so a type error runs.\n")
+		b.WriteString("  They are the editor's own errors against the declarations describe_method prints, so a script kept with them in it is red in the window it is opened in.\n")
+	}
 
 	if len(result.Console) > 0 {
 		b.WriteString("\nconsole\n")

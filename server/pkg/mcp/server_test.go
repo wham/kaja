@@ -595,6 +595,45 @@ func TestRunScriptReportsWhatItDrew(t *testing.T) {
 	)
 }
 
+// The transpiler that runs a script does not type-check, so a script full of type
+// errors runs and every other part of this report reads as a clean run. The section
+// is what says otherwise.
+func TestRunScriptReportsTypeErrors(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.runValue = RunResult{
+		Diagnostics: []Diagnostic{
+			{Line: 4, Column: 3, Message: "Object literal may only specify known properties, but 'pagesize' does not exist in type 'Input<ListShowsRequest>'. Did you mean to write 'pageSize'?"},
+		},
+		MethodCalls: []MethodCallLog{{Service: "Shows", Method: "ListShows", Output: json.RawMessage(`{"items":[]}`)}},
+	}
+	srv := NewServer(bridge, token)
+
+	contains(t, tool(t, srv, "run_script", map[string]string{"code": "Shows.ListShows({ pagesize: 1 })"}),
+		"type errors",
+		"4:3  Object literal may only specify known properties",
+		// The run happened, so the section has to say the errors are not why anything
+		// failed - and that the file is red all the same.
+		"These did not stop the run",
+		"red in the window it is opened in",
+	)
+}
+
+// One mistyped import puts an error on every line that uses it, and the tail of
+// that list says nothing the head didn't.
+func TestTypeErrorsAreBounded(t *testing.T) {
+	bridge := newFakeBridge()
+	for i := 0; i < maxDiagnostics+5; i++ {
+		bridge.runValue.Diagnostics = append(bridge.runValue.Diagnostics, Diagnostic{Line: i + 1, Column: 1, Message: fmt.Sprintf("Cannot find name 'Shows' (%d)", i)})
+	}
+	srv := NewServer(bridge, token)
+
+	text := tool(t, srv, "run_script", map[string]string{"code": "x"})
+	contains(t, text, "Cannot find name 'Shows' (19)", "… 5 more")
+	if strings.Contains(text, "Cannot find name 'Shows' (20)") {
+		t.Errorf("listed past the cap:\n%s", text)
+	}
+}
+
 // A returned value is carried this far only so the report can correct it: the
 // app refuses to run a script with a top-level return, so a script that answers
 // by returning works here and is a dead file the moment a person opens it.

@@ -101,6 +101,12 @@ Rules that matter:
   script keeps going, with `undefined` where the response would have been — so a
   script with three calls in it reports all three. What stops a script is reading
   a property off that `undefined`; check a response before you use it.
+- **A run reports the script's type errors.** A script is transpiled rather than
+  compiled, so a type error does not stop one: the run happens, and the report
+  lists them under `type errors` at the position the editor puts them, checked
+  against the same generated declarations `describe_method` prints. Writing a file
+  checks nothing — `write_script` and `create_script` save what they are given — so
+  run what you wrote before you leave it behind.
 - **Comment the tricky part, and there usually isn't one.** A call names its
   method, the declarations say what its fields are, and the canvas says what came
   out, so a comment restating any of those is a line the reader has to check
