@@ -40,5 +40,8 @@ dev_mode:
       type: background
     - cmd: scripts/desktop-build dev
       type: blocking
-    - cmd: desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
+    # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there isn't
+    # one of, and a build without the `production` tag waits five seconds for it
+    # and then dies. The UI is on disk, so the variable is taken back off.
+    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
       type: primary
