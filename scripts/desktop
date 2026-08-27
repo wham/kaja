@@ -29,6 +29,10 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
+# A development bundle runs from build/bin and has no path back to the tree it
+# was built in, so it is told where the UI the watcher is writing lives.
+export KAJA_FRONTEND_DIR=$PWD/desktop/frontend/dist
+
 # The version desktop/go.mod names, so the CLI that generates the committed
 # bindings is the one the app is built against.
 install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 \

@@ -40,12 +40,16 @@ dev_mode:
     - cmd: wails3 task build:frontend
       dir: desktop
       type: once
-    - cmd: wails3 task watch:frontend
-      dir: desktop
+    # The watcher and the app are the two processes with no end of their own, so
+    # they are run here rather than as tasks: Task waits for its command instead
+    # of passing a signal on to it, and nothing would ever shut either down.
+    - cmd: go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
       type: background
     - cmd: wails3 task build:dev
       dir: desktop
       type: blocking
-    - cmd: wails3 task run
-      dir: desktop
+    # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there isn't
+    # one of, and a build without the `production` tag waits five seconds for it
+    # and then dies. The UI is on disk, so the variable is taken back off.
+    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
       type: primary

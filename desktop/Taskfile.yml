@@ -11,6 +11,12 @@ version: "3"
 #
 # A task states its `sources`, and Task skips it while their checksums and its
 # `generates` are where it left them.
+#
+# Every task here is a step that finishes. Task waits for the command it is
+# running rather than passing a signal on to it, so a process that never ends
+# on its own - the UI watcher, the app itself - can only be killed by whoever
+# started it. Those two are `executes` of their own in build/config.yml, run by
+# the watcher directly.
 
 vars:
   # scripts/common is the shell library the scripts share, and the product's
@@ -48,18 +54,6 @@ tasks:
       - task: bundle
         vars: { TAGS: development, PLIST: Info.dev.plist.tmpl }
 
-  run:
-    desc: Run the bundle build:dev made
-    env:
-      # A development bundle runs from build/bin and has no path back to the
-      # tree it was built in, so it is told where the UI the watcher writes is.
-      KAJA_FRONTEND_DIR: "{{.ROOT_DIR}}/frontend/dist"
-    cmds:
-      # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there
-      # isn't one of, and a build without the `production` tag waits five
-      # seconds for it and then dies. The UI is on disk, so it is taken back off.
-      - env -u FRONTEND_DEVSERVER_URL "{{.APP}}/Contents/MacOS/{{.NAME}}"
-
   build:frontend:
     desc: Bundle the UI into frontend/dist
     # The UI imports the bindings, so they are written before anything reads them.
@@ -76,13 +70,6 @@ tasks:
       - desktop/frontend/dist/index.html
     cmds:
       - go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
-
-  watch:frontend:
-    desc: Keep frontend/dist live as the UI changes, so a UI change is a reload
-    deps: [install:ui, generate:bindings]
-    dir: ..
-    cmds:
-      - go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
 
   generate:bindings:
     desc: Regenerate ui/src/bindings from the Go this app binds
