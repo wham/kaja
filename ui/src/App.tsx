@@ -185,14 +185,14 @@ interface LiveRun {
 }
 
 interface NameSheet {
-  verb: "name" | "rename" | "move";
+  verb: "name" | "rename";
   title: string;
   name: string;
   folder: string;
   // The draft being named, and its code.
   content?: string;
   draftId?: string;
-  // The file being renamed or moved.
+  // The file being renamed.
   script?: Script;
 }
 
@@ -1492,9 +1492,21 @@ export function App() {
     [openNameSheet],
   );
 
+  // Dropped on a folder row, so the destination is settled and there is nothing to type:
+  // the file keeps its name and changes its place, which on disk is the one write a
+  // rename is.
   const onMoveScript = useCallback(
-    (script: Script) => openNameSheet({ verb: "move", name: script.name.replace(/\.ts$/, ""), folder: script.folder, script, title: "Move file" }),
-    [openNameSheet],
+    async (script: Script, folder: string) => {
+      if (script.folder === folder) return;
+      try {
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
+        if (open) flushScriptWrite(open);
+        applyScriptRename(script.path, await renameScriptFile(script, script.name, folder));
+      } catch (err) {
+        showFileError(`Move failed: ${errorText(err)}`);
+      }
+    },
+    [applyScriptRename, flushScriptWrite, showFileError],
   );
 
   const removeScriptFromUI = useCallback(
@@ -2239,7 +2251,7 @@ export function App() {
                     onToggleSweepDrafts={() => setSweepDrafts((on) => !on)}
                     onScriptSelect={onScriptSelect}
                     onRenameScript={canWriteScripts() ? onRenameScript : undefined}
-                    onMoveScript={canWriteScripts() ? onMoveScript : undefined}
+                    onMoveScript={canWriteScripts() ? (script, folder) => void onMoveScript(script, folder) : undefined}
                     onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
                     onCopyScriptLink={(script) => void onCopyScriptLink(script)}
                     onCreateFolder={canWriteScripts() ? onCreateFolder : undefined}
@@ -2432,9 +2444,10 @@ export function App() {
         />
       </div>
       {/* Naming a draft is what moves it into Files, so the sheet asks for the
-          two things a file has that a draft doesn't: a name and a folder. It is
-          the same sheet for a rename and a move, because on disk those write the
-          same two fields. */}
+          two things a file has that a draft doesn't: a name and a folder. A
+          rename is the same sheet, because on disk it writes the same two
+          fields — and that folder select is the keyboard's way to a move, which
+          in the sidebar is dragging the row onto a folder. */}
       {nameSheet && (
         <Dialog
           title={nameSheet.title}
@@ -2444,7 +2457,7 @@ export function App() {
           }}
           footerButtons={[
             { content: "Cancel", onClick: () => setNameSheet(null) },
-            { content: nameSheet.verb === "name" ? "Save" : nameSheet.verb === "move" ? "Move" : "Rename", variant: "default", onClick: onConfirmNameSheet },
+            { content: nameSheet.verb === "name" ? "Save" : "Rename", variant: "default", onClick: onConfirmNameSheet },
           ]}
         >
           <FormControl>
@@ -2454,7 +2467,7 @@ export function App() {
                   proposing the filename from the derived name is what keeps the
                   section from splitting into two conventions. */}
               <Input
-                autoFocus={nameSheet.verb !== "move"}
+                autoFocus
                 className="pr-9 font-mono"
                 value={nameSheet.name}
                 onChange={(e) => setNameSheet((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
@@ -2471,7 +2484,6 @@ export function App() {
           <FolderField
             value={nameSheet.folder}
             folders={scriptFolders}
-            autoFocus={nameSheet.verb === "move"}
             onChange={(folder) => setNameSheet((prev) => (prev ? { ...prev, folder } : prev))}
             onSubmit={() => void onConfirmNameSheet()}
           />
@@ -2736,19 +2748,7 @@ export function App() {
   );
 }
 
-function FolderField({
-  value,
-  folders,
-  autoFocus,
-  onChange,
-  onSubmit,
-}: {
-  value: string;
-  folders: string[];
-  autoFocus?: boolean;
-  onChange: (folder: string) => void;
-  onSubmit: () => void;
-}) {
+function FolderField({ value, folders, onChange, onSubmit }: { value: string; folders: string[]; onChange: (folder: string) => void; onSubmit: () => void }) {
   const known = value === "" || folders.includes(value);
   const [typing, setTyping] = useState(!known);
 
@@ -2785,7 +2785,7 @@ function FolderField({
             onChange(next ?? "");
           }}
         >
-          <SelectTrigger autoFocus={autoFocus}>
+          <SelectTrigger>
             <span className="flex min-w-0 items-center gap-2">
               <Folder size={13} className="shrink-0 text-muted-foreground" />
               <span className="truncate">{value || "Files"}</span>

@@ -1,20 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  ChevronRight,
-  Ellipsis,
-  ExternalLink,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  Link2,
-  Pencil,
-  Plug,
-  Save,
-  Trash2,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, ChevronRight, Ellipsis, ExternalLink, Folder, FolderPlus, Link2, Pencil, Plug, Save, Trash2, X, type LucideIcon } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -47,6 +32,9 @@ import { useMediaQuery } from "./useMediaQuery";
  * dimmed. Mono belongs to content — the editor, the payload panes, the naming field —
  * not to navigation. No dot survives; the run indicators have the trailing slot to
  * themselves, at a fixed width, so nothing under the cursor moves as a run starts.
+ *
+ * Moving a file is dragging its row. The tree is already a picture of where a file can
+ * go, so a menu item opening a folder picker was that picture drawn a second time.
  */
 
 // The base indent of a row inside a group, so the group's label and its rows share a
@@ -55,10 +43,17 @@ const ROW_INDENT = 24;
 const DEPTH_INDENT = 14;
 // The chevron column a folder row spends and a file row doesn't.
 const CHEVRON_SLOT = 18;
+// A shut folder opens when a drag rests on it, which is the only way into a subfolder
+// without letting go.
+const SPRING_MS = 600;
 
 const GROUP_HEADER = "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
 const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-1 text-[13px] outline-none focus-visible:bg-accent/50";
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
+// What a row under a drag looks like. One class, because a folder row and the Files
+// header mean the same thing by it.
+const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
+const DRAG_TYPE = "application/x-kaja-script";
 
 export interface ScriptsRegionProps {
   scripts: Script[];
@@ -84,7 +79,9 @@ export interface ScriptsRegionProps {
 
   onScriptSelect: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
-  onMoveScript?: (script: Script) => void;
+  // Where the row was dropped. A rename carries a folder too — that is the keyboard's
+  // way to the same write — but a drag is the one that needs nothing typed.
+  onMoveScript?: (script: Script, folder: string) => void;
   onDeleteScript?: (script: Script) => void;
   onCopyScriptLink?: (script: Script) => void;
   // Inline, because the row is a real row from the first keystroke: you can see where
@@ -123,7 +120,70 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [filesMenu, setFilesMenu] = useState<{ top: number; left: number } | null>(null);
   const [draftsMenu, setDraftsMenu] = useState<{ top: number; left: number } | null>(null);
 
+  // The row being dragged and where it would land: a folder path, "" for the top level,
+  // or null where a drop would write nothing — a file already filed there is that case,
+  // so it lights nothing rather than offering a move with no effect.
+  const [drag, setDrag] = useState<{ script: Script; folder: string | null } | null>(null);
+  const spring = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const canMove = canWrite && props.onMoveScript !== undefined;
+
   const toggleFolder = (path: string) => setOpenFolders((open) => (open.includes(path) ? open.filter((candidate) => candidate !== path) : [...open, path]));
+
+  const cancelSpring = () => {
+    if (spring.current) clearTimeout(spring.current.timer);
+    spring.current = null;
+  };
+
+  const armSpring = (path?: string) => {
+    if (path === undefined || openFolders.includes(path)) {
+      cancelSpring();
+      return;
+    }
+    if (spring.current?.path === path) return;
+    cancelSpring();
+    spring.current = {
+      path,
+      timer: setTimeout(() => {
+        spring.current = null;
+        setOpenFolders((open) => (open.includes(path) ? open : [...open, path]));
+      }, SPRING_MS),
+    };
+  };
+
+  useEffect(() => cancelSpring, []);
+
+  const endDrag = () => {
+    cancelSpring();
+    setDrag(null);
+  };
+
+  /**
+   * Every row in Files says which folder a drop on it lands in — a folder row its own
+   * path, a file row the one it is filed in — so there is nowhere between the rows where
+   * the answer changes under the cursor. What no row claimed is the list itself, and that
+   * is the top level.
+   */
+  const onDragOverFolder = (event: React.DragEvent, folder: string, springPath?: string) => {
+    if (!drag) return;
+    event.stopPropagation();
+    const target = folder === drag.script.folder ? null : folder;
+    // A drop is only offered where it would write something; everywhere else the drag
+    // keeps its refusal cursor, because preventDefault is what makes a target a target.
+    if (target !== null) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }
+    setDrag((current) => (current && current.folder !== target ? { ...current, folder: target } : current));
+    armSpring(springPath);
+  };
+
+  const onDropInFolder = (event: React.DragEvent, folder: string) => {
+    const dropped = drag;
+    event.preventDefault();
+    event.stopPropagation();
+    endDrag();
+    if (dropped && dropped.script.folder !== folder) props.onMoveScript?.(dropped.script, folder);
+  };
 
   const startFolder = (parent: string) => {
     setFilesOpen(true);
@@ -148,7 +208,17 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
   return (
     // Named by the band above it, which is the sidebar's: the heading is stated once.
-    <nav aria-labelledby="scripts-section">
+    <nav
+      aria-labelledby="scripts-section"
+      // dragend fires on the row that started it and bubbles, so one handler here ends
+      // every drag — dropped, let go over nothing, or cancelled with Esc.
+      onDragEnd={endDrag}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        cancelSpring();
+        setDrag((current) => (current && current.folder !== null ? { ...current, folder: null } : current));
+      }}
+    >
       {/* Zero drafts hides the group rather than showing an empty label: there
           is nothing there and nothing to say about it. */}
       {(agentDraft !== undefined || ownDrafts.length > 0) && (
@@ -218,6 +288,11 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         count={scripts.length}
         open={filesOpen}
         onToggle={() => setFilesOpen((open) => !open)}
+        // The row that means the top level, so a file inside a folder has somewhere to be
+        // dropped that isn't another folder — and it is there while Files is folded.
+        dropping={drag?.folder === ""}
+        onDragOver={(event) => onDragOverFolder(event, "")}
+        onDrop={(event) => onDropInFolder(event, "")}
         action={
           canWrite && (props.onCreateFolder || props.onRevealScripts)
             ? { icon: Ellipsis, label: "Actions for Files", onClick: (event) => setFilesMenu({ top: event.clientY, left: event.clientX }) }
@@ -225,7 +300,14 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         }
       />
       {filesOpen && (
-        <ul role="tree" aria-label="Files" className="select-none">
+        <ul
+          role="tree"
+          aria-label="Files"
+          className="select-none"
+          // The space under the last row is still the top level.
+          onDragOver={(event) => onDragOverFolder(event, "")}
+          onDrop={(event) => onDropInFolder(event, "")}
+        >
           {rows.map((node) =>
             node.kind === "folder" ? (
               <Fragment key={node.path}>
@@ -235,6 +317,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   editing={folderEdit?.path === node.path}
                   active={active(`folder:${node.path}`)}
                   hasMenu={canWrite && props.onCreateFolder !== undefined}
+                  dropping={drag?.folder === node.path}
+                  onDragOver={(event) => onDragOverFolder(event, node.path, node.path)}
+                  onDrop={(event) => onDropInFolder(event, node.path)}
                   siblingNames={siblingFolderNames(tree, node.path)}
                   onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
                   onToggle={() => toggleFolder(node.path)}
@@ -272,6 +357,18 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 // A file the web is serving is read-only, but it still has an address — so the row
                 // keeps its menu wherever there is an item to put in it.
                 hasMenu={canWrite || props.onCopyScriptLink !== undefined}
+                draggable={canMove}
+                dragging={drag?.script.path === node.script.path}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  // Firefox starts no drag at all without data on the transfer, and a
+                  // type of our own is what keeps a row let go over the editor from
+                  // being pasted into it as text.
+                  event.dataTransfer.setData(DRAG_TYPE, node.script.path);
+                  setDrag({ script: node.script, folder: null });
+                }}
+                onDragOver={(event) => onDragOverFolder(event, node.script.folder)}
+                onDrop={(event) => onDropInFolder(event, node.script.folder)}
                 onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
                 onSelect={() => props.onScriptSelect(node.script)}
                 onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
@@ -399,12 +496,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             Rename…
           </DropdownMenuItem>
         )}
-        {props.onMoveScript && (
-          <DropdownMenuItem onSelect={() => scriptMenu && props.onMoveScript?.(scriptMenu.script)}>
-            <FolderOpen size={16} />
-            Move to…
-          </DropdownMenuItem>
-        )}
         {/* The only destructive action in the sidebar that touches disk, and
             the only one in text-destructive. */}
         {props.onDeleteScript && (
@@ -428,17 +519,25 @@ function GroupHeader({
   open,
   onToggle,
   action,
+  dropping,
+  onDragOver,
+  onDrop,
 }: {
   label: string;
   count: number;
   open: boolean;
   onToggle: () => void;
   action?: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void };
+  dropping?: boolean;
+  onDragOver?: (event: React.DragEvent) => void;
+  onDrop?: (event: React.DragEvent) => void;
 }) {
   return (
     <div
-      className={cn(GROUP_HEADER, "group/header mt-1")}
+      className={cn(GROUP_HEADER, "group/header mt-1", dropping && DROPPING)}
       onClick={onToggle}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       role="button"
       // Named explicitly, because the row holds a button of its own: without it the
       // group's name would absorb its action's, and neither could be addressed on its own.
@@ -621,6 +720,9 @@ function FolderRow({
   editing,
   active,
   hasMenu,
+  dropping,
+  onDragOver,
+  onDrop,
   siblingNames,
   onHover,
   onToggle,
@@ -633,6 +735,9 @@ function FolderRow({
   editing: boolean;
   active: boolean;
   hasMenu: boolean;
+  dropping?: boolean;
+  onDragOver?: (event: React.DragEvent) => void;
+  onDrop?: (event: React.DragEvent) => void;
   siblingNames: string[];
   onHover: (on: boolean) => void;
   onToggle: () => void;
@@ -648,8 +753,10 @@ function FolderRow({
         <div
           tabIndex={0}
           style={{ paddingLeft: ROW_INDENT + node.depth * DEPTH_INDENT }}
-          className={cn(ROW, "text-foreground hover:bg-accent/50")}
+          className={cn(ROW, "text-foreground hover:bg-accent/50", dropping && DROPPING)}
           onClick={onToggle}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
           onContextMenu={(event) => {
             if (!hasMenu) return;
             event.preventDefault();
@@ -773,6 +880,11 @@ function FileRow({
   waiting,
   active,
   hasMenu,
+  draggable,
+  dragging,
+  onDragStart,
+  onDragOver,
+  onDrop,
   onHover,
   onSelect,
   onMenu,
@@ -785,6 +897,11 @@ function FileRow({
   waiting?: boolean;
   active: boolean;
   hasMenu: boolean;
+  draggable: boolean;
+  dragging: boolean;
+  onDragStart: (event: React.DragEvent) => void;
+  onDragOver: (event: React.DragEvent) => void;
+  onDrop: (event: React.DragEvent) => void;
   onHover: (on: boolean) => void;
   onSelect: () => void;
   onMenu: (event: React.MouseEvent) => void;
@@ -793,9 +910,13 @@ function FileRow({
     <li role="treeitem" aria-current={current || undefined}>
       <div
         tabIndex={0}
+        draggable={draggable}
         style={{ paddingLeft: ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT }}
-        className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50")}
+        className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50", dragging && "opacity-40")}
         onClick={onSelect}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         onContextMenu={(event) => {
           if (!hasMenu) return;
           event.preventDefault();
