@@ -72,6 +72,14 @@ type BlockLog struct {
 	Failed  int `json:"failed,omitempty"`
 }
 
+// Diagnostic is one type error in the script, as the editor's own checker reports
+// it. A script is transpiled rather than compiled, so nothing here stopped the run.
+type Diagnostic struct {
+	Line    int    `json:"line"`
+	Column  int    `json:"column"`
+	Message string `json:"message"`
+}
+
 // RunResult is the outcome of running a script in the webview. Result is what a
 // script returned, which a script is not supposed to do — carried so the report can
 // correct it rather than swallow it (see renderRun).
@@ -81,6 +89,11 @@ type RunResult struct {
 	Error       string          `json:"error,omitempty"`
 	MethodCalls []MethodCallLog `json:"methodCalls,omitempty"`
 	Blocks      []BlockLog      `json:"blocks,omitempty"`
+	// What the type checker made of the script. A run that made every call it meant to
+	// can still be a file with red in it, and this is the only channel that says so:
+	// the transpiler that runs a script does not type-check, so a type error is
+	// invisible to everything else in this report.
+	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // Bridge is everything the server needs from the host app. The desktop App

@@ -14,6 +14,8 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"write the `importPath` from `list_services` verbatim, which is the app's name unless it declares one name in two modules " +
 	"(named imports only - `import * as ns` does not resolve). " +
 	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
+	"A run reports the script's type errors, checked against the same declarations describe_method prints: a script is transpiled rather than compiled, " +
+	"so a type error does not stop a run - but it is red in the file the person whose Kaja this is opens. " +
 	"It draws what it produced instead: `kaja.text(...)`, `kaja.code(...)` and `kaja.table(columns).row(...)` draw on the run's canvas, " +
 	"which is the output the person who opens the script sees, and is how a script renders a table (never build one out of Markdown). " +
 	"`console.log(...)` writes the log back to you - use it to probe while you work, and leave it out of a script " +
@@ -31,6 +33,10 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. " +
 	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, options)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
 	"until it is approved, all park the run on a human, so use them only when a person is at the app."
+
+// Writing a file checks nothing, so a script that is kept has to be run at least
+// once. Said where a file is written, because that is where nothing else says it.
+const writtenNote = "A file is saved as given - nothing checks it on the way to disk. run_script is what reports its type errors."
 
 // What a comment in a script is worth saying. A script's calls name their own
 // methods and its declarations state their own fields, so the comments an agent
@@ -116,7 +122,7 @@ func allToolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "write_script",
-			"description": "Overwrite the contents of an existing script identified by its path. " + commentsNote,
+			"description": "Overwrite the contents of an existing script identified by its path. " + writtenNote + " " + commentsNote,
 			"inputSchema": obj(map[string]interface{}{
 				"path":    str("Absolute path of the script to overwrite."),
 				"content": str("New TypeScript contents."),
@@ -126,7 +132,7 @@ func allToolDefinitions() []map[string]interface{} {
 			"name": "create_script",
 			"description": "Create a new script. Fails if one with the same name already exists. " +
 				"Scripts live in folders: name a folder in the path to file it there, and the folder is created if it doesn't exist. " +
-				commentsNote,
+				writtenNote + " " + commentsNote,
 			"inputSchema": obj(map[string]interface{}{
 				"name":    str("File name, e.g. \"sync-users\" or \"reports/weekly-usage\". A .ts extension is added if missing."),
 				"content": str("Initial TypeScript contents."),

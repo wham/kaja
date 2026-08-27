@@ -46,6 +46,11 @@ monaco.editor.addKeybindingRule({
 monaco.typescript.typescriptDefaults.setCompilerOptions({
   target: monaco.typescript.ScriptTarget.ESNext,
   module: monaco.typescript.ModuleKind.ESNext,
+  // ModuleDetectionKind.Force, which monaco's typescript namespace doesn't export.
+  // The task runner transpiles with it (scriptRunner), so without it here a script
+  // with no import is a global script to the editor alone: top-level await is an
+  // error in it, and its top-level names collide with every other such script.
+  moduleDetection: 3,
 });
 
 // Scripts get the kaja object through `import { kaja } from "kaja"` — the task
