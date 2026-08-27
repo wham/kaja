@@ -2,7 +2,8 @@
 #
 # `wails3 dev` takes its watcher and its processes from `dev_mode`; main.go
 # embeds this file for the product's name, version and copyright, and
-# scripts/desktop-build renders the bundle's Info.plist from the same values.
+# scripts/common's product_plist renders the bundle's Info.plist from the same
+# values.
 # The version is the one place a release is opened (scripts/release).
 version: "3"
 

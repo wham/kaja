@@ -1,0 +1,124 @@
+version: "3"
+
+# How the desktop app is built. `wails3 build` runs `build` and `wails3 task
+# --list` names the rest, so there is no second build to keep in step with it.
+# `wails3 dev` reaches `build:dev` the way it always has, through
+# `scripts/desktop-build dev` in build/config.yml.
+#
+# scripts/desktop-build is the bootstrap in front of this: wails3 ships Task
+# inside it, so installing the wails3 that desktop/go.mod names installs the
+# runner too and a Taskfile costs the machine nothing extra.
+#
+# A task states its `sources`, and Task skips it while their checksums and its
+# `generates` are where it left them.
+
+vars:
+  # scripts/common is the shell library the scripts share, and the product's
+  # identity is read out of build/config.yml there. A Taskfile can't call a bash
+  # function, so it sources the library the same way they do.
+  NAME:
+    sh: bash -c '. ../scripts/common && product_info productName'
+  APP: "build/bin/{{.NAME}}.app"
+  # The commit the build reports as its own. testflight names the version
+  # instead, so what is already in the environment wins.
+  GIT_REF:
+    sh: echo "${GIT_REF:-$(git rev-parse HEAD 2>/dev/null || true)}"
+  # The macOS the binary is compiled for. Keep in step with
+  # LSMinimumSystemVersion in the two plist templates, which is what the bundle
+  # declares.
+  MACOS_DEPLOYMENT_TARGET: "12.0"
+  # On its own cgo picks a macOS (10.13) old enough that the APIs the app calls
+  # warn about their own availability - the data protection keychain is 10.15+.
+  # Every build says it, not just the store build: a dev build compiled for a
+  # different macOS than the one that ships can't report what will happen on it.
+  MACOS_MIN_FLAG: '{{if eq OS "darwin"}} -mmacosx-version-min={{.MACOS_DEPLOYMENT_TARGET}}{{end}}'
+
+tasks:
+  build:
+    desc: The bundle that ships - a production build with the UI embedded in it
+    deps: [generate:icons, build:frontend]
+    cmds:
+      - task: bundle
+        vars: { TAGS: production, PLIST: Info.plist.tmpl }
+
+  build:dev:
+    desc: The bundle `wails3 dev` runs - the UI is read off disk, so it isn't built here
+    deps: [generate:bindings, generate:icons]
+    cmds:
+      - task: bundle
+        vars: { TAGS: development, PLIST: Info.dev.plist.tmpl }
+
+  build:frontend:
+    desc: Bundle the UI into frontend/dist
+    # The UI imports the bindings, so they are written before anything reads them.
+    deps: [install:ui, generate:bindings]
+    dir: ..
+    sources:
+      - ui/src/**/*
+      - ui/package.json
+      - ui/bun.lock
+      - server/cmd/build-ui/**/*.go
+      - server/internal/ui/**/*.go
+      - server/static/**/*
+    generates:
+      - desktop/frontend/dist/index.html
+    cmds:
+      - go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
+
+  generate:bindings:
+    desc: Regenerate ui/src/bindings from the Go this app binds
+    dir: ..
+    # The bindings are committed, and the Wails CLI writes them the way its own
+    # version does - so go.mod is an input as much as the Go it reads.
+    sources:
+      - desktop/*.go
+      - desktop/go.mod
+      - server/cmd/**/*.go
+      - server/internal/**/*.go
+      - server/pkg/**/*.go
+    generates:
+      - ui/src/bindings/github.com/wham/kaja/desktop/*.ts
+    cmds:
+      - cd desktop && wails3 generate bindings -d ../ui/src/bindings -ts -silent
+
+  generate:icons:
+    desc: Write the .icns the bundle carries, from the one PNG the repository keeps
+    sources:
+      - build/appicon.png
+    generates:
+      - build/darwin/icon.icns
+    cmds:
+      # Only the Mac half of it: the .ico is for a Windows build there isn't one of.
+      - wails3 generate icons -windowsfilename ""
+
+  install:ui:
+    internal: true
+    dir: ../ui
+    cmds:
+      - bun install
+
+  # The bundle is four things in a directory, which is the whole of what
+  # assembling one on macOS is - and what lets the shipped bundle and the
+  # development one differ by exactly the plist and the build tags.
+  bundle:
+    internal: true
+    requires:
+      vars: [TAGS, PLIST]
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '{{if eq OS "darwin"}}{{.MACOS_DEPLOYMENT_TARGET}}{{end}}'
+      # Added to what Go would have passed rather than replacing it, so cgo
+      # keeps its own defaults (-O2 -g) and anything the environment already set.
+      CGO_CFLAGS:
+        sh: echo "$(go env CGO_CFLAGS){{.MACOS_MIN_FLAG}}"
+      CGO_LDFLAGS:
+        sh: echo "$(go env CGO_LDFLAGS){{.MACOS_MIN_FLAG}}"
+    cmds:
+      - rm -rf "{{.APP}}"
+      - mkdir -p "{{.APP}}/Contents/MacOS" "{{.APP}}/Contents/Resources"
+      # `production` is the Wails tag: it embeds the runtime and closes the
+      # inspector. `development` is kaja's own, and is what makes the UI a
+      # directory on disk.
+      - go build -tags "{{.TAGS}}" -ldflags "-X main.GitRef={{.GIT_REF}}" -o "{{.APP}}/Contents/MacOS/{{.NAME}}" .
+      - cp build/darwin/icon.icns "{{.APP}}/Contents/Resources/icon.icns"
+      - bash -c '. ../scripts/common && product_plist "{{.PLIST}}"' > "{{.APP}}/Contents/Info.plist"
+      - echo "Built desktop/{{.APP}}"

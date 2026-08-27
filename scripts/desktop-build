@@ -7,11 +7,12 @@
 #                                  build reading the UI off disk, and no UI build
 #                                  of its own because the watcher owns it
 #
-# `wails3 build` runs a Taskfile task, and this repository builds from scripts
-# rather than Taskfiles - so the CLI's part is generating the bindings and the
-# icon, and the bundle, which is four things in a directory, is assembled here.
-# Which is also what lets the two bundles differ by exactly the plist and the
-# build tags.
+# The build itself is desktop/Taskfile.yml. This is the bootstrap in front of
+# it: the Wails CLI writes files that are committed - the bindings under
+# ui/src/bindings - and writes them the way its own version does, so it is
+# installed at the version desktop/go.mod names, on the same rule the code
+# generators in scripts/server follow. Task ships inside that binary, so
+# installing it installs the runner the Taskfile needs too.
 set -e
 
 source "$(dirname "$0")/common"
@@ -19,75 +20,16 @@ cd "$(dirname "$0")/.."
 
 MODE="${1:-release}"
 case "$MODE" in
-    release|dev) ;;
+    release) TASK=build ;;
+    dev) TASK=build:dev ;;
     *) echo "error: unknown mode '$MODE' (want release|dev)" >&2; exit 1 ;;
 esac
 
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-# The Wails CLI writes files that are committed - the bindings under
-# ui/src/bindings - and writes them the way its own version does. So it is
-# installed at the version desktop/go.mod names, on the same rule the code
-# generators in scripts/server follow: whatever is on the machine already is not
-# what decides what lands in the repository.
-WAILS_VERSION=$(module_version github.com/wailsapp/wails/v3 desktop)
-install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 "$WAILS_VERSION"
+install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 \
+    "$(module_version github.com/wailsapp/wails/v3 desktop)"
 
-# The bindings are generated from the Go this app binds, so they are generated
-# when that Go changes and not on every build. They are committed, so the
-# generated files themselves are the other half of the check: the stamp can only
-# say what was last generated, not that it is still there.
-BINDINGS_STAMP=server/build/.wails-bindings.stamp
-BINDINGS=$(fingerprint "$WAILS_VERSION" \
-    $(find desktop server -name "*.go" -not -path "*/build/*" | sort))
-
-if ! stamp_matches "$BINDINGS_STAMP" "$BINDINGS" || [ ! -f ui/src/bindings/github.com/wham/kaja/desktop/app.ts ]; then
-    echo "Generating Wails bindings..."
-    (cd desktop && wails3 generate bindings -d ../ui/src/bindings -ts -silent)
-    stamp_write "$BINDINGS_STAMP" "$BINDINGS"
-fi
-
-# The icon the bundle carries, from the one PNG the repository keeps. Only the
-# Mac half of it: the .ico is for a Windows build there isn't one of.
-if [ ! -f desktop/build/darwin/icon.icns ]; then
-    (cd desktop && wails3 generate icons -windowsfilename "")
-fi
-
-NAME=$(product_info productName)
-APP=desktop/build/bin/$NAME.app
-
-if [ "$MODE" = "release" ]; then
-    (cd ui && bun install)
-    go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
-fi
-
-# Build for the macOS the store build and the bundle both name, so a dev build
-# compiles the same way the shipped one does.
-export_macos_deployment_target
-
-# `production` is the Wails tag: it embeds the runtime and closes the inspector.
-# `development` is kaja's own, and is what makes the UI a directory on disk.
-if [ "$MODE" = "release" ]; then
-    TAGS=production
-    PLIST=Info.plist.tmpl
-else
-    TAGS=development
-    PLIST=Info.dev.plist.tmpl
-fi
-
-GIT_REF="${GIT_REF:-$(git rev-parse HEAD 2>/dev/null || echo "")}"
-
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-go -C desktop build -tags "$TAGS" -ldflags "-X main.GitRef=$GIT_REF" -o "../$APP/Contents/MacOS/$NAME" .
-cp desktop/build/darwin/icon.icns "$APP/Contents/Resources/icon.icns"
-
-# The plist is the product's identity, rendered from the file that holds it.
-sed -e "s|{{ProductName}}|$(product_info productName)|g" \
-    -e "s|{{ProductIdentifier}}|$(product_info productIdentifier)|g" \
-    -e "s|{{Version}}|$(product_info version)|g" \
-    -e "s|{{Copyright}}|$(product_info copyright)|g" \
-    "desktop/build/darwin/$PLIST" > "$APP/Contents/Info.plist"
-
-echo "Built $APP"
+cd desktop
+wails3 task "$TASK"

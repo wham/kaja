@@ -31,7 +31,7 @@ CONFIGURATION="$REPO_ROOT/desktop/build/config.yml"
 source "$SCRIPT_DIR/common"
 
 current_version() {
-    (cd "$REPO_ROOT" && product_info version)
+    product_info version
 }
 
 next_version() {
