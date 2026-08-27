@@ -7,7 +7,7 @@ import { Spinner } from "./components/spinner";
 import { Script } from "./apps";
 import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
-import { buildScriptTree, FolderNode, folderNameError, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, FolderNode, folderNameError, resolveScriptRename, scriptNameParts, scriptRenameError, TreeNode, visibleRows } from "./scriptTree";
 import { FileName } from "./FileName";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
@@ -78,9 +78,10 @@ export interface ScriptsRegionProps {
   onToggleSweepDrafts: () => void;
 
   onScriptSelect: (script: Script) => void;
-  onRenameScript?: (script: Script) => void;
-  // Where the row was dropped. A rename carries a folder too — that is the keyboard's
-  // way to the same write — but a drag is the one that needs nothing typed.
+  // Typed in the row, so the name is already resolved to where it lands: a name with a
+  // `/` in it files the file deeper, `../` walks it back out.
+  onRenameScript?: (script: Script, name: string, folder: string) => Promise<void>;
+  // Where the row was dropped, which is the gesture that needs nothing typed.
   onMoveScript?: (script: Script, folder: string) => void;
   onDeleteScript?: (script: Script) => void;
   onCopyScriptLink?: (script: Script) => void;
@@ -111,9 +112,10 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const draftsShown = showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
   const hiddenDrafts = showAllDrafts ? 0 : ownDrafts.length - draftsShown.length;
 
-  // A real row from the first keystroke. A rename is the same row, so the interaction
-  // is learned once.
+  // A real row from the first keystroke. Making a folder, renaming one and renaming a
+  // file are all the same row, so the interaction is learned once.
   const [folderEdit, setFolderEdit] = useState<{ parent: string; path?: string; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const [draftMenu, setDraftMenu] = useState<{ draft: Draft; top: number; left: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ path: string; top: number; left: number } | null>(null);
@@ -324,6 +326,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
                   onToggle={() => toggleFolder(node.path)}
                   onMenu={(event) => setFolderMenu({ path: node.path, top: event.clientY, left: event.clientX })}
+                  canRename={props.onRenameFolder !== undefined}
+                  onStartRename={() => setFolderEdit({ parent: node.path, path: node.path, name: node.name })}
                   onRename={async (name) => {
                     await props.onRenameFolder?.(node.path, name);
                     setFolderEdit(null);
@@ -348,7 +352,10 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
               <FileRow
                 key={node.script.path}
                 script={node.script}
+                scripts={scripts}
                 depth={node.depth}
+                editing={renaming === node.script.path}
+                canRename={props.onRenameScript !== undefined}
                 current={props.currentScriptPath === node.script.path}
                 running={props.runningFileIds?.has(node.script.path)}
                 agent={props.agentFileIds?.has(node.script.path)}
@@ -372,6 +379,16 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
                 onSelect={() => props.onScriptSelect(node.script)}
                 onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
+                onStartRename={() => setRenaming(node.script.path)}
+                onRename={async (typed) => {
+                  const target = resolveScriptRename(node.script.folder, typed);
+                  // A name that landed where it already was is not a write.
+                  if (target && (target.folder !== node.script.folder || target.name !== node.script.name)) {
+                    await props.onRenameScript?.(node.script, target.name, target.folder);
+                  }
+                  setRenaming(null);
+                }}
+                onCancelRename={() => setRenaming(null)}
               />
             ),
           )}
@@ -447,7 +464,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             }}
           >
             <Pencil size={16} />
-            Rename…
+            Rename
+            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">F2</span>
           </DropdownMenuItem>
         )}
         {props.onDeleteFolder && (
@@ -491,9 +509,10 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           </DropdownMenuItem>
         )}
         {props.onRenameScript && (
-          <DropdownMenuItem onSelect={() => scriptMenu && props.onRenameScript?.(scriptMenu.script)}>
+          <DropdownMenuItem onSelect={() => scriptMenu && setRenaming(scriptMenu.script.path)}>
             <Pencil size={16} />
-            Rename…
+            Rename
+            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">F2</span>
           </DropdownMenuItem>
         )}
         {/* The only destructive action in the sidebar that touches disk, and
@@ -727,6 +746,8 @@ function FolderRow({
   onHover,
   onToggle,
   onMenu,
+  canRename,
+  onStartRename,
   onRename,
   onCancelRename,
 }: {
@@ -742,6 +763,8 @@ function FolderRow({
   onHover: (on: boolean) => void;
   onToggle: () => void;
   onMenu: (event: React.MouseEvent) => void;
+  canRename: boolean;
+  onStartRename: () => void;
   onRename: (name: string) => Promise<void>;
   onCancelRename: () => void;
 }) {
@@ -768,6 +791,9 @@ function FolderRow({
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
               onToggle();
+            } else if (event.key === "F2" && canRename) {
+              event.preventDefault();
+              onStartRename();
             }
           }}
         >
@@ -804,9 +830,8 @@ function NewFolderRow({
 }
 
 /**
- * Naming a folder is no dialog: the row is real from the first keystroke, so you can
- * see where it lands while you type. Enter creates the directory, Esc or an empty name
- * cancels, and a duplicate refuses Enter and says so.
+ * A folder's name is typed in the row itself, so you can see where it lands as you
+ * type it.
  */
 function FolderNameField({
   depth,
@@ -821,15 +846,58 @@ function FolderNameField({
   onCommit: (name: string) => Promise<void>;
   onCancel: () => void;
 }) {
+  return (
+    <NameField
+      indent={ROW_INDENT + depth * DEPTH_INDENT}
+      initial={initial}
+      label="Folder name"
+      error={(name) => folderNameError(name, siblingNames)}
+      onCommit={onCommit}
+      onCancel={onCancel}
+    >
+      <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
+      <Folder size={13} className="shrink-0 text-muted-foreground" />
+    </NameField>
+  );
+}
+
+/**
+ * Naming something is no dialog: the row is real from the first keystroke, and the
+ * name is typed where the name already was. Enter writes it, Esc cancels, blur writes
+ * it too, and a name nothing can be written under refuses Enter and says why.
+ *
+ * `select` is how much of the name is selected on arrival — a file's stem, so the
+ * extension is left alone but is still there to be edited.
+ */
+function NameField({
+  indent,
+  initial,
+  label,
+  select,
+  error: errorFor,
+  onCommit,
+  onCancel,
+  children,
+}: {
+  indent: number;
+  initial: string;
+  label: string;
+  select?: number;
+  error: (name: string) => string | undefined;
+  onCommit: (name: string) => Promise<void>;
+  onCancel: () => void;
+  children?: React.ReactNode;
+}) {
   const [name, setName] = useState(initial);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
-  const error = folderNameError(name, siblingNames);
+  const error = errorFor(name);
 
   useEffect(() => {
     ref.current?.focus();
-    ref.current?.select();
-  }, []);
+    if (select === undefined) ref.current?.select();
+    else ref.current?.setSelectionRange(0, select);
+  }, [select]);
 
   const commit = async () => {
     if (error || busy) return;
@@ -842,14 +910,13 @@ function FolderNameField({
   };
 
   return (
-    <div className="flex h-6 items-center gap-1.5 pr-2" style={{ paddingLeft: ROW_INDENT + depth * DEPTH_INDENT }}>
-      <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
-      <Folder size={13} className="shrink-0 text-muted-foreground" />
+    <div className="flex h-6 items-center gap-1.5 pr-2" style={{ paddingLeft: indent }}>
+      {children}
       <input
         ref={ref}
         value={name}
         title={error}
-        aria-label="Folder name"
+        aria-label={label}
         aria-invalid={error !== undefined}
         onChange={(event) => setName(event.target.value)}
         onBlur={() => void commit().catch(onCancel)}
@@ -873,7 +940,10 @@ function FolderNameField({
 
 function FileRow({
   script,
+  scripts,
   depth,
+  editing,
+  canRename,
   current,
   running,
   agent,
@@ -888,9 +958,17 @@ function FileRow({
   onHover,
   onSelect,
   onMenu,
+  onStartRename,
+  onRename,
+  onCancelRename,
 }: {
   script: Script;
+  // Every other file is what the typed name is checked against, wherever the path it
+  // carries would land it.
+  scripts: Script[];
   depth: number;
+  editing: boolean;
+  canRename: boolean;
   current: boolean;
   running?: boolean;
   agent?: boolean;
@@ -905,13 +983,42 @@ function FileRow({
   onHover: (on: boolean) => void;
   onSelect: () => void;
   onMenu: (event: React.MouseEvent) => void;
+  onStartRename: () => void;
+  onRename: (name: string) => Promise<void>;
+  onCancelRename: () => void;
 }) {
+  const indent = ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT;
+
+  if (editing) {
+    return (
+      <li role="treeitem" aria-current={current || undefined}>
+        {/* The whole filename, with the stem selected: the extension is left
+            alone by the first keystroke and still there to be edited. */}
+        <NameField
+          indent={indent}
+          initial={script.name}
+          label="File name"
+          select={scriptNameParts(script.name).base.length}
+          error={(name) =>
+            scriptRenameError(
+              name,
+              script.folder,
+              scripts.filter((other) => other.path !== script.path),
+            )
+          }
+          onCommit={onRename}
+          onCancel={onCancelRename}
+        />
+      </li>
+    );
+  }
+
   return (
     <li role="treeitem" aria-current={current || undefined}>
       <div
         tabIndex={0}
         draggable={draggable}
-        style={{ paddingLeft: ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT }}
+        style={{ paddingLeft: indent }}
         className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50", dragging && "opacity-40")}
         onClick={onSelect}
         onDragStart={onDragStart}
@@ -928,6 +1035,9 @@ function FileRow({
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             onSelect();
+          } else if (event.key === "F2" && canRename) {
+            event.preventDefault();
+            onStartRename();
           }
         }}
       >

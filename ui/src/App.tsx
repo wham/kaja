@@ -184,16 +184,17 @@ interface LiveRun {
   settled: boolean;
 }
 
+/**
+ * Naming a draft: the two things a file has that a draft hasn't. Renaming a file is
+ * not this sheet — a file already has both, so it is typed in the row it is in.
+ */
 interface NameSheet {
-  verb: "name" | "rename";
   title: string;
   name: string;
   folder: string;
   // The draft being named, and its code.
   content?: string;
   draftId?: string;
-  // The file being renamed.
-  script?: Script;
 }
 
 /**
@@ -1283,7 +1284,6 @@ export function App() {
     if (view?.type !== "draft") return;
     const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
     openNameSheet({
-      verb: "name",
       name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
       content: view.model.getValue(),
@@ -1295,7 +1295,6 @@ export function App() {
   const onNameDraft = useCallback(
     (draft: Draft) =>
       openNameSheet({
-        verb: "name",
         name: proposeFileName(draft.title, takenNames("")),
         folder: lastFolderRef.current,
         content: draft.code,
@@ -1448,35 +1447,25 @@ export function App() {
     const folder = sheet.folder.trim().replace(/^\/+|\/+$/g, "");
 
     try {
-      if (sheet.verb === "name") {
-        const script = await createScriptFile(name, folder, sheet.content ?? "");
-        const content = sheet.content ?? "";
-        setScripts((prev) => sortScripts([...(prev ?? []), script]));
-        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
-        applyViews((views) => {
-          const shown = showScript(views, script, content);
-          const source = sheet.draftId && shown.find((view) => view.type === "draft" && view.draftId === sheet.draftId);
-          return source ? dropView(shown, source.id) : shown;
-        });
-        if (sheet.draftId) {
-          const id = sheet.draftId;
-          applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
-          if (id === agentDraftIdRef.current) {
-            agentDraftIdRef.current = undefined;
-            setPersistedValue("agentDraftId", undefined);
-          }
-          consoles.renameFile(id, script.path);
-          renameStoredFile(id, script.path);
-          moveRunInput(id, script.path);
+      const script = await createScriptFile(name, folder, sheet.content ?? "");
+      const content = sheet.content ?? "";
+      setScripts((prev) => sortScripts([...(prev ?? []), script]));
+      if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+      applyViews((views) => {
+        const shown = showScript(views, script, content);
+        const source = sheet.draftId && shown.find((view) => view.type === "draft" && view.draftId === sheet.draftId);
+        return source ? dropView(shown, source.id) : shown;
+      });
+      if (sheet.draftId) {
+        const id = sheet.draftId;
+        applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
+        if (id === agentDraftIdRef.current) {
+          agentDraftIdRef.current = undefined;
+          setPersistedValue("agentDraftId", undefined);
         }
-      } else if (sheet.script) {
-        // Flush the pending auto-save to the current path, so the rename moves what is in
-        // the buffer rather than what disk caught up to.
-        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === sheet.script!.path);
-        if (open) flushScriptWrite(open);
-        const renamed = await renameScriptFile(sheet.script, name, folder);
-        applyScriptRename(sheet.script.path, renamed);
-        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+        consoles.renameFile(id, script.path);
+        renameStoredFile(id, script.path);
+        moveRunInput(id, script.path);
       }
       lastFolderRef.current = folder;
       setPersistedValue("lastScriptFolder", folder);
@@ -1485,11 +1474,26 @@ export function App() {
     } catch (err) {
       setNameSheetError(errorText(err));
     }
-  }, [nameSheet, applyDrafts, applyViews, applyScriptRename, flushScriptWrite]);
+  }, [nameSheet, applyDrafts, applyViews]);
 
+  /**
+   * A file's path is its name, so renaming and moving are the same write and the name
+   * typed in the row has already been resolved to the folder it lands in.
+   */
   const onRenameScript = useCallback(
-    (script: Script) => openNameSheet({ verb: "rename", name: script.name.replace(/\.ts$/, ""), folder: script.folder, script, title: "Rename file" }),
-    [openNameSheet],
+    async (script: Script, name: string, folder: string) => {
+      try {
+        // Flush the pending auto-save to the current path, so the rename moves what is in
+        // the buffer rather than what disk caught up to.
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
+        if (open) flushScriptWrite(open);
+        applyScriptRename(script.path, await renameScriptFile(script, name, folder));
+        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+      } catch (err) {
+        showFileError(`Rename failed: ${errorText(err)}`);
+      }
+    },
+    [applyScriptRename, flushScriptWrite, showFileError],
   );
 
   // Dropped on a folder row, so the destination is settled and there is nothing to type:
@@ -2444,10 +2448,9 @@ export function App() {
         />
       </div>
       {/* Naming a draft is what moves it into Files, so the sheet asks for the
-          two things a file has that a draft doesn't: a name and a folder. A
-          rename is the same sheet, because on disk it writes the same two
-          fields — and that folder select is the keyboard's way to a move, which
-          in the sidebar is dragging the row onto a folder. */}
+          two things a file has that a draft doesn't: a name and a folder.
+          Renaming a file is not this sheet — a file has both already, so its
+          name is typed in the row it is in. */}
       {nameSheet && (
         <Dialog
           title={nameSheet.title}
@@ -2457,7 +2460,7 @@ export function App() {
           }}
           footerButtons={[
             { content: "Cancel", onClick: () => setNameSheet(null) },
-            { content: nameSheet.verb === "name" ? "Save" : "Rename", variant: "default", onClick: onConfirmNameSheet },
+            { content: "Save", variant: "default", onClick: onConfirmNameSheet },
           ]}
         >
           <FormControl>
