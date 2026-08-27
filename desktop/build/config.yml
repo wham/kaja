@@ -1,0 +1,44 @@
+# The project's configuration, read by the wails3 CLI and by kaja itself.
+#
+# `wails3 dev` takes its watcher and its processes from `dev_mode`; main.go
+# embeds this file for the product's name, version and copyright, and
+# scripts/desktop-build renders the bundle's Info.plist from the same values.
+# The version is the one place a release is opened (scripts/release).
+version: "3"
+
+info:
+  productName: "Kaja"
+  productIdentifier: "tools.kaja.Kaja"
+  copyright: "2026 Tomas Vesely"
+  version: "0.14.0"
+
+# `wails3 dev` runs from desktop/, so the root is the repository: the desktop
+# links against server/, and a change there is a change to what it runs.
+dev_mode:
+  root_path: ..
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - build
+      - frontend
+      - ui
+    file:
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    # The bundle the watcher restarts is built from a UI that is bundled once and
+    # then kept live by esbuild's own watcher. A development build reads
+    # frontend/dist off disk, so a UI change is a reload rather than a rebuild.
+    - cmd: go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
+      type: once
+    - cmd: go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
+      type: background
+    - cmd: scripts/desktop-build dev
+      type: blocking
+    - cmd: desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
+      type: primary

@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
@@ -161,7 +159,7 @@ func (a *App) runScript(ctx context.Context, path, code, client string) (mcp.Run
 		a.mcpMu.Unlock()
 	}()
 
-	runtime.EventsEmit(a.ctx, "mcp:runScript", map[string]string{"id": id, "path": a.scriptPath(path), "code": code, "client": client})
+	a.app.Event.Emit("mcp:runScript", map[string]string{"id": id, "path": a.scriptPath(path), "code": code, "client": client})
 
 	select {
 	case result := <-ch:
@@ -176,13 +174,13 @@ func (a *App) runScript(ctx context.Context, path, code, client string) (mcp.Run
 // notifyMCPActivity tells the webview a request is being served. inFlight is zero
 // once the last one is answered; the UI decides how long the mark lingers.
 func (a *App) notifyMCPActivity(inFlight int) {
-	runtime.EventsEmit(a.ctx, "mcp:activity", map[string]int{"inFlight": inFlight})
+	a.app.Event.Emit("mcp:activity", map[string]int{"inFlight": inFlight})
 }
 
 // notifyScriptsChanged tells the webview an MCP tool changed a script on disk,
 // so an open tab can live-reload its content and the sidebar list stays fresh.
 func (a *App) notifyScriptsChanged(payload map[string]string) {
-	runtime.EventsEmit(a.ctx, "mcp:scriptsChanged", payload)
+	a.app.Event.Emit("mcp:scriptsChanged", payload)
 }
 
 func (a *App) catalog() mcp.Catalog {

@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { isWailsEnvironment } from "./wails";
-import { EventsOn } from "./wailsjs/runtime";
+import { isWailsEnvironment, onWailsEvent } from "./wails";
 
 /**
  * Hook that listens for configuration file changes.
@@ -10,8 +9,7 @@ export function useConfigurationChanges(onConfigurationChanged: () => void) {
   useEffect(() => {
     if (isWailsEnvironment()) {
       // Desktop: use Wails events
-      const unsubscribe = EventsOn("configuration:changed", onConfigurationChanged);
-      return unsubscribe;
+      return onWailsEvent("configuration:changed", onConfigurationChanged);
     } else {
       // Web: use Server-Sent Events
       const eventSource = new EventSource("/configuration-changes");

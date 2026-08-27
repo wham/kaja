@@ -23,12 +23,5 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
-
       - name: Build desktop app
-        run: |
-          source ../scripts/common
-          export_macos_deployment_target
-          wails build
-        working-directory: desktop
+        run: scripts/desktop-build

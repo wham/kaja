@@ -1,5 +1,5 @@
 # Generated code is committed exactly as it is generated. Both of these are
 # rewritten by a tool a dev script runs - Wails, and protoc-gen-kaja - so
 # formatting them here only means the next run of that tool is a diff.
-src/wailsjs/
+src/bindings/
 src/server/

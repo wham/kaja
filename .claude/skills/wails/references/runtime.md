@@ -1,209 +1,131 @@
 # Runtime API
 
-The runtime is mirrored on both sides:
+There is no `runtime` package and no context threading. The Go side calls methods on the application, its managers and its windows; the frontend imports `@wailsio/runtime`.
 
-- **Go**: `import "github.com/wailsapp/wails/v2/pkg/runtime"`. Every function takes `ctx context.Context` (capture from `OnStartup` / `OnDomReady`).
-- **JS**: `import {...} from "../wailsjs/runtime"` (typed) or `window.runtime.*` (untyped, always available).
+- **Go**: `app := application.New(...)` or `application.Get()`, then `app.<Manager>.<Method>` / `window.<Method>`.
+- **JS**: `import { Events, Window, Browser, Dialogs, Clipboard, Screens, System, Application } from "@wailsio/runtime"`.
 
-Many APIs return `Promise<T>` on the JS side because they cross the IPC bridge.
+Everything on the JS side crosses the IPC bridge and returns a `Promise`.
 
-## App-level
+## Managers on `*application.App`
 
-| Go | JS | Notes |
-|---|---|---|
-| `Hide(ctx)` | `Hide()` | macOS: NSApp hide. Win/Linux: same as `WindowHide` |
-| `Show(ctx)` | `Show()` | |
-| `Quit(ctx)` | `Quit()` | |
-| `Environment(ctx) EnvironmentInfo` | `Environment()` | `{BuildType, Platform, Arch}` (Go) / lowercase (JS) |
-| `ResetSignalHandlers()` | — | Linux only; reinstalls signal handlers with `SA_ONSTACK` for Go panic recovery in goroutines |
+`Window` · `Event` · `Dialog` · `Menu` · `ContextMenu` · `Clipboard` · `Browser` · `Screen` · `SystemTray` · `KeyBinding` · `GlobalShortcut` · `Autostart` · `Env`
 
-## Window
+Plus, on the app itself: `Run() error`, `Quit()`, `Hide()`, `Show()`, `SetIcon([]byte)`, `Context() context.Context`, `Config() Options`, `Capabilities()`, `GetPID()`, `RegisterService(Service)`, `OnShutdown(func())`.
 
-| Go | JS |
+## Windows
+
+```go
+window := app.Window.NewWithOptions(application.WebviewWindowOptions{...})
+window.SetTitle("New Title")
+```
+
+| Manager method | Notes |
 |---|---|
-| `WindowSetTitle(ctx, string)` | `WindowSetTitle(title)` |
-| `WindowFullscreen(ctx)` / `WindowUnfullscreen(ctx)` / `WindowIsFullscreen(ctx) bool` | same |
-| `WindowCenter(ctx)` | `WindowCenter()` |
-| `WindowReload(ctx)` / `WindowReloadApp(ctx)` | same |
-| `WindowExecJS(ctx, js string)` | — (Go only; async, no return) |
-| `WindowSetSystemDefaultTheme/SetLightTheme/SetDarkTheme(ctx)` | same (Windows only) |
-| `WindowShow(ctx)` / `WindowHide(ctx)` | same |
-| `WindowIsNormal(ctx) bool` | `WindowIsNormal(): Promise<boolean>` |
-| `WindowSetSize(ctx, w, h int)` / `WindowGetSize(ctx) (int,int)` | `WindowSetSize(w,h)` / `WindowGetSize(): Promise<Size>` |
-| `WindowSetMinSize(ctx, w, h)` / `WindowSetMaxSize(ctx, w, h)` | same. `(0,0)` to disable |
-| `WindowSetAlwaysOnTop(ctx, bool)` | same |
-| `WindowSetPosition(ctx, x, y)` / `WindowGetPosition(ctx) (int,int)` | same |
-| `WindowMaximise` / `WindowUnmaximise` / `WindowIsMaximised` / `WindowToggleMaximise` | same |
-| `WindowMinimise` / `WindowUnminimise` / `WindowIsMinimised` | same |
-| `WindowSetBackgroundColour(ctx, R,G,B,A uint8)` | same. Windows: alpha must be 0 or 255 |
-| `WindowPrint(ctx)` | `WindowPrint()` |
+| `New()` / `NewWithOptions(opts)` | Returns `*WebviewWindow` |
+| `Current()` | The focused window (or the first one) |
+| `Get(name)` / `GetByName(name)` / `GetByID(id)` | `(Window, bool)` |
+| `GetAll()` | |
+| `Remove(id)` / `RemoveByName(name)` | |
+| `OnCreate(func(Window))` | |
 
-JS types: `interface Position { x: number; y: number }`, `interface Size { w: number; h: number }`.
+`*WebviewWindow` methods, mirrored on the JS `Window` object unless noted:
 
-## Dialog (Go only)
+- **Title & size**: `SetTitle`, `SetSize`, `Size`, `Width`, `Height`, `SetMinSize`, `SetMaxSize`, `SetResizable`, `Resizable`, `EnableSizeConstraints`, `DisableSizeConstraints`
+- **Position**: `SetPosition`, `Position`, `SetRelativePosition`, `RelativePosition`, `Center`, `GetScreen`
+- **State**: `Show`, `Hide`, `Focus`, `IsFocused`, `Close`, `Minimise`, `UnMinimise`, `IsMinimised`, `Maximise`, `UnMaximise`, `IsMaximised`, `Restore`, `Fullscreen`, `UnFullscreen`, `ToggleFullscreen`, `IsFullscreen`
+- **Content**: `Reload`, `ForceReload`, `SetURL`, `SetZoom`, `GetZoom`, `SetBackgroundColour`, `SetAlwaysOnTop`, `SetFrameless`, `OpenDevTools`, `ExecJS` (Go only), `Name`
+- **Events**: `OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent))`, `EmitEvent`
 
-```go
-runtime.OpenDirectoryDialog(ctx, OpenDialogOptions) (string, error)
-runtime.OpenFileDialog(ctx, OpenDialogOptions) (string, error)
-runtime.OpenMultipleFilesDialog(ctx, OpenDialogOptions) ([]string, error)
-runtime.SaveFileDialog(ctx, SaveDialogOptions) (string, error)
-runtime.MessageDialog(ctx, MessageDialogOptions) (string, error)
-```
-
-```go
-type OpenDialogOptions struct {
-    DefaultDirectory           string
-    DefaultFilename            string
-    Title                      string
-    Filters                    []FileFilter
-    ShowHiddenFiles            bool   // mac/lin
-    CanCreateDirectories       bool   // mac
-    ResolvesAliases            bool   // mac
-    TreatPackagesAsDirectories bool   // mac
-}
-
-type FileFilter struct {
-    DisplayName string  // "Image Files (*.jpg, *.png)"
-    Pattern     string  // "*.jpg;*.png"   (semicolons)
-}
-
-type MessageDialogOptions struct {
-    Type          DialogType  // InfoDialog | WarningDialog | ErrorDialog | QuestionDialog
-    Title         string
-    Message       string
-    Buttons       []string    // mac only; up to 4
-    DefaultButton string
-    CancelButton  string      // mac only
-}
-```
-
-Return strings on Windows: `"Ok"`, `"Cancel"`, `"Abort"`, `"Retry"`, `"Ignore"`, `"Yes"`, `"No"`, `"Try Again"`, `"Continue"`. Linux: `"Ok"`, `"Cancel"`, `"Yes"`, `"No"`. Question on Windows defaults to `"Yes"` — set `DefaultButton: "No"` to flip.
-
-`SaveDialogOptions` is the same as `OpenDialogOptions` minus `ResolvesAliases`.
+`app.Window.Current()` returns nil when nothing is focused, so a single-window app is usually clearer keeping its own `*WebviewWindow`.
 
 ## Events
 
-| Go | JS |
-|---|---|
-| `EventsOn(ctx, name, cb func(...interface{})) func()` | `EventsOn(name, cb): () => void` |
-| `EventsOnce(ctx, name, cb) func()` | `EventsOnce(name, cb): () => void` |
-| `EventsOnMultiple(ctx, name, cb, counter int) func()` | `EventsOnMultiple(name, cb, counter): () => void` |
-| `EventsOff(ctx, name, ...additional)` | `EventsOff(name, ...additional)` |
-| `EventsOffAll(ctx)` | `EventsOffAll()` |
-| `EventsEmit(ctx, name, ...optionalData)` | `EventsEmit(name, ...optionalData)` |
-
-Cross-language: a JS `EventsEmit` reaches Go listeners and vice versa. The `On*` functions return an unsubscribe.
-
-Built-in: `wails:file-drop` fires when `DragAndDrop.EnableFileDrop` is true. Payload: `(x, y, paths []string)`.
-
-## Log
-
-Levels low → high: Trace, Debug, Info, Warning, Error, Fatal. JS numeric: 1 Trace, 2 Debug, 3 Info, 4 Warning, 5 Error.
-
-| Go | JS |
-|---|---|
-| `LogPrint(ctx, msg)` / `LogPrintf(ctx, fmt, ...)` | `LogPrint(msg)` |
-| `LogTrace`/`LogDebug`/`LogInfo`/`LogWarning`/`LogError`/`LogFatal` (each with `*f` variant) | `LogTrace`/`LogDebug`/`LogInfo`/`LogWarning`/`LogError`/`LogFatal` |
-| `LogSetLogLevel(ctx, logger.LogLevel)` | `LogSetLogLevel(n)` |
-
-Custom logger (`github.com/wailsapp/wails/v2/pkg/logger`):
-
 ```go
-type Logger interface {
-    Print(message string)
-    Trace(message string)
-    Debug(message string)
-    Info(message string)
-    Warning(message string)
-    Error(message string)
-    Fatal(message string)
-}
+app.Event.Emit("event-name", data)
+app.Event.On("event-name", func(e *application.CustomEvent) { _ = e.Data })
+app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl,
+    func(e *application.ApplicationEvent) { _ = e.Context().URL() })
 ```
 
-## Browser
-
-`BrowserOpenURL(ctx, url string)` / `BrowserOpenURL(url)` — opens in the user's default browser.
-
-## Screen
-
-`ScreenGetAll(ctx) []Screen` / `ScreenGetAll(): Promise<Screen[]>`:
-
-```go
-type Screen struct {
-    IsCurrent bool
-    IsPrimary bool
-    Width     int
-    Height    int
-}
+```ts
+import { Events } from "@wailsio/runtime";
+const off = Events.On("event-name", (event) => console.log(event.data));
+Events.Emit("action", data);
 ```
 
-## Menu (Go only)
+- One bus for Go and JS: an event emitted on either side reaches listeners on both.
+- `Emit(name, data ...any)`: one argument becomes `Data`; several become the argument slice. **The JS callback takes an event object, not the payload** — read `event.data` (and `event.sender`, the emitting window's name).
+- `On` returns an unsubscribe function on both sides. Also `Once`, `OnMultiple(name, cb, n)`, `Off(...names)`, `OffAll()`.
+- `EmitEvent(*CustomEvent)` and `RegisterApplicationEventHook` let a hook cancel an event before it is dispatched.
+- **Application events**: `events.Common.ApplicationStarted`, `…ApplicationOpenedWithFile` (`e.Context().Filename()`), `…ApplicationLaunchedWithUrl` (`e.Context().URL()`), plus dark-mode and platform-specific ones under `events.Mac`, `events.Windows`, `events.Linux`.
+- **Window events**: `events.Common.WindowShow`, `…WindowClosing`, `…WindowDidResize`, `…WindowDidMove`, `…WindowFocus`, `…WindowLostFocus`, `…WindowMaximise`, `…WindowMinimise`, `…WindowFullscreen`, `…WindowFilesDropped`, `…WindowRuntimeReady`, `…WindowDPIChanged`, and the rest.
+
+Register the URL/file handlers **before** `app.Run()` — a launch that carries one delivers it as the application starts.
+
+## Dialogs
 
 ```go
-runtime.MenuSetApplicationMenu(ctx, *menu.Menu)
-runtime.MenuUpdateApplicationMenu(ctx)
+path, err := app.Dialog.OpenFile().
+    CanChooseFiles(false).
+    CanChooseDirectories(true).
+    SetTitle("Select a folder").
+    PromptForSingleSelection()
 ```
 
-Building menus (`github.com/wailsapp/wails/v2/pkg/menu` + `pkg/menu/keys`):
+- `OpenFile()` / `OpenFileWithOptions(*OpenFileDialogOptions)` → builder, then `PromptForSingleSelection() (string, error)` or `PromptForMultipleSelection() ([]string, error)`. Builder methods: `CanChooseFiles`, `CanChooseDirectories`, `CanCreateDirectories`, `AllowsOtherFileTypes`, `ShowHiddenFiles`, `HideExtension`, `CanSelectHiddenExtension`, `TreatsFilePackagesAsDirectories`, `ResolvesAliases`, `AddFilter(name, "*.jpg;*.png")`, `SetTitle`, `SetMessage`, `SetButtonText`, `SetDirectory`, `AttachToWindow`.
+- **There is no separate directory dialog** — it is `OpenFile()` with `CanChooseDirectories(true)` and `CanChooseFiles(false)`.
+- `SaveFile()` / `SaveFileWithOptions(...)` → the same shape.
+- `Info()`, `Question()`, `Warning()`, `Error()` → `*MessageDialog`: `SetTitle`, `SetMessage`, `AddButton`, `Show()`.
+
+JS: `Dialogs.Info/Warning/Error/Question(options)`, `Dialogs.OpenFile(options)`, `Dialogs.SaveFile(options)` — option keys are capitalised (`{ Title, Message, AllowsMultipleSelection }`).
+
+## Menus
 
 ```go
-m := menu.NewMenu()
-file := m.AddSubmenu("File")
-file.AddText("Open", keys.CmdOrCtrl("o"), func(cd *menu.CallbackData) { /* ... */ })
-file.AddSeparator()
-file.AddText("Quit", keys.CmdOrCtrl("q"), func(cd *menu.CallbackData) { runtime.Quit(ctx) })
+menu := app.Menu.New()
+menu.AddRole(application.AppMenu)
 
-// macOS standard menus
-m.Append(menu.AppMenu())
-m.Append(menu.EditMenu())   // Cmd+C/V/Z
+fileMenu := menu.AddSubmenu("File")
+fileMenu.Add("Save").SetAccelerator("CmdOrCtrl+S").OnClick(func(*application.Context) { … })
 
-runtime.MenuSetApplicationMenu(ctx, m)
+menu.AddRole(application.EditMenu)
+menu.AddRole(application.WindowMenu)
+
+app.Menu.Set(menu)
 ```
 
-`MenuItem`:
-```go
-type MenuItem struct {
-    Label       string
-    Role        Role               // macOS roles
-    Accelerator *keys.Accelerator
-    Type        Type
-    Disabled    bool
-    Hidden      bool
-    Checked     bool
-    SubMenu     *Menu
-    Click       Callback           // func(*menu.CallbackData)
-}
-```
+- `*Menu`: `Add(label) *MenuItem`, `AddSeparator()`, `AddCheckbox(label, checked)`, `AddRadio(label, on)`, `AddSubmenu(label) *Menu`, `AddRole(Role) *Menu`, `Append`/`Prepend(*Menu)`, `FindByLabel`, `FindByRole`, `ItemAt`, `RemoveMenuItem`, `Clone`, `Clear`, `Update`, `Destroy`.
+- `*MenuItem`: `OnClick(func(*application.Context))`, `SetAccelerator("CmdOrCtrl+S")`, `RemoveAccelerator`, `SetLabel`, `SetEnabled`, `SetChecked`, `SetHidden`, `SetTooltip`, `SetBitmap`, `SetRole`, plus the matching getters. All the setters return the item, so they chain.
+- Roles (`application.AppMenu`, `EditMenu`, `ViewMenu`, `WindowMenu`, `HelpMenu`, `ServicesMenu`, and item-level `About`, `Quit`, `Undo`, `Redo`, `Cut`, `Copy`, `Paste`, `SelectAll`, `Reload`, `ForceReload`, `ToggleFullscreen`, `OpenDevTools`, `ZoomIn`, `ZoomOut`, `ResetZoom`, `Minimise`, `Zoom`, `CloseWindow`, `Hide`, `HideOthers`, `ShowAll`, `BringAllToFront`, …) build the platform's standard items. There are also `New*MenuItem()` constructors for each.
+- `app.Menu.Set(menu)` installs the application menu; `app.Menu.ShowAbout()` opens the About box built from `Options.Name`/`Description`/`Icon`; `app.Menu.GetApplicationMenu()` reads it back.
+- Windows/Linux: a window uses the application menu only with `UseApplicationMenu: true`, or its own via `window.SetMenu`.
 
-## Clipboard
+`app.ContextMenu.New()` / `Add(name, menu)` registers context menus; web content opens one by setting `--custom-contextmenu` in CSS.
 
-| Go | JS |
-|---|---|
-| `ClipboardGetText(ctx) (string, error)` | `ClipboardGetText(): Promise<string>` |
-| `ClipboardSetText(ctx, text string) error` | `ClipboardSetText(text): Promise<boolean>` |
-
-Text only.
-
-## Drag-and-Drop
-
-Enable in `options.App`:
+## System tray
 
 ```go
-DragAndDrop: &options.DragAndDrop{
-    EnableFileDrop:     true,
-    DisableWebViewDrop: false,
-    CSSDropProperty:    "--wails-drop-target",
-    CSSDropValue:       "drop",
-},
+tray := app.SystemTray.New()
+tray.SetIcon(iconBytes)
+tray.SetLabel("My App")
+tray.SetMenu(menu)
+tray.AttachWindow(window).WindowOffset(5)
 ```
 
-| Go | JS |
-|---|---|
-| `OnFileDrop(ctx, func(x,y int, paths []string))` | `OnFileDrop(cb, useDropTarget: boolean)` |
-| `OnFileDropOff(ctx)` | `OnFileDropOff()` |
+Pair it with `MacOptions{ActivationPolicy: application.ActivationPolicyAccessory}` for a dockless app.
 
-When `useDropTarget` is true, JS auto-toggles a `wails-drop-target-active` class on elements whose CSS sets `CSSDropProperty: CSSDropValue`. Alternative: subscribe to the `wails:file-drop` event via `EventsOn`.
+## Everything else
 
-## Notifications
+| | Go | JS |
+|---|---|---|
+| Clipboard | `app.Clipboard.SetText(s) bool`, `.Text() (string, bool)` | `Clipboard.SetText`, `Clipboard.Text` |
+| Browser | `app.Browser.OpenURL(url) error` | `Browser.OpenURL(url)` |
+| Screens | `app.Screen.GetAll/GetPrimary/GetByID/GetByIndex`, DIP↔physical conversions | `Screens.GetAll/GetPrimary/GetCurrent/GetByID/GetByIndex` |
+| Environment | `app.Env.Info()`, `.IsDarkMode()`, `.GetAccentColor()`, `.OpenFileManager(path, selectFile)`, `.HasFocusFollowsMouse()` | `System.Environment()`, `System.IsDarkMode()`, and the synchronous `System.IsMac/IsWindows/IsLinux/IsMobile/IsDesktop/IsDebug/IsARM64/…` |
+| Key bindings | `app.KeyBinding.Add(accel, func(Window))`, `.Remove`, `.GetAll` | — |
+| Global shortcuts | `app.GlobalShortcut.Register(accel, func())`, `.Unregister`, `.UnregisterAll`, `.IsRegistered`, `.GetAll` | — |
+| Autostart | `app.Autostart.*` | — |
+| Application | `app.Hide/Show/Quit` | `Application.Hide/Show/Quit` |
 
-`InitializeNotifications(ctx) error`, `IsNotificationAvailable(ctx) bool`, plus send/dismiss with action buttons and reply text fields. Available in both Go and JS runtimes — see `website/docs/reference/runtime/notification.mdx` upstream for the full options struct.
+JS-only: `WML` (declarative `wml-event` / `wml-window` attributes on elements), `Call` (raw binding calls), `Create` (model reconstruction, used by generated code), `Stream`/`JSONStream`/`WailsSocket`, `Updater`, `setTransport`/`getTransport` for a custom IPC transport.

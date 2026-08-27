@@ -1,129 +1,105 @@
-# `wails.json`
+# Project configuration
 
-Project config consumed by `wails dev` and `wails build`. JSON schema: `https://wails.io/schemas/config.v2.json`.
+v3 has **no `wails.json`**. A project's configuration is split in two:
 
-## Full field list
+- **`build/config.yml`** — what the product is, and what `wails3 dev` runs.
+- **`Taskfile.yml` + `build/Taskfile.*.yml`** — how it is built and packaged.
 
-```json5
-{
-  "$schema": "https://wails.io/schemas/config.v2.json",
-  "version": "",
-  "name": "",                          // app/project name
-  "outputfilename": "",                // resulting binary name (no extension)
+## `build/config.yml`
 
-  // Dirs
-  "build:dir": "",                     // default: "build"
-  "frontend:dir": "",                  // default: "frontend"
-  "wailsjsdir": "",                    // where generated JS modules go (default: frontend/)
-  "assetdir": "",                      // compiled-assets dir (auto-detected if empty)
+```yaml
+version: "3"
 
-  // Frontend hooks
-  "frontend:install": "",              // e.g. "npm install"
-  "frontend:build": "",                // e.g. "npm run build"
-  "frontend:dev": "",                  // legacy; falls back to frontend:build
-  "frontend:dev:install": "",          // dev counterpart of frontend:install
-  "frontend:dev:build": "",            // dev counterpart of frontend:build
-  "frontend:dev:watcher": "",          // long-running process during `wails dev` (e.g. "npm run dev")
-  "frontend:dev:serverUrl": "",        // 3rd-party dev server URL, or "auto" (Vite)
-  "viteServerTimeout": 10,
+info:
+  companyName: "My Company"
+  productName: "My Product"
+  productIdentifier: "com.mycompany.myproduct"
+  description: "A program that does X"
+  copyright: "(c) 2025, My Company"
+  comments: "Some Product Comments"
+  version: "0.0.1"
+  # cfBundleIconName: "appicon"        # only when shipping an Assets.car icon bundle
 
-  // Watch / dev
-  "reloaddirs": "",                    // extra dirs that trigger reload (comma)
-  "debounceMS": 100,
-  "devServer": "",                     // default: "localhost:34115"
-  "appargs": "",                       // args for the app in dev mode
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir: [.git, node_modules, frontend, bin]
+    file: [.DS_Store, .gitignore, "*_test.go"]
+    watched_extension: ["*.go", "*.js", "*.ts"]
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
 
-  // Build hooks. Keys are GOOS/GOARCH; "*" matches anything
-  "runNonNativeBuildHooks": false,
-  "preBuildHooks":  { "GOOS/GOARCH": "", "GOOS/*": "", "*/*": "" },
-  "postBuildHooks": { "GOOS/GOARCH": "", "GOOS/*": "", "*/*": "" },
+fileAssociations:
+  - ext: wails
+    name: Wails
+    description: Wails Application File
+    iconName: wailsFileIcon
+    role: Editor
+    mimeType: application/x-wails      # optional
 
-  // Build flags / metadata
-  "build:tags": "",                    // tags applied to all builds
-  "obfuscated": "",
-  "garbleargs": "",
-  "nsisType": "",                      // "multiple" (per-arch) | "single" (universal)
+protocols:
+  - scheme: myapp
+    description: My App Link
 
-  // App info
-  "info": {
-    "companyName": "",
-    "productName": "",
-    "productVersion": "",
-    "copyright": "",
-    "comments": "",
-    "fileAssociations": [
-      {
-        "ext": "wails",
-        "name": "Wails",
-        "description": "Wails File",
-        "iconName": "fileIcon",
-        "role": "Editor"
-      }
-    ],
-    "protocols": [
-      { "scheme": "myapp", "description": "MyApp Protocol", "role": "Editor" }
-    ]
-  },
-
-  "author": { "name": "", "email": "" },
-
-  // Bindings codegen
-  "bindings": {
-    "ts_generation": {
-      "prefix": "",
-      "suffix": "",
-      "outputType": "classes"          // "classes" | "interfaces"
-    }
-  }
-}
+other:
+  - name: My Other Data
 ```
 
-## Hook substitution
+### `info`
 
-In `preBuildHooks` / `postBuildHooks`:
+Read by `wails3 update build-assets` (and `generate build-assets`) to render `build/darwin/Info.plist`, `build/windows/info.json`, the NSIS script and friends. Nothing reads it at runtime — an app that wants its own version at runtime embeds the file, or takes it through `-ldflags`.
 
-- `${platform}` → `GOOS/GOARCH` (e.g. `darwin/arm64`)
-- `${bin}` → path to compiled binary (post hooks only)
+`ios:` may sit beside `info:` to override `bundleID`, `displayName`, `version`, `company` and `comments` for the generated Xcode project.
 
-Hook resolution order: `GOOS/GOARCH` runs first, then `GOOS/*`, then `*/*`. Non-matching hooks are skipped. Set `runNonNativeBuildHooks: true` to also run hooks for non-host platforms.
+### `dev_mode`
 
-## `wails dev` `-save` behaviour
+The watcher [atterpac/refresh](https://github.com/atterpac/refresh) configures itself from this block. `wails3 dev` reads it from whatever `-config` names.
 
-The `-save` flag persists the following dev-only flags into `wails.json`:
+| Key | Meaning |
+|---|---|
+| `root_path` | Directory to watch, and the working directory every `executes` command runs in |
+| `log_level` | `debug`/`info`/`warn`/`error` |
+| `debounce` | Milliseconds to coalesce changes over |
+| `ignore.dir`, `ignore.file` | Names and globs to skip (`*_test.go` is always added) |
+| `ignore.watched_extension` | Globs that **do** count as a change |
+| `ignore.git_ignore` | Also honour `.gitignore` |
+| `executes` | The processes, in order |
 
-- `assetdir`
-- `reloaddirs`
-- `wailsjsdir`
-- `debounceMS`
-- `devServer`
-- `frontenddevserverurl`
-- `viteServerTimeout`
+Each `executes` entry is `{cmd, type, dir?, delay_next?}`. `dir` is relative to `root_path`; `delay_next` pauses (ms) before the next entry.
 
-## File / protocol associations
+| `type` | When it runs |
+|---|---|
+| `once` | The first pass only |
+| `background` | Started on the first pass, left running |
+| `blocking` | Every pass; the next entry waits for it |
+| `primary` | Every pass; killed and restarted on each change |
 
-`info.fileAssociations` and `info.protocols` populate platform metadata: `Info.plist` on macOS, NSIS installer on Windows, `.desktop` files on Linux. The corresponding open events come back through `mac.Options.OnFileOpen` / `OnUrlOpen` (or the `runtime.OnFileDrop` event for drops).
+### `fileAssociations` / `protocols`
 
-## Custom bindings prefix/suffix
+Consumed by the build-asset templates: `CFBundleDocumentTypes` / `CFBundleURLTypes` on macOS, registry entries on Windows. They are **not** read at runtime — the bundle's plist is what actually registers a scheme, and a project maintaining its plist by hand declares them there instead.
 
-`bindings.ts_generation.prefix`/`suffix` wrap every generated TS type in `models.ts`. `outputType: "interfaces"` emits `export interface` instead of class wrappers — useful when the frontend uses its own constructors.
+The Go side hears about both as application events: `events.Common.ApplicationOpenedWithFile` (`event.Context().Filename()`) and `events.Common.ApplicationLaunchedWithUrl` (`event.Context().URL()`). `Options.FileAssociations` is a separate, runtime-side list of extensions.
 
-## Sample (this repo)
+## Taskfiles
 
-`/Users/wham/code/kaja/desktop/wails.json`:
+`Taskfile.yml` at the project root includes `build/Taskfile.common.yml` and one per platform, and defines `build`, `package`, `run` and `dev`. `wails3 build`, `wails3 package` and `wails3 sign` are wrappers that run those tasks; `wails3 task --list` shows the rest.
 
-```json
-{
-  "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "Kaja",
-  "outputfilename": "Kaja",
-  "wailsjsdir": "../ui/src",
-  "info": {
-    "productName": "Kaja",
-    "productVersion": "0.10.0",
-    "copyright": "2026 Tomas Vesely"
-  },
-  "author": { "name": "Tomas Vesely", "email": "..." }
-}
-```
+The standard tasks are ordinary shell:
 
-`wailsjsdir: "../ui/src"` is relative to `desktop/`, so generated bindings land under `ui/src/wailsjs/`.
+- `common:generate:bindings` → `wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true {{if .UseTypescript}}-ts{{end}}`
+- `common:generate:icons` → `wails3 generate icons -input appicon.png`
+- `common:build:frontend` → `npm run build` in `frontend/`
+- `darwin:build` → `go build {{.BUILD_FLAGS}} -o {{.BIN_DIR}}/{{.APP_NAME}}` with `CGO_ENABLED=1` and `MACOSX_DEPLOYMENT_TARGET` set
+- `darwin:create:app:bundle` → `mkdir` the `.app`, then copy `icons.icns`, the binary and `Info.plist` into it
+
+`PRODUCTION=true` is what adds `-tags production -trimpath -ldflags="-w -s"`.
+
+Because that is all it is, a project with its own build scripts can skip Taskfiles entirely and call the generators directly.

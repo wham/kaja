@@ -6,8 +6,7 @@ import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { SegmentedControl } from "./components/segmented-control";
 import { isWailsEnvironment } from "./wails";
-import { ShowFileInFinder } from "./wailsjs/go/main/App";
-import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
+import { desktop, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
 import { summarizeCompilation } from "./compileSummary";
@@ -35,13 +34,13 @@ interface StatusBarProps {
 }
 
 // McpConnection is a live MCP endpoint and the token that reaches it, whichever build
-// produced it. main.MCPInfo satisfies it, which is why it is a shape rather than that type.
+// produced it. MCPInfo satisfies it, which is why it is a shape rather than that type.
 export interface McpConnection {
   enabled: boolean;
   url: string;
   token: string;
   error: string;
-  configurationPaths?: Record<string, string>;
+  configurationPaths?: Record<string, string | undefined>;
 }
 
 // AgentFooter is the web's half: a session is something this window offers, so the
@@ -126,7 +125,7 @@ function ConfigurationFileLink({ path }: { path: string }) {
   return (
     <button
       type="button"
-      onClick={() => ShowFileInFinder(path)}
+      onClick={() => void desktop().then((app) => app.ShowFileInFinder(path))}
       className="cursor-pointer break-all border-0 bg-transparent p-0 text-left font-mono text-[11px] text-foreground underline underline-offset-2 hover:text-foreground/80"
     >
       {path}
@@ -259,7 +258,7 @@ function MCPError({ message }: { message: string }) {
 function openFeedback() {
   const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
   if (isWailsEnvironment()) {
-    BrowserOpenURL(url);
+    openInBrowser(url);
   } else {
     window.open(url, "_blank");
   }
@@ -286,7 +285,7 @@ export function StatusBar({
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isWailsEnvironment() && githubUrl) {
       e.preventDefault();
-      BrowserOpenURL(githubUrl);
+      openInBrowser(githubUrl);
     }
   };
 

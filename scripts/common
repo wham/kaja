@@ -113,9 +113,19 @@ install_protoc() {
         "$(module_version github.com/wham/protoc-go)" protoc "$BUILD_DIR"
 }
 
+# A value from the `info` block of desktop/build/config.yml, which is the
+# project's wails3 configuration and the one place the product's identity is
+# written. Matched on the two-space indent, so the schema's own top-level
+# `version` is not what a query for the product's version finds.
+#
+# Usage: product_info <key>   (from the repository root)
+product_info() {
+    sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$PWD/desktop/build/config.yml" | head -1
+}
+
 # The macOS version the desktop app is built for. It is what the shipped bundle
-# declares (LSMinimumSystemVersion in desktop/build/darwin/Info.plist and
-# Info.dev.plist), so keep the three in step.
+# declares (LSMinimumSystemVersion in desktop/build/darwin/Info.plist.tmpl and
+# Info.dev.plist.tmpl), so keep the three in step.
 MACOS_DEPLOYMENT_TARGET=12.0
 
 # Build the desktop app against that version rather than the one cgo would pick

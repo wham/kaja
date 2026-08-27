@@ -1,137 +1,116 @@
-# Bindings (Go ↔ JS)
+# Services and bindings
 
-`Bind: []interface{}{ app, &otherStruct{} }` in `options.App` exposes **instances** to JS. Wails reflects over each value, picks up exported methods, and emits JS wrappers + TypeScript declarations.
-
-## Generated tree
-
-```
-frontend/wailsjs/                    # or wherever wailsjsdir points
-├── go/
-│   ├── <pkg>/<Struct>.js            # function wrappers
-│   ├── <pkg>/<Struct>.d.ts          # TS declarations
-│   └── models.ts                    # Go struct → TS class/interface
-└── runtime/
-    ├── runtime.js
-    └── runtime.d.ts
-```
-
-Regeneration is automatic on `wails dev` and `wails build`. Manual: `wails generate module`. Don't commit this tree.
-
-## Method conventions
-
-- Methods must be **exported** (uppercase first letter).
-- If the first parameter is `context.Context`, Wails injects the app context — the JS-facing signature drops it.
-- Return shapes Wails understands: `(T)`, `(T, error)`, `error`. Errors → JS `Promise` reject; success values → resolve.
-- Argument and return types: scalars, slices, maps, structs.
-- Struct fields **must have a `json` tag** to appear in generated TS.
-- Anonymous nested structs are not supported.
-- Pointers to structs are fine.
+## A service is a plain struct
 
 ```go
-type Person struct {
-    Name string `json:"name"`
-    Age  int    `json:"age"`
-}
+type GreetService struct{}
 
-type App struct{ ctx context.Context }
-
-func (a *App) startup(ctx context.Context) { a.ctx = ctx }
-
-// JS: Greet(p: main.Person): Promise<string>
-func (a *App) Greet(p Person) (string, error) {
-    if p.Name == "" {
-        return "", fmt.Errorf("missing name")
-    }
-    return "Hello " + p.Name, nil
-}
-
-// JS: TouchedAt(): Promise<string>      // ctx auto-injected
-func (a *App) TouchedAt(ctx context.Context) string {
-    return time.Now().Format(time.RFC3339)
+func (g *GreetService) Greet(name string) string {
+    return "Hello " + name
 }
 ```
-
-## JS usage
-
-```js
-import { Greet } from "../wailsjs/go/main/App";
-import { main } from "../wailsjs/go/models";
-
-const p = new main.Person();
-p.name = "Ada"; p.age = 36;
-
-Greet(p)
-  .then(console.log)
-  .catch(err => console.error(err));   // err is whatever ErrorFormatter returned
-```
-
-Internally the wrapper calls `window.go.<pkg>.<Struct>.<Method>(...)` — the global is also there if you need to call by name.
-
-## Custom error format
 
 ```go
-options.App{
-    ErrorFormatter: func(err error) any {
-        var c *MyCodedError
-        if errors.As(err, &c) {
-            return map[string]any{"code": c.Code, "message": c.Message}
-        }
-        return err.Error()
+app := application.New(application.Options{
+    Services: []application.Service{
+        application.NewService(&GreetService{}),
     },
-}
+})
 ```
 
-The returned value is JSON-marshalled and becomes the JS rejection.
+- `NewService[T](*T)` requires a **pointer to a concrete named type**. Anything else produces an invalid `Service`.
+- `NewServiceWithOptions(&svc, application.ServiceOptions{...})` sets `Name` (for logs), `Route` (see below) or `MarshalError`.
+- `app.RegisterService(...)` registers one after `application.New` — useful when the service needs the `*application.App` as a constructor argument.
+- Services receive startup in registration order, `Options.Services` first; shutdown is the reverse.
 
-## Enum binding
+## Lifecycle interfaces
 
-Wails can emit TS string-union or class enums for Go-defined enums when you supply metadata.
+All optional, all matched by name, and **none of them is bound to the frontend** (nor is `ServeHTTP`):
 
 ```go
-type Status int
-const (
-    StatusActive Status = iota
-    StatusPaused
-    StatusArchived
-)
+func (s *S) ServiceName() string { return "greeter" }
 
-var AllStatuses = []struct {
-    Value  Status
-    TSName string
-}{
-    {StatusActive, "ACTIVE"},
-    {StatusPaused, "PAUSED"},
-    {StatusArchived, "ARCHIVED"},
-}
+func (s *S) ServiceStartup(ctx context.Context, options application.ServiceOptions) error
+func (s *S) ServiceShutdown() error
+```
 
-options.App{
-    EnumBind: []interface{}{ AllStatuses },
+`ServiceStartup`'s context stays valid for the life of the application and is cancelled just before shutdown. Returning an error aborts startup: `App.Run` returns it wrapped with the service's name, and services already started are shut down.
+
+There is no `OnDomReady`. What needs a loaded window hangs off `window.OnWindowEvent(events.Common.WindowRuntimeReady, …)`.
+
+## Reaching the app from a service
+
+There is no context to capture. Pick one:
+
+```go
+// 1. Constructor injection — the clearest.
+func NewMyService(app *application.App) *MyService { return &MyService{app: app} }
+app := application.New(application.Options{})
+app.RegisterService(application.NewService(NewMyService(app)))
+
+// 2. A field set before Run, when the service must exist before the app does.
+svc.app, svc.window = app, window
+
+// 3. application.Get(), the package-level singleton.
+```
+
+## Serving HTTP from a service
+
+A service that implements `http.Handler` and is registered with `ServiceOptions{Route: "/api"}` is mounted on the internal asset server at that prefix. The frontend reaches it with an ordinary `fetch("/api/...")`.
+
+## What the generator writes
+
+```bash
+wails3 generate bindings -d frontend/bindings -ts
+```
+
+```
+frontend/bindings/github.com/you/yourapp/
+├── greetservice.ts
+├── models.ts
+└── index.ts
+```
+
+The directory under the output root is the Go **import path**, so a module named `github.com/you/yourapp` nests five levels deep. That is not configurable; a project that finds the import noisy re-exports it from a module of its own.
+
+```ts
+import { Greet } from "./bindings/github.com/you/yourapp/greetservice";
+const result = await Greet("World");
+```
+
+- One file per service, one exported function per bound method.
+- `models.ts` holds a class per Go struct the methods name, with `createFrom` for reconstructing one from JSON. `-i` emits interfaces instead.
+- `index.ts` re-exports the services under their own names plus every model. `-noindex` skips it.
+- Every generated file imports `@wailsio/runtime`; `-b` inlines a bundled copy instead, for a frontend with no package manager.
+- Calls go out by numeric ID (`$Call.ByID(2132153547, …)`). `-names` switches to names, which is slower to dispatch but survives a method being renamed in only one half of a build.
+
+## Type mapping
+
+| Go | TS |
+|---|---|
+| `string`, `bool`, numeric | `string`, `boolean`, `number` |
+| `[]byte` | `string` — **base64**, in both directions |
+| `[]T` | `T[]` |
+| `map[K]V` | `{ [_ in K]?: V }` — values are optional, because a JSON object may omit any key |
+| `*T` | `T \| null` |
+| `time.Time` | `string` (or `Date` with `-time-type Date`) |
+| struct | a class in `models.ts` |
+| `any` | `any` |
+
+Rules that survive from v2: methods must be **exported**; struct fields need `json` tags to appear at all; anonymous nested structs aren't supported — name the inner type; a **first `context.Context` parameter is auto-injected** and dropped from the JS signature.
+
+## Promises, cancellation and errors
+
+Every generated method returns a `CancellablePromise<T>` — a real `Promise` with `.cancel()` and `.oncancelled`. Cancelling one asks the Go side to abandon the call; a method whose first parameter is a `context.Context` sees that context cancelled.
+
+A method returning `(T, error)` rejects with a `RuntimeError` whose `message` is the Go error string. Shape it differently with `Options.MarshalError` or per-service `ServiceOptions.MarshalError`; both must return valid JSON or `nil` to fall through.
+
+## Typed events
+
+```go
+func init() {
+    application.RegisterEvent[string]("time")
 }
 ```
 
-The metadata appears in `models.ts`.
-
-## TS output style
-
-`wails.json`:
-
-```json
-{
-  "bindings": {
-    "ts_generation": {
-      "prefix": "",
-      "suffix": "",
-      "outputType": "classes"   // or "interfaces"
-    }
-  }
-}
-```
-
-`classes` (default) emits constructable wrappers: `new main.Person()`. `interfaces` emits plain `export interface` types — pair with frontend code that builds objects via spread/literal.
-
-## When bindings look stale
-
-- Run `wails generate module` to force regen
-- Confirm `wailsjsdir` in `wails.json` is pointing where the frontend imports from
-- A method without `json` tags on its struct types will silently produce empty TS
-- A method whose only return is a non-error type other than `(T)` or `(T, error)` won't be exposed
+Registering an event name with its data type does two things: `app.Event.Emit` validates against it (a mismatch is reported to the error handler and cancels the event), and the binding generator emits TS types for it, so `Events.On("time", e => e.data)` is typed. `-noevents` turns the generation off. Registering a name that is already a system event panics.
