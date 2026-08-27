@@ -1,18 +1,6 @@
 import { Script, scriptName } from "./apps";
 import { getApiClient } from "./server/connection";
-import { isWailsEnvironment } from "./wails";
-import {
-  CreateScript,
-  CreateScriptFolder,
-  DeleteScript,
-  DeleteScriptFolder,
-  ListScriptFolders,
-  ListScripts,
-  ReadScriptFile,
-  RenameScript,
-  RenameScriptFolder,
-  WriteScriptFile,
-} from "./wailsjs/go/main/App";
+import { desktop, isWailsEnvironment } from "./wails";
 
 /**
  * The workspace's `scripts` folder, whichever process is holding the disk. The
@@ -33,7 +21,7 @@ export function canWriteScripts(): boolean {
 
 export async function listScriptFiles(): Promise<Script[]> {
   if (isWailsEnvironment()) {
-    const list = await ListScripts();
+    const list = await (await desktop()).ListScripts();
     return (list ?? []).map((script) => ({ path: script.path, name: script.name, folder: script.folder ?? "" }));
   }
   const { response } = await getApiClient().listScripts({});
@@ -47,7 +35,7 @@ export async function listScriptFiles(): Promise<Script[]> {
  */
 export async function listScriptFolders(): Promise<string[]> {
   if (!isWailsEnvironment()) return [];
-  return (await ListScriptFolders()) ?? [];
+  return (await (await desktop()).ListScriptFolders()) ?? [];
 }
 
 /**
@@ -57,7 +45,7 @@ export async function listScriptFolders(): Promise<string[]> {
  */
 export async function readScriptFile(script: Script): Promise<{ script: Script; content: string } | undefined> {
   if (isWailsEnvironment()) {
-    const file = await ReadScriptFile(scriptName(script));
+    const file = await (await desktop()).ReadScriptFile(scriptName(script));
     if (!file) return undefined;
     return { script: { path: file.path, name: file.name, folder: file.folder ?? "" }, content: file.content };
   }
@@ -71,7 +59,7 @@ export async function readScriptFile(script: Script): Promise<{ script: Script; 
 
 /** Writes a file that already exists. Creating one is the other verb. */
 export async function writeScriptFile(script: Script, content: string): Promise<void> {
-  await WriteScriptFile(scriptName(script), content);
+  await (await desktop()).WriteScriptFile(scriptName(script), content);
 }
 
 /**
@@ -80,28 +68,28 @@ export async function writeScriptFile(script: Script, content: string): Promise<
  * somewhere new needs no trip to the sidebar first.
  */
 export async function createScriptFile(name: string, folder: string, content: string): Promise<Script> {
-  const file = await CreateScript(folder ? `${folder}/${name}` : name, content);
-  return { path: file.path, name: file.name, folder: file.folder ?? "" };
+  const file = await (await desktop()).CreateScript(folder ? `${folder}/${name}` : name, content);
+  return { path: file!.path, name: file!.name, folder: file!.folder ?? "" };
 }
 
 /** Renames a file, and moves it when the new name carries a different folder. */
 export async function renameScriptFile(script: Script, name: string, folder: string): Promise<Script> {
-  const file = await RenameScript(scriptName(script), folder ? `${folder}/${name}` : name);
-  return { path: file.path, name: file.name, folder: file.folder ?? "" };
+  const file = await (await desktop()).RenameScript(scriptName(script), folder ? `${folder}/${name}` : name);
+  return { path: file!.path, name: file!.name, folder: file!.folder ?? "" };
 }
 
 export async function deleteScriptFile(script: Script): Promise<void> {
-  await DeleteScript(scriptName(script));
+  await (await desktop()).DeleteScript(scriptName(script));
 }
 
 export async function createScriptFolder(path: string): Promise<string> {
-  return await CreateScriptFolder(path);
+  return await (await desktop()).CreateScriptFolder(path);
 }
 
 export async function renameScriptFolder(path: string, name: string): Promise<string> {
-  return await RenameScriptFolder(path, name);
+  return await (await desktop()).RenameScriptFolder(path, name);
 }
 
 export async function deleteScriptFolder(path: string): Promise<void> {
-  await DeleteScriptFolder(path);
+  await (await desktop()).DeleteScriptFolder(path);
 }

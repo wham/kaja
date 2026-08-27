@@ -195,8 +195,9 @@ func BuildForDevelopment() *UiBundle {
 }
 
 // WatchForDevelopment starts an esbuild watcher that re-bundles the UI into outDir
-// whenever a source file changes. Used by scripts/desktop with `wails dev -assetdir`
-// so Wails' built-in fsnotify watcher picks up the changes and reloads the window.
+// whenever a source file changes. Listed as a background process in
+// desktop/build/config.yml, so a development build - which serves this directory
+// off disk - shows the change on the next window reload.
 // Blocks forever; the returned context is for cancellation by callers.
 func WatchForDevelopment(outDir string) (esbuild.BuildContext, error) {
 	ctx, ctxErr := esbuild.Context(esbuild.BuildOptions{

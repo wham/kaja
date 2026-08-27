@@ -58,17 +58,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if ! command -v wails &>/dev/null; then
-    echo "error: wails not found. Install with: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0"
-    exit 1
-fi
-
 if [ -z "${BUILD_NUMBER:-}" ]; then
     echo "error: BUILD_NUMBER is required (set to github.run_number in CI)."
     exit 1
 fi
 
-PRODUCT_VERSION=$(jq -r '.info.productVersion' "$DESKTOP_DIR/wails.json")
+PRODUCT_VERSION=$(cd "$REPO_ROOT" && product_info version)
 
 echo "=== Kaja TestFlight build ==="
 echo "Version:      $PRODUCT_VERSION"
@@ -145,8 +140,7 @@ fi
 
 echo ""
 echo "--- Building desktop app (store)"
-export_macos_deployment_target
-(cd "$DESKTOP_DIR" && wails build -ldflags "-X main.GitRef=$PRODUCT_VERSION")
+GIT_REF="$PRODUCT_VERSION" "$SCRIPT_DIR/desktop-build"
 
 if [ ! -d "$APP_BUNDLE" ]; then
     echo "error: app bundle was not created at $APP_BUNDLE"

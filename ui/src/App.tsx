@@ -91,8 +91,7 @@ import { usePersistedState } from "./usePersistedState";
 import { setVariables, variableReferences } from "./variableExpansion";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
-import { isWailsEnvironment } from "./wails";
-import { EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowTitle } from "./wails";
 import {
   canWriteScripts,
   createScriptFile,
@@ -112,8 +111,7 @@ import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
 import { FileName } from "./FileName";
-import { MCPScriptResult, MCPServerInfo, MCPSetCatalog, ResolvedVariables, ScriptsFolder, ShowFileInFinder } from "./wailsjs/go/main/App";
-import { main } from "./wailsjs/go/models";
+import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
 
 const UNDO_DISCARD_MS = 8000;
@@ -285,7 +283,7 @@ export function App() {
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
-  const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
+  const [mcpInfo, setMcpInfo] = useState<MCPInfo | undefined>();
   const [mcpActive, setMcpActive] = useState(false);
   const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
   const mcpConnection = useMemo(() => {
@@ -787,9 +785,12 @@ export function App() {
     // Desktop only: its UI runs inside the app's own process, so a resolved value is
     // one it already holds. On the web the configuration's own text is all there is.
     if (isWailsEnvironment()) {
-      ResolvedVariables()
+      desktop()
+        .then((app) => app.ResolvedVariables())
         .then((resolved) => {
-          if (hostRef.current) hostRef.current.variables = resolved;
+          // A Go map reaches TypeScript with optional values, because a JSON object may
+          // omit any key. What Go sent has a value for every key it carried.
+          if (hostRef.current) hostRef.current.variables = resolved as Record<string, string>;
         })
         .catch((error) => console.error("Failed to read the resolved variables", error));
     } else {
@@ -831,7 +832,7 @@ export function App() {
     }
     document.title = title;
     if (isWailsEnvironment()) {
-      WindowSetTitle(title);
+      setWindowTitle(title);
     }
   }, [views, drafts]);
 
@@ -1185,8 +1186,7 @@ export function App() {
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    const unsub = EventsOn("link:open", (link: string) => openScriptLinkRef.current(link));
-    return () => unsub();
+    return onWailsEvent<string>("link:open", (link) => openScriptLinkRef.current(link));
   }, []);
 
   const linksReadyRef = useRef(false);
@@ -1213,7 +1213,7 @@ export function App() {
   useEffect(() => {
     if (linksReadyRef.current || scripts === undefined) return;
     linksReadyRef.current = true;
-    if (isWailsEnvironment()) EventsEmit("link:ready");
+    if (isWailsEnvironment()) emitWailsEvent("link:ready");
     else takeLinkFromLocation();
   }, [scripts, takeLinkFromLocation]);
 
@@ -1327,13 +1327,13 @@ export function App() {
   // Wire the native File → Save menu item (⌘S).
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    const unsub = EventsOn("menu:saveScript", () => onRequestSaveRef.current());
-    return () => unsub();
+    return onWailsEvent("menu:saveScript", () => onRequestSaveRef.current());
   }, []);
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    MCPServerInfo()
+    desktop()
+      .then((app) => app.MCPServerInfo())
       .then((info) => setMcpInfo(info))
       .catch((err) => showFileError(`MCP server: ${errorText(err)}`));
   }, [showFileError]);
@@ -1344,7 +1344,9 @@ export function App() {
     const variableNames = Object.keys(configuration?.variables ?? {});
     const catalog = JSON.stringify(buildMcpCatalog(apps, variableNames));
     if (isWailsEnvironment()) {
-      MCPSetCatalog(catalog).catch(() => {});
+      void desktop()
+        .then((app) => app.MCPSetCatalog(catalog))
+        .catch(() => {});
     } else {
       agentSession.setCatalog(catalog);
     }
@@ -1353,7 +1355,7 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     let timer: number | undefined;
-    const unsub = EventsOn("mcp:activity", (payload: { inFlight: number }) => {
+    const unsub = onWailsEvent<{ inFlight: number }>("mcp:activity", (payload) => {
       window.clearTimeout(timer);
       setMcpActive(true);
       if (payload.inFlight <= 0) {
@@ -1412,11 +1414,12 @@ export function App() {
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string; client?: string }) => {
+    return onWailsEvent<{ id: string; path: string; code: string; client?: string }>("mcp:runScript", async (payload) => {
       const result = await runForAgentRef.current(payload);
-      MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+      void desktop()
+        .then((app) => app.MCPScriptResult(payload.id, JSON.stringify(result)))
+        .catch(() => {});
     });
-    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -1608,16 +1611,16 @@ export function App() {
   );
 
   const onRevealScripts = useCallback(() => {
-    ScriptsFolder()
-      .then((folder) => ShowFileInFinder(folder))
+    desktop()
+      .then((app) => app.ScriptsFolder().then((folder) => app.ShowFileInFinder(folder)))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    const unsub = EventsOn(
+    const unsub = onWailsEvent<{ action: string; path: string; name?: string; folder?: string; content?: string; oldPath?: string }>(
       "mcp:scriptsChanged",
-      (payload: { action: string; path: string; name?: string; folder?: string; content?: string; oldPath?: string }) => {
+      (payload) => {
         switch (payload.action) {
           case "write": {
             const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
@@ -1846,8 +1849,8 @@ export function App() {
     if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
     const script = currentView.script;
     return () => {
-      ScriptsFolder()
-        .then((folder) => ShowFileInFinder(`${folder}/${scriptName(script)}`))
+      desktop()
+        .then((app) => app.ScriptsFolder().then((folder) => app.ShowFileInFinder(`${folder}/${scriptName(script)}`)))
         .catch(() => {});
     };
   }, [currentView]);

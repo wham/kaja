@@ -1,9 +1,13 @@
 #!/bin/bash
+# Runs the desktop app in development: `wails3 dev` watches the Go, rebuilds the
+# bundle and restarts it; esbuild's own watcher keeps the UI live and a
+# development build reads it off disk, so a UI change is ⌘R rather than a
+# rebuild. Everything either of them runs is in desktop/build/config.yml.
 set -e
 
 source "$(dirname "$0")/common"
 
-# Check if Bun is installed (wails dev invokes it via frontend:install)
+# Check if Bun is installed (the UI is bundled with it)
 if ! command -v bun &> /dev/null
 then
     if [ -t 0 ]; then
@@ -24,56 +28,16 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-# The Wails CLI writes files that are committed - desktop/go.mod and the
-# bindings under ui/src/wailsjs - and writes them the way its own version
-# does. So it is installed at the version desktop/go.mod names, on the same
-# rule the code generators in scripts/server follow: whatever is on the
-# machine already is not what decides what lands in the repository.
-WAILS_VERSION=$(module_version github.com/wailsapp/wails/v2 desktop)
-install_go_tool github.com/wailsapp/wails/v2/cmd/wails "$WAILS_VERSION"
+(cd ui && bun install)
 
-# The bindings are generated from the Go this app binds, so they are generated
-# when that Go changes and not on every start - `wails dev` regenerates them
-# twice per run, which is the longest thing in a start that changed nothing.
-# They are committed, so the generated files themselves are the other half of
-# the check: the stamp can only say what was last generated, not that it is
-# still there.
-BINDINGS_STAMP=server/build/.wails-bindings.stamp
-BINDINGS=$(fingerprint "$WAILS_VERSION" \
-    $(find desktop server -name "*.go" -not -path "*/build/*" | sort))
+# A development bundle runs from build/bin and has no path back to the tree it
+# was built in, so it is told where the UI the watcher is writing lives.
+export KAJA_FRONTEND_DIR=$PWD/desktop/frontend/dist
 
-if ! stamp_matches "$BINDINGS_STAMP" "$BINDINGS" || [ ! -f ui/src/wailsjs/go/models.ts ]; then
-    echo "Generating Wails bindings..."
-    (cd desktop && wails generate module)
-    # `wails generate module` writes the runtime files executable and `wails
-    # dev` writes them back, so the tree is committed as dev leaves it and the
-    # generator is corrected here rather than a mode being a diff in between.
-    chmod 644 ui/src/wailsjs/runtime/*
-    stamp_write "$BINDINGS_STAMP" "$BINDINGS"
-fi
-
-# Frontend prep (bun install + bundle UI + copy static assets) is now driven
-# by Wails via the frontend:install / frontend:build / frontend:dev:watcher
-# hooks declared in desktop/wails.json. `wails dev` invokes them automatically
-# with cwd = ../ui.
+# The version desktop/go.mod names, so the CLI that generates the committed
+# bindings is the one the app is built against.
+install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 \
+    "$(module_version github.com/wailsapp/wails/v3 desktop)"
 
 cd ./desktop
-
-# Build for the macOS the store build and the bundle both name, so a dev build
-# compiles the same way the shipped one does.
-export_macos_deployment_target
-
-# Dev mode. wails.json handles the entire frontend pipeline:
-#   - frontend:install runs `bun install` in ../ui
-#   - frontend:build performs the initial bundle into frontend/dist
-#   - frontend:dev:watcher keeps that dir live via esbuild's watch mode
-#   - assetdir + reloaddirs make Wails reload on UI changes and rebuild on
-#     shared Go edits
-#
-# The three flags are all the same instruction: the repository is the script's
-# to write, not the CLI's. -skipbindings because the bindings were generated
-# above if they needed to be; -nosyncgomod and -m because desktop/go.mod names
-# the version the CLI was installed at, so a CLI rewriting it can only be
-# wrong - and a `go mod tidy` on every start says nothing a build wouldn't.
-GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-wails dev -skipbindings -nosyncgomod -m -ldflags "-X main.GitRef=$GIT_REF"
+wails3 dev -config ./build/config.yml

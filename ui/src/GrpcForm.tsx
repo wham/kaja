@@ -53,8 +53,7 @@ import {
 } from "./grpcServer";
 import { GrpcApp, GrpcProblem, GrpcProblemKind, GrpcServer, InspectGrpcResponse } from "./server/api";
 import { getApiClient } from "./server/connection";
-import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
-import { isWailsEnvironment } from "./wails";
+import { desktop, isWailsEnvironment } from "./wails";
 
 // The only structural choice in the form; every other question is the same either way.
 type SurfaceMode = "reflection" | "protoDir";
@@ -319,7 +318,7 @@ export function GrpcForm({
               typedRef.current = true;
               setParameter("protoDir", value);
             }}
-            onPick={OpenDirectoryDialog}
+            onPick={() => desktop().then((app) => app.OpenDirectoryDialog())}
             icon={Folder}
             label="Select the proto directory"
             variables={variables}
@@ -906,7 +905,7 @@ function FileField({
       <PathField
         value={value}
         onValueChange={onValueChange}
-        onPick={OpenFileDialog}
+        onPick={() => desktop().then((app) => app.OpenFileDialog())}
         icon={FileIcon}
         label={label ?? "Select the file"}
         variables={variables}

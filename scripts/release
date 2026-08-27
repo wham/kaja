@@ -21,15 +21,17 @@
 #   scripts/release ship
 #
 # Requires the GitHub CLI (gh) with GH_TOKEN set (both provided on CI runners).
-# The version source of truth is desktop/wails.json's info.productVersion.
+# The version source of truth is desktop/build/config.yml's info.version.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WAILS_JSON="$REPO_ROOT/desktop/wails.json"
+CONFIGURATION="$REPO_ROOT/desktop/build/config.yml"
+
+source "$SCRIPT_DIR/common"
 
 current_version() {
-    jq -r '.info.productVersion' "$WAILS_JSON"
+    (cd "$REPO_ROOT" && product_info version)
 }
 
 next_version() {
@@ -58,11 +60,12 @@ cmd_open() {
     branch="open-$version"
     echo "Opening version $version (bump: $bump, from $(current_version))"
 
-    jq --arg v "$version" '.info.productVersion = $v' "$WAILS_JSON" > "$WAILS_JSON.tmp"
-    mv "$WAILS_JSON.tmp" "$WAILS_JSON"
+    # The two-space indent is what tells the product's version from the schema's own.
+    sed -E "s/^(  version: )\".*\"/\\1\"$version\"/" "$CONFIGURATION" > "$CONFIGURATION.tmp"
+    mv "$CONFIGURATION.tmp" "$CONFIGURATION"
 
     git switch -c "$branch"
-    git add "$WAILS_JSON"
+    git add "$CONFIGURATION"
     git commit -m "Opened version $version"
     git push origin "$branch"
 

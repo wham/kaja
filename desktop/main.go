@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"embed"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -18,14 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/logger"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
+	"sigs.k8s.io/yaml"
 
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/apps"
@@ -41,34 +36,34 @@ var GitRef string
 // AppKit would measure against.
 const headerBandHeight = 40
 
-//go:embed all:frontend/dist
-var assets embed.FS
+// The project's configuration, which is also the product's identity: the same
+// file the wails3 CLI reads and the bundle's Info.plist is rendered from.
+//
+//go:embed build/config.yml
+var configurationYAML []byte
 
-//go:embed wails.json
-var wailsJSON []byte
-
-type WailsConfig struct {
+type Configuration struct {
 	Info struct {
-		ProductName    string `json:"productName"`
-		ProductVersion string `json:"productVersion"`
-		Copyright      string `json:"copyright"`
+		ProductName string `json:"productName"`
+		Version     string `json:"version"`
+		Copyright   string `json:"copyright"`
 	} `json:"info"`
 }
 
-var config WailsConfig
+var config Configuration
 
 func init() {
-	if err := json.Unmarshal(wailsJSON, &config); err != nil {
-		slog.Error("Failed to parse wails.json", "error", err)
+	if err := yaml.Unmarshal(configurationYAML, &config); err != nil {
+		slog.Error("Failed to parse build/config.yml", "error", err)
 	}
 }
 
 var cfBundleVersionRe = regexp.MustCompile(`(?s)<key>CFBundleVersion</key>\s*<string>([^<]*)</string>`)
 
 // buildNumber returns the TestFlight/App Store build number stamped into the
-// bundle's Info.plist (CFBundleVersion). The testflight script overrides it; a plain
-// `wails build` leaves it equal to the product version, so it is only reported when
-// the two differ.
+// bundle's Info.plist (CFBundleVersion). The testflight script overrides it; an
+// ordinary bundle leaves it equal to the product version, so it is only reported
+// when the two differ.
 func buildNumber() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -88,14 +83,18 @@ func buildNumber() string {
 		return ""
 	}
 	version := strings.TrimSpace(string(match[1]))
-	if version == config.Info.ProductVersion {
+	if version == config.Info.Version {
 		return ""
 	}
 	return version
 }
 
 type App struct {
-	ctx                  context.Context
+	// The application and the one window it opens. v3 has no ambient context to
+	// call the runtime through: what a v2 runtime.* call took a context for is a
+	// method on one of these two.
+	app                  *application.App
+	window               *application.WebviewWindow
 	twirpHandler         api.TwirpServer
 	api                  *api.ApiService
 	configurationWatcher *api.ConfigurationWatcher
@@ -130,26 +129,38 @@ func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurat
 	}
 }
 
-// startup saves the context so the runtime methods can be called.
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+// attach hands the service the application and the window it drives. Called from
+// main before Run, because both exist by then and every runtime call below is a
+// method on one of them.
+func (a *App) attach(app *application.App, window *application.WebviewWindow) {
+	a.app = app
+	a.window = window
+}
 
+// ServiceStartup is the v3 startup hook. It runs once, in registration order,
+// before the frontend is served.
+func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	// The UI says when it is listening, and everything held so far goes to it.
-	runtime.EventsOn(ctx, "link:ready", func(...interface{}) { a.flushLinks() })
+	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
 
 	// The MCP server's lifetime is the process's: the UI only reports it.
 	a.startMCPServer()
 
 	if a.configurationWatcher != nil {
 		a.configurationWatcher.Subscribe(func() {
-			runtime.EventsEmit(ctx, "configuration:changed")
+			a.app.Event.Emit("configuration:changed")
 		})
 	}
+	return nil
 }
 
-// OnShutdown hook stops the MCP server if it is running.
-func (a *App) shutdown(ctx context.Context) {
+// ServiceShutdown stops the MCP server and the configuration watcher.
+func (a *App) ServiceShutdown() error {
 	a.stopMCPServer()
+	if a.configurationWatcher != nil {
+		a.configurationWatcher.Close()
+	}
+	return nil
 }
 
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
@@ -180,33 +191,33 @@ func (a *App) flushLinks() {
 }
 
 func (a *App) deliverLink(link string) {
-	runtime.WindowUnminimise(a.ctx)
-	runtime.WindowShow(a.ctx)
-	runtime.EventsEmit(a.ctx, "link:open", link)
+	a.window.UnMinimise()
+	a.window.Show()
+	a.app.Event.Emit("link:open", link)
 }
 
 // buildAppMenu assembles the native application menu.
-func (a *App) buildAppMenu() *menu.Menu {
-	appMenu := menu.NewMenu()
-	appMenu.Append(menu.AppMenu())
+func (a *App) buildAppMenu() *application.Menu {
+	appMenu := a.app.Menu.New()
+	appMenu.AddRole(application.AppMenu)
 
 	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
-		runtime.EventsEmit(a.ctx, "menu:saveScript")
+	fileMenu.Add("Save").SetAccelerator("CmdOrCtrl+S").OnClick(func(*application.Context) {
+		a.app.Event.Emit("menu:saveScript")
 	})
 
-	appMenu.Append(menu.EditMenu())
+	appMenu.AddRole(application.EditMenu)
 	viewMenu := appMenu.AddSubmenu("View")
-	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
-		runtime.WindowReloadApp(a.ctx)
+	viewMenu.Add("Reload").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) {
+		a.window.Reload()
 	})
-	appMenu.Append(menu.WindowMenu())
+	appMenu.AddRole(application.WindowMenu)
 
 	helpMenu := appMenu.AddSubmenu("Help")
-	helpMenu.AddText("Show Config in Finder", nil, func(_ *menu.CallbackData) {
+	helpMenu.Add("Show Config in Finder").OnClick(func(*application.Context) {
 		a.showConfigurationInFinder()
 	})
-	helpMenu.AddText("Show Logs in Finder", nil, func(_ *menu.CallbackData) {
+	helpMenu.Add("Show Logs in Finder").OnClick(func(*application.Context) {
 		a.showLogsInFinder()
 	})
 
@@ -283,9 +294,11 @@ func (a *App) ResolvedVariables() (map[string]string, error) {
 // OpenDirectoryDialog opens a native directory picker. On macOS it saves a
 // security-scoped bookmark so the sandbox remembers access across app restarts.
 func (a *App) OpenDirectoryDialog() (string, error) {
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select Workspace Directory",
-	})
+	dir, err := a.app.Dialog.OpenFile().
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		SetTitle("Select Workspace Directory").
+		PromptForSingleSelection()
 	if err != nil || dir == "" {
 		return dir, err
 	}
@@ -303,9 +316,11 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 // security-scoped bookmark so a sandboxed app (e.g. a gRPC app reading its
 // certificates) can read the file across restarts.
 func (a *App) OpenFileDialog() (string, error) {
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select File",
-	})
+	path, err := a.app.Dialog.OpenFile().
+		CanChooseFiles(true).
+		CanChooseDirectories(false).
+		SetTitle("Select File").
+		PromptForSingleSelection()
 	if err != nil || path == "" {
 		return path, err
 	}
@@ -596,16 +611,16 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 
 		for msg := range messages {
 			encoded := base64.StdEncoding.EncodeToString(msg)
-			runtime.EventsEmit(a.ctx, "stream:"+streamID, encoded)
+			a.app.Event.Emit("stream:"+streamID, encoded)
 		}
 
 		if err := <-errc; err != nil {
 			slog.Error("Server stream error", "streamID", streamID, "error", err)
-			runtime.EventsEmit(a.ctx, "stream:"+streamID+":error", err.Error())
+			a.app.Event.Emit("stream:"+streamID+":error", err.Error())
 		} else {
 			// The stream's upstream duration rides the end event, mirroring the
 			// kaja-upstream-duration-ms trailer of a unary call.
-			runtime.EventsEmit(a.ctx, "stream:"+streamID+":end", time.Since(started).Milliseconds())
+			a.app.Event.Emit("stream:"+streamID+":end", time.Since(started).Milliseconds())
 		}
 	}()
 
@@ -659,51 +674,58 @@ func main() {
 		slog.Warn("Failed to start configuration watcher", "error", err)
 	}
 
-	app := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
+	kaja := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
 
-	appMenu := app.buildAppMenu()
-
-	// The window buttons are part of the same row as the sidebar header and the command
-	// row. Asked for here rather than from the startup hook, which runs on a goroutine of
-	// its own and behind whatever else that hook does: this is the window's geometry, so
-	// it is queued before the app runs rather than racing the first frame.
-	alignTrafficLights(headerBandHeight)
-
-	err = wails.Run(&options.App{
-		Title: "Kaja",
-		// The size VS Code and its forks open a workspace window at, and the minimum they
-		// allow. Wails centers the window on the display for us.
-		Width:     1440,
-		Height:    900,
-		MinWidth:  400,
-		MinHeight: 270,
-		Menu:      appMenu,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	// Creating the application, creating the window and running are three steps in v3.
+	// The About box is the application's Name and Description rather than a Mac option:
+	// the AppMenu role's About item shows them.
+	wailsApp := application.New(application.Options{
+		Name:        config.Info.ProductName,
+		Description: config.Info.Version + "\n" + config.Info.Copyright,
+		Services: []application.Service{
+			application.NewService(kaja),
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown: func(ctx context.Context) {
-			app.shutdown(ctx)
-			if configurationWatcher != nil {
-				configurationWatcher.Close()
-			}
+		Assets: application.AssetOptions{
+			Handler: assetHandler(),
 		},
-		Bind: []interface{}{
-			app,
-		},
-		LogLevel: logger.ERROR,
-		Mac: &mac.Options{
-			TitleBar:  mac.TitleBarHidden(),
-			OnUrlOpen: app.openLink,
-			About: &mac.AboutInfo{
-				Title:   config.Info.ProductName + " " + config.Info.ProductVersion,
-				Message: config.Info.Copyright,
-			},
+		LogLevel: slog.LevelError,
+		Mac: application.MacOptions{
+			// v2 quit with its only window; v3 keeps the application alive unless told.
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
 
-	if err != nil {
+	// The window buttons are part of the same row as the sidebar header and the command
+	// row. Asked for here rather than from the startup hook, which runs behind whatever
+	// else that hook does: this is the window's geometry, so it is queued before the app
+	// runs rather than racing the first frame.
+	alignTrafficLights(headerBandHeight)
+
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title: config.Info.ProductName,
+		// The size VS Code and its forks open a workspace window at, and the minimum they
+		// allow. Wails centers the window on the display for us.
+		Width:            1440,
+		Height:           900,
+		MinWidth:         400,
+		MinHeight:        270,
+		BackgroundColour: application.NewRGB(27, 38, 54),
+		Mac: application.MacWindow{
+			TitleBar: application.MacTitleBarHidden,
+		},
+		URL: "/",
+	})
+
+	kaja.attach(wailsApp, window)
+	wailsApp.Menu.Set(kaja.buildAppMenu())
+
+	// A kaja:// link is an application event in v3 rather than a Mac option. Registered
+	// before Run so the URL a cold launch arrives with is not the one that is missed.
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl, func(event *application.ApplicationEvent) {
+		kaja.openLink(event.Context().URL())
+	})
+
+	if err := wailsApp.Run(); err != nil {
 		println("Error:", err.Error())
 	}
 }

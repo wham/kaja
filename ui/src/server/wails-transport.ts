@@ -11,17 +11,16 @@ import type {
 import { Deferred, RpcError, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { parseTwirpErrorResponse } from "@protobuf-ts/twirp-transport";
 import { isJsonObject, type JsonValue } from "@protobuf-ts/runtime";
-import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime";
+import { desktop, onWailsEvent } from "../wails";
 import { transportHeaders } from "../appTypes";
 import { UPSTREAM_DURATION_TRAILER, UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
 
-// Wails (v2) rejects a bound-method promise with the Go error string, not an
-// Error object. Pull a useful message out of whatever shape the rejection takes
-// so real failures (e.g. "model is required", an upstream 401) reach the UI
+// A bound method that returns an error rejects with a RuntimeError carrying the
+// Go error string. Pull a useful message out of whatever shape the rejection
+// takes so real failures (e.g. "model is required", an upstream 401) reach the UI
 // instead of a generic "Unknown error".
 function wailsErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -51,13 +50,22 @@ export function apiError(error: unknown): RpcError | undefined {
   return parseTwirpErrorResponse(failure);
 }
 
-// responseBytes decodes the body a Wails binding hands back. Wails marshals a
-// []byte as base64 - but a nil or empty one as JSON null, and atob("null")
-// decodes to three bytes of noise that fail as protobuf ("illegal tag: field no
-// 208531"). An empty body is a message with every field at its default, which is
-// an ordinary answer: SetStoredValue reports no statuses for a variable kaja.json
-// doesn't name yet, and a gRPC method may return an empty message. So nothing
-// decodes as an empty message.
+// A []byte crosses in either direction as base64.
+function requestBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+// responseBytes decodes the body a Wails binding hands back: base64 - but a nil
+// or empty []byte as JSON null, and atob("null") decodes to three bytes of noise
+// that fail as protobuf ("illegal tag: field no 208531"). An empty body is a
+// message with every field at its default, which is an ordinary answer:
+// SetStoredValue reports no statuses for a variable kaja.json doesn't name yet,
+// and a gRPC method may return an empty message. So nothing decodes as an empty
+// message.
 export function responseBytes(body: unknown): Uint8Array {
   if (typeof body !== "string" || body === "") {
     return new Uint8Array(0);
@@ -87,8 +95,8 @@ function upstreamError(result: {
   body: unknown;
   statusCode: number;
   status: string;
-  requestHeaders?: { [key: string]: string };
-  responseHeaders?: { [key: string]: string };
+  requestHeaders?: { [key: string]: string | undefined };
+  responseHeaders?: { [key: string]: string | undefined };
   durationMs?: number;
 }): UpstreamError {
   let errorJson: unknown;
@@ -185,7 +193,7 @@ export class WailsTransport implements RpcTransport {
 
     // Listen for streamed response messages
     unsubscribers.push(
-      EventsOn("stream:" + streamID, (base64Data: string) => {
+      onWailsEvent<string>("stream:" + streamID, (base64Data) => {
         try {
           const message = method.O.fromBinary(responseBytes(base64Data));
           responseStream.notifyMessage(message);
@@ -199,7 +207,7 @@ export class WailsTransport implements RpcTransport {
     // Listen for stream end. The event carries the stream's upstream duration,
     // mirrored as the same trailer a unary call arrives with.
     unsubscribers.push(
-      EventsOn("stream:" + streamID + ":end", (durationMs?: unknown) => {
+      onWailsEvent("stream:" + streamID + ":end", (durationMs) => {
         responseStream.notifyComplete();
         statusDeferred.resolve({ code: "OK", detail: "" });
         const trailers: RpcMetadata = {};
@@ -213,7 +221,7 @@ export class WailsTransport implements RpcTransport {
 
     // Listen for stream error
     unsubscribers.push(
-      EventsOn("stream:" + streamID + ":error", (errorMessage: string) => {
+      onWailsEvent<string>("stream:" + streamID + ":error", (errorMessage) => {
         const err = new Error(errorMessage);
         responseStream.notifyError(err);
         statusDeferred.reject(err);
@@ -223,23 +231,24 @@ export class WailsTransport implements RpcTransport {
     );
 
     // Start the stream
-    const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
-    const inputArray = Array.from(inputBytes);
+    const request = requestBytes(method.I.toBinary(input, { writeUnknownFields: false }));
     const fullMethodPath = `${method.service.typeName}/${method.name}`;
     // The ${NAME} references travel unexpanded; the Go side resolves them.
     const headersJson = JSON.stringify(transportHeaders(this.appRef!.configuration));
 
-    TargetServerStream(this.appRef!.target, fullMethodPath, inputArray, headersJson, streamID).catch((err) => {
-      responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
-      statusDeferred.reject(err);
-      trailersDeferred.reject(err);
-      cleanup();
-    });
+    desktop()
+      .then((app) => app.TargetServerStream(this.appRef!.target, fullMethodPath, request, headersJson, streamID))
+      .catch((err) => {
+        responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
+        statusDeferred.reject(err);
+        trailersDeferred.reject(err);
+        cleanup();
+      });
 
     // Handle abort signal
     if (options.abort) {
       options.abort.addEventListener("abort", () => {
-        CancelStream(streamID).catch(() => {});
+        void desktop().then((app) => app.CancelStream(streamID)).catch(() => {});
         cleanup();
       });
     }
@@ -287,27 +296,19 @@ export class WailsTransport implements RpcTransport {
     try {
       // Serialize input using protobuf-ts. An empty result is valid: a method with
       // no parameters has nothing to encode.
-      const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
-      // Convert to array and ensure all values are valid bytes (0-255)
-      const inputArray = Array.from(inputBytes);
-      // Validate that all values are proper bytes (only if there are bytes)
-      if (inputArray.length > 0) {
-        const invalidBytes = inputArray.filter((b) => b < 0 || b > 255 || !Number.isInteger(b));
-        if (invalidBytes.length > 0) {
-          throw new Error(`Invalid byte values found: ${invalidBytes}`);
-        }
-      }
+      const request = requestBytes(method.I.toBinary(input, { writeUnknownFields: false }));
 
       let responseBody: unknown;
       const trailers: RpcMetadata = {};
+      const app = await desktop();
 
       if (this.mode === "api") {
-        responseBody = await Twirp(method.name, inputArray);
+        responseBody = await app.Twirp(method.name, request);
       } else {
         // mode === "target" - read URL and headers dynamically from appRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
         const headersJson = JSON.stringify(transportHeaders(this.appRef!.configuration));
-        const result = await Target(this.appRef!.target, fullMethodPath, inputArray, this.protocol, headersJson);
+        const result = (await app.Target(this.appRef!.target, fullMethodPath, request, this.protocol, headersJson))!;
 
         if (result.statusCode >= 400) {
           // A structured error body: an upstream failure from an app, or a Twirp error.

@@ -1,6 +1,5 @@
 import { cloneConsole } from "./scriptConsole";
-import { LogFromUI } from "./wailsjs/go/main/App";
-import { isWailsEnvironment } from "./wails";
+import { desktop, isWailsEnvironment } from "./wails";
 
 function formatArg(arg: unknown): string {
   if (typeof arg === "string") {
@@ -26,7 +25,13 @@ function formatArg(arg: unknown): string {
 function send(level: string, args: unknown[]): void {
   const message = args.map(formatArg).join(" ");
   // Logging must never throw or recurse back into the patched console.
-  LogFromUI(level, message).catch(() => {});
+  write(level, message);
+}
+
+function write(level: string, message: string): void {
+  desktop()
+    .then((app) => app.LogFromUI(level, message))
+    .catch(() => {});
 }
 
 /**
@@ -50,7 +55,7 @@ export function logScriptLine(level: string, message: string): void {
   if (!isWailsEnvironment()) {
     return;
   }
-  LogFromUI(level, `[script] ${message}`).catch(() => {});
+  write(level, `[script] ${message}`);
 }
 
 /**

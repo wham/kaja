@@ -15,12 +15,11 @@ import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
-import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
 import { codeFontSize } from "./monacoTheme";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
 import { getVariables } from "./variableExpansion";
-import { isWailsEnvironment } from "./wails";
+import { desktop, isWailsEnvironment } from "./wails";
 
 type EditMode = "form" | "json";
 
@@ -542,7 +541,8 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                                 size="sm"
                                 tooltip={false}
                                 onClick={async () => {
-                                  const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
+                                  const app = await desktop();
+                                  const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
                                   if (path) {
                                     setParameters((prev) => ({ ...prev, [parameter.key]: path }));
                                   }

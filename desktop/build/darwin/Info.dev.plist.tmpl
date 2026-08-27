@@ -4,19 +4,17 @@
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleName</key>
-        <string>{{.Info.ProductName}}</string>
+        <string>{{ProductName}}</string>
         <key>CFBundleExecutable</key>
-        <string>{{.OutputFilename}}</string>
+        <string>{{ProductName}}</string>
         <key>CFBundleIdentifier</key>
-        <string>tools.kaja.Kaja</string>
+        <string>{{ProductIdentifier}}</string>
         <key>CFBundleVersion</key>
-        <string>{{.Info.ProductVersion}}</string>
-        <key>CFBundleGetInfoString</key>
-        <string>{{.Info.Comments}}</string>
+        <string>{{Version}}</string>
         <key>CFBundleShortVersionString</key>
-        <string>{{.Info.ProductVersion}}</string>
+        <string>{{Version}}</string>
         <key>CFBundleIconFile</key>
-        <string>iconfile</string>
+        <string>icon</string>
         <!-- Keep in step with MACOS_DEPLOYMENT_TARGET in scripts/common, which is
              the version the binary in this bundle is compiled for. -->
         <key>LSMinimumSystemVersion</key>
@@ -26,43 +24,20 @@
         <key>NSHighResolutionCapable</key>
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
-        <string>{{.Info.Copyright}}</string>
-        {{if .Info.FileAssociations}}
-        <key>CFBundleDocumentTypes</key>
-        <array>
-          {{range .Info.FileAssociations}}
-          <dict>
-            <key>CFBundleTypeExtensions</key>
-            <array>
-              <string>{{.Ext}}</string>
-            </array>
-            <key>CFBundleTypeName</key>
-            <string>{{.Name}}</string>
-            <key>CFBundleTypeRole</key>
-            <string>{{.Role}}</string>
-            <key>CFBundleTypeIconFile</key>
-            <string>{{.IconName}}</string>
-          </dict>
-          {{end}}
-        </array>
-        {{end}}
-        {{if .Info.Protocols}}
+        <string>{{Copyright}}</string>
         <key>CFBundleURLTypes</key>
         <array>
-          {{range .Info.Protocols}}
             <dict>
                 <key>CFBundleURLName</key>
-                <string>tools.kaja.{{.Scheme}}</string>
+                <string>tools.kaja.kaja</string>
                 <key>CFBundleURLSchemes</key>
                 <array>
-                    <string>{{.Scheme}}</string>
+                    <string>kaja</string>
                 </array>
                 <key>CFBundleTypeRole</key>
-                <string>{{.Role}}</string>
+                <string>Viewer</string>
             </dict>
-          {{end}}
         </array>
-        {{end}}
         <key>NSAppTransportSecurity</key>
         <dict>
             <key>NSAllowsLocalNetworking</key>
