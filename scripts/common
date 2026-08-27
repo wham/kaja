@@ -128,15 +128,16 @@ product_info() {
     sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$KAJA_ROOT/desktop/build/config.yml" | head -1
 }
 
-# One of desktop/build/darwin's plist templates, rendered to stdout. A plist is
-# the product's identity as macOS reads it, so it is filled from the same file
-# everything else reads that identity from.
+# One of desktop/build's plist templates, rendered to stdout. A plist is the
+# product's identity as an Apple platform reads it, so it is filled from the same
+# file everything else reads that identity from. The path is taken under
+# desktop/build because macOS and iOS each keep their own.
 #
-# Usage: product_plist <template filename>
+# Usage: product_plist <path under desktop/build>
 product_plist() {
     sed -e "s|{{ProductName}}|$(product_info productName)|g" \
         -e "s|{{ProductIdentifier}}|$(product_info productIdentifier)|g" \
         -e "s|{{Version}}|$(product_info version)|g" \
         -e "s|{{Copyright}}|$(product_info copyright)|g" \
-        "$KAJA_ROOT/desktop/build/darwin/$1"
+        "$KAJA_ROOT/desktop/build/$1"
 }
