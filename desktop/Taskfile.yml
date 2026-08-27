@@ -1,9 +1,9 @@
 version: "3"
 
-# How the desktop app is built. `wails3 build` runs `build`, `wails3 task --list`
-# names the rest, and `wails3 dev` reaches them through the `executes` in
-# build/config.yml - so the CLI drives the whole thing and there is no second
-# build to keep in step with it.
+# How the desktop app is built. `wails3 build` runs `build` and `wails3 task
+# --list` names the rest, so there is no second build to keep in step with it.
+# `wails3 dev` reaches `build:dev` the way it always has, through
+# `scripts/desktop-build dev` in build/config.yml.
 #
 # scripts/desktop-build is the bootstrap in front of this: wails3 ships Task
 # inside it, so installing the wails3 that desktop/go.mod names installs the
@@ -11,10 +11,6 @@ version: "3"
 #
 # A task states its `sources`, and Task skips it while their checksums and its
 # `generates` are where it left them.
-#
-# Every task here is a step that finishes. The two long-lived processes - the UI
-# watcher and the app - are `executes` of their own in build/config.yml, owned
-# and restarted by wails3 dev, with no build step in either for Task to skip.
 
 vars:
   # scripts/common is the shell library the scripts share, and the product's

@@ -14,9 +14,7 @@ info:
   version: "0.14.0"
 
 # `wails3 dev` runs from desktop/, so the root is the repository: the desktop
-# links against server/, and a change there is a change to what it runs. Which
-# is also why every `executes` entry names desktop/ as the directory its task
-# is run from.
+# links against server/, and a change there is a change to what it runs.
 dev_mode:
   root_path: ..
   log_level: warn
@@ -37,26 +35,14 @@ dev_mode:
     # The bundle the watcher restarts is built from a UI that is bundled once and
     # then kept live by esbuild's own watcher. A development build reads
     # frontend/dist off disk, so a UI change is a reload rather than a rebuild.
-    - cmd: wails3 task build:frontend
-      dir: desktop
+    - cmd: go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
       type: once
-    # The watcher and the app are the two long-lived processes, owned and
-    # restarted by wails3 dev itself rather than run as tasks - there is no
-    # build step in either for Task to skip.
     - cmd: go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
       type: background
-    - cmd: wails3 task build:dev
-      dir: desktop
+    - cmd: scripts/desktop-build dev
       type: blocking
     # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there isn't
     # one of, and a build without the `production` tag waits five seconds for it
     # and then dies. The UI is on disk, so the variable is taken back off.
-    #
-    # Quitting the app has to end the run, and nothing in v3 does that on its
-    # own: the watcher blocks until it is signalled, and a primary that exits by
-    # itself is only noted. Each execute is `/bin/sh -c` as a direct child of
-    # wails3 dev, so `$PPID` is the watcher and the app's own exit is what
-    # interrupts it. A rebuild instead SIGKILLs the whole process group, taking
-    # the shell with it, so the restart never reaches this.
-    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja; kill -INT $PPID
+    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
       type: primary
