@@ -1,6 +1,7 @@
 /desktop/.task
 /desktop/build/bin
 /desktop/build/darwin/icon.icns
+/desktop/build/ios/xcode
 /desktop/frontend/dist
 /protoc-gen-kaja/node_modules
 /protoc-gen-kaja/results

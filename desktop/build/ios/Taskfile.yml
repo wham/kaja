@@ -1,0 +1,202 @@
+version: "3"
+
+# How the iOS app is built, adapted from the Wails template. Reached as `ios:`
+# from desktop/Taskfile.yml, so `wails3 task ios:run` puts kaja on a booted
+# simulator and `wails3 task ios:package` writes the bundle.
+#
+# iOS is not a second desktop: the Go is compiled as a c-archive rather than a
+# binary and linked with UIKit's own main.m, and the webview is a WKWebView the
+# app hosts rather than a window. What is shared is everything above that - the
+# same main.go, the same services, the same frontend.
+#
+# Requires macOS with full Xcode, not just the command line tools.
+
+includes:
+  common: ../Taskfile.yml
+
+vars:
+  # A device build needs a real identity and a profile; "-" is ad-hoc signing,
+  # which the simulator takes and a device refuses.
+  IOS_PLATFORM: '{{.IOS_PLATFORM | default "simulator"}}'
+  CODESIGN_IDENTITY: '{{.CODESIGN_IDENTITY | default "-"}}'
+  PROVISIONING_PROFILE: '{{.PROVISIONING_PROFILE | default ""}}'
+  ENTITLEMENTS_FILE: '{{.ENTITLEMENTS_FILE | default "build/ios/entitlements.plist"}}'
+  # Keep in step with MinimumOSVersion in build/ios/Info.plist.tmpl, which is
+  # what the bundle declares.
+  MIN_IOS_VERSION: "15.0"
+  IOS_SDK: '{{if eq .IOS_PLATFORM "device"}}iphoneos{{else}}iphonesimulator{{end}}'
+  IOS_TARGET: 'arm64-apple-ios{{.MIN_IOS_VERSION}}{{if ne .IOS_PLATFORM "device"}}-simulator{{end}}'
+  IOS_VERSION_MIN_FLAG: '{{if eq .IOS_PLATFORM "device"}}-miphoneos-version-min={{.MIN_IOS_VERSION}}{{else}}-mios-simulator-version-min={{.MIN_IOS_VERSION}}{{end}}'
+  # Under bin/ios rather than beside the .app the Mac build writes: same name,
+  # same directory, and one platform's bundle would be installed as the other's.
+  BIN: "build/bin/ios"
+  # Not APP, which desktop/Taskfile.yml already declares: a name the including
+  # Taskfile also defines resolves against its value, not the one written here.
+  BUNDLE: "{{.BIN}}/{{.NAME}}.app"
+
+tasks:
+  run:
+    desc: Build kaja and launch it on a booted iOS Simulator
+    deps: [ensure-simulator]
+    cmds:
+      - task: package
+      - task: deploy-simulator
+
+  package:
+    desc: The .app bundle - the Go archive linked with UIKit and signed
+    deps: [build]
+    cmds:
+      - task: link
+      - task: bundle
+
+  xcode:
+    desc: Open the generated Xcode project, which is where device signing is managed
+    deps: [generate:xcode]
+    cmds:
+      - open build/ios/xcode/main.xcodeproj
+
+  logs:
+    desc: Stream the simulator's log, filtered to this app
+    cmds:
+      - |
+        xcrun simctl spawn booted log stream --level debug --style compact \
+          --predicate 'senderImagePath CONTAINS[c] "{{.NAME}}.app/" OR process == "{{.NAME}}"'
+
+  # The UI is embedded rather than read off disk: `development` is kaja's tag for
+  # a frontend/dist the binary can reach, and an app installed on a simulator has
+  # no such directory in front of it. So there is one iOS build, and `run` and
+  # `package` differ by nothing but where the bundle goes.
+  build:
+    internal: true
+    deps:
+      - task: generate:overlay
+      - task: generate:xcode
+      - task: common:build:frontend
+    vars:
+      SDK_PATH:
+        sh: xcrun --sdk {{.IOS_SDK}} --show-sdk-path
+    env:
+      GOOS: ios
+      GOARCH: arm64
+      CGO_ENABLED: 1
+      CGO_CFLAGS: "-isysroot {{.SDK_PATH}} -target {{.IOS_TARGET}} {{.IOS_VERSION_MIN_FLAG}}"
+      CGO_LDFLAGS: "-isysroot {{.SDK_PATH}} -target {{.IOS_TARGET}}"
+    cmds:
+      - mkdir -p "{{.BIN}}"
+      # The overlay injects the shim UIKit calls into main(), so main.go is the
+      # same file the desktop builds.
+      - >-
+        go build -buildmode=c-archive -overlay build/ios/xcode/overlay.json
+        -tags production,ios -ldflags "-X main.GitRef={{.GIT_REF}}"
+        -o "{{.BIN}}/{{.NAME}}.a" .
+
+  link:
+    internal: true
+    vars:
+      SDK_PATH:
+        sh: xcrun --sdk {{.IOS_SDK}} --show-sdk-path
+    cmds:
+      # -force_load, because the archive's entry points are only reached from
+      # Objective-C and the linker would drop them as unreferenced.
+      - >-
+        xcrun -sdk {{.IOS_SDK}} clang -target {{.IOS_TARGET}} -isysroot {{.SDK_PATH}}
+        -framework Foundation -framework UIKit -framework WebKit
+        -framework Security -framework CoreFoundation
+        -framework UniformTypeIdentifiers -lresolv
+        -o "{{.BIN}}/{{.NAME}}" build/ios/xcode/main/main.m
+        -Wl,-force_load,"{{.BIN}}/{{.NAME}}.a"
+
+  bundle:
+    internal: true
+    cmds:
+      - rm -rf "{{.BUNDLE}}"
+      - mkdir -p "{{.BUNDLE}}"
+      - cp "{{.BIN}}/{{.NAME}}" "{{.BUNDLE}}/{{.NAME}}"
+      - bash -c '. ../scripts/common && product_plist ios/Info.plist.tmpl' > "{{.BUNDLE}}/Info.plist"
+      - task: icons
+      - |
+        # Entitlements are for device builds alone: a simulator bundle carrying
+        # them is one SpringBoard refuses to launch.
+        if [ "{{.IOS_PLATFORM}}" = "device" ] && [ -n "{{.PROVISIONING_PROFILE}}" ]; then
+          cp "{{.PROVISIONING_PROFILE}}" "{{.BUNDLE}}/embedded.mobileprovision"
+        fi
+        if [ "{{.IOS_PLATFORM}}" = "device" ] && [ -f "{{.ENTITLEMENTS_FILE}}" ]; then
+          codesign --force --sign "{{.CODESIGN_IDENTITY}}" --entitlements "{{.ENTITLEMENTS_FILE}}" "{{.BUNDLE}}"
+        else
+          codesign --force --sign "{{.CODESIGN_IDENTITY}}" "{{.BUNDLE}}"
+        fi
+      - echo "Built desktop/{{.BUNDLE}}"
+
+  icons:
+    internal: true
+    cmds:
+      - |
+        # iOS reads its icons out of a compiled asset catalog rather than off a
+        # file the way the .icns in the Mac bundle is read.
+        CATALOG=build/ios/xcode/main/Assets.xcassets
+        [ -d "$CATALOG" ] || exit 0
+        OUT=$(mktemp -d)
+        xcrun actool --compile "$OUT" --app-icon AppIcon --platform {{.IOS_SDK}} \
+          --minimum-deployment-target {{.MIN_IOS_VERSION}} \
+          --product-type com.apple.product-type.application \
+          --target-device iphone --target-device ipad \
+          --output-partial-info-plist "{{.BUNDLE}}/assetcatalog.plist" "$CATALOG"
+        if [ -f "$OUT/Assets.car" ]; then cp -f "$OUT/Assets.car" "{{.BUNDLE}}/Assets.car"; fi
+        rm -rf "$OUT"
+        if [ -f "{{.BUNDLE}}/assetcatalog.plist" ]; then
+          /usr/libexec/PlistBuddy -c "Merge {{.BUNDLE}}/assetcatalog.plist" "{{.BUNDLE}}/Info.plist"
+          rm -f "{{.BUNDLE}}/assetcatalog.plist"
+        fi
+
+  deploy-simulator:
+    internal: true
+    cmds:
+      - |
+        BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "{{.BUNDLE}}/Info.plist")
+        xcrun simctl terminate booted "$BUNDLE_ID" 2>/dev/null || true
+        xcrun simctl uninstall booted "$BUNDLE_ID" 2>/dev/null || true
+        xcrun simctl install booted "{{.BUNDLE}}"
+        xcrun simctl launch booted "$BUNDLE_ID"
+
+  generate:overlay:
+    internal: true
+    sources:
+      - build/config.yml
+    generates:
+      - build/ios/xcode/overlay.json
+      - build/ios/xcode/gen/main_ios.gen.go
+    cmds:
+      - wails3 ios overlay:gen -out build/ios/xcode/overlay.json -config build/config.yml
+
+  generate:xcode:
+    internal: true
+    sources:
+      - build/config.yml
+      - build/appicon.png
+    generates:
+      - build/ios/xcode/main/main.m
+      - build/ios/xcode/main.xcodeproj/project.pbxproj
+    cmds:
+      - wails3 ios xcode:gen -outdir build/ios/xcode -config build/config.yml
+
+  ensure-simulator:
+    internal: true
+    preconditions:
+      - sh: command -v xcrun
+        msg: "xcrun not found - iOS builds need full Xcode, not just the command line tools"
+    cmds:
+      - |
+        xcrun simctl list devices booted | grep -q Booted && exit 0
+        DEVICE=$(xcrun simctl list devices available | grep iPhone | head -1 | grep -o "[A-F0-9-]\{36\}")
+        if [ -z "$DEVICE" ]; then
+          echo "No iPhone simulator installed. Add one in Xcode > Settings > Components." >&2
+          exit 1
+        fi
+        xcrun simctl boot "$DEVICE"
+        open -a Simulator
+        for _ in $(seq 30); do
+          xcrun simctl list devices booted | grep -q Booted && exit 0
+          sleep 1
+        done
+        echo "Simulator did not boot within 30 seconds" >&2
+        exit 1

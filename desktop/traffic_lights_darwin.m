@@ -1,3 +1,5 @@
+//go:build darwin && !ios
+
 #import <Cocoa/Cocoa.h>
 
 // AppKit centres the three window buttons on the 28pt title bar, which is 6pt

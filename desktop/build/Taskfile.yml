@@ -1,0 +1,49 @@
+version: "3"
+
+# The steps the macOS build and the iOS build both take, in a file of their own
+# because build/ios/Taskfile.yml includes them and a Taskfile cannot include the
+# one that includes it. Everything platform-specific stays where it belongs -
+# the .app in desktop/Taskfile.yml, the .a and the UIKit link in ios/.
+#
+# A task states its `sources`, and Task skips it while their checksums and its
+# `generates` are where it left them.
+
+tasks:
+  build:frontend:
+    desc: Bundle the UI into frontend/dist
+    # The UI imports the bindings, so they are written before anything reads them.
+    deps: [install:ui, generate:bindings]
+    dir: ..
+    sources:
+      - ui/src/**/*
+      - ui/package.json
+      - ui/bun.lock
+      - server/cmd/build-ui/**/*.go
+      - server/internal/ui/**/*.go
+      - server/static/**/*
+    generates:
+      - desktop/frontend/dist/index.html
+    cmds:
+      - go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
+
+  generate:bindings:
+    desc: Regenerate ui/src/bindings from the Go this app binds
+    dir: ..
+    # The bindings are committed, and the Wails CLI writes them the way its own
+    # version does - so go.mod is an input as much as the Go it reads.
+    sources:
+      - desktop/*.go
+      - desktop/go.mod
+      - server/cmd/**/*.go
+      - server/internal/**/*.go
+      - server/pkg/**/*.go
+    generates:
+      - ui/src/bindings/github.com/wham/kaja/desktop/*.ts
+    cmds:
+      - cd desktop && wails3 generate bindings -d ../ui/src/bindings -ts -silent
+
+  install:ui:
+    internal: true
+    dir: ../ui
+    cmds:
+      - bun install

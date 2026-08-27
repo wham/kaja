@@ -1,0 +1,79 @@
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleName</key>
+        <string>{{ProductName}}</string>
+        <key>CFBundleDisplayName</key>
+        <string>{{ProductName}}</string>
+        <key>CFBundleExecutable</key>
+        <string>{{ProductName}}</string>
+        <key>CFBundleIdentifier</key>
+        <string>{{ProductIdentifier}}</string>
+        <key>CFBundleVersion</key>
+        <string>{{Version}}</string>
+        <key>CFBundleShortVersionString</key>
+        <string>{{Version}}</string>
+        <key>LSRequiresIPhoneOS</key>
+        <true/>
+        <!-- Keep in step with MIN_IOS_VERSION in desktop/build/ios/Taskfile.yml,
+             which is the version the binary in this bundle is compiled for. -->
+        <key>MinimumOSVersion</key>
+        <string>15.0</string>
+        <!-- The empty dict is the launch screen: naming a storyboard means
+             carrying a compiled one, and nothing in the bundle task compiles the
+             .storyboard the Xcode project is generated with. Without either, iOS
+             letterboxes the app rather than giving it the screen. -->
+        <key>UILaunchScreen</key>
+        <dict/>
+        <key>UIRequiredDeviceCapabilities</key>
+        <array>
+            <string>arm64</string>
+        </array>
+        <key>UISupportedInterfaceOrientations</key>
+        <array>
+            <string>UIInterfaceOrientationPortrait</string>
+            <string>UIInterfaceOrientationLandscapeLeft</string>
+            <string>UIInterfaceOrientationLandscapeRight</string>
+        </array>
+        <key>UISupportedInterfaceOrientations~ipad</key>
+        <array>
+            <string>UIInterfaceOrientationPortrait</string>
+            <string>UIInterfaceOrientationPortraitUpsideDown</string>
+            <string>UIInterfaceOrientationLandscapeLeft</string>
+            <string>UIInterfaceOrientationLandscapeRight</string>
+        </array>
+        <key>NSHumanReadableCopyright</key>
+        <string>{{Copyright}}</string>
+        <key>ITSAppUsesNonExemptEncryption</key>
+        <false/>
+        <!-- An app is a workspace's upstreams, and a workspace names whatever it
+             names - a plain-http service on a LAN as readily as an https one. ATS
+             is a list of hosts to trust, and kaja does not know them at build
+             time. macOS asks nothing of the bundle here, which is why only the
+             iOS plists carry this. -->
+        <key>NSAppTransportSecurity</key>
+        <dict>
+            <key>NSAllowsArbitraryLoads</key>
+            <true/>
+            <key>NSAllowsLocalNetworking</key>
+            <true/>
+        </dict>
+        <!-- The kaja:// scheme a deeplink arrives on. Registering it is a bundle's
+             job, so this is the one place it is declared (scriptLink.ts). -->
+        <key>CFBundleURLTypes</key>
+        <array>
+            <dict>
+                <key>CFBundleURLName</key>
+                <string>tools.kaja.kaja</string>
+                <key>CFBundleURLSchemes</key>
+                <array>
+                    <string>kaja</string>
+                </array>
+                <key>CFBundleTypeRole</key>
+                <string>Viewer</string>
+            </dict>
+        </array>
+    </dict>
+</plist>

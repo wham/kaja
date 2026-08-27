@@ -1,3 +1,5 @@
+//go:build darwin && !ios
+
 #import <Cocoa/Cocoa.h>
 
 // Opens the given directory in Finder. Called from Go (reveal_darwin.go).
