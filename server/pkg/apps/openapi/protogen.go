@@ -449,12 +449,24 @@ func (g *generator) lookupRef(ref string) *schema {
 	return g.spec.Components.Schemas[refName(ref)]
 }
 
-// unionOf returns a schema's oneOf/anyOf variants, if any.
+// unionOf returns a schema's oneOf/anyOf variants, dropping the bare
+// {"type": "null"} entry OpenAPI 3.1 writes to make a variant nullable. That entry
+// is the union spelling of ["string", "null"], which openAPIType already reduces the
+// same way - proto3 models an absent value without help, and left in it makes every
+// nullable scalar look like a union of mixed categories and decode through Value.
 func unionOf(s *schema) []*schema {
-	if len(s.OneOf) > 0 {
-		return s.OneOf
+	variants := s.OneOf
+	if len(variants) == 0 {
+		variants = s.AnyOf
 	}
-	return s.AnyOf
+	var out []*schema
+	for _, v := range variants {
+		if v != nil && v.Type == "null" {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // objectLike reports whether a schema's JSON shape is an object, following
@@ -689,6 +701,12 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		return g.refType(parent, hint, s.Ref)
 	}
 	if vs := unionOf(s); len(vs) > 0 {
+		if len(vs) == 1 {
+			// Only the nullable entry was dropped, so the union is its one remaining
+			// variant. Delegating keeps a "$ref | null" property on the shared message
+			// rather than merging the ref's properties into a copy of it.
+			return g.protoType(parent, hint, vs[0])
+		}
 		if g.allObjectLike(vs) {
 			// All variants are objects (a discriminated union): merge their
 			// properties into one message so any variant can be expressed.

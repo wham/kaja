@@ -618,6 +618,55 @@ func TestInvokeUpstreamError(t *testing.T) {
 	}
 }
 
+// TestInvokeUnreadableResponse locks in that a 200 the app cannot shape into the
+// method's response is reported as the HTTP call it made, with the body verbatim -
+// the API deviating from its own document is only visible in what it sent back, and
+// a codec error on its own names neither the call nor the answer.
+func TestInvokeUnreadableResponse(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, petstoreSpec) })
+	mux.HandleFunc("/v3/pets/1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// The document declares "name" a string; the API answers with an array.
+		io.WriteString(w, `{"id":1,"name":["Fido","Rex"]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
+	_, err = inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
+
+	var upstream *apps.UpstreamError
+	if !errors.As(err, &upstream) {
+		t.Fatalf("expected apps.UpstreamError for an unreadable response, got %v", err)
+	}
+	if !upstream.Unreadable {
+		t.Errorf("Unreadable = false, want true")
+	}
+	if upstream.Status != http.StatusOK {
+		t.Errorf("Status = %d, want 200", upstream.Status)
+	}
+	if upstream.TransportStatus() != http.StatusBadGateway {
+		t.Errorf("TransportStatus = %d, want 502", upstream.TransportStatus())
+	}
+	// The reason names the message the body was read against and the field that
+	// could not be read, which is the whole diagnosis.
+	if !strings.Contains(upstream.Message, "Pet") || !strings.Contains(upstream.Message, "name") {
+		t.Errorf("Message = %q", upstream.Message)
+	}
+	if !strings.Contains(string(upstream.Body), `["Fido","Rex"]`) {
+		t.Errorf("Body = %s", upstream.Body)
+	}
+	if upstream.Method != http.MethodGet || !strings.HasSuffix(upstream.URL, "/v3/pets/1") {
+		t.Errorf("request = %s %s", upstream.Method, upstream.URL)
+	}
+}
+
 // TestInt64Format locks in that integer fields with format int64 map to int64,
 // so large IDs (e.g. the petstore's) don't overflow int32 during transcoding.
 func TestInt64Format(t *testing.T) {
@@ -979,7 +1028,7 @@ func TestTranscodeArrayQuery(t *testing.T) {
 	in := &instance{baseURL: srv.URL, client: srv.Client()}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []queryParam{{name: "tags"}}, responseWrap: "array"}
 
-	if _, _, _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
+	if _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
 		t.Fatalf("transcode: %v", err)
 	}
 	if gotRawQuery != "tags=foo&tags=bar" {
@@ -1324,6 +1373,104 @@ components:
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
 		}
+	}
+
+	// The generated proto must compile into descriptors.
+	dir := t.TempDir()
+	if err := gen.write(dir); err != nil {
+		t.Fatalf("write proto: %v", err)
+	}
+	if _, err := compileMethods(dir, gen); err != nil {
+		t.Fatalf("compileMethods: %v", err)
+	}
+}
+
+// The other way OpenAPI 3.1 writes a nullable value is a union with a bare
+// {"type": "null"} variant. It says exactly what ["string", "null"] says, so the
+// null entry is dropped before the union is classified: the field keeps the type
+// the API declares instead of degrading to google.protobuf.Value, a $ref stays the
+// shared message rather than being copied into an inline one, and a union of object
+// variants still merges into the superset message.
+func TestOpenAPI31NullableUnion(t *testing.T) {
+	const spec = `
+openapi: 3.1.0
+info: { title: Nullable Union API, version: "1.0.0" }
+servers: [{ url: https://example.test }]
+paths:
+  /events:
+    get:
+      operationId: listEvents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        authors:
+          oneOf:
+            - { type: string, format: uri }
+            - { type: "null" }
+        capacity:
+          oneOf:
+            - { type: integer, format: int64 }
+            - { type: "null" }
+        aliases:
+          oneOf:
+            - { type: array, items: { type: string } }
+            - { type: "null" }
+        folder:
+          oneOf:
+            - { $ref: "#/components/schemas/FolderRef" }
+            - { type: "null" }
+        scale:
+          oneOf:
+            - { $ref: "#/components/schemas/FlatScale" }
+            - { $ref: "#/components/schemas/TieredScale" }
+            - { type: "null" }
+    FolderRef:
+      type: object
+      properties:
+        id: { type: string }
+    FlatScale:
+      type: object
+      properties:
+        factor: { type: number, format: double }
+    TieredScale:
+      type: object
+      properties:
+        tiers: { type: integer }
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	for _, frag := range []string{
+		"message Event {",
+		"string authors = ",
+		"int64 capacity = ",
+		"repeated string aliases = ",
+		// The one remaining variant is a $ref, so the property keeps the shared
+		// message instead of merging its properties into a copy of it.
+		"FolderRef folder = ",
+		// Two object variants still merge into one superset message.
+		"double factor = ",
+		"int32 tiers = ",
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+	if strings.Contains(gen.proto, "google.protobuf.Value") {
+		t.Errorf("nullable union degraded to Value\n---\n%s", gen.proto)
 	}
 
 	// The generated proto must compile into descriptors.

@@ -55,7 +55,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, fmt.Errorf("encoding request to JSON: %w", err)
 	}
 
-	respJSON, reqHeaders, respHeaders, err := in.transcode(method.binding, reqJSON, headers)
+	ex, err := in.transcode(method.binding, reqJSON, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -63,24 +63,43 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	// Encode the JSON response back into the method's protobuf response, ignoring
 	// any extra REST fields not modeled in the proto.
 	respMsg := dynamicpb.NewMessage(method.output)
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(respJSON, respMsg); err != nil {
-		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(ex.responseJSON, respMsg); err != nil {
+		// The API answered, and what it answered is not the shape its own document
+		// promises for this operation. The body is the only thing that says how it
+		// differs, so it travels whole under a reason naming the message it was read
+		// against - a codec error on its own names neither the call nor the answer.
+		reason := fmt.Sprintf("the response is not the %s the spec declares: %v", method.output.Name(), err)
+		return nil, apps.NewUnreadableResponse(ex.verb, ex.url, ex.status, ex.body, reason).
+			WithHeaders(ex.requestHeaders, ex.responseHeaders)
 	}
 	body, err := proto.Marshal(respMsg)
 	if err != nil {
 		return nil, err
 	}
-	return &apps.InvokeResult{Body: body, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
+	return &apps.InvokeResult{Body: body, RequestHeaders: ex.requestHeaders, ResponseHeaders: ex.responseHeaders}, nil
+}
+
+// exchange is the upstream HTTP call a method transcoded to together with what came
+// back. The response body is carried verbatim beside the proto3-JSON it was shaped
+// into, because a body that fails to decode is the whole of what explains why.
+type exchange struct {
+	verb            string
+	url             string
+	status          int
+	body            []byte
+	responseJSON    []byte
+	requestHeaders  map[string]string
+	responseHeaders map[string]string
 }
 
 // transcode runs the upstream REST call for a method given the proto3-JSON
-// request, returning the proto3-JSON response along with the request headers
-// actually sent upstream and the response headers received.
-func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) ([]byte, map[string]string, map[string]string, error) {
+// request, returning the exchange it made: the call, its status, the body verbatim
+// and that body shaped into the proto3-JSON the method's response is read from.
+func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) (*exchange, error) {
 	req := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(request)) > 0 {
 		if err := json.Unmarshal(request, &req); err != nil {
-			return nil, nil, nil, fmt.Errorf("decoding request: %w", err)
+			return nil, fmt.Errorf("decoding request: %w", err)
 		}
 	}
 
@@ -147,7 +166,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 
 	httpReq, err := http.NewRequest(binding.verb, fullURL, body)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("building request: %w", err)
+		return nil, fmt.Errorf("building request: %w", err)
 	}
 	// Least specific first: the spec's auth, then the app's configured headers,
 	// then the header parameters typed into this one call - so the more precise
@@ -177,21 +196,29 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 
 	resp, err := in.client.Do(httpReq)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("calling %s %s: %w", binding.verb, fullURL, err)
+		return nil, fmt.Errorf("calling %s %s: %w", binding.verb, fullURL, err)
 	}
 	defer resp.Body.Close()
 	respHeaders := apps.SurfaceHeaders(resp.Header)
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("reading response: %w", err)
+		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, nil, nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody).WithHeaders(reqHeaders, respHeaders)
+		return nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody).WithHeaders(reqHeaders, respHeaders)
 	}
 
-	return wrapResponse(binding.responseWrap, respBody), reqHeaders, respHeaders, nil
+	return &exchange{
+		verb:            binding.verb,
+		url:             fullURL,
+		status:          resp.StatusCode,
+		body:            respBody,
+		responseJSON:    wrapResponse(binding.responseWrap, respBody),
+		requestHeaders:  reqHeaders,
+		responseHeaders: respHeaders,
+	}, nil
 }
 
 // lookup finds a method by exact gRPC path, falling back to a case-insensitive
