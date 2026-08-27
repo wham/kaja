@@ -12,11 +12,9 @@ version: "3"
 # A task states its `sources`, and Task skips it while their checksums and its
 # `generates` are where it left them.
 #
-# Every task here is a step that finishes. Task waits for the command it is
-# running rather than passing a signal on to it, so a process that never ends
-# on its own - the UI watcher, the app itself - can only be killed by whoever
-# started it. Those two are `executes` of their own in build/config.yml, run by
-# the watcher directly.
+# Every task here is a step that finishes. The two long-lived processes - the UI
+# watcher and the app - are `executes` of their own in build/config.yml, owned
+# and restarted by wails3 dev, with no build step in either for Task to skip.
 
 vars:
   # scripts/common is the shell library the scripts share, and the product's

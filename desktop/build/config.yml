@@ -40,9 +40,9 @@ dev_mode:
     - cmd: wails3 task build:frontend
       dir: desktop
       type: once
-    # The watcher and the app are the two processes with no end of their own, so
-    # they are run here rather than as tasks: Task waits for its command instead
-    # of passing a signal on to it, and nothing would ever shut either down.
+    # The watcher and the app are the two long-lived processes, owned and
+    # restarted by wails3 dev itself rather than run as tasks - there is no
+    # build step in either for Task to skip.
     - cmd: go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
       type: background
     - cmd: wails3 task build:dev
@@ -51,5 +51,12 @@ dev_mode:
     # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there isn't
     # one of, and a build without the `production` tag waits five seconds for it
     # and then dies. The UI is on disk, so the variable is taken back off.
-    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
+    #
+    # Quitting the app has to end the run, and nothing in v3 does that on its
+    # own: the watcher blocks until it is signalled, and a primary that exits by
+    # itself is only noted. Each execute is `/bin/sh -c` as a direct child of
+    # wails3 dev, so `$PPID` is the watcher and the app's own exit is what
+    # interrupts it. A rebuild instead SIGKILLs the whole process group, taking
+    # the shell with it, so the restart never reaches this.
+    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja; kill -INT $PPID
       type: primary
