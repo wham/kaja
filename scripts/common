@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Where this file is, so what it reads is found from the repository rather than
+# from the caller's working directory - the desktop Taskfile sources it from
+# desktop/, and the scripts source it from wherever they were run.
+KAJA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # The sha256 of everything given: an argument that names a file contributes its
 # path and contents, any other argument is taken literally. It is what a step
 # compares against its stamp to decide whether it has anything to do.
@@ -111,4 +116,27 @@ install_protoc() {
 
     install_go_tool github.com/wham/protoc-go/cmd/protoc-go \
         "$(module_version github.com/wham/protoc-go)" protoc "$BUILD_DIR"
+}
+
+# A value from the `info` block of desktop/build/config.yml, which is the
+# project's wails3 configuration and the one place the product's identity is
+# written. Matched on the two-space indent, so the schema's own top-level
+# `version` is not what a query for the product's version finds.
+#
+# Usage: product_info <key>
+product_info() {
+    sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$KAJA_ROOT/desktop/build/config.yml" | head -1
+}
+
+# One of desktop/build/darwin's plist templates, rendered to stdout. A plist is
+# the product's identity as macOS reads it, so it is filled from the same file
+# everything else reads that identity from.
+#
+# Usage: product_plist <template filename>
+product_plist() {
+    sed -e "s|{{ProductName}}|$(product_info productName)|g" \
+        -e "s|{{ProductIdentifier}}|$(product_info productIdentifier)|g" \
+        -e "s|{{Version}}|$(product_info version)|g" \
+        -e "s|{{Copyright}}|$(product_info copyright)|g" \
+        "$KAJA_ROOT/desktop/build/darwin/$1"
 }

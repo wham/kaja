@@ -13,8 +13,11 @@ version: "3"
 # `generates` are where it left them.
 
 vars:
+  # scripts/common is the shell library the scripts share, and the product's
+  # identity is read out of build/config.yml there. A Taskfile can't call a bash
+  # function, so it sources the library the same way they do.
   NAME:
-    sh: ../scripts/product-info productName
+    sh: bash -c '. ../scripts/common && product_info productName'
   APP: "build/bin/{{.NAME}}.app"
   # The commit the build reports as its own. testflight names the version
   # instead, so what is already in the environment wins.
@@ -136,5 +139,5 @@ tasks:
       # directory on disk.
       - go build -tags "{{.TAGS}}" -ldflags "-X main.GitRef={{.GIT_REF}}" -o "{{.APP}}/Contents/MacOS/{{.NAME}}" .
       - cp build/darwin/icon.icns "{{.APP}}/Contents/Resources/icon.icns"
-      - ../scripts/product-plist "build/darwin/{{.PLIST}}" > "{{.APP}}/Contents/Info.plist"
+      - bash -c '. ../scripts/common && product_plist "{{.PLIST}}"' > "{{.APP}}/Contents/Info.plist"
       - echo "Built desktop/{{.APP}}"
