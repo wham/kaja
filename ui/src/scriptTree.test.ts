@@ -1,6 +1,17 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { buildScriptTree, folderNameError, folderPaths, isWithinFolder, scriptNameParts, scriptsWithin, TreeNode, visibleRows } from "./scriptTree";
+import {
+  buildScriptTree,
+  folderNameError,
+  folderPaths,
+  isWithinFolder,
+  resolveScriptRename,
+  scriptNameParts,
+  scriptRenameError,
+  scriptsWithin,
+  TreeNode,
+  visibleRows,
+} from "./scriptTree";
 
 function script(folder: string, name: string): Script {
   return { path: `/w/scripts/${folder ? folder + "/" : ""}${name}`, name, folder };
@@ -80,6 +91,47 @@ describe("folderNameError", () => {
     expect(folderNameError("a/b", [])).toBeDefined();
     expect(folderNameError(".git", [])).toBeDefined();
     expect(folderNameError("Reports", ["reports"])).toBeDefined();
+  });
+});
+
+describe("resolveScriptRename", () => {
+  it("keeps a plain name in the folder it was typed in, extension or not", () => {
+    expect(resolveScriptRename("billing", "invoices.ts")).toEqual({ folder: "billing", name: "invoices.ts" });
+    expect(resolveScriptRename("billing", "invoices")).toEqual({ folder: "billing", name: "invoices.ts" });
+    expect(resolveScriptRename("", "  churn  ")).toEqual({ folder: "", name: "churn.ts" });
+  });
+
+  it("files it deeper on a slash and walks back out on ..", () => {
+    expect(resolveScriptRename("billing", "2024/january.ts")).toEqual({ folder: "billing/2024", name: "january.ts" });
+    expect(resolveScriptRename("billing/2024", "../january.ts")).toEqual({ folder: "billing", name: "january.ts" });
+    expect(resolveScriptRename("billing/2024", "../../january.ts")).toEqual({ folder: "", name: "january.ts" });
+    expect(resolveScriptRename("billing", "./january.ts")).toEqual({ folder: "billing", name: "january.ts" });
+  });
+
+  it("names nothing when it is empty, absolute, hidden, or past the root", () => {
+    expect(resolveScriptRename("billing", "   ")).toBeUndefined();
+    expect(resolveScriptRename("billing", "/etc/passwd.ts")).toBeUndefined();
+    expect(resolveScriptRename("billing", "../../january.ts")).toBeUndefined();
+    expect(resolveScriptRename("billing", "reports/")).toBeUndefined();
+    expect(resolveScriptRename("billing", "..")).toBeUndefined();
+    expect(resolveScriptRename("billing", ".hidden.ts")).toBeUndefined();
+  });
+});
+
+describe("scriptRenameError", () => {
+  const taken = [
+    { folder: "billing", name: "invoices.ts" },
+    { folder: "", name: "churn.ts" },
+  ];
+
+  it("refuses an empty name, a path that names nothing, and a file already filed there", () => {
+    expect(scriptRenameError("receipts", "billing", taken)).toBeUndefined();
+    expect(scriptRenameError("  ", "billing", taken)).toBe("A file needs a name");
+    expect(scriptRenameError("/tmp/x.ts", "billing", taken)).toBeDefined();
+    expect(scriptRenameError("INVOICES", "billing", taken)).toBeDefined();
+    // The clash follows the path: the same name is free one folder up.
+    expect(scriptRenameError("invoices", "", taken)).toBeUndefined();
+    expect(scriptRenameError("../churn.ts", "billing", taken)).toBeDefined();
   });
 });
 

@@ -28,6 +28,10 @@ export interface FileNode {
 
 export type TreeNode = FolderNode | FileNode;
 
+// Every script on disk is a .ts file, and the extension is implied wherever a name is
+// typed: naming a draft asks for a name, not a filename.
+const SCRIPT_EXTENSION = ".ts";
+
 const byName = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()) || a.localeCompare(b);
 
 /**
@@ -156,5 +160,53 @@ export function folderNameError(name: string, siblings: string[]): string | unde
   if (!trimmed) return "A folder needs a name";
   if (trimmed.includes("/") || trimmed.startsWith(".")) return "A folder name is a plain name";
   if (siblings.some((sibling) => sibling.toLowerCase() === trimmed.toLowerCase())) return `There is already a folder called “${trimmed}”`;
+  return undefined;
+}
+
+/**
+ * Where an inline rename lands. A file's name is its path, so the field holds the
+ * whole filename and a `/` in it files the file deeper — `../` walks back out, the
+ * same reading a shell gives it. The path is resolved against the folder the file is
+ * in and never followed out of the scripts root; the extension is implied, so a name
+ * typed without one is still a script.
+ *
+ * Undefined is a name that names nothing: empty, absolute, or one that climbed past
+ * the root.
+ */
+export function resolveScriptRename(fromFolder: string, typed: string): { folder: string; name: string } | undefined {
+  const parts = typed
+    .trim()
+    .split("/")
+    .filter((part) => part !== ".");
+  const base = parts.pop()?.trim();
+  if (!base || base === ".." || base.startsWith(".")) return undefined;
+
+  const folder = fromFolder ? fromFolder.split("/").filter(Boolean) : [];
+  for (const part of parts) {
+    const segment = part.trim();
+    if (segment === "..") {
+      if (folder.length === 0) return undefined;
+      folder.pop();
+      continue;
+    }
+    // An empty segment is a leading slash or a doubled one: a path from somewhere
+    // this field cannot name.
+    if (!segment || segment.startsWith(".")) return undefined;
+    folder.push(segment);
+  }
+  return { folder: folder.join("/"), name: base.endsWith(SCRIPT_EXTENSION) ? base : base + SCRIPT_EXTENSION };
+}
+
+/**
+ * What the inline rename field is checked against. `taken` is every other script's
+ * folder and name, so a name that moves the file is refused by the file already
+ * filed where it would land. Undefined means the rename is fine.
+ */
+export function scriptRenameError(typed: string, fromFolder: string, taken: { folder: string; name: string }[]): string | undefined {
+  const target = resolveScriptRename(fromFolder, typed);
+  if (!typed.trim()) return "A file needs a name";
+  if (!target) return "A file's name is a path inside the scripts folder";
+  const clash = taken.find((script) => script.folder === target.folder && script.name.toLowerCase() === target.name.toLowerCase());
+  if (clash) return `There is already a file called “${clash.name}”${target.folder ? ` in ${target.folder}` : ""}`;
   return undefined;
 }
