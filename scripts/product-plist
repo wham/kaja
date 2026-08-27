@@ -1,0 +1,16 @@
+#!/bin/bash
+# Renders one of desktop/build/darwin's plist templates to stdout, filling it
+# from the product's identity. The plist is that identity as macOS reads it, so
+# it is written from the same file everything else reads it from.
+#
+# Usage: scripts/product-plist <template>
+set -e
+
+TEMPLATE="${1:?usage: scripts/product-plist <template>}"
+INFO="$(dirname "$0")/product-info"
+
+sed -e "s|{{ProductName}}|$("$INFO" productName)|g" \
+    -e "s|{{ProductIdentifier}}|$("$INFO" productIdentifier)|g" \
+    -e "s|{{Version}}|$("$INFO" version)|g" \
+    -e "s|{{Copyright}}|$("$INFO" copyright)|g" \
+    "$TEMPLATE"

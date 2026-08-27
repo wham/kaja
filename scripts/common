@@ -112,37 +112,3 @@ install_protoc() {
     install_go_tool github.com/wham/protoc-go/cmd/protoc-go \
         "$(module_version github.com/wham/protoc-go)" protoc "$BUILD_DIR"
 }
-
-# A value from the `info` block of desktop/build/config.yml, which is the
-# project's wails3 configuration and the one place the product's identity is
-# written. Matched on the two-space indent, so the schema's own top-level
-# `version` is not what a query for the product's version finds.
-#
-# Usage: product_info <key>   (from the repository root)
-product_info() {
-    sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$PWD/desktop/build/config.yml" | head -1
-}
-
-# The macOS version the desktop app is built for. It is what the shipped bundle
-# declares (LSMinimumSystemVersion in desktop/build/darwin/Info.plist.tmpl and
-# Info.dev.plist.tmpl), so keep the three in step.
-MACOS_DEPLOYMENT_TARGET=12.0
-
-# Build the desktop app against that version rather than the one cgo would pick
-# on its own, which is old enough (10.13) that the APIs the app calls warn about
-# their own availability - the data protection keychain is 10.15+. Every build
-# has to say it, not just the store build: a dev build compiled for a different
-# macOS than the one that ships is a dev build that can't report what will
-# happen on it.
-#
-# Usage: export_macos_deployment_target   (a no-op off macOS)
-export_macos_deployment_target() {
-    [ "$(uname -s)" = "Darwin" ] || return 0
-
-    export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
-    # Added to what Go would have passed rather than replacing it, so cgo keeps
-    # its own defaults (-O2 -g) and anything the environment already set.
-    export CGO_CFLAGS="$(go env CGO_CFLAGS) -mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET"
-    export CGO_LDFLAGS="$(go env CGO_LDFLAGS) -mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET"
-}
-

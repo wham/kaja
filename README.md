@@ -69,7 +69,7 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 
 - Run in local server: `scripts/server` (pass `--editable` to edit `workspace/kaja.json` from the UI)
 - Run in Docker: `scripts/docker`
-- Run the desktop app: `scripts/desktop`
+- Run the desktop app: `scripts/desktop`. It builds the bundle from `desktop/Taskfile.yml`; `wails3 task --list` in `desktop/` names the steps, and `scripts/desktop-build` makes the one that ships.
 - Test UI: `(cd ui && bun test)`
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -tags development -v)`. The `development` tag is the one `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.

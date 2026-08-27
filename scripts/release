@@ -28,10 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGURATION="$REPO_ROOT/desktop/build/config.yml"
 
-source "$SCRIPT_DIR/common"
-
 current_version() {
-    (cd "$REPO_ROOT" && product_info version)
+    "$SCRIPT_DIR/product-info" version
 }
 
 next_version() {

@@ -2,7 +2,7 @@
 #
 # `wails3 dev` takes its watcher and its processes from `dev_mode`; main.go
 # embeds this file for the product's name, version and copyright, and
-# scripts/desktop-build renders the bundle's Info.plist from the same values.
+# scripts/product-plist renders the bundle's Info.plist from the same values.
 # The version is the one place a release is opened (scripts/release).
 version: "3"
 
@@ -13,7 +13,9 @@ info:
   version: "0.14.0"
 
 # `wails3 dev` runs from desktop/, so the root is the repository: the desktop
-# links against server/, and a change there is a change to what it runs.
+# links against server/, and a change there is a change to what it runs. Which
+# is also why every `executes` entry names desktop/ as the directory its task
+# is run from.
 dev_mode:
   root_path: ..
   log_level: warn
@@ -34,14 +36,15 @@ dev_mode:
     # The bundle the watcher restarts is built from a UI that is bundled once and
     # then kept live by esbuild's own watcher. A development build reads
     # frontend/dist off disk, so a UI change is a reload rather than a rebuild.
-    - cmd: go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
+    - cmd: wails3 task build:frontend
+      dir: desktop
       type: once
-    - cmd: go -C server run ./cmd/build-ui -watch -out ../desktop/frontend/dist
+    - cmd: wails3 task watch:frontend
+      dir: desktop
       type: background
-    - cmd: scripts/desktop-build dev
+    - cmd: wails3 task build:dev
+      dir: desktop
       type: blocking
-    # `wails3 dev` exports FRONTEND_DEVSERVER_URL for a Vite server there isn't
-    # one of, and a build without the `production` tag waits five seconds for it
-    # and then dies. The UI is on disk, so the variable is taken back off.
-    - cmd: env -u FRONTEND_DEVSERVER_URL desktop/build/bin/Kaja.app/Contents/MacOS/Kaja
+    - cmd: wails3 task run
+      dir: desktop
       type: primary

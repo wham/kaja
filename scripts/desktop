@@ -2,7 +2,8 @@
 # Runs the desktop app in development: `wails3 dev` watches the Go, rebuilds the
 # bundle and restarts it; esbuild's own watcher keeps the UI live and a
 # development build reads it off disk, so a UI change is ⌘R rather than a
-# rebuild. Everything either of them runs is in desktop/build/config.yml.
+# rebuild. Everything either of them runs is a task in desktop/Taskfile.yml,
+# named by the `executes` in desktop/build/config.yml.
 set -e
 
 source "$(dirname "$0")/common"
@@ -27,12 +28,6 @@ cd "$(dirname "$0")/.."
 
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
-
-(cd ui && bun install)
-
-# A development bundle runs from build/bin and has no path back to the tree it
-# was built in, so it is told where the UI the watcher is writing lives.
-export KAJA_FRONTEND_DIR=$PWD/desktop/frontend/dist
 
 # The version desktop/go.mod names, so the CLI that generates the committed
 # bindings is the one the app is built against.

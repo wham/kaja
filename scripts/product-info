@@ -1,0 +1,23 @@
+#!/bin/bash
+# A value from the `info` block of desktop/build/config.yml, which is the
+# project's wails3 configuration and the one place the product's identity is
+# written. Matched on the two-space indent, so the schema's own top-level
+# `version` is not what a query for the product's version finds.
+#
+# Usage: scripts/product-info <key>
+set -e
+
+if [ -z "${1:-}" ]; then
+    echo "usage: scripts/product-info <key>" >&2
+    exit 1
+fi
+
+CONFIGURATION="$(dirname "$0")/../desktop/build/config.yml"
+VALUE=$(sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$CONFIGURATION" | head -1)
+
+if [ -z "$VALUE" ]; then
+    echo "error: no '$1' in $CONFIGURATION" >&2
+    exit 1
+fi
+
+printf '%s\n' "$VALUE"
