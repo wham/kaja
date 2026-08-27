@@ -117,9 +117,10 @@ export function Console({
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   /**
-   * Whether the canvas has the whole window. A size rather than a mode — the run keeps
+   * Whether the console has the whole window. A size rather than a mode — the run keeps
    * running, the log keeps recording — so it belongs to the run being read and nothing
-   * about it survives a restart.
+   * about it survives a restart. All three views are shown at it: the room is worth as
+   * much to a thousand-row log or a page of charts as it is to the canvas.
    */
   const [fullScreen, setFullScreen] = useState(false);
   // Carried across entering and leaving, so the way back lands where you left.
@@ -140,14 +141,17 @@ export function Console({
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
 
   /**
-   * Taking full screen settles the view as well as the size. Without that the next run
-   * — pressed from the bar this screen now carries — has drawn nothing yet, the view
-   * falls back to the calls, and the screen you pressed Run on closes under you.
+   * Taking the screen settles the view as well as the size. Without that the view is
+   * still whatever `defaultView` derives, so the next run — pressed from the bar this
+   * screen now carries — swaps the tab under you the moment it draws or doesn't.
    */
-  const enterFullScreen = useCallback(() => {
-    onViewChange("canvas");
-    setFullScreen(true);
-  }, [onViewChange]);
+  const enterFullScreen = useCallback(
+    (view: ConsoleView) => {
+      onViewChange(view);
+      setFullScreen(true);
+    },
+    [onViewChange],
+  );
 
   // What tells a run arriving apart from a call arriving inside the one already on
   // screen, and both apart from the console being handed a different file.
@@ -212,27 +216,22 @@ export function Console({
     setTimeout(() => setCopied(false), 1200);
   }, []);
 
-  // A request for that call's complete record, which only the log has.
+  // A request for that call's complete record, which only the log has. It is a change
+  // of view and nothing else — the log is shown at whatever size the canvas was.
   const selectFromCanvas = useCallback(
     (itemId: string) => {
       if (!selectedGroup) return;
       setTailing(false);
-      setFullScreen(false);
       onViewChange("calls");
       onSelect({ runId: selectedGroup.run.id, itemId });
     },
     [selectedGroup, onSelect, onViewChange],
   );
 
-  // Full-screen belongs to the run you were reading, and the log is a flat list that
-  // gains nothing from the room.
+  // Full screen belongs to the run you were reading.
   useEffect(() => {
     setFullScreen(false);
   }, [fileId]);
-
-  useEffect(() => {
-    if (activeView !== "canvas") setFullScreen(false);
-  }, [activeView]);
 
   /**
    * A run that arrived from a deeplink is shown rather than left in a panel: the moment
@@ -249,7 +248,7 @@ export function Console({
     if (presentation === "wait") return;
     if (presentation === "present" && group) {
       if (selection?.runId !== group.run.id) onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
-      enterFullScreen();
+      enterFullScreen(defaultView(group));
     }
     onPresented?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -258,13 +257,13 @@ export function Console({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
-        if (activeView !== "canvas" || !selectedGroup) return;
+        if (!selectedGroup) return;
         event.preventDefault();
         if (fullScreen) setFullScreen(false);
-        else enterFullScreen();
+        else enterFullScreen(activeView);
         return;
       }
-      // Esc is the canvas's only when nothing else wanted it: a focused ask field cancels
+      // Esc is the screen's only when nothing else wanted it: a focused ask field cancels
       // its question first, and a held call refuses itself.
       if (event.key === "Escape" && fullScreen && !event.defaultPrevented) {
         event.preventDefault();
@@ -294,11 +293,13 @@ export function Console({
     );
   }
 
-  // Fold, unfold and copy are about a payload, and full screen is about the canvas.
-  // Stats has neither, so it carries none of them.
-  const showUtilities = activeView === "canvas" || (activeView === "calls" && selectedCall !== undefined);
+  // Fold, unfold and copy are about a payload, so they belong to the one view that
+  // shows one — a document of six different kinds of block has no coherent clipboard
+  // form, and the button that offered one quietly produced a poor one. Full screen is
+  // about the room, which all three views can use.
+  const showPayloadUtilities = activeView === "calls" && selectedCall !== undefined;
 
-  const canvas = selectedGroup && (
+  const body = !selectedGroup ? null : activeView === "canvas" ? (
     <Canvas
       group={selectedGroup}
       fullScreen={fullScreen}
@@ -306,7 +307,7 @@ export function Console({
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
-      onFullScreen={enterFullScreen}
+      onFullScreen={() => enterFullScreen("canvas")}
       onOpenStats={() => onViewChange("stats")}
       scrollRef={canvasScroll}
       tableViews={tableViews}
@@ -314,18 +315,42 @@ export function Console({
       onTablePull={onTablePull}
       onTableCells={onTableCells}
     />
+  ) : activeView === "stats" ? (
+    <Stats group={selectedGroup} onSelectCall={selectFromCanvas} />
+  ) : (
+    <RunLog
+      group={selectedGroup}
+      rows={rows}
+      selectedItemId={selection?.itemId}
+      activeTab={activeTab}
+      selectedItem={selectedItem}
+      waiting={waiting !== undefined}
+      logFloor={logFloor}
+      printed={printed}
+      jsonViewerRef={jsonViewerRef}
+      now={now}
+      tailing={tailing}
+      tailingRef={tailingRef}
+      onTailingChange={setTailing}
+      onSelectRow={selectRow}
+      onTabChange={onTabChange}
+      onShowLogs={() => onLogFloorChange("all")}
+      onGoToCanvas={() => onViewChange("canvas")}
+    />
   );
 
-  if (fullScreen && selectedGroup && activeView === "canvas") {
+  if (fullScreen && selectedGroup) {
     return (
       <Console.FullScreen
         group={selectedGroup}
         reserveTrafficLights={reserveTrafficLights}
         now={now}
+        activeView={activeView}
+        onViewChange={onViewChange}
         runControl={runControl}
         onLeave={() => setFullScreen(false)}
       >
-        {canvas}
+        {body}
       </Console.FullScreen>
     );
   }
@@ -343,42 +368,7 @@ export function Console({
       <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
         <div className="h-4 w-px shrink-0 bg-border" />
-        <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
-          {/* "Calls" rather than "Log": a row here is a call and only a call,
-              and "log" is what anyone means by what a script printed — which is
-              now a thing this view can mix in. */}
-          <SegmentedControl.Button
-            selected={activeView === "calls"}
-            className="h-[20px] px-2.5 py-0 text-xs"
-            onClick={() => onViewChange("calls")}
-            data-testid="console-view-calls"
-          >
-            Calls
-          </SegmentedControl.Button>
-          <SegmentedControl.Button
-            selected={activeView === "canvas"}
-            className="h-[20px] gap-1.5 px-2.5 py-0 text-xs"
-            onClick={() => onViewChange("canvas")}
-            data-testid="console-view-canvas"
-          >
-            Canvas
-            {/* One of three chances to notice a parked run before you leave the
-                script — the others are the tail of the log and the run pill. */}
-            {waiting && activeView !== "canvas" && <span data-testid="canvas-badge" className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-          </SegmentedControl.Button>
-          {/* Always there, and never carrying a count: a run has statistics whether
-              or not anyone shaped it as a test, and a segment that appears once a
-              run is big enough would be a control you have to notice to know
-              exists. */}
-          <SegmentedControl.Button
-            selected={activeView === "stats"}
-            className="h-[20px] px-2.5 py-0 text-xs"
-            onClick={() => onViewChange("stats")}
-            data-testid="console-view-stats"
-          >
-            Stats
-          </SegmentedControl.Button>
-        </SegmentedControl>
+        <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} />
         {/* Only there when the run printed something, on the same rule as
             everything else in this header: a control over nothing is chrome. */}
         {activeView === "calls" && printed.lines > 0 && (
@@ -389,22 +379,9 @@ export function Console({
         {activeView === "stats" && selectedGroup?.run.perf !== undefined && (
           <span className="ml-auto shrink-0 truncate font-mono text-xs text-muted-foreground @max-[520px]:hidden">{scheduleNote(selectedGroup.run.perf)}</span>
         )}
-        {showUtilities && (
+        {selectedGroup && (
           <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
-            {/* Copy is gone from the canvas: a document of six different kinds
-                of block has no coherent clipboard form, and the button quietly
-                produced a poor one. The room it held is the way to more room. */}
-            {activeView === "canvas" ? (
-              <IconButton
-                icon={Maximize}
-                aria-label="Full screen"
-                variant="ghost"
-                size="sm"
-                className={utilityButtonClass}
-                data-testid="console-fullscreen"
-                onClick={enterFullScreen}
-              />
-            ) : (
+            {showPayloadUtilities && (
               <>
                 <IconButton
                   icon={FoldVertical}
@@ -424,47 +401,82 @@ export function Console({
                 />
                 <div className="h-4 w-px bg-border" />
                 <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={handleCopy} />
+                <div className="h-4 w-px bg-border" />
               </>
             )}
+            <IconButton
+              icon={Maximize}
+              aria-label="Full screen"
+              variant="ghost"
+              size="sm"
+              className={utilityButtonClass}
+              data-testid="console-fullscreen"
+              onClick={() => enterFullScreen(activeView)}
+            />
           </div>
         )}
       </div>
 
-      {selectedGroup && activeView === "canvas" ? (
-        <>
-          {/* The only place the run's calls are stated, now that a call is not
-              a block. It is the canvas's row and lives under the header rather
-              than in it, so the header stops moving as the selection does — and
-              a run that only drew has no calls to state, so it has no row. */}
-          {selectedGroup.strip.calls > 0 && <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} />}
-          {canvas}
-        </>
-      ) : selectedGroup && activeView === "stats" ? (
-        <Stats group={selectedGroup} onSelectCall={selectFromCanvas} />
-      ) : selectedGroup ? (
-        <RunLog
-          group={selectedGroup}
-          rows={rows}
-          selectedItemId={selection?.itemId}
-          activeTab={activeTab}
-          selectedItem={selectedItem}
-          waiting={waiting !== undefined}
-          logFloor={logFloor}
-          printed={printed}
-          jsonViewerRef={jsonViewerRef}
-          now={now}
-          tailing={tailing}
-          tailingRef={tailingRef}
-          onTailingChange={setTailing}
-          onSelectRow={selectRow}
-          onTabChange={onTabChange}
-          onShowLogs={() => onLogFloorChange("all")}
-          onGoToCanvas={() => onViewChange("canvas")}
-        />
-      ) : null}
+      {/* The only place the run's calls are stated, now that a call is not a
+          block. It is the canvas's row and lives under the header rather than in
+          it, so the header stops moving as the selection does — and a run that
+          only drew has no calls to state, so it has no row. */}
+      {selectedGroup && activeView === "canvas" && selectedGroup.strip.calls > 0 && <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} />}
+      {body}
     </div>
   );
 }
+
+interface ViewSelectProps {
+  activeView: ConsoleView;
+  waiting: boolean;
+  onChange: (view: ConsoleView) => void;
+}
+
+/**
+ * The one control that says which of a run's three views is on screen. It is here
+ * rather than in the header because the full-screen bar carries it too — a size is
+ * not a mode, so taking the screen may not take two thirds of the run with it.
+ */
+Console.ViewSelect = function ({ activeView, waiting, onChange }: ViewSelectProps) {
+  return (
+    <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
+      {/* "Calls" rather than "Log": a row here is a call and only a call, and
+          "log" is what anyone means by what a script printed — which is now a
+          thing this view can mix in. */}
+      <SegmentedControl.Button
+        selected={activeView === "calls"}
+        className="h-[20px] px-2.5 py-0 text-xs"
+        onClick={() => onChange("calls")}
+        data-testid="console-view-calls"
+      >
+        Calls
+      </SegmentedControl.Button>
+      <SegmentedControl.Button
+        selected={activeView === "canvas"}
+        className="h-[20px] gap-1.5 px-2.5 py-0 text-xs"
+        onClick={() => onChange("canvas")}
+        data-testid="console-view-canvas"
+      >
+        Canvas
+        {/* One of three chances to notice a parked run before you leave the
+            script — the others are the tail of the log and the run pill. */}
+        {waiting && activeView !== "canvas" && <span data-testid="canvas-badge" className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+      </SegmentedControl.Button>
+      {/* Always there, and never carrying a count: a run has statistics whether or
+          not anyone shaped it as a test, and a segment that appears once a run is
+          big enough would be a control you have to notice to know exists. */}
+      <SegmentedControl.Button
+        selected={activeView === "stats"}
+        className="h-[20px] px-2.5 py-0 text-xs"
+        onClick={() => onChange("stats")}
+        data-testid="console-view-stats"
+      >
+        Stats
+      </SegmentedControl.Button>
+    </SegmentedControl>
+  );
+};
 
 const FLOOR_LABELS: { floor: LogFloor; label: string; note: string }[] = [
   { floor: "off", label: "Off", note: "Calls only" },
@@ -533,6 +545,8 @@ interface FullScreenProps {
   group: RunGroup;
   reserveTrafficLights?: boolean;
   now: number;
+  activeView: ConsoleView;
+  onViewChange: (view: ConsoleView) => void;
   // The command row's own button, rendered here rather than reimplemented, so the two
   // can never disagree about whether the file can run or why it can't.
   runControl?: React.ReactNode;
@@ -541,16 +555,16 @@ interface FullScreenProps {
 }
 
 /**
- * The canvas with the whole window. A view state rather than a second window — the
- * run keeps running and the log keeps recording behind it — so the only chrome left
- * is a 40px bar: which script, which run, the way out, and Run.
+ * The run with the whole window. A view state rather than a second window — the run
+ * keeps running and the log keeps recording behind it — so the only chrome left is a
+ * 40px bar: which script, which run, which view, Run, and the way out.
  */
-Console.FullScreen = function ({ group, reserveTrafficLights, now, runControl, onLeave, children }: FullScreenProps) {
+Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, onViewChange, runControl, onLeave, children }: FullScreenProps) {
   const waiting = group.awaiting !== undefined;
   const time = formatClockTime(group.run.startedAt);
 
   return (
-    <div data-testid="console-fullscreen-canvas" className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div data-testid="console-fullscreen-view" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div
         className="flex h-[40px] shrink-0 items-center gap-3 border-b border-border pr-3"
         style={{ paddingLeft: reserveTrafficLights ? TRAFFIC_LIGHTS_INSET : 12 }}
@@ -581,6 +595,8 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, runControl, o
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-3">
+          <Console.ViewSelect activeView={activeView} waiting={waiting} onChange={onViewChange} />
+          <div className="h-4 w-px bg-border" />
           {/* Running a script again used to mean leaving full screen and coming
               back, which is two gestures around the one thing this screen is
               for. It is the command row's own button, so the caret's
