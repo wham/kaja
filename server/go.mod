@@ -6,7 +6,7 @@ require (
 	github.com/evanw/esbuild v0.28.1
 	github.com/twitchtv/twirp v8.1.3+incompatible
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
-	github.com/wham/protoc-go v0.2.1
+	github.com/wham/protoc-go v0.3.0
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.12
 	sigs.k8s.io/yaml v1.6.0

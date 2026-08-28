@@ -26,7 +26,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
-	github.com/wham/protoc-go v0.2.1 // indirect
+	github.com/wham/protoc-go v0.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
