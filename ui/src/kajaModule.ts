@@ -46,15 +46,22 @@ export function kajaModuleDeclaration(variableNames: string[]): string {
  */
 export interface Call<T> extends PromiseLike<T> {
   /**
-   * The headers the API answered with, once the call has settled. Names are
-   * lowercase. It resolves on a failed call too, which is usually when they are
-   * worth reading.
+   * The response with the headers the API answered with beside it — the whole
+   * of how a script reads them. Header names are lowercase.
    *
-   *   const call = Shows.ListShows({ pageSize: 25 });
-   *   const page = await call;
-   *   const remaining = (await call.headers)["x-ratelimit-remaining"];
+   *   const { response, headers } = await Shows.ListShows({ pageSize: 25 }).withHeaders();
+   *   const remaining = headers["x-ratelimit-remaining"];
+   *
+   * Awaiting the call itself still hands back the response alone, so this is
+   * what you write on the rare call whose headers you want, and nothing else
+   * changes. It works on a call already named and sent, too — a call that has
+   * gone out is not sent twice.
+   *
+   * A call the API refused hands back \`undefined\` as its response — a failed
+   * call is reported rather than thrown — with the headers it was refused
+   * with, which is usually when they are worth reading.
    */
-  readonly headers: Promise<{ [name: string]: string }>;
+  withHeaders(): Promise<{ response: T; headers: { [name: string]: string } }>;
 }
 
 /**

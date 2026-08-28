@@ -73,53 +73,50 @@ describe("Call", () => {
 
 // The headers are read when the call settles rather than handed over when it is
 // made, because that is the only moment they exist.
-function answered(headers: MethodCallHeaders, fail = false): Call<string> {
+function answered(headers: MethodCallHeaders): { call: Call<string>; sends: number } {
+  const state = { sends: 0 };
   let settled = false;
-  return new Call(
+  const call = new Call(
     "Shows.ListShows",
     {},
     async () => {
+      state.sends++;
       settled = true;
-      if (fail) throw new Error("refused");
       return "shows";
     },
     () => (settled ? headers : {}),
   );
+  return {
+    call,
+    get sends() {
+      return state.sends;
+    },
+  };
 }
 
-describe("Call.headers", () => {
-  it("resolves with what the call was answered with", async () => {
-    const call = answered({ etag: 'W/"1"' });
-    expect(await call).toBe("shows");
-    expect(await call.headers).toEqual({ etag: 'W/"1"' });
+describe("Call.withHeaders", () => {
+  it("hands back the response and what the call was answered with", async () => {
+    const { call } = answered({ etag: 'W/"1"' });
+    expect(await call.withHeaders()).toEqual({ response: "shows", headers: { etag: 'W/"1"' } });
   });
 
-  it("can be read before the response, and sends the call once", async () => {
-    let sends = 0;
-    const call = new Call(
-      "Shows.ListShows",
-      {},
-      async () => {
-        sends++;
-        return "shows";
-      },
-      () => ({ "x-request-id": "abc" }),
-    );
-    const [headers, response] = await Promise.all([call.headers, call]);
-    expect(headers).toEqual({ "x-request-id": "abc" });
+  it("is the same answer on a call already sent, and sends it once", async () => {
+    const stubbed = answered({ "x-request-id": "abc" });
+    expect(await stubbed.call).toBe("shows");
+    expect(await stubbed.call.withHeaders()).toEqual({ response: "shows", headers: { "x-request-id": "abc" } });
+    expect(stubbed.sends).toBe(1);
+  });
+
+  it("sends the call when it is the only thing awaited", async () => {
+    const stubbed = answered({});
+    const { response } = await stubbed.call.withHeaders();
     expect(response).toBe("shows");
-    expect(sends).toBe(1);
+    expect(stubbed.sends).toBe(1);
   });
 
-  it("resolves on a call that failed, which is when they are worth reading", async () => {
-    const call = answered({ "www-authenticate": "Bearer" }, true);
-    await expect(call.start()).rejects.toThrow("refused");
-    expect(await call.headers).toEqual({ "www-authenticate": "Bearer" });
-  });
-
-  it("is empty for a call nothing reported headers for", async () => {
+  it("has no headers for a call nothing reported any for", async () => {
     const call = new Call("Shows.ListShows", {}, async () => "shows");
-    expect(await call.headers).toEqual({});
+    expect(await call.withHeaders()).toEqual({ response: "shows", headers: {} });
   });
 });
 

@@ -65,15 +65,16 @@ export class Call<T> implements PromiseLike<T> {
   }
 
   /**
-   * What the API answered with, once the call has settled. A promise, so it can be
-   * read before the response or after it — and it resolves on a failed call too,
-   * which is when the headers are usually what you are after.
+   * The response with the headers the API answered with beside it, which is the whole
+   * of how a script reads them. Nested rather than laid over the response, so a
+   * message declaring its own `headers` or `response` field is untouched.
+   *
+   * Asked of the call rather than of the answer, so it works written inline
+   * (`await Shows.ListShows({}).withHeaders()`) and on a call already named and sent —
+   * starting is idempotent, so the second is a re-read.
    */
-  get headers(): Promise<MethodCallHeaders> {
-    return this.start().then(
-      () => this.#readHeaders(),
-      () => this.#readHeaders(),
-    );
+  withHeaders(): Promise<{ response: T; headers: MethodCallHeaders }> {
+    return this.start().then((response) => ({ response, headers: this.#readHeaders() }));
   }
 
   /** Whether the request has gone out. Approving one that has is too late. */

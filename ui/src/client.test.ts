@@ -117,15 +117,18 @@ describe("a call's headers", () => {
       code: "UNAUTHENTICATED",
       meta: { "WWW-Authenticate": "Bearer" },
     });
-    const call = methods.ListShows({});
-    await call;
-    expect(await call.headers).toEqual({ "www-authenticate": "Bearer" });
+    // A failed call is reported rather than thrown, so it is the response that is
+    // missing — the headers it was refused with are there to be read.
+    expect(await methods.ListShows({}).withHeaders()).toEqual({
+      response: undefined,
+      headers: { "www-authenticate": "Bearer" },
+    });
   });
 
-  it("hands back what the API answered with", async () => {
+  it("hands back the response with what the API answered with beside it", async () => {
     const { methods } = client();
-    const call = methods.ListShows({});
-    await call;
-    expect(await call.headers).toEqual({ "x-ratelimit-remaining": "42" });
+    const { response, headers } = await methods.ListShows({}).withHeaders();
+    expect(response).toEqual({ shows: [] });
+    expect(headers).toEqual({ "x-ratelimit-remaining": "42" });
   });
 });
