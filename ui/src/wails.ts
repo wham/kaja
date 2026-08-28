@@ -69,6 +69,14 @@ export function openInBrowser(url: string): void {
     .catch(() => {});
 }
 
+/** Puts text on the system clipboard, saying whether it landed. */
+export function setClipboardText(text: string): Promise<boolean> {
+  return runtime()
+    .then(({ Clipboard }) => Clipboard.SetText(text))
+    .then(() => true)
+    .catch(() => false);
+}
+
 /** Sets the window's title. */
 export function setWindowTitle(title: string): void {
   runtime()

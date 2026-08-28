@@ -1,5 +1,6 @@
 import * as monaco from "monaco-editor";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { copyText } from "./clipboard";
 import { codeFontSize } from "./monacoTheme";
 import { drawnText, printJson } from "./payloadText";
 
@@ -29,7 +30,7 @@ interface JsonViewerProps {
 export interface JsonViewerHandle {
   foldAll: () => void;
   unfoldAll: () => void;
-  copyToClipboard: () => void;
+  copyToClipboard: () => Promise<boolean>;
 }
 
 export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText }, ref) {
@@ -44,13 +45,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     unfoldAll: () => {
       editorRef.current?.trigger("unfold", "editor.unfoldAll", null);
     },
-    copyToClipboard: async () => {
-      try {
-        await navigator.clipboard.writeText(jsonTextRef.current);
-      } catch (err) {
-        console.error("Failed to copy:", err);
-      }
-    },
+    copyToClipboard: () => copyText(jsonTextRef.current),
   }));
 
   useEffect(() => {
