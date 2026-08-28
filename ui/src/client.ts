@@ -1,9 +1,9 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import type { IMessageType } from "@protobuf-ts/runtime";
-import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { appHeaders, transportHeaders } from "./appTypes";
-import { Call, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
+import { APP_HEADER, appHeaders, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
+import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import {
   UPSTREAM_DURATION_TRAILER,
   UPSTREAM_ERROR_TRAILER,
@@ -97,27 +97,20 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   const stubModule = stub[service.clientStubModuleId];
   const ClientClass = stubModule[service.name + "Client"];
   const clientStub = new ClientClass(transport);
-  const options: RpcOptions = {
-    interceptors: [
-      {
-        interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
-          if (!options.meta) {
-            options.meta = {};
-          }
-          if (!isWailsEnvironment()) {
-            options.meta["X-Target"] = appRef.target;
-            // Configured headers travel with an X-Header- prefix for the backend to forward.
-            // Their ${NAME} references travel unexpanded: the server resolves them, because a
-            // variable's value may be one it holds and the browser is not allowed to know.
-            const headers = transportHeaders(appRef.configuration);
-            for (const [key, value] of Object.entries(headers)) {
-              options.meta["X-Header-" + key] = value;
-            }
-          }
-          return next(method, input, options);
-        },
-      },
-    ],
+
+  // The headers of one call, on their way to whichever door this build has. They carry
+  // the X-Header- prefix in both: their ${NAME} references travel unexpanded, since the
+  // value behind one may be kaja's to hold and the browser's never to read, and the Go
+  // side resolves them where it applies the app's own credential.
+  const requestMeta = (requestHeaders: MethodCallHeaders): RpcMetadata => {
+    const meta: RpcMetadata = {};
+    for (const [name, value] of Object.entries(transportHeaders(appRef.configuration, requestHeaders))) {
+      meta[HEADER_META_PREFIX + name] = value;
+    }
+    if (!isWailsEnvironment()) {
+      meta["X-Target"] = appRef.target;
+    }
+    return meta;
   };
 
   // What a method needs that the run has no say in, resolved once rather than per run.
@@ -134,10 +127,11 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   const bind = (kaja: Kaja): Methods => {
     const methods: Methods = {};
     for (const { method, isServerStreaming, inputType } of prepared) {
-      const send = async (input: any) => {
-        // Shown as configured, with their ${NAME} references intact — the Headers view reads
-        // better that way, and the values behind them stay outside the browser.
-        const requestHeaders: { [key: string]: string } = appHeaders(appRef.configuration);
+      const send = async (input: any, callOptions: CallOptions | undefined, hold: (methodCall: MethodCall) => void) => {
+        // The app's headers with the call's own laid over them, shown as written — with
+        // their ${NAME} references intact, since the Headers view reads better that way and
+        // the values behind them stay outside the browser.
+        const requestHeaders = mergeHeaders(appHeaders(appRef.configuration), callOptions?.headers);
 
         const methodCall: MethodCall = {
           id: crypto.randomUUID(),
@@ -149,6 +143,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
           timestamp: Date.now(),
         };
+        hold(methodCall);
         kaja._internal.methodCallUpdate(methodCall);
 
         const startedAt = performance.now();
@@ -164,6 +159,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           // wire format omits anyway. The literal itself stays on the method call, so the
           // console and the value completions keep showing what was actually written.
           const message = inputType ? inputType.create(input) : input;
+          const options: RpcOptions = { meta: requestMeta(requestHeaders) };
           const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
 
           if (isServerStreaming) {
@@ -212,8 +208,18 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
       // A call is handed back rather than made: it goes out when the script awaits it, or
       // at the end of the tick if nothing has claimed it. Everything above happens when the
       // call starts, its log row included, so a call that was never approved was never
-      // anywhere.
-      methods[method.name] = (input: any) => new Call(`${service.name}.${method.name}`, input, () => send(input));
+      // anywhere. The method call is held as it is made, which is what lets the call hand
+      // back the headers it was answered with.
+      methods[method.name] = (input: any, callOptions?: CallOptions) => {
+        refuseReservedHeaders(callOptions);
+        let methodCall: MethodCall | undefined;
+        return new Call(
+          `${service.name}.${method.name}`,
+          input,
+          () => send(input, callOptions, (made) => (methodCall = made)),
+          () => callResponseHeaders(methodCall),
+        );
+      };
     }
     return methods;
   };
@@ -227,6 +233,17 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
       return methods;
     },
   };
+}
+
+// The reserved header is how a call finds its app — the credential and the transport
+// security kaja holds for it are looked up by that name — so a call written to set it
+// is refused where it is written rather than sent somewhere else's credential.
+function refuseReservedHeaders(callOptions: CallOptions | undefined): void {
+  for (const name of Object.keys(callOptions?.headers ?? {})) {
+    if (isAppHeader(name)) {
+      throw new Error(`${APP_HEADER} is kaja's own: it names the app a call belongs to and cannot be set on a call.`);
+    }
+  }
 }
 
 function lcfirst(str: string): string {

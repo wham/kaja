@@ -549,6 +549,14 @@ The `variables` map in `kaja.json` is read by scripts as `kaja.variables.<name>`
 
 **How much of that shape a generated call writes out is a `FieldSet`** (`defaultInput.ts`). `all` is every field, because the generated call is where a person meets the request — one they never see is one they never send. `required` is the app's `[required]` mark and nothing else, which for a gRPC or Twirp method is `{}`; it is what the MCP catalog carries, since an agent is handed the declarations of every type a method names and then reads `""` and `0` as values being sent.
 
+**A header belongs to a call, not to a script.** Every generated method takes a second parameter — `CallOptions`, which is headers and nothing else so far — laid over the app's configured ones by name and without regard to case (`mergeHeaders`), the same rule the credential is merged under in Go. The merged set is both what goes out and what the Headers view shows, references intact: a `${NAME}` among the values travels unexpanded like a configured one, so a script in a remote browser sends a value it is not allowed to read. `X-Kaja-App` is refused where it is written rather than dropped on the way — it is what the call is routed by, and a call that set it would be sent under another app's credential.
+
+**There is no run-wide or service-wide header, deliberately.** A binder holding one for "every call in this script" is what makes a token typed for one app reach the next app the script imports; the options are a value, so a local `const` handed to each call is the binding, and the scope is then something the reader can see.
+
+**Both Go doors were already per request**, so this is a UI-layer change and nothing in Go moved. The merge happens once per call in `client.ts` and rides the meta under `HEADER_META_PREFIX` in **both** builds — the web door already read that prefix off the request, and the Wails transport unprefixes it back into the map its binding takes rather than reading the app's configuration for itself.
+
+**Coming back, `call.headers` is a promise of what the API answered with** (`callResponseHeaders`): the upstream response headers where kaja carried the call, the transport's own where nothing did — the rule `callDurationMs` states about a duration — under lowercase names, since gRPC metadata arrives that way and the one thing a script cannot do is guess which case it was given. It resolves on a failed call too, which is when they are usually what you are after. A **server stream on the desktop reports none**: `TargetServerStream` carries the duration back and no headers.
+
 ## Kaja's own MCP server
 
 This is the door an agent drives kaja through. The MCP **app** above points the other way; nothing is shared but the protocol's name.

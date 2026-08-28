@@ -12,7 +12,7 @@ import { Deferred, RpcError, RpcOutputStreamController, ServerStreamingCall, Una
 import { parseTwirpErrorResponse } from "@protobuf-ts/twirp-transport";
 import { isJsonObject, type JsonValue } from "@protobuf-ts/runtime";
 import { desktop, onWailsEvent } from "../wails";
-import { transportHeaders } from "../appTypes";
+import { HEADER_META_PREFIX } from "../appTypes";
 import { UPSTREAM_DURATION_TRAILER, UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
@@ -129,6 +129,19 @@ function upstreamError(result: {
   return error;
 }
 
+// headersFromMeta reads back the headers the client put on the call. The prefix is the
+// web door's own convention, used here as the carrier so one merge serves both doors;
+// nothing else on the meta is a header the app is sending.
+function headersFromMeta(meta: RpcMetadata | undefined): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(meta ?? {})) {
+    if (key.startsWith(HEADER_META_PREFIX)) {
+      headers[key.slice(HEADER_META_PREFIX.length)] = String(value);
+    }
+  }
+  return headers;
+}
+
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   appRef?: AppRef; // Dynamic app reference for "target" mode
@@ -234,7 +247,7 @@ export class WailsTransport implements RpcTransport {
     const request = requestBytes(method.I.toBinary(input, { writeUnknownFields: false }));
     const fullMethodPath = `${method.service.typeName}/${method.name}`;
     // The ${NAME} references travel unexpanded; the Go side resolves them.
-    const headersJson = JSON.stringify(transportHeaders(this.appRef!.configuration));
+    const headersJson = JSON.stringify(headersFromMeta(options.meta));
 
     desktop()
       .then((app) => app.TargetServerStream(this.appRef!.target, fullMethodPath, request, headersJson, streamID))
@@ -280,7 +293,7 @@ export class WailsTransport implements RpcTransport {
     input: I,
     options: RpcOptions,
   ): { response: Promise<O>; status: Promise<RpcStatus>; trailers: Promise<RpcMetadata> } {
-    const resultPromise = this.executeCall(method, input);
+    const resultPromise = this.executeCall(method, input, options);
     const responsePromise = resultPromise.then((result) => result.output);
     const statusPromise = resultPromise.then(() => ({ code: "OK", detail: "" }));
     const trailersPromise = resultPromise.then((result) => result.trailers);
@@ -292,7 +305,11 @@ export class WailsTransport implements RpcTransport {
     };
   }
 
-  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<{ output: O; trailers: RpcMetadata }> {
+  private async executeCall<I extends object, O extends object>(
+    method: MethodInfo<I, O>,
+    input: I,
+    options: RpcOptions,
+  ): Promise<{ output: O; trailers: RpcMetadata }> {
     try {
       // Serialize input using protobuf-ts. An empty result is valid: a method with
       // no parameters has nothing to encode.
@@ -305,9 +322,11 @@ export class WailsTransport implements RpcTransport {
       if (this.mode === "api") {
         responseBody = await app.Twirp(method.name, request);
       } else {
-        // mode === "target" - read URL and headers dynamically from appRef
+        // mode === "target" - the URL is read dynamically from appRef, the headers off the
+        // call: they are the app's own with this call's laid over them, merged once in the
+        // client so both builds send the same set.
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        const headersJson = JSON.stringify(transportHeaders(this.appRef!.configuration));
+        const headersJson = JSON.stringify(headersFromMeta(options.meta));
         const result = (await app.Target(this.appRef!.target, fullMethodPath, request, this.protocol, headersJson))!;
 
         if (result.statusCode >= 400) {

@@ -276,6 +276,17 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
 - **A method hands back a `Call`, not a promise.** It is sent when you await it,
   so `await Shows.ListShows({})` is exactly what it always was. The gap is what
   lets `kaja.approve` hold a call back before it goes out.
+- **Headers are the call's, both ways.** A second argument sends them, over the
+  ones the app is configured with and matched by name whatever the case; the call
+  hands back what it was answered with, under lowercase names, on a failed call
+  too. The app's own headers and credential go out without a script saying
+  anything — write one here only where this call needs it.
+
+  ```ts
+  const call = Shows.CreateShow({ title: "Vera Lune" }, { headers: { "Idempotency-Key": kaja.uuidV4() } });
+  const show = await call;
+  const remaining = (await call.headers)["x-ratelimit-remaining"];
+  ```
 - **Top-level `await` works**: the body runs inside an `async` function.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services`.

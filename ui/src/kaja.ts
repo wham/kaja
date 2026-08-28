@@ -50,16 +50,30 @@ export class Call<T> implements PromiseLike<T> {
   readonly label: string;
   readonly input: unknown;
   #send: () => Promise<T>;
+  #readHeaders: () => MethodCallHeaders;
   #sent?: Promise<T>;
   #claimed = false;
 
-  constructor(label: string, input: unknown, send: () => Promise<T>) {
+  constructor(label: string, input: unknown, send: () => Promise<T>, readHeaders: () => MethodCallHeaders = () => ({})) {
     this.label = label;
     this.input = input;
     this.#send = send;
+    this.#readHeaders = readHeaders;
     queueMicrotask(() => {
       if (!this.#claimed) this.start();
     });
+  }
+
+  /**
+   * What the API answered with, once the call has settled. A promise, so it can be
+   * read before the response or after it — and it resolves on a failed call too,
+   * which is when the headers are usually what you are after.
+   */
+  get headers(): Promise<MethodCallHeaders> {
+    return this.start().then(
+      () => this.#readHeaders(),
+      () => this.#readHeaders(),
+    );
   }
 
   /** Whether the request has gone out. Approving one that has is too late. */
@@ -925,6 +939,34 @@ export class Kaja {
 
 export interface MethodCallHeaders {
   [key: string]: string;
+}
+
+/**
+ * What a call may be made with, beyond its request. Headers are laid over the ones
+ * the app is configured with, by name and without regard to case, and travel the way
+ * a configured one does — a `${NAME}` reference among them is resolved by kaja rather
+ * than by the script, so a script in a browser can send a value it may not read.
+ */
+export interface CallOptions {
+  headers?: MethodCallHeaders;
+}
+
+/**
+ * The headers a call is answered with, as a script reads them: the ones the API
+ * itself sent where kaja carried the call for it, the transport's own where nothing
+ * did — the same rule callDurationMs states about a duration.
+ *
+ * Names are lowercased, because gRPC metadata arrives that way and HTTP header names
+ * mean the same thing in any case: the one thing a script cannot do is guess which it
+ * was given.
+ */
+export function callResponseHeaders(methodCall: MethodCall | undefined): MethodCallHeaders {
+  const headers = methodCall?.upstreamResponseHeaders ?? methodCall?.responseHeaders;
+  const lowercased: MethodCallHeaders = {};
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    lowercased[name.toLowerCase()] = value;
+  }
+  return lowercased;
 }
 
 export interface MethodCall {

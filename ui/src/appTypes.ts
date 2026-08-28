@@ -225,10 +225,38 @@ export function appHeaders(app: ConfigurationApp): Record<string, string> {
 // is applied where it lives rather than handed to the browser to send.
 export const APP_HEADER = "X-Kaja-App";
 
-// transportHeaders is what a call actually sends. `appHeaders` stays what the Headers
-// view shows, which is the configuration and nothing kaja added to route the call.
-export function transportHeaders(app: ConfigurationApp): Record<string, string> {
-  return { ...appHeaders(app), [APP_HEADER]: app.name };
+// HEADER_META_PREFIX is how a call's headers reach the Go side of either build: the
+// web door reads them off the request under this prefix, and the Wails transport
+// unprefixes them back into the map its binding takes. One prefix, so the merge that
+// produced them happens once, per call, in the client.
+export const HEADER_META_PREFIX = "X-Header-";
+
+// mergeHeaders lays one set of headers over another, matching names without regard to
+// case: a header written for one call replaces the app's own rather than arriving
+// beside it, which is what an `Authorization` typed for one request has to do. The
+// same rule the credential is merged under server-side (apps.MergeMetadata).
+export function mergeHeaders(headers: Record<string, string>, overrides?: Record<string, string>): Record<string, string> {
+  if (!overrides || Object.keys(overrides).length === 0) return { ...headers };
+  const merged: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (!Object.keys(overrides).some((override) => override.toLowerCase() === name.toLowerCase())) {
+      merged[name] = value;
+    }
+  }
+  return { ...merged, ...overrides };
+}
+
+// transportHeaders is what a call actually sends: the headers it was made with, plus
+// the reserved one naming its app. `appHeaders` stays what the app is configured with,
+// and the call's own merged set is what the Headers view shows.
+export function transportHeaders(app: ConfigurationApp, requestHeaders: Record<string, string>): Record<string, string> {
+  return { ...requestHeaders, [APP_HEADER]: app.name };
+}
+
+// isAppHeader says whether a name is the reserved one. A script setting it would send
+// its call to another app's credential, so the call refuses rather than dropping it.
+export function isAppHeader(name: string): boolean {
+  return name.toLowerCase() === APP_HEADER.toLowerCase();
 }
 
 // Only the local Folder app does not.
