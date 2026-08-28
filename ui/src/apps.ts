@@ -1,4 +1,4 @@
-import { Call, Kaja } from "./kaja";
+import { Call, CallOptions, Kaja } from "./kaja";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
@@ -121,7 +121,7 @@ export interface Clients {
 }
 
 export interface Methods {
-  [key: string]: (input: any) => Call<any>;
+  [key: string]: (input: any, options?: CallOptions) => Call<any>;
 }
 
 export interface Client {

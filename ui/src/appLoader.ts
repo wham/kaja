@@ -287,16 +287,18 @@ function readSignatures(
   return signatures;
 }
 
-// `import type { Call, Input } from "kaja";` — what a generated service's methods
-// return, and what they take. Type-only, so nothing about it survives into what a
-// script runs.
+// `import type { Call, CallOptions, Input } from "kaja";` — what a generated service's
+// methods return, and what they take. Type-only, so nothing about it survives into
+// what a script runs.
 function kajaTypeImport(): ts.ImportDeclaration {
   return ts.factory.createImportDeclaration(
     undefined,
     ts.factory.createImportClause(
       true,
       undefined,
-      ts.factory.createNamedImports(["Call", "Input"].map((name) => ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name)))),
+      ts.factory.createNamedImports(
+        ["Call", "CallOptions", "Input"].map((name) => ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name))),
+      ),
     ),
     ts.factory.createStringLiteral("kaja"),
   );
@@ -339,6 +341,16 @@ function createServiceInterfaceDefinition(
             ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Input"), [
               ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
             ]),
+          ),
+          // What the call is made with rather than what it sends: headers laid over the
+          // app's own, for this call alone. Optional, because a call that says nothing
+          // about them is the ordinary one.
+          ts.factory.createParameterDeclaration(
+            undefined,
+            undefined,
+            "options",
+            ts.factory.createToken(ts.SyntaxKind.QuestionToken),
+            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("CallOptions"), undefined),
           ),
         ],
         ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Call"), [

@@ -44,7 +44,44 @@ export function kajaModuleDeclaration(variableNames: string[]): string {
  * \`Promise.all([a(), b()])\` still runs both at once. The gap of one tick is
  * what kaja.approve holds a call in.
  */
-export interface Call<T> extends PromiseLike<T> {}
+export interface Call<T> extends PromiseLike<T> {
+  /**
+   * The response with the headers the API answered with beside it — the whole
+   * of how a script reads them. Header names are lowercase.
+   *
+   *   const { response, headers } = await Shows.ListShows({ pageSize: 25 }).withHeaders();
+   *   const remaining = headers["x-ratelimit-remaining"];
+   *
+   * Awaiting the call itself still hands back the response alone, so this is
+   * what you write on the rare call whose headers you want, and nothing else
+   * changes. It works on a call already named and sent, too — a call that has
+   * gone out is not sent twice.
+   *
+   * A call the API refused hands back \`undefined\` as its response — a failed
+   * call is reported rather than thrown — with the headers it was refused
+   * with, which is usually when they are worth reading.
+   */
+  withHeaders(): Promise<{ response: T; headers: { [name: string]: string } }>;
+}
+
+/**
+ * What a call is made with, beyond the request it sends. Optional on every
+ * method: a call that says nothing about its headers sends the app's own.
+ *
+ *   await Shows.CreateShow(
+ *     { title: "Vera Lune" },
+ *     { headers: { "Idempotency-Key": kaja.uuidV4() } },
+ *   );
+ *
+ * Headers are laid over the ones the app is configured with, matched by name
+ * without regard to case, so one written here replaces the app's rather than
+ * arriving beside it. A value may name a variable — \`"Bearer \${TOKEN}"\` — and
+ * kaja resolves it on the way out, which is how a script sends a value it is
+ * not allowed to read.
+ */
+export interface CallOptions {
+  headers?: { [name: string]: string };
+}
 
 /**
  * The request a service method takes: the generated type with every field
