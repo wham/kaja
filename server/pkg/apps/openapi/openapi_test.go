@@ -627,8 +627,9 @@ func TestInvokeUnreadableResponse(t *testing.T) {
 	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, petstoreSpec) })
 	mux.HandleFunc("/v3/pets/1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		// The document declares "name" a string; the API answers with an array.
-		io.WriteString(w, `{"id":1,"name":["Fido","Rex"]}`)
+		// The document declares an object; the API answers with an array, which no
+		// amount of member pruning can shape into one.
+		io.WriteString(w, `["Fido","Rex"]`)
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -654,9 +655,9 @@ func TestInvokeUnreadableResponse(t *testing.T) {
 	if upstream.TransportStatus() != http.StatusBadGateway {
 		t.Errorf("TransportStatus = %d, want 502", upstream.TransportStatus())
 	}
-	// The reason names the message the body was read against and the field that
-	// could not be read, which is the whole diagnosis.
-	if !strings.Contains(upstream.Message, "Pet") || !strings.Contains(upstream.Message, "name") {
+	// The reason names the message the body was read against, which with the body
+	// is the whole diagnosis.
+	if !strings.Contains(upstream.Message, "Pet") {
 		t.Errorf("Message = %q", upstream.Message)
 	}
 	if !strings.Contains(string(upstream.Body), `["Fido","Rex"]`) {
@@ -665,6 +666,85 @@ func TestInvokeUnreadableResponse(t *testing.T) {
 	if upstream.Method != http.MethodGet || !strings.HasSuffix(upstream.URL, "/v3/pets/1") {
 		t.Errorf("request = %s %s", upstream.Method, upstream.URL)
 	}
+}
+
+// TestInvokeMismatchedMemberDropped locks in that a response member whose value
+// cannot be read into the field the document declares is dropped like a member
+// the document never declared, and the rest of the response is read. The shape is
+// a live API drifting from its document: a collection the document declares
+// inline answered as a link to it.
+func TestInvokeMismatchedMemberDropped(t *testing.T) {
+	const spec = `
+openapi: 3.1.0
+info: { title: Sequence API, version: "1.0.0" }
+paths:
+  /sequences:
+    post:
+      operationId: createSequence
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sequence" }
+components:
+  schemas:
+    Sequence:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        annotations:
+          type: array
+          items: { $ref: "#/components/schemas/Annotation" }
+        creator:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+    Annotation:
+      type: object
+      properties:
+        start: { type: integer }
+    UserRef:
+      type: object
+      properties:
+        id: { type: string }
+`
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, spec) })
+	mux.HandleFunc("/sequences", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{
+  "id": "prtn_1",
+  "name": "GFP",
+  "annotations": "https://api.example.test/sequences/prtn_1/annotations/items",
+  "creator": {"id": "ent_1", "__typename": "User"}
+}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const method = "openapi.sequence_api.SequenceApi/CreateSequence"
+	result, err := inst.Invoke(method, encodeRequest(t, inst, method, `{"name":"GFP"}`), nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	// The link the API answered for annotations is dropped; everything else is
+	// read, the unknown __typename member discarded as before.
+	assertJSONEq(t, decodeResponse(t, inst, method, result),
+		`{"id":"prtn_1","name":"GFP","creator":{"id":"ent_1"}}`)
 }
 
 // TestInt64Format locks in that integer fields with format int64 map to int64,
