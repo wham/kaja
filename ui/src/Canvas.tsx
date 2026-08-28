@@ -365,10 +365,12 @@ Canvas.Perf = function ({ block, onOpenStats }: { block: PerfBlock; onOpenStats?
 };
 
 // Prose is measured rather than left to the container: a table wants the whole
-// width and a paragraph wants a line you can come back from.
+// width and a paragraph wants a line you can come back from. The canvas is mono,
+// so a ch is one character and the measure is a column count — 80, the one a mono
+// surface is already read at, so an ordinary one-sentence note stays one line.
 Canvas.Text = function ({ block, fullScreen }: { block: TextBlock; fullScreen?: boolean }) {
   return (
-    <div className="whitespace-pre-wrap break-words leading-relaxed text-foreground" style={{ maxWidth: fullScreen ? "72ch" : "60ch" }}>
+    <div className="whitespace-pre-wrap break-words leading-relaxed text-foreground" style={{ maxWidth: fullScreen ? "100ch" : "80ch" }}>
       {block.text}
     </div>
   );
