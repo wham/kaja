@@ -1,6 +1,7 @@
 import { Braces, Check, ChevronDown, CircleAlert, Copy, Info, Plus, Trash2 } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { copyText } from "./clipboard";
 import { Alert } from "./components/alert";
 import { Blankslate } from "./components/blankslate";
 import { Button } from "./components/button";
@@ -939,9 +940,11 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       size="xs"
       tooltip={false}
       onClick={() => {
-        navigator.clipboard?.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        void copyText(value).then((landed) => {
+          if (!landed) return;
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
       }}
     />
   );

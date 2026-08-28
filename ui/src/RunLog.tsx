@@ -1,4 +1,4 @@
-import { ArrowDown, Check, Copy } from "lucide-react";
+import { ArrowDown, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
@@ -31,6 +31,8 @@ const DURATION_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono te
 
 const payloadTabClass = "cursor-pointer select-none whitespace-nowrap text-xs text-muted-foreground hover:text-foreground";
 const payloadTabActiveClass = "font-medium text-foreground";
+// Same weight as the console header's utilities: no resting chrome.
+const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
 interface RunLogProps {
   group: RunGroup;
@@ -42,7 +44,6 @@ interface RunLogProps {
   // So the tail bar can say what is being left out.
   logFloor: LogFloor;
   printed: { lines: number; errors: number };
-  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
   now: number;
   tailing: boolean;
   // The same answer, readable without a render — see the note where it is made.
@@ -70,7 +71,6 @@ export function RunLog({
   waiting,
   logFloor,
   printed,
-  jsonViewerRef,
   now,
   tailing,
   tailingRef,
@@ -202,7 +202,7 @@ export function RunLog({
         ) : selectedItem?.payloadsDropped ? (
           <RunLog.NoPayload>Payload let go to keep this run bounded — run to see it live</RunLog.NoPayload>
         ) : selectedItem?.call ? (
-          <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
+          <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
         ) : selectedItem?.printed ? (
           <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
         ) : (
@@ -487,13 +487,23 @@ interface PayloadPaneProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
-  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: PayloadPaneProps) {
+RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPaneProps) {
+  const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
+  const [copied, setCopied] = useState(false);
   const isStreaming = methodCall.streamOutputs !== undefined;
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
   const hasError = methodCall.error !== undefined;
+  // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
+  // does — not over the headers table, not while a response is still coming.
+  const showsJson = activeTab !== "headers" && !(activeTab === "response" && !hasResponse);
+
+  const copy = async () => {
+    if (!(await jsonViewerRef.current?.copyToClipboard())) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
 
   // Switch to the response tab when the response arrives.
   useEffect(() => {
@@ -528,6 +538,27 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange, jsonViewerR
       <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
         <RunLog.PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
         {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
+        {showsJson && (
+          <div className="flex shrink-0 items-center gap-1">
+            <IconButton
+              icon={FoldVertical}
+              aria-label="Fold all"
+              variant="ghost"
+              size="sm"
+              className={utilityButtonClass}
+              onClick={() => jsonViewerRef.current?.foldAll()}
+            />
+            <IconButton
+              icon={UnfoldVertical}
+              aria-label="Unfold all"
+              variant="ghost"
+              size="sm"
+              className={utilityButtonClass}
+              onClick={() => jsonViewerRef.current?.unfoldAll()}
+            />
+            <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={copy} />
+          </div>
+        )}
       </div>
       {activeTab === "headers" ? (
         <RunLog.HeadersContent methodCall={methodCall} />

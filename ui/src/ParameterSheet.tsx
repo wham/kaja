@@ -1,6 +1,7 @@
 import { Check, Copy, Link2, Play } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { Dialog } from "./components/dialog";
 import { IconButton } from "./components/icon-button";
@@ -70,18 +71,16 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
   }, [parts]);
 
   const copy = useCallback(() => {
-    navigator.clipboard?.writeText(link).then(
-      () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      },
-      () => {},
-    );
+    void copyText(link).then((landed) => {
+      if (!landed) return;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    });
   }, [link]);
 
   const submit = useCallback(() => {
     if (door === "copy") {
-      navigator.clipboard?.writeText(link).catch(() => {});
+      void copyText(link);
       onClose();
       return;
     }

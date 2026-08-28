@@ -1,4 +1,4 @@
-import { Bot, Check, ChevronsUpDown, Copy, FoldVertical, Logs, Maximize, Minimize, Trash2, UnfoldVertical } from "lucide-react";
+import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
@@ -10,7 +10,6 @@ import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
-import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
 import { scheduleNote, Stats } from "./Stats";
 import {
@@ -99,7 +98,6 @@ export function Console({
   const newest = groups[groups.length - 1];
 
   const [now, setNow] = useState(Date.now());
-  const [copied, setCopied] = useState(false);
   /**
    * Whether the log is following the run, like a terminal.
    *
@@ -115,7 +113,6 @@ export function Console({
     setTailingState(next);
   }, []);
 
-  const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   /**
    * Whether the console has the whole window. A size rather than a mode — the run keeps
    * running, the log keeps recording — so it belongs to the run being read and nothing
@@ -182,7 +179,6 @@ export function Console({
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
   const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
-  const selectedCall = selectedItem?.call;
   const activeView = file.view ?? defaultView(selectedGroup);
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
@@ -209,12 +205,6 @@ export function Console({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [groups, selection?.runId, selectRun]);
-
-  const handleCopy = useCallback(() => {
-    jsonViewerRef.current?.copyToClipboard();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  }, []);
 
   // A request for that call's complete record, which only the log has. It is a change
   // of view and nothing else — the log is shown at whatever size the canvas was.
@@ -293,12 +283,6 @@ export function Console({
     );
   }
 
-  // Fold, unfold and copy are about a payload, so they belong to the one view that
-  // shows one — a document of six different kinds of block has no coherent clipboard
-  // form, and the button that offered one quietly produced a poor one. Full screen is
-  // about the room, which all three views can use.
-  const showPayloadUtilities = activeView === "calls" && selectedCall !== undefined;
-
   const body = !selectedGroup ? null : activeView === "canvas" ? (
     <Canvas
       group={selectedGroup}
@@ -327,7 +311,6 @@ export function Console({
       waiting={waiting !== undefined}
       logFloor={logFloor}
       printed={printed}
-      jsonViewerRef={jsonViewerRef}
       now={now}
       tailing={tailing}
       tailingRef={tailingRef}
@@ -379,31 +362,11 @@ export function Console({
         {activeView === "stats" && selectedGroup?.run.perf !== undefined && (
           <span className="ml-auto shrink-0 truncate font-mono text-xs text-muted-foreground @max-[520px]:hidden">{scheduleNote(selectedGroup.run.perf)}</span>
         )}
+        {/* Full screen is about the room, which all three views can use. Fold,
+            unfold and copy are about a payload, so they live on the payload
+            pane itself. */}
         {selectedGroup && (
-          <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
-            {showPayloadUtilities && (
-              <>
-                <IconButton
-                  icon={FoldVertical}
-                  aria-label="Fold all"
-                  variant="ghost"
-                  size="sm"
-                  className={utilityButtonClass}
-                  onClick={() => jsonViewerRef.current?.foldAll()}
-                />
-                <IconButton
-                  icon={UnfoldVertical}
-                  aria-label="Unfold all"
-                  variant="ghost"
-                  size="sm"
-                  className={utilityButtonClass}
-                  onClick={() => jsonViewerRef.current?.unfoldAll()}
-                />
-                <div className="h-4 w-px bg-border" />
-                <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={handleCopy} />
-                <div className="h-4 w-px bg-border" />
-              </>
-            )}
+          <div className="ml-auto flex shrink-0 items-center @max-[430px]:hidden">
             <IconButton
               icon={Maximize}
               aria-label="Full screen"

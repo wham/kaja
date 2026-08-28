@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { GitBranch, MessagesSquare, Moon, Sun, Plug } from "lucide-react";
+import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
@@ -159,13 +160,11 @@ function MCPStatus({ info, active, agent }: { info?: McpConnection; active: bool
   };
 
   const copy = () => {
-    navigator.clipboard?.writeText(snippet).then(
-      () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      },
-      () => {},
-    );
+    void copyText(snippet).then((landed) => {
+      if (!landed) return;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   };
 
   return (
