@@ -63,12 +63,24 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	// Encode the JSON response back into the method's protobuf response, ignoring
 	// any extra REST fields not modeled in the proto.
 	respMsg := dynamicpb.NewMessage(method.output)
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(ex.responseJSON, respMsg); err != nil {
+	unmarshal := protojson.UnmarshalOptions{DiscardUnknown: true}
+	decodeErr := unmarshal.Unmarshal(ex.responseJSON, respMsg)
+	if decodeErr != nil {
+		// A member whose value cannot be read into the field the document maps it
+		// to is dropped like a member the document never declared: a live API
+		// drifts from its document field by field, and one drifted field must not
+		// take the rest of the response with it.
+		if pruned, changed := pruneMismatched(method.output, ex.responseJSON); changed {
+			respMsg = dynamicpb.NewMessage(method.output)
+			decodeErr = unmarshal.Unmarshal(pruned, respMsg)
+		}
+	}
+	if decodeErr != nil {
 		// The API answered, and what it answered is not the shape its own document
 		// promises for this operation. The body is the only thing that says how it
 		// differs, so it travels whole under a reason naming the message it was read
 		// against - a codec error on its own names neither the call nor the answer.
-		reason := fmt.Sprintf("the response is not the %s the spec declares: %v", method.output.Name(), err)
+		reason := fmt.Sprintf("the response is not the %s the spec declares: %v", method.output.Name(), decodeErr)
 		return nil, apps.NewUnreadableResponse(ex.verb, ex.url, ex.status, ex.body, reason).
 			WithHeaders(ex.requestHeaders, ex.responseHeaders)
 	}
