@@ -1,10 +1,12 @@
 #!/bin/bash
-# Runs kaja on a booted iOS Simulator, and is the bootstrap in front of
-# desktop/build/ios/Taskfile.yml the way scripts/desktop-build is in front of
-# the Mac one: the wails3 that runs the Taskfile is installed into server/build
-# rather than onto the PATH, so the Taskfile is not reachable without this.
+# Runs kaja on a booted iOS Simulator or a connected iPhone, and is the
+# bootstrap in front of desktop/build/ios/Taskfile.yml the way
+# scripts/desktop-build is in front of the Mac one: the wails3 that runs the
+# Taskfile is installed into server/build rather than onto the PATH, so the
+# Taskfile is not reachable without this.
 #
 #   scripts/ios            build and launch on a booted simulator
+#   scripts/ios device     the same build signed for real, onto a connected iPhone
 #   scripts/ios package    write the bundle without launching it
 #   scripts/ios xcode      open the project device signing is managed from
 #   scripts/ios logs       stream the simulator's log, filtered to this app
