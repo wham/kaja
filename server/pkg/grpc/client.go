@@ -155,14 +155,18 @@ func (c *Client) UseTLS() bool {
 
 // Invoke calls a gRPC method, named "/package.Service/Method". Request and response
 // are raw protobuf bytes; headers are passed as gRPC metadata.
-func (c *Client) Invoke(ctx context.Context, method string, request []byte, headers map[string]string) ([]byte, error) {
+//
+// The metadata the server answered with comes back beside the response, on a failed
+// call as well as a successful one: a refusal is exactly where a server has something
+// to say about why, and a rate limit says it in headers the caller is meant to obey.
+func (c *Client) Invoke(ctx context.Context, method string, request []byte, headers map[string]string) ([]byte, map[string]string, error) {
 	if !strings.HasPrefix(method, "/") {
 		method = "/" + method
 	}
 
 	conn, err := sharedConnection(c.target, c.useTLS, c.options)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(headers) > 0 {
@@ -170,20 +174,61 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte, head
 		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
+	// Both, because which one a value arrives in is not the server's choice: a call
+	// answered with a status and no message sends its metadata as trailers alone.
+	var header, trailer metadata.MD
 	var response []byte
-	err = conn.Invoke(ctx, method, request, &response)
+	err = conn.Invoke(ctx, method, request, &response, grpc.Header(&header), grpc.Trailer(&trailer))
+	responseMetadata := ResponseMetadata(header, trailer)
 	if err != nil {
-		return nil, fmt.Errorf("gRPC invocation failed: %w", err)
+		return nil, responseMetadata, fmt.Errorf("gRPC invocation failed: %w", err)
 	}
 
-	return response, nil
+	return response, responseMetadata, nil
 }
 
 // InvokeWithTimeout calls a gRPC method with a default timeout.
-func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration, headers map[string]string) ([]byte, error) {
+func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration, headers map[string]string) ([]byte, map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return c.Invoke(ctx, method, request, headers)
+}
+
+// Reserved names carry the frame rather than anything the server said: HTTP/2
+// pseudo-headers, the status the transport already reports, and the content type the
+// codec settled. A -bin name is base64 of arbitrary bytes, which is not a header
+// anything downstream can show. The kaja-upstream- prefix is Kaja's own channel back
+// to the client, so an upstream may not write into it.
+func reservedMetadata(name string) bool {
+	switch name {
+	case "content-type", "grpc-status", "grpc-message", "grpc-encoding", "grpc-accept-encoding", "trailer":
+		return true
+	}
+	return strings.HasPrefix(name, ":") || strings.HasSuffix(name, "-bin") || strings.HasPrefix(name, "kaja-upstream-")
+}
+
+// ResponseMetadata flattens a call's header and trailer metadata into the headers the
+// client sees. Names are already lowercase; a name sent more than once is joined the
+// way HTTP joins a repeated field, and a trailer restates rather than replaces a
+// header of the same name.
+func ResponseMetadata(header, trailer metadata.MD) map[string]string {
+	flattened := map[string]string{}
+	for _, md := range []metadata.MD{header, trailer} {
+		for name, values := range md {
+			if reservedMetadata(name) || len(values) == 0 {
+				continue
+			}
+			joined := strings.Join(values, ", ")
+			if existing, ok := flattened[name]; ok && existing != joined {
+				joined = existing + ", " + joined
+			}
+			flattened[name] = joined
+		}
+	}
+	if len(flattened) == 0 {
+		return nil
+	}
+	return flattened
 }
 
 // ServerStream sends a single request and returns a channel that yields response

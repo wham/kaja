@@ -41,8 +41,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string,
 	// The one Kaja process in the call's path stamps the upstream exchange, so what
 	// the client shows as the call's duration is the API's time, not the trip here.
 	started := time.Now()
-	res, err := p.client.InvokeWithTimeout(method, message, 30*time.Second, headers)
-	trailers := map[string]string{upstreamDurationTrailer: strconv.FormatInt(time.Since(started).Milliseconds(), 10)}
+	res, responseMetadata, err := p.client.InvokeWithTimeout(method, message, 30*time.Second, headers)
+	// This lane is a bridge rather than a hop: the same call is forwarded, so what the
+	// server answered with is the response's own metadata and rides back under its own
+	// names, beside the one trailer that is Kaja's.
+	trailers := map[string]string{}
+	for name, value := range responseMetadata {
+		trailers[name] = value
+	}
+	trailers[upstreamDurationTrailer] = strconv.FormatInt(time.Since(started).Milliseconds(), 10)
 
 	if err != nil {
 		slog.Error("gRPC invocation failed", "method", method, "error", err)
