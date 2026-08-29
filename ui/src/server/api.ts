@@ -188,12 +188,13 @@ export interface GrpcService {
      */
     methodCount: number;
     /**
-     * Methods that stream in either direction. gRPC-Web can't carry them, so on
-     * the web they are listed but can't be called.
+     * Methods that stream from the client, bidirectional ones included. Neither
+     * build carries a stream in that direction, so they are listed but can't be
+     * called; a stream from the server is carried on both.
      *
-     * @generated from protobuf field: int32 streaming_method_count = 3
+     * @generated from protobuf field: int32 client_streaming_method_count = 3
      */
-    streamingMethodCount: number;
+    clientStreamingMethodCount: number;
 }
 /**
  * GrpcProblem is a surface that couldn't be read, classified so the form can
@@ -1881,14 +1882,14 @@ class GrpcService$Type extends MessageType<GrpcService> {
         super("GrpcService", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "streaming_method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 3, name: "client_streaming_method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<GrpcService>): GrpcService {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.name = "";
         message.methodCount = 0;
-        message.streamingMethodCount = 0;
+        message.clientStreamingMethodCount = 0;
         if (value !== undefined)
             reflectionMergePartial<GrpcService>(this, message, value);
         return message;
@@ -1904,8 +1905,8 @@ class GrpcService$Type extends MessageType<GrpcService> {
                 case /* int32 method_count */ 2:
                     message.methodCount = reader.int32();
                     break;
-                case /* int32 streaming_method_count */ 3:
-                    message.streamingMethodCount = reader.int32();
+                case /* int32 client_streaming_method_count */ 3:
+                    message.clientStreamingMethodCount = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1925,9 +1926,9 @@ class GrpcService$Type extends MessageType<GrpcService> {
         /* int32 method_count = 2; */
         if (message.methodCount !== 0)
             writer.tag(2, WireType.Varint).int32(message.methodCount);
-        /* int32 streaming_method_count = 3; */
-        if (message.streamingMethodCount !== 0)
-            writer.tag(3, WireType.Varint).int32(message.streamingMethodCount);
+        /* int32 client_streaming_method_count = 3; */
+        if (message.clientStreamingMethodCount !== 0)
+            writer.tag(3, WireType.Varint).int32(message.clientStreamingMethodCount);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

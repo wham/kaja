@@ -24,24 +24,37 @@ func grpcWebTextFrame(msg []byte) string {
 	return base64.StdEncoding.EncodeToString(frame)
 }
 
-// parseGRPCWebText splits a base64 gRPC-Web-text response into its data message
-// (may be nil) and trailer text.
-func parseGRPCWebText(t *testing.T, body string) (message []byte, trailers string) {
+// parseGRPCWebFrames splits a gRPC-Web response body into its data messages and the
+// text of its trailer frame.
+func parseGRPCWebFrames(t *testing.T, body []byte) (messages [][]byte, trailers string) {
 	t.Helper()
-	raw, err := base64.StdEncoding.DecodeString(body)
-	if err != nil {
-		t.Fatalf("decode base64: %v", err)
-	}
-	for len(raw) >= 5 {
-		flag := raw[0]
-		n := binary.BigEndian.Uint32(raw[1:5])
-		payload := raw[5 : 5+n]
+	for len(body) >= 5 {
+		flag := body[0]
+		n := binary.BigEndian.Uint32(body[1:5])
+		if uint32(len(body)-5) < n {
+			t.Fatalf("frame says %d bytes, %d left", n, len(body)-5)
+		}
+		payload := body[5 : 5+n]
 		if flag&0x80 != 0 {
 			trailers = string(payload)
 		} else {
-			message = payload
+			messages = append(messages, payload)
 		}
-		raw = raw[5+n:]
+		body = body[5+n:]
+	}
+	return messages, trailers
+}
+
+// parseGRPCWebResponse reads a response that carries at most one message, which is
+// every response an app answers with.
+func parseGRPCWebResponse(t *testing.T, body []byte) (message []byte, trailers string) {
+	t.Helper()
+	messages, trailers := parseGRPCWebFrames(t, body)
+	if len(messages) > 1 {
+		t.Fatalf("got %d messages, want at most one", len(messages))
+	}
+	if len(messages) == 1 {
+		message = messages[0]
 	}
 	return message, trailers
 }
@@ -70,7 +83,7 @@ func TestServeAppGRPCWebSuccess(t *testing.T) {
 		t.Errorf("de-framed message = %v, want [1 2 3]", gotMessage)
 	}
 
-	message, trailers := parseGRPCWebText(t, w.Body.String())
+	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if string(message) != string([]byte{9, 8, 7}) {
 		t.Errorf("response message = %v, want [9 8 7]", message)
 	}
@@ -86,7 +99,7 @@ func TestServeAppGRPCWebUpstreamDuration(t *testing.T) {
 	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
 		return &apps.InvokeResult{Body: []byte{9}, DurationMs: 42}, nil
 	})
-	_, trailers := parseGRPCWebText(t, w.Body.String())
+	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if got := trailerValue(t, trailers, "kaja-upstream-duration-ms"); got != "42" {
 		t.Errorf("duration trailer = %q, want 42", got)
 	}
@@ -96,7 +109,7 @@ func TestServeAppGRPCWebUpstreamDuration(t *testing.T) {
 		failure.DurationMs = 17
 		return nil, failure
 	})
-	_, trailers = parseGRPCWebText(t, w.Body.String())
+	_, trailers = parseGRPCWebResponse(t, w.Body.Bytes())
 	if got := trailerValue(t, trailers, "kaja-upstream-duration-ms"); got != "17" {
 		t.Errorf("duration trailer on failure = %q, want 17", got)
 	}
@@ -113,7 +126,7 @@ func TestServeAppGRPCWebUpstreamHeaders(t *testing.T) {
 		}, nil
 	})
 
-	_, trailers := parseGRPCWebText(t, w.Body.String())
+	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
 		t.Errorf("trailers = %q, want request-headers trailer", trailers)
 	}
@@ -127,7 +140,7 @@ func TestServeAppGRPCWebError(t *testing.T) {
 		return nil, fmt.Errorf("upstream 404\nnot found")
 	})
 
-	message, trailers := parseGRPCWebText(t, w.Body.String())
+	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if message != nil {
 		t.Errorf("expected no data frame on error, got %v", message)
 	}
@@ -155,7 +168,7 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 			WithHeaders(map[string]string{"Authorization": "Bearer secret"}, map[string]string{"Content-Type": "application/json"})
 	})
 
-	message, trailers := parseGRPCWebText(t, w.Body.String())
+	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if message != nil {
 		t.Errorf("expected no data frame on error, got %v", message)
 	}
@@ -206,7 +219,7 @@ func TestTrailerValuesSurviveNonASCII(t *testing.T) {
 			[]byte(`{"detail":`+strconv.Quote(detail)+`}`))
 	})
 
-	_, trailers := parseGRPCWebText(t, w.Body.String())
+	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	for _, line := range strings.Split(trailers, "\r\n") {
 		for i := 0; i < len(line); i++ {
 			if line[i] > 0x7e {
@@ -262,7 +275,7 @@ func TestTrailerBlockIsBounded(t *testing.T) {
 			WithHeaders(map[string]string{"X-Huge": huge}, map[string]string{"X-Also-Huge": huge})
 	})
 
-	_, trailers := parseGRPCWebText(t, w.Body.String())
+	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if len(trailers) > maxTrailerBytes {
 		t.Errorf("trailer block is %d bytes, want at most %d", len(trailers), maxTrailerBytes)
 	}
@@ -289,7 +302,7 @@ func TestLongGRPCMessageFitsOnceEscaped(t *testing.T) {
 		return nil, fmt.Errorf("%s", strings.Repeat("→", 4*maxTrailerBytes))
 	})
 
-	_, trailers := parseGRPCWebText(t, w.Body.String())
+	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if len(trailers) > maxTrailerBytes {
 		t.Errorf("trailer block is %d bytes, want at most %d", len(trailers), maxTrailerBytes)
 	}
@@ -308,7 +321,7 @@ func TestOversizedTrailerIsDroppedNotCut(t *testing.T) {
 		}, nil
 	})
 
-	message, trailers := parseGRPCWebText(t, w.Body.String())
+	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if string(message) != string([]byte{9}) {
 		t.Errorf("the response itself must be unaffected, got %v", message)
 	}

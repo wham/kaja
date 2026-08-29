@@ -13,7 +13,7 @@ import {
   deriveAppName,
   isDialableTarget,
   nameFromAddress,
-  streamingMethods,
+  clientStreamingMethods,
   targetHost,
   tlsFromServer,
   uniqueAppName,
@@ -146,14 +146,14 @@ describe("tlsFromServer", () => {
   });
 });
 
-describe("streamingMethods", () => {
+describe("clientStreamingMethods", () => {
   test("counts what gRPC-Web can't carry", () => {
     const counted = server({
       services: [
-        { name: "a.A", methodCount: 4, streamingMethodCount: 1 },
-        { name: "b.B", methodCount: 2, streamingMethodCount: 2 },
+        { name: "a.A", methodCount: 4, clientStreamingMethodCount: 1 },
+        { name: "b.B", methodCount: 2, clientStreamingMethodCount: 2 },
       ],
     });
-    expect(streamingMethods(counted)).toBe(3);
+    expect(clientStreamingMethods(counted)).toBe(3);
   });
 });
