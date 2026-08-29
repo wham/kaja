@@ -342,6 +342,12 @@ export class WailsTransport implements RpcTransport {
         if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
           trailers[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
         }
+        // What a gRPC server answered with, under its own names — the same channel the
+        // web build's gRPC-Web trailers are, so a script reads one transport's headers
+        // the way it reads the other's.
+        for (const [name, value] of Object.entries((result as { trailers?: Record<string, string> }).trailers ?? {})) {
+          trailers[name] = value;
+        }
         // The Go side stamps the upstream exchange; mirrored the same way. Read
         // structurally rather than off the generated TargetResult model, which only
         // gains the field when the next desktop build regenerates the bindings.

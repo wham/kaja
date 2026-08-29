@@ -62,8 +62,17 @@ inside it:
                              kaja-upstream-error              (the HTTP failure,
                                                                shown instead of
                                                                the gRPC status)
+                             <the gRPC server's own metadata> (the gRPC lane,
+                                                               under its own names)
   Twirp response header      Kaja-Upstream-Duration-Ms
 ```
+
+The gRPC lane is a bridge rather than a hop — the same call is forwarded — so
+what the server answered with is the response's own headers and rides back
+under its own names, on a refusal as well as a success. Header and trailer
+metadata are read as one; the names carrying the frame (`content-type`,
+`grpc-status`, anything `-bin` or under `kaja-upstream-`) are dropped, so an
+upstream cannot write into Kaja's own channel.
 
 ## Desktop
 
@@ -90,7 +99,7 @@ a Wails binding and the response is a `TargetResult` value.
           upstream API              upstream gRPC        upstream Twirp
 
   back:  TargetResult { body, statusCode, requestHeaders,
-                        responseHeaders, durationMs }
+                        responseHeaders, trailers, durationMs }
          — the transport mirrors it into the same kaja-upstream-* shape
   server streams:  Wails events  stream:<id> · :end(durationMs) · :error
 ```

@@ -390,7 +390,11 @@ type TargetResult struct {
 	Status          string            `json:"status"`
 	RequestHeaders  map[string]string `json:"requestHeaders,omitempty"`
 	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
-	DurationMs      int64             `json:"durationMs"`
+	// What a gRPC server answered with. That lane is a bridge rather than a hop —
+	// the same call is forwarded — so the metadata is the response's own, the way
+	// the web proxy hands it back as gRPC-Web trailers.
+	Trailers   map[string]string `json:"trailers,omitempty"`
+	DurationMs int64             `json:"durationMs"`
 }
 
 // Target proxies external API calls to configured endpoints (the desktop's
@@ -456,11 +460,11 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	switch protocol {
 	case 1: // gRPC
 		started := time.Now()
-		resp, err := a.targetGRPC(target, method, req, headers, connection.TLS)
+		resp, responseMetadata, err := a.targetGRPC(target, method, req, headers, connection.TLS)
 		if err != nil {
 			return nil, err
 		}
-		return &TargetResult{Body: resp, DurationMs: time.Since(started).Milliseconds()}, nil
+		return &TargetResult{Body: resp, Trailers: responseMetadata, DurationMs: time.Since(started).Milliseconds()}, nil
 	case 2: // Twirp
 		return a.targetTwirp(target, method, req, headers)
 	default:
@@ -468,25 +472,25 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	}
 }
 
-func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, error) {
+func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, map[string]string, error) {
 	slog.Info("Invoking gRPC target", "target", target, "method", method, "headers", len(headers))
 
 	client, err := grpc.NewClientFromString(target, options)
 	if err != nil {
 		slog.Error("Failed to create gRPC client", "target", target, "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	slog.Info("gRPC client created", "target", target, "tls", client.UseTLS())
 
-	response, err := client.InvokeWithTimeout(method, req, 30*time.Second, headers)
+	response, responseMetadata, err := client.InvokeWithTimeout(method, req, 30*time.Second, headers)
 	if err != nil {
 		slog.Error("gRPC invocation failed", "target", target, "method", method, "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	slog.Info("gRPC response received", "target", target, "method", method, "response_length", len(response))
-	return response, nil
+	return response, responseMetadata, nil
 }
 
 func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) (*TargetResult, error) {
