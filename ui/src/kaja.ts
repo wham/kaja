@@ -1,5 +1,6 @@
 import { IMessageType } from "@protobuf-ts/runtime";
-import { Method, Service } from "./apps";
+import { Method, Methods, Service } from "./apps";
+import { APP_OF, RateLimiter, RateLimitOptions, RateLimitState } from "./rateLimit";
 import { parseInteger } from "./ask";
 import {
   ApproveBlock,
@@ -11,12 +12,14 @@ import {
   CodeBlock,
   formatCell,
   newBlockId,
+  RateLimitBlock,
   TableBlock,
   TextBlock,
   withCellStatus,
   withoutRowStatus,
   PerfBlock,
 } from "./blocks";
+import { classifyFailure } from "./callFailure";
 import { describeSchedule, PerfBody, PerfPlan, PerfReport, perfReport, PerfSchedule, PerfTestOptions, runPerfTest } from "./perfTest";
 import { RunMetrics } from "./runStats";
 import { LogSink } from "./scriptConsole";
@@ -126,6 +129,21 @@ export interface ApproveRequest {
 
 export interface BlockUpdate {
   (blockId: string, block: Block): void;
+}
+
+/**
+ * A live reading of what a limiter is doing, handed back by kaja.rateLimit. Every
+ * member is a getter over the limiter itself rather than a snapshot, so where it is
+ * declared never changes what it says.
+ */
+export interface RateLimit {
+  readonly state: RateLimitState;
+  readonly calls: number;
+  readonly held: number;
+  readonly waitedMs: number;
+  readonly refusals: number;
+  readonly limit?: number;
+  readonly remaining?: number;
 }
 
 // Rows land one at a time so the canvas repaints as the loop runs.
@@ -585,6 +603,77 @@ export class Kaja {
     }
   }
 
+  /**
+   * Watch an app's rate limit and obey it. Nothing paces until this is called: a run
+   * that never asks is never slowed, which is why the limiter is a verb rather than a
+   * setting.
+   *
+   * The app is named by any service imported from it, and that service is pointed at
+   * rather than replaced — so nothing is reassigned and the name in the loop stays the
+   * name in the import. Calling it twice for one app restates the options on the one
+   * limiter that app has, because it has one budget.
+   */
+  rateLimit(service: object, options: RateLimitOptions = {}): RateLimit {
+    const app = (service as Methods | undefined)?.[APP_OF];
+    if (typeof app !== "string") {
+      throw new Error("kaja.rateLimit: expects a service imported from an app — kaja.rateLimit(Shows), not a name or a call.");
+    }
+
+    const existing = this._internal.limiters.get(app);
+    if (existing) {
+      existing.limiter.configure(options);
+      this.#drawLimit(existing.blockId, existing.limiter);
+      return existing.handle;
+    }
+
+    const blockId = newBlockId();
+    const limiter = new RateLimiter(app, options, { onChange: () => this.#drawLimit(blockId, limiter) });
+    const handle: RateLimit = {
+      get state() {
+        return limiter.state;
+      },
+      get calls() {
+        return limiter.calls;
+      },
+      get held() {
+        return limiter.held;
+      },
+      get waitedMs() {
+        return limiter.waitedMs;
+      },
+      get refusals() {
+        return limiter.refusals;
+      },
+      get limit() {
+        return limiter.budget.limit;
+      },
+      get remaining() {
+        return limiter.remaining;
+      },
+    };
+    this._internal.limiters.set(app, { limiter, handle, blockId });
+    this.#drawLimit(blockId, limiter);
+    return handle;
+  }
+
+  #drawLimit(blockId: string, limiter: RateLimiter): void {
+    const block: RateLimitBlock = {
+      kind: "limit",
+      app: limiter.app,
+      state: limiter.state,
+      limit: limiter.budget.limit,
+      remaining: limiter.remaining,
+      resetInMs: limiter.resetInMs,
+      declared: limiter.declared,
+      calls: limiter.calls,
+      held: limiter.held,
+      waitedMs: Math.round(limiter.waitedMs),
+      refusals: limiter.refusals || undefined,
+      waiting: limiter.waiting || undefined,
+    };
+    this.#onBlockUpdate(blockId, block);
+  }
+
   #refuseInsidePerfTest(verb: string): void {
     if (!this._internal.inPerfTest) return;
     throw new Error(
@@ -1038,6 +1127,11 @@ class KajaInternal {
    * time Run is pressed and a concurrent script can't be let through on it.
    */
   readonly approvedMethods = new Set<string>();
+  /**
+   * The limiters this run asked for, by app. Empty unless a script called
+   * kaja.rateLimit, which is what makes doing nothing the default.
+   */
+  readonly limiters = new Map<string, { limiter: RateLimiter; handle: RateLimit; blockId: string }>();
   // Remembering walks a request and a response with their schemas to feed a completion
   // list that keeps five values per field, so a loop calling one method a thousand
   // times is mostly wasted walks.
@@ -1050,7 +1144,43 @@ class KajaInternal {
     this.onLog = onLog;
   }
 
+  /**
+   * Wait for this app's budget, if the run asked for one. Returns nothing at all in
+   * the common case, where no script called kaja.rateLimit and there is no budget to
+   * wait for — which is what makes doing nothing the default rather than a setting.
+   */
+  acquireRateLimit(app: string): Promise<void> | void {
+    const held = this.limiters.get(app);
+    if (held === undefined) return;
+    return held.limiter.acquire(this.abortSignal);
+  }
+
+  /**
+   * Whether a call is waiting on a budget rather than on a server. Such a call is work
+   * the run still has to do, and the console cannot see it — no row is written until
+   * the call is let go — so a run whose script has finished must ask here before it
+   * takes a duration and stops being a running run.
+   */
+  hasCallsWaiting(): boolean {
+    for (const held of this.limiters.values()) {
+      if (held.limiter.waiting > 0) return true;
+    }
+    return false;
+  }
+
+  /**
+   * What an answered call taught its limiter. Called once per call, on the update that
+   * takes it out of flight — which is the same update that carries its headers.
+   */
+  #settleRateLimit(methodCall: MethodCall): void {
+    const held = this.limiters.get(methodCall.appName);
+    if (held === undefined) return;
+    const rateLimited = methodCall.error !== undefined && classifyFailure(methodCall.error).kind === "RATE_LIMITED";
+    held.limiter.settle(callResponseHeaders(methodCall), rateLimited);
+  }
+
   methodCallUpdate(methodCall: MethodCall) {
+    if (!isCallInFlight(methodCall)) this.#settleRateLimit(methodCall);
     if (methodCall.output && !methodCall.error) {
       const method = `${methodCall.service.name}.${methodCall.method.name}`;
       const seen = this.sampledMethods.get(method) ?? 0;

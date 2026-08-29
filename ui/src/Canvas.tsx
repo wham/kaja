@@ -1,7 +1,8 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, PerfBlock, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, PerfBlock, RateLimitBlock, TableBlock, TextBlock } from "./blocks";
+import { RateLimitState } from "./rateLimit";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
 import { Button } from "./components/button";
@@ -322,7 +323,71 @@ Canvas.Block = function ({
       return <Canvas.Approve id={id} block={block} fullScreen={fullScreen} onDecide={onDecide} onFullScreen={onFullScreen} />;
     case "perf":
       return <Canvas.Perf block={block} onOpenStats={onOpenStats} />;
+    case "limit":
+      return <Canvas.Limit block={block} />;
   }
+};
+
+// Clear, pacing, held — the three the mechanism actually has. Amber and red here are
+// about the traffic and stay inside this frame: a run waiting on a clock is not a run
+// waiting on you, so nothing outside lights up for it.
+const LIMIT_LAMP: { [state in RateLimitState]: string } = {
+  clear: "bg-emerald-600 dark:bg-emerald-400",
+  pacing: "bg-amber-600 dark:bg-amber-400",
+  held: "bg-destructive",
+};
+
+const LIMIT_SAID: { [state in RateLimitState]: string } = {
+  clear: "clear",
+  pacing: "pacing",
+  held: "held",
+};
+
+/**
+ * What a rate limiter draws: a signal, the budget draining behind it, and what obeying
+ * it has cost. A headline rather than a control — the only button this could offer is
+ * one that ignores the API.
+ */
+Canvas.Limit = function ({ block }: { block: RateLimitBlock }) {
+  const cells: TileCell[] = [
+    {
+      label: "budget",
+      value:
+        block.limit === undefined ? (block.remaining?.toLocaleString() ?? "—") : `${(block.remaining ?? 0).toLocaleString()} / ${block.limit.toLocaleString()}`,
+    },
+    { label: "calls", value: block.calls.toLocaleString() },
+    { label: "held", value: block.held.toLocaleString() },
+    { label: "waited", value: (block.waitedMs > 0 ? formatDuration(block.waitedMs) : undefined) ?? "—" },
+  ];
+  // Absent until the API says both, and never past full or below empty.
+  const share = block.limit !== undefined && block.limit > 0 ? Math.min(1, Math.max(0, (block.remaining ?? 0) / block.limit)) : undefined;
+  const note = [
+    block.declared !== undefined ? `capped at ${block.declared}` : undefined,
+    block.refusals !== undefined ? `${block.refusals.toLocaleString()} refused` : undefined,
+  ]
+    .filter((part) => part !== undefined)
+    .join(" · ");
+
+  return (
+    <div data-testid="canvas-limit" className="overflow-hidden rounded-lg border border-border">
+      <div className="flex h-[28px] items-center gap-2 border-b border-border bg-card px-3">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", LIMIT_LAMP[block.state])} />
+        <span className="shrink-0 text-xs text-muted-foreground">rate limit</span>
+        <span className="min-w-0 truncate font-mono text-xs text-foreground">{block.app}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{LIMIT_SAID[block.state]}</span>
+        {block.waiting !== undefined && <span className="shrink-0 text-xs text-muted-foreground">{block.waiting} waiting</span>}
+        {block.resetInMs !== undefined && (
+          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">resets in {formatDuration(Math.round(block.resetInMs))}</span>
+        )}
+      </div>
+      {share !== undefined && (
+        <div className="h-[3px] w-full bg-muted">
+          <div className={cn("h-full transition-[width] duration-200", LIMIT_LAMP[block.state])} style={{ width: `${share * 100}%` }} />
+        </div>
+      )}
+      <StatTiles cells={cells} note={note === "" ? undefined : note} />
+    </div>
+  );
 };
 
 /**
