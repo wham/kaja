@@ -70,8 +70,13 @@ func methodLine(resolved resolvedMethod) string {
 	if method.HTTP != "" {
 		marks = append(marks, method.HTTP)
 	}
-	if method.Streaming != "" {
-		marks = append(marks, "streaming")
+	// Which way it streams is only worth a mark for what it costs the caller: one
+	// direction is called like any other method, the other two not at all.
+	switch method.Streaming {
+	case "server":
+		marks = append(marks, "server stream")
+	case "client", "bidirectional":
+		marks = append(marks, "not callable")
 	}
 	if len(marks) > 0 {
 		line += "  [" + strings.Join(marks, ", ") + "]"

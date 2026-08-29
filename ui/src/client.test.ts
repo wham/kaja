@@ -3,6 +3,8 @@ import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 import { createAppRef, Service, Transport } from "./apps";
 import { Kaja, KajaHost, MethodCall } from "./kaja";
 import { LogLevel } from "./server/api";
+import { classifyFailure } from "./callFailure";
+import { NOT_CALLABLE, UNSUPPORTED_CODE } from "./streaming";
 
 // The client asks where the page is served from when it builds its transport, which
 // is the one thing about a browser these tests need to be in.
@@ -20,6 +22,13 @@ class FakeShowsClient {
   readonly methods = [{ name: "ListShows" }];
 
   constructor(_transport: unknown) {}
+
+  // A method that streams from the client is refused before the transport is reached,
+  // so this is here to record that it never was.
+  upload(message: unknown, options: RpcOptions) {
+    sent.push({ message, options });
+    return { response: Promise.resolve({}), headers: Promise.resolve({}), trailers: Promise.resolve({}) };
+  }
 
   listShows(message: unknown, options: RpcOptions) {
     sent.push({ message, options });
@@ -130,5 +139,42 @@ describe("a call's headers", () => {
     const { response, headers } = await methods.ListShows({}).withHeaders();
     expect(response).toEqual({ shows: [] });
     expect(headers).toEqual({ "x-ratelimit-remaining": "42" });
+  });
+});
+
+describe("a method that streams from the client", () => {
+  const streaming: Service = { ...service, methods: [{ name: "Upload", clientStreaming: true }] };
+
+  function streamingClient() {
+    sent.length = 0;
+    const calls: MethodCall[] = [];
+    const kaja: Kaja = new KajaHost().run({
+      onMethodCallUpdate: (methodCall) => void calls.push(methodCall),
+      onAsk: () => Promise.reject(new Error("not asked")),
+      onApprove: () => Promise.resolve("all" as const),
+      onBlockUpdate: () => {},
+      onLog: (_level: LogLevel, _message: string) => {},
+    });
+    const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
+    const appRef = createAppRef(app as never, "https://theatre.example", Transport.GRPC);
+    return { methods: createClient(streaming, stub, appRef).methodsFor(kaja), calls };
+  }
+
+  it("is refused with Kaja's own sentence, before any transport is asked", async () => {
+    const { methods, calls } = streamingClient();
+
+    expect(await methods.Upload({ chunk: "a" })).toBeUndefined();
+    expect(sent).toHaveLength(0);
+    expect(calls[0].error).toEqual({ message: NOT_CALLABLE, code: UNSUPPORTED_CODE });
+    // Reported rather than thrown, like any other refused call, and read back as the
+    // one kind no request can fix.
+    expect(classifyFailure(calls[0].error).kind).toBe("UNSUPPORTED");
+  });
+
+  it("is still a row, because the script did make the call", async () => {
+    const { methods, calls } = streamingClient();
+    await methods.Upload({ chunk: "a" });
+    expect(calls[0].method.name).toBe("Upload");
+    expect(calls[0].input).toEqual({ chunk: "a" });
   });
 });

@@ -4,6 +4,7 @@ import { App, Method, Service } from "./apps";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
 import { kajaModuleDeclaration } from "./kajaModule";
+import { StreamingKind, streamingKind } from "./streaming";
 
 // What the MCP server answers from. A script is TypeScript against generated
 // TypeScript, so this is TypeScript: the methods a script can call, their
@@ -48,7 +49,9 @@ export interface McpMethod {
   // The HTTP request the method stands for, when the app said so. It is the only
   // thing that states whether calling the method reads or writes.
   http?: string;
-  streaming?: "server" | "client" | "bidirectional";
+  // Which way the method streams. Two of the three are directions Kaja does not
+  // carry, which is what the note beside the signature says.
+  streaming?: StreamingKind;
   // The generated call, which is the same code clicking the method in the tree
   // writes into a draft — minus the fields the API doesn't insist on, since the
   // declarations are printed above it here and a page of `""` and `0` reads as
@@ -104,13 +107,6 @@ function describeMethod(app: App, service: Service, method: Method): McpMethod {
   const streaming = streamingKind(method);
   if (streaming) described.streaming = streaming;
   return described;
-}
-
-function streamingKind(method: Method): McpMethod["streaming"] {
-  if (method.serverStreaming && method.clientStreaming) return "bidirectional";
-  if (method.serverStreaming) return "server";
-  if (method.clientStreaming) return "client";
-  return undefined;
 }
 
 // importSpecifierFor is what a script writes to import the service — the app's

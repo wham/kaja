@@ -649,6 +649,41 @@ func TestRunScriptCorrectsAReturnedValue(t *testing.T) {
 	)
 }
 
+// A method's streaming direction is only worth saying for what it costs the caller:
+// one direction is called like any other method, the other two not at all.
+func TestStreamingIsMarkedByWhatItCosts(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.catalog = Catalog{Apps: []CatalogApp{{
+		Name: "feed",
+		Type: "grpc",
+		Services: []CatalogService{{
+			Name:       "Feed",
+			ImportPath: "feed/proto/feed",
+			Methods: []CatalogMethod{
+				{Name: "Watch", Signature: "Watch(input: Input<WatchRequest>): Call<Event>", Input: "WatchRequest", Output: "Event", Streaming: "server"},
+				{Name: "Upload", Signature: "Upload(input: Input<Chunk>): Call<UploadResult>", Input: "Chunk", Output: "UploadResult", Streaming: "client"},
+			},
+		}},
+		Declarations: map[string]Declaration{
+			"WatchRequest": {Name: "WatchRequest", Text: "export interface WatchRequest {\n    topic: string;\n}"},
+			"Event":        {Name: "Event", Text: "export interface Event {\n    at: string;\n}"},
+			"Chunk":        {Name: "Chunk", Text: "export interface Chunk {\n    bytes: string;\n}"},
+			"UploadResult": {Name: "UploadResult", Text: "export interface UploadResult {\n    ok: boolean;\n}"},
+		},
+	}}}
+	srv := NewServer(bridge, token)
+
+	index := tool(t, srv, "list_services", nil)
+	contains(t, index, "[server stream]", "[not callable]")
+
+	// The method is described all the same - it is part of the app's surface - but
+	// the note says no request will make the call go.
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Feed.Upload"}),
+		"streaming: the client streams the requests, and Kaja carries a stream from the server only - calling this method is refused, whatever the request")
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Feed.Watch"}),
+		"streaming: the server streams many responses; the call hands back the last of them, and every message is in the run's log")
+}
+
 func TestEmptyCatalog(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.catalog = Catalog{}

@@ -20,6 +20,7 @@ var failureAdvice = map[string]string{
 	"RATE_LIMITED":    "Too many calls. Wait and retry the same request.",
 	"SERVER":          "The service reached an error of its own. Retrying the same request may or may not help; changing its shape will not.",
 	"TRANSPORT":       "The call never completed a valid exchange - a connection or codec failure, not a rejected request. Sending different parameters will not help.",
+	"UNSUPPORTED":     "Kaja refused the call before it went anywhere: the method streams from the client, and Kaja carries a stream from the server only. No request will work; the method is listed so the app's surface is complete.",
 	"UNKNOWN":         "The failure carried nothing to classify it by.",
 }
 

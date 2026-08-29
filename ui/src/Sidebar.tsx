@@ -5,6 +5,7 @@ import { IconButton } from "./components/icon-button";
 import { SimpleTooltip } from "./components/tooltip";
 import { TreeView } from "./components/tree-view";
 import {
+  Ban,
   Braces,
   ChevronDown,
   ChevronRight,
@@ -23,6 +24,7 @@ import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
+import { isCallable, NOT_CALLABLE } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { useMediaQuery } from "./useMediaQuery";
 import {
@@ -329,6 +331,9 @@ export function Sidebar({
                               <TreeView.SubTree leaf>
                                 {service.methods.map((method) => {
                                   const mId = methodId(service, method);
+                                  // Listed, because the tree is what the app has. Dimmed and marked,
+                                  // because clicking it writes a script Kaja won't run.
+                                  const callable = isCallable(method);
                                   return (
                                     <TreeView.Item
                                       id={mId}
@@ -341,19 +346,25 @@ export function Sidebar({
                                           el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
                                         } else elementRefs.current.delete(mId);
                                       }}
-                                      onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
+                                      onSelect={(event) => onSelect(method, service, app, callable && event?.altKey ? "append" : "go")}
                                     >
-                                      {method.name}
+                                      <span className={cn(!callable && "text-muted-foreground")}>{method.name}</span>
                                       <TreeView.TrailingVisual>
                                         {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
-                                          happening because you clicked in the wrong mood. */}
-                                        {(touch || hoveredMethod === mId) && (
-                                          <RowAction
-                                            icon={PlusIcon}
-                                            label={`Add ${method.name} to the open draft`}
-                                            onClick={() => onSelect(method, service, app, "append")}
-                                          />
+                                          happening because you clicked in the wrong mood. A call
+                                          that can't be made is offered no way into a draft you
+                                          are working in. */}
+                                        {!callable ? (
+                                          <UncallableMarker />
+                                        ) : (
+                                          (touch || hoveredMethod === mId) && (
+                                            <RowAction
+                                              icon={PlusIcon}
+                                              label={`Add ${method.name} to the open draft`}
+                                              onClick={() => onSelect(method, service, app, "append")}
+                                            />
+                                          )
                                         )}
                                       </TreeView.TrailingVisual>
                                     </TreeView.Item>
@@ -519,6 +530,18 @@ function SectionHeader({
 
 // A failed app otherwise looks like an app with no services. The marker says which
 // app is broken and opens its log.
+// A method Kaja won't call still has a row — hiding it would make the tree say the
+// app has less than it does — so the row says why instead.
+function UncallableMarker() {
+  return (
+    <SimpleTooltip text={NOT_CALLABLE}>
+      <span role="img" aria-label={NOT_CALLABLE} className="inline-flex shrink-0 items-center text-muted-foreground">
+        <Ban size={12} />
+      </span>
+    </SimpleTooltip>
+  );
+}
+
 function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appName: string) => void }) {
   const failed = app.compilation.status === "error";
   const warned = appWarnings(app).length;
