@@ -25,11 +25,10 @@ spend a request to be told so. Waiting out a reset that is seconds away is
 strictly better than being refused, and there is no judgement in it to put to
 the author.
 
-**Rationing a budget you still have is a trade, so it is opted into.** Spreading
-what is left over the time that is left buys safety with speed, and how much
-reserve to keep is a real decision — a script that means to spend its whole
-budget in ten seconds and stop is making a legitimate one. That is what
-`kaja.rateLimit()` is for.
+**Rationing a budget you still have is a trade, so it is stated.** Spreading what
+is left over the time that is left buys safety with speed, and how much reserve
+to keep is a real decision. But the statement belongs on the app rather than in
+the script — see below — so "stated" costs a script nothing either.
 
 The line between them is the cap. **A reset a few seconds out is waited through;
 a long one is reported instead** — silently parking a run for the 47 minutes
@@ -45,11 +44,7 @@ itself would measure Kaja.
 ## The shape
 
 ```ts
-import { kaja } from "kaja";
-import { Shows as ShowsApi } from "theatre";
-
-const limit = kaja.rateLimit();
-const Shows = limit.wrap(ShowsApi);
+import { Shows } from "theatre";
 
 const page = await Shows.ListShows({ pageSize: 100 });
 for (const show of page.shows) {
@@ -57,28 +52,75 @@ for (const show of page.shows) {
 }
 ```
 
-Two lines at the top, and every call site below is the code you already wrote.
-**Enrolling a service is the whole gesture** — the import is aliased, the paced
-name takes the original, and the loop never mentions the limiter again.
+**That is the whole of it, and the cleanest API here is the one nobody writes.**
+An earlier draft had the script take the service, wrap it and hand the name
+back — `import { Shows as ShowsApi }`, then `const Shows = limit.wrap(ShowsApi)`
+— which says "Shows" three times to end up with one Shows, and reads like
+plumbing because it is. The fault was not the spelling. **The script was being
+made to hold a number that belongs to the API**, and anything a script holds it
+must also name, alias and thread.
 
-The alias is deliberate rather than tolerated. There is no run-wide pacing and
-no ambient one, for the reason [AGENTS.md](../AGENTS.md) gives about headers: a
-binder holding something for "every call in this script" is what makes a value
-meant for one app reach the next app the script imports. **A limit belongs to
-the API, so the service is the honest thing to attach it to**, and a `const` at
-the top is a scope the reader can see.
+So the question is not what the verb should be called. It is which of three
+places each fact belongs in, and the answer puts almost nothing in the script.
 
-For an API that publishes no headers at all — and there are many — what you know
-is stated instead:
+**What the API says goes in the response, and is read.** No API, no line, no
+opt-in. This is the layer that covers most real APIs and all of the ones that
+publish headers.
 
-```ts
-const limit = kaja.rateLimit({ perSecond: 10 });
+**What the API documents but does not send goes on the app.** An API that says
+"60 per minute" in its docs and sends nothing is stating a fact about itself,
+identical for every script that ever calls it — so it is written once, where the
+URL and the credential already live:
+
+```json
+{ "name": "theatre", "grpc": { "url": "…", "rate_limit": "60/m" } }
 ```
 
-**What you declare is a floor the limiter never exceeds; what the API says is the
-ceiling it obeys; the tighter of the two wins.** So a declared `perSecond` is not
-overridden by a generous header, and a header that says the budget is nearly gone
-is not overridden by a comfortable `perSecond`.
+The draft called this out of scope on the grounds that `Configuration` is the
+file and pacing is run behaviour. That was wrong, and the app's own schema says
+so: `GrpcApp` already carries `tls`, `auth`, `headers`, `ca_file`,
+`insecure_skip_verify` — an entire family of *how to talk to this API*, which a
+rate limit is a plain member of. Writing it into every script that imports the
+app was the actual error.
+
+**What this one run wants differently goes in the script — and only that.**
+
+```ts
+const limit = kaja.rateLimit(Shows, { perSecond: 5 });
+```
+
+`Shows` is *pointed at*, never replaced. A script already refers to an app by
+importing a service from it, so a service is how you name an app without
+resorting to a string — and nothing is reassigned, so the name in the loop is
+the name in the import. Implementable as it stands: `bind()` in `client.ts`
+closes over `appRef.configuration.name`, and `Methods` is a string index
+signature, so a `Symbol` key carries the app invisibly to completion and to
+`Object.keys`.
+
+**The tighter of the two wins.** A declared limit is a floor the pacing never
+exceeds; what the API says is the ceiling it obeys. A generous header does not
+loosen a stated `60/m`, and a comfortable `60/m` does not override a header
+saying the budget is nearly gone.
+
+### Rejected
+
+**A lexical scope** — `await kaja.rateLimit({ … }, async () => { … })` — is
+visible, honest about its extent, and indents the entire body of a script whose
+entire body is API calls. A script language that reads beautifully cannot make
+its common case one level deeper.
+
+**An import attribute** — `import { Shows } from "theatre" with { rateLimit:
+"60/m" }` — is real syntax and puts the fact next to the app it belongs to, but
+it is a magic string in a module specifier, repeated in every script, which is
+the app's configuration written in the worst available place.
+
+**A bare run-wide `kaja.rateLimit({ perSecond: 10 })`** with no app named. The
+[AGENTS.md](../AGENTS.md) objection to run-wide *headers* does not transfer — a
+misplaced credential reaches the wrong server, a misplaced pace only makes a
+script slower — but a declared number genuinely has to say which API it is about,
+and buckets are per app. Header-driven pacing needs no such form: an API that
+advertises no limit and declares none is never paced, so "apply to everything" is
+already what happens.
 
 ## What it reads
 
@@ -131,16 +173,15 @@ right speed, and the limiter is invisible. This is where a script that makes
 three calls against a 5,000/hour budget stays, and it is why the limiter is safe
 to leave in a script that does not need it.
 
-**Pacing** *(enrolled services only)* — headroom is below the reserve (20% by
+**Pacing** — headroom is below the reserve (20% by
 default), so what is left is spread over the time that is left:
 `delay = (resetAt − now) / remaining`. Five requests and sixty seconds is one
 every twelve seconds. **The last requests are rationed rather than refused**, and
 the budget lands exactly on the reset instead of running out at second nine. A
 script slower than the pace still never waits.
 
-**Held** *(every call, enrolled or not)* — `remaining` is zero, or a `429` came
-back, or `retry-after` said so. The next call waits for the reset, up to
-`maxWait`.
+**Held** — `remaining` is zero, or a `429` came back, or `retry-after` said so.
+The next call waits for the reset, up to `maxWait`.
 
 Worked against a real set of headers — 60 an interval, spent, six seconds to go:
 
@@ -151,8 +192,8 @@ X-Rate-Limit-Reset:     6      → 6 is far below 10⁹, so six seconds, not 197
 ```
 
 Six seconds is inside `maxWait`, so the run holds and resumes rather than
-collecting six refusals. Nothing was enrolled and nothing was configured; the
-API said it, and this is only Kaja not arguing.
+collecting six refusals. Nothing was written in the script and nothing was
+configured; the API said it, and this is only Kaja not arguing.
 
 Green, amber, red. The user's instinct about the drawing was right, and it is
 right because the mechanism genuinely has three states and not four.
@@ -167,8 +208,9 @@ Two details that are easy to get wrong and expensive to get wrong:
   the variables and the live tables, keyed by bucket — the app by default, split
   automatically when the API names its own (`x-ratelimit-resource`,
   `x-ratelimit-bucket`). So a second run knows what the first one learned.
-  **Observation is shared; obedience is opted into**: an unenrolled script is
-  never slowed by somebody else's limiter.
+  A budget is a fact about the API, so **learning it is shared and paying for
+  it is too** — the second script does not have to rediscover the wall by
+  hitting it.
 
 ## Where the waiting happens, and where it must not show up
 
@@ -249,12 +291,19 @@ refused, because a script that ends in a real error beats one that never ends.
 
 ## What a script gets back
 
+Pacing that nobody asked for is still pacing that someone may want to read, so
+naming an app with no options is how you ask what happened to it:
+
 ```ts
-const report = limit.report();
-if (report.held > 0) {
-  kaja.text(`${report.held} calls held, ${(report.waitedMs / 1000).toFixed(1)}s waiting`);
+const limit = kaja.rateLimit(Shows);
+// … the script …
+if (limit.held > 0) {
+  kaja.text(`${limit.held} calls held, ${(limit.waitedMs / 1000).toFixed(1)}s waiting`);
 }
 ```
+
+The handle reads live rather than returning a snapshot, so where it is declared
+does not change what it says.
 
 The same bargain `perfTest` strikes: the numbers are already on the canvas, so
 the report exists to be **judged** — against a budget, against how long the job
@@ -267,23 +316,17 @@ thing.
 
 ## Open, and deliberately out
 
-**Open.** The name — `limit.wrap(Shows)` is discoverable in the completion list
-and dull; a callable limiter (`limit(Shows)`) reads better and hides from
-completion, which in an editor-first runtime is the more expensive half. Whether
-enrolling a whole service is too coarse, and if it is, whether the fix is a
-per-call form (`await limit(Shows.GetShow({ id }))`, exactly the `approve` shape)
-or a per-method cost table for the APIs that price calls in points. Whether the
-generated import should offer to enrol itself once a script has a limiter.
+**Open.** `maxWait`'s default: 10s is a guess at the line between "the run is
+slow" and "the run is stuck", and it is the number most worth arguing about,
+because it is the one thing the default hold does that the author did not ask
+for. What `rate_limit` should accept — `"60/m"` reads well and is one more small
+grammar to parse, where `{ perMinute: 60 }` is plainer and wordier in the file
+that has to hold it. Whether the app form states an observed limit back to you
+once a call has been made, which would make the field mostly unnecessary to fill
+in by hand. And a per-method cost table for the APIs that price calls in points
+rather than counting them, which is the one thing a single number cannot say.
 
-And `maxWait`'s default: 10s is a guess at the line between "the run is slow" and
-"the run is stuck", and it is the number most worth arguing about, because it is
-the one thing the default hold does that the author did not ask for.
-
-**Out.** A *declared* rate limit per app in `kaja.json` — tempting, and it would
-make every script polite for free, but a declared limit is rationing rather than
-obeying a refusal, and rationing nobody asked for is what would make a perf test
-measure Kaja. `Configuration` is the file, and this is run behaviour.
-Persisting a budget across restarts: stale state about a window
+**Out.** Persisting a budget across restarts: stale state about a window
 that has almost certainly rolled is worse than learning it again on the first
 call. Coordination between two Kajas, which is a distributed lock wearing a
 helpful hat.
