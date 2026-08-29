@@ -79,7 +79,7 @@ docs/
 
 ### iOS
 
-Wails v3 runs the same `main.go` on iOS, so this is a build rather than a port: `wails3 task ios:run` on a booted simulator, `ios:package` for the bundle, `ios:xcode` for the project device signing is managed from. All three want macOS with **full Xcode**, not the command line tools.
+Wails v3 runs the same `main.go` on iOS, so this is a build rather than a port: `scripts/ios` puts it on a booted simulator, `scripts/ios package` writes the bundle, `scripts/ios xcode` opens the project device signing is managed from. It is the bootstrap in front of the `ios:` tasks the way `scripts/desktop-build` is in front of the Mac ones — the `wails3` that runs them is installed into `server/build` rather than onto the PATH. All of it wants macOS with **full Xcode**, not the command line tools.
 
 - **The Go is an archive, not a binary.** `-buildmode=c-archive` under `GOOS=ios`, linked with the `main.m` `wails3 ios xcode:gen` writes, against UIKit and WebKit. UIKit owns `main()` and calls into the archive once the launch has been delivered, which is what the generated overlay injects — so `main.go` is untouched and there is no second copy of it to keep in step.
 - **There is one iOS build, where macOS has two.** `development` is kaja's tag for a `frontend/dist` read off disk, and an app installed on a simulator has no such directory in front of it, so iOS is always `production` and `run` and `package` differ by nothing but where the bundle goes. It goes under `build/bin/ios/`, because the Mac bundle has the same name.

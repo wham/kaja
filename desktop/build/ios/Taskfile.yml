@@ -1,8 +1,9 @@
 version: "3"
 
 # How the iOS app is built, adapted from the Wails template. Reached as `ios:`
-# from desktop/Taskfile.yml, so `wails3 task ios:run` puts kaja on a booted
-# simulator and `wails3 task ios:package` writes the bundle.
+# from desktop/Taskfile.yml, and run through scripts/ios, which installs the
+# wails3 these tasks need - it goes into server/build rather than onto the PATH,
+# so `wails3 task` on its own is not a door that opens.
 #
 # iOS is not a second desktop: the Go is compiled as a c-archive rather than a
 # binary and linked with UIKit's own main.m, and the webview is a WKWebView the
