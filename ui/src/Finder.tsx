@@ -1,4 +1,4 @@
-import { ChevronsUpDown, CircleAlert, Search, type LucideIcon } from "lucide-react";
+import { Ban, ChevronsUpDown, CircleAlert, Search, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
@@ -28,6 +28,9 @@ export interface Destination {
   // The name is a filename, so its extension is dimmed — the same two-tone name the
   // sidebar row draws, because it is the same object.
   file?: boolean;
+  // A call Kaja won't make. Dimmed and marked with the glyph the tree row carries,
+  // since the finder is the other list every method is in.
+  uncallable?: boolean;
   go: () => void;
 }
 
@@ -213,10 +216,13 @@ function DestinationRow({
       onClick={() => onSelect(destination)}
     >
       <Icon size={13} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
-      <span className={cn("shrink-0 truncate text-sm", recent && !destination.provisional ? "text-foreground" : "text-muted-foreground")}>
+      <span
+        className={cn("shrink-0 truncate text-sm", recent && !destination.provisional && !destination.uncallable ? "text-foreground" : "text-muted-foreground")}
+      >
         {destination.file ? <FileName name={destination.name} /> : destination.name}
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
+      {destination.uncallable && <Ban size={12} className="shrink-0 text-muted-foreground" />}
       {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
     </div>
   );

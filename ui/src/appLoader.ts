@@ -7,6 +7,7 @@ import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
+import { unsupportedReason } from "./streaming";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
 // written out: the whole shape for a person clicking the method in the tree, the
@@ -171,11 +172,15 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
   }
 
   const typeRef = method.type;
-  if (typeRef.typeName.getText(sourceFile) !== "UnaryCall") {
+  // A stream from the server is called like any other method and hands back one
+  // message, so its message type is the output. The two that stream from the client
+  // are declined before they are called, and have none.
+  const callType = typeRef.typeName.getText(sourceFile);
+  if (callType !== "UnaryCall" && callType !== "ServerStreamingCall") {
     return undefined;
   }
 
-  // UnaryCall's second type argument is the output type.
+  // The second type argument of either is the output type.
   if (typeRef.typeArguments && typeRef.typeArguments.length >= 2) {
     return typeRef.typeArguments[1];
   }
@@ -223,18 +228,29 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
     );
   }
 
+  let call: ts.Statement = ts.factory.createExpressionStatement(
+    ts.factory.createCallExpression(
+      ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(serviceName), ts.factory.createIdentifier(methodInfo.name)),
+      undefined,
+      [input],
+    ),
+  );
+
+  // The call is written out even where Kaja won't make it, because the request is
+  // still what the method takes and reading it is why you clicked. What the editor
+  // says about it — the method is not on the service — reads as Kaja having lost the
+  // method, so the line above says whose decision it was.
+  const unsupported = unsupportedReason(methodInfo);
+  if (unsupported) {
+    call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + unsupported, true);
+  }
+
   statements = [
     ...statements,
     // A blank line after the import; see
     // https://stackoverflow.com/questions/55246585/how-to-generate-extra-newlines-between-nodes-with-the-typescript-compiler-api-pr
     ts.factory.createIdentifier("\n") as unknown as ts.Statement,
-    ts.factory.createExpressionStatement(
-      ts.factory.createCallExpression(
-        ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(serviceName), ts.factory.createIdentifier(methodInfo.name)),
-        undefined,
-        [input],
-      ),
-    ),
+    call,
   ];
 
   return printStatements(statements);

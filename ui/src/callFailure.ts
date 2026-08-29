@@ -1,3 +1,5 @@
+import { UNSUPPORTED_CODE } from "./streaming";
+
 // What went wrong with a call, in the one distinction a caller can act on:
 // whether to change the request, the credentials, or nothing at all.
 //
@@ -7,7 +9,7 @@
 // itself broke. Read raw, "invalid argument" and "decoding response JSON" look
 // alike, and the only way to tell them apart is to try again with a different
 // request, which is wasted on a failure the request had nothing to do with.
-export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER" | "TRANSPORT" | "UNKNOWN";
+export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER" | "TRANSPORT" | "UNSUPPORTED" | "UNKNOWN";
 
 export interface CallFailure {
   kind: FailureKind;
@@ -39,6 +41,12 @@ export function classifyFailure(error: unknown): CallFailure {
   const message = failureMessage(error);
   const status = numberField(error, "status");
   const code = stringField(error, "code");
+
+  // Kaja's own refusal, before any transport. Read off the code rather than a status,
+  // because no exchange happened to produce one.
+  if (code === UNSUPPORTED_CODE) {
+    return { kind: "UNSUPPORTED", message, code };
+  }
 
   if (status !== undefined && status > 0) {
     return { kind: statusKind(status), message, status, code };

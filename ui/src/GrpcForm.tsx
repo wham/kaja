@@ -483,8 +483,8 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
             <Info size={15} />
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
-            {clientStreaming === 1 ? "One method streams" : `${clientStreaming} methods stream`} from the client, and Kaja carries a stream from the server only
-            — listed in the sidebar, but not callable. A stream from the server is called like any other method.
+            Client streaming is not supported by Kaja yet, so {clientStreaming === 1 ? "one method is" : `${clientStreaming} methods are`} listed in the sidebar
+            and marked there, but can’t be called. Server streaming works like any other method.
           </p>
         </div>
       )}

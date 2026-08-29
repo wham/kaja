@@ -290,6 +290,10 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
     { headers: { "Idempotency-Key": kaja.uuidV4() } },
   ).withHeaders();
   ```
+- **Server streaming is called like any other method**, and hands back the last
+  message; all of them are in the run's log. **Client and bidirectional streaming
+  are not supported by Kaja yet** — `list_services` marks such a method, and
+  calling it is refused whatever the request.
 - **Top-level `await` works**: the body runs inside an `async` function.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services`.
@@ -360,3 +364,6 @@ await Seating.Annotate({
 - `SERVER` — the service errored. Changing the request shape will not help.
 - `TRANSPORT` — the exchange never completed (connection or codec). **Do not
   retry with different parameters**; nothing you send will change it.
+- `UNSUPPORTED` — Kaja does not support this kind of method yet and refused the
+  call before it went anywhere. `list_services` marks it `not supported yet`, and
+  no request will change it.

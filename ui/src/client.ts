@@ -19,6 +19,7 @@ import { APP_OF } from "./rateLimit";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
+import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 import { isWailsEnvironment } from "./wails";
 
 // absorbReserved routes one kaja-upstream-* entry onto the call. The prefix is
@@ -117,6 +118,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // What a method needs that the run has no say in, resolved once rather than per run.
   const prepared = service.methods.map((method) => ({
     method,
+    unsupported: unsupportedReason(method),
     isServerStreaming: method.serverStreaming && !method.clientStreaming,
     inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
   }));
@@ -129,29 +131,42 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     const methods: Methods = {};
     // Read rather than captured, so a renamed app still answers for its own budget.
     Object.defineProperty(methods, APP_OF, { get: () => appRef.configuration.name });
-    for (const { method, isServerStreaming, inputType } of prepared) {
+    for (const { method, unsupported, isServerStreaming, inputType } of prepared) {
+      const newMethodCall = (input: any, requestHeaders: MethodCallHeaders): MethodCall => ({
+        id: crypto.randomUUID(),
+        appName: appRef.configuration.name,
+        service,
+        method,
+        input,
+        requestHeaders,
+        url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
+        timestamp: Date.now(),
+      });
+
       const send = async (input: any, callOptions: CallOptions | undefined, hold: (methodCall: MethodCall) => void) => {
+        // The app's headers with the call's own laid over them, shown as written — with
+        // their ${NAME} references intact, since the Headers view reads better that way and
+        // the values behind them stay outside the browser.
+        const requestHeaders = mergeHeaders(appHeaders(appRef.configuration), callOptions?.headers);
+
+        // Refused here rather than by the transport: each build has one of its own, each
+        // with its own wording, and both of them describe themselves where the limit is
+        // Kaja's. It is still a row, because the script did make the call.
+        if (unsupported) {
+          const refused = newMethodCall(input, requestHeaders);
+          hold(refused);
+          refused.error = { message: unsupported, code: UNSUPPORTED_CODE };
+          kaja._internal.methodCallUpdate(refused);
+          return undefined;
+        }
+
         // Before the call exists, which is the whole of why a held call costs the log
         // nothing and the percentiles nothing: no row is written and no clock is started
         // until the budget lets it through. Resolves immediately unless this run asked
         // for a limiter on this app.
         await kaja._internal.acquireRateLimit(appRef.configuration.name);
 
-        // The app's headers with the call's own laid over them, shown as written — with
-        // their ${NAME} references intact, since the Headers view reads better that way and
-        // the values behind them stay outside the browser.
-        const requestHeaders = mergeHeaders(appHeaders(appRef.configuration), callOptions?.headers);
-
-        const methodCall: MethodCall = {
-          id: crypto.randomUUID(),
-          appName: appRef.configuration.name,
-          service,
-          method,
-          input,
-          requestHeaders,
-          url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
-          timestamp: Date.now(),
-        };
+        const methodCall = newMethodCall(input, requestHeaders);
         hold(methodCall);
         kaja._internal.methodCallUpdate(methodCall);
 

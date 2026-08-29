@@ -68,14 +68,18 @@ func (c Catalog) describeMethod(resolved resolvedMethod) string {
 	return b.String()
 }
 
+// What the streaming kind means for a caller. Two of the three Kaja does not support
+// yet, so the note is why the method is listed rather than a description of the wire:
+// a script that calls one is refused, and no request fixes that. The UI says the same
+// sentence in the tree and over the generated call.
 func streamingNote(streaming string) string {
 	switch streaming {
-	case "bidirectional":
-		return "both sides send a stream of messages"
-	case "server":
-		return "the server streams many responses"
 	case "client":
-		return "the client streams many requests"
+		return "client streaming is not supported by Kaja yet - calling this method is refused, whatever the request"
+	case "bidirectional":
+		return "bidirectional streaming is not supported by Kaja yet - calling this method is refused, whatever the request"
+	case "server":
+		return "server streaming; the call hands back the last message, and all of them are in the run's log"
 	}
 	return ""
 }
