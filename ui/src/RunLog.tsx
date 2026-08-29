@@ -646,17 +646,18 @@ interface HeadersContentProps {
 }
 
 RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
-  const requestHeaders = methodCall.requestHeaders || {};
-  const responseHeaders = methodCall.responseHeaders || {};
+  // One panel, and it is always the API's own headers: where Kaja carried the call it
+  // reports what it exchanged upstream, and where the browser called the API directly
+  // the transport headers are that exchange. The hop between the browser and Kaja is
+  // never what a call is being read for.
   const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
   const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
   // The request line of the upstream call, which a failure reports and the response no
   // longer carries. A successful call doesn't report one.
   const upstreamRequest = upstreamRequestLine(methodCall.error);
-  // An in-process app reports the headers it exchanged with its upstream API. When
-  // present, the transport headers (browser ↔ Kaja) become a second, less interesting
-  // hop shown below the upstream ones.
   const hasUpstream = upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
+  const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
+  const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
 
   const section = (title: string, headers: { [key: string]: string }) => (
     <div className="mb-6">
@@ -669,43 +670,11 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     </div>
   );
 
-  const groupHeading = (text: string, caption: string, requestLine?: string, time?: string) => (
-    <div className="mb-3">
-      <div className="font-semibold uppercase tracking-wider text-foreground">
-        {text}
-        {time && <span className="ml-2 font-normal normal-case tracking-normal tabular-nums text-muted-foreground">{time}</span>}
-      </div>
-      <div className="text-muted-foreground">{caption}</div>
-      {requestLine && <div className="mt-1 break-all text-foreground">{requestLine}</div>}
-    </div>
-  );
-
-  // Each hop states its own time: the upstream exchange as Kaja measured it, and
-  // what the trip between here and Kaja added on top. Their sum is the round trip.
-  const upstreamTime = formatDuration(methodCall.upstreamDurationMs);
-  const transportTime =
-    methodCall.upstreamDurationMs !== undefined && methodCall.durationMs !== undefined
-      ? formatDuration(Math.max(0, methodCall.durationMs - methodCall.upstreamDurationMs))
-      : undefined;
-
   return (
     <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs">
-      {hasUpstream ? (
-        <>
-          {groupHeading("Upstream", "Headers Kaja exchanged with the API", upstreamRequest, upstreamTime)}
-          {section("Request headers", upstreamRequestHeaders)}
-          {section("Response headers", upstreamResponseHeaders)}
-          <div className="mb-6 h-px bg-border" />
-          {groupHeading("Transport", "Headers between the browser and Kaja", undefined, transportTime)}
-          {section("Request headers", requestHeaders)}
-          {section("Response headers", responseHeaders)}
-        </>
-      ) : (
-        <>
-          {section("Request Headers", requestHeaders)}
-          {section("Response Headers", responseHeaders)}
-        </>
-      )}
+      {upstreamRequest && <div className="mb-4 break-all text-foreground">{upstreamRequest}</div>}
+      {section("Request headers", requestHeaders)}
+      {section("Response headers", responseHeaders)}
     </div>
   );
 };
