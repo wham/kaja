@@ -392,6 +392,40 @@ export declare const kaja: {
    */
   perfTest(body: (context: { iteration: number; vu: number }) => unknown, options?: PerfTestOptions): Promise<PerfReport>;
   /**
+   * Watch an API's rate limit and obey it, for the app the given service belongs to.
+   *
+   *   kaja.rateLimit(Shows);
+   *   for (const show of page.shows) {
+   *     await Shows.GetShow({ showId: show.id });
+   *   }
+   *
+   * Nothing is paced until you call this — a script that doesn't is never slowed —
+   * and the service is only pointed at, never replaced, so every call below stays
+   * exactly as it was written. It applies to the whole app, because a budget is the
+   * API's rather than one service's.
+   *
+   * It reads what the API already says on every response: RateLimit-Limit /
+   * -Remaining / -Reset, the X-RateLimit- and X-Rate-Limit- spellings of the same
+   * three, and Retry-After. While there is headroom nothing waits. Below \`reserve\`
+   * of the budget the calls that are left are spread over the time that is left, so
+   * they run out at the reset rather than well before it. With nothing left, or after
+   * a 429, calls are held until the window turns over.
+   *
+   * The waiting happens before a call is made, so a held call adds nothing to its own
+   * latency and writes no row until it goes out.
+   *
+   * For an API that documents a limit but publishes no headers, say it:
+   *
+   *   kaja.rateLimit(Shows, { perSecond: 10 });
+   *
+   * The handle reads live, so it can be declared first and read at the end.
+   *
+   *   const limit = kaja.rateLimit(Shows);
+   *   // …
+   *   if (limit.held > 0) kaja.text(\`held \${limit.held} calls for \${limit.waitedMs} ms\`);
+   */
+  rateLimit(service: object, options?: RateLimitOptions): RateLimit;
+  /**
    * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
    *
    *   const id = kaja.uuidV4();
@@ -418,6 +452,30 @@ export declare const kaja: {
    */
   listValue(input: JsonValue[]): ListValue;
 };
+
+/** How a rate limiter is shaped. Every field has a default that suits an API publishing headers. */
+export interface RateLimitOptions {
+  /** A ceiling of your own, for an API that publishes no headers to read. */
+  perSecond?: number;
+  /** The share of the budget below which what is left is spread rather than spent. Default 0.2. */
+  reserve?: number;
+  /** The longest one call is held before it is let go to be refused. Default "5m". */
+  maxWait?: number | string;
+}
+
+/** A live reading of what a limiter is doing. Every member re-reads when you touch it. */
+export interface RateLimit {
+  /** "clear" while there is headroom, "pacing" while spreading, "held" while waiting out a window. */
+  readonly state: "clear" | "pacing" | "held";
+  readonly calls: number;
+  /** How many of those calls had to wait. */
+  readonly held: number;
+  readonly waitedMs: number;
+  /** Calls the API refused as over the limit despite the pacing. */
+  readonly refusals: number;
+  readonly limit?: number;
+  readonly remaining?: number;
+}
 
 /** How a perf test is shaped. The budget is iterations or duration, never both. */
 export interface PerfTestOptions {

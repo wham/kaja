@@ -15,6 +15,7 @@ import {
   parseUpstreamHeaders,
 } from "./upstreamHeaders";
 import { Client, AppRef, Methods, Service, serviceId, Transport } from "./apps";
+import { APP_OF } from "./rateLimit";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
@@ -126,8 +127,16 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
   const bind = (kaja: Kaja): Methods => {
     const methods: Methods = {};
+    // Read rather than captured, so a renamed app still answers for its own budget.
+    Object.defineProperty(methods, APP_OF, { get: () => appRef.configuration.name });
     for (const { method, isServerStreaming, inputType } of prepared) {
       const send = async (input: any, callOptions: CallOptions | undefined, hold: (methodCall: MethodCall) => void) => {
+        // Before the call exists, which is the whole of why a held call costs the log
+        // nothing and the percentiles nothing: no row is written and no clock is started
+        // until the budget lets it through. Resolves immediately unless this run asked
+        // for a limiter on this app.
+        await kaja._internal.acquireRateLimit(appRef.configuration.name);
+
         // The app's headers with the call's own laid over them, shown as written — with
         // their ${NAME} references intact, since the Headers view reads better that way and
         // the values behind them stay outside the browser.

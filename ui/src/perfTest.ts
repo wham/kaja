@@ -66,14 +66,17 @@ export interface PerfSchedule {
 const DURATION_PATTERN = /^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h)\s*$/;
 const UNIT_MS: { [unit: string]: number } = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000 };
 
-/** A duration in milliseconds. A number is already that; a string names its own unit. */
-export function parseDuration(value: Duration, field: string): number {
+/**
+ * A duration in milliseconds. A number is already that; a string names its own unit.
+ * `verb` is who is asking, so the error names the call the author wrote.
+ */
+export function parseDuration(value: Duration, field: string, verb = "kaja.perfTest"): number {
   if (typeof value === "number") {
-    if (!Number.isFinite(value) || value < 0) throw new Error(`kaja.perfTest: ${field} must be a duration, got ${value}.`);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${verb}: ${field} must be a duration, got ${value}.`);
     return value;
   }
   const match = DURATION_PATTERN.exec(value);
-  if (!match) throw new Error(`kaja.perfTest: ${field} must be a duration like "30s", "2m" or "500ms", got ${JSON.stringify(value)}.`);
+  if (!match) throw new Error(`${verb}: ${field} must be a duration like "30s", "2m" or "500ms", got ${JSON.stringify(value)}.`);
   return Number(match[1]) * UNIT_MS[match[2]];
 }
 

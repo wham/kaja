@@ -1,4 +1,5 @@
 import { Call, CallOptions, Kaja } from "./kaja";
+import { APP_OF } from "./rateLimit";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
@@ -122,6 +123,10 @@ export interface Clients {
 
 export interface Methods {
   [key: string]: (input: any, options?: CallOptions) => Call<any>;
+  // Which app these methods belong to, so a script can name an app by handing over a
+  // service imported from it. A symbol, so it is neither a method nor something the
+  // editor's completion list offers.
+  readonly [APP_OF]?: string;
 }
 
 export interface Client {

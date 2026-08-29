@@ -1,4 +1,5 @@
 import { AskAnswerType } from "./ask";
+import { RateLimitState } from "./rateLimit";
 
 /**
  * What a run drew. A script says what it made, never how it looks, so the set is
@@ -131,7 +132,31 @@ export interface PerfBlock {
   excludedFailures?: number;
 }
 
-export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock | PerfBlock;
+/**
+ * What a rate limiter draws: one app's budget, and what obeying it has cost so far.
+ * Live while the run goes and a record once it is over, like the perf block — and like
+ * that one it is a headline rather than a control, since the only thing anybody could
+ * press here is "ignore the API", which is not a button worth having.
+ */
+export interface RateLimitBlock {
+  kind: "limit";
+  app: string;
+  state: RateLimitState;
+  // What the API last said, absent until it says anything.
+  limit?: number;
+  remaining?: number;
+  // As of the last draw. The countdown moves because a call is waiting on it.
+  resetInMs?: number;
+  // A ceiling the script stated, e.g. "10/s", where the API publishes none.
+  declared?: string;
+  calls: number;
+  held: number;
+  waitedMs: number;
+  refusals?: number;
+  waiting?: number;
+}
+
+export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock | PerfBlock | RateLimitBlock;
 
 export function cellStatus(block: TableBlock, row: number, column: number): CellStatus | undefined {
   return block.cells?.[row]?.[column];
@@ -207,6 +232,9 @@ export function blockLabel(block: Block): string {
       }
     case "perf":
       return block.running ? `Perf test · ${block.schedule}` : `Perf test · ${block.requests.toLocaleString()} requests`;
+    case "limit":
+      // Named by what it is watching, since a run may watch two apps at once.
+      return `Rate limit · ${block.app}`;
   }
 }
 

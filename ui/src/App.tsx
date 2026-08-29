@@ -1792,7 +1792,11 @@ export function App() {
   // rather than off a render, or the question would be asked again for every call.
   const settleIfQuiet = useCallback(() => {
     // Every run in flight is asked: they finish in whatever order their work does.
-    const done = activeRunsRef.current.filter((live) => live.settled && !consoles.hasWorkInFlight(live.run.fileId, live.run.id));
+    // A call held by a rate limiter is work the console has never heard of — its row is
+    // not written until it is let go — so the run is asked as well as the store.
+    const done = activeRunsRef.current.filter(
+      (live) => live.settled && !live.kaja._internal.hasCallsWaiting() && !consoles.hasWorkInFlight(live.run.fileId, live.run.id),
+    );
     endRuns(done, Date.now());
   }, [endRuns]);
 
