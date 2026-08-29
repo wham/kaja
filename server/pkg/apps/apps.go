@@ -87,6 +87,10 @@ type Opened struct {
 	// or "twirp"). Ignored when Instance is non-nil.
 	Target   string
 	Protocol string
+	// Document is the app's own description, as JSON, for an app the client drives
+	// as HTTP. The client reads it into the surface a script writes against, which
+	// is why nothing here compiles a proto for one.
+	Document []byte
 }
 
 // OpenResult tells the caller how a freshly opened app is compiled and invoked.
@@ -94,6 +98,7 @@ type OpenResult struct {
 	ProtoDir string
 	Target   string
 	Protocol string
+	Document []byte
 }
 
 // Instance is a live, opened app that can invoke its generated methods.
@@ -102,6 +107,39 @@ type Instance interface {
 	// "openapi.petstore.PetstoreApi/GetPet". request is the proto3-JSON request body;
 	// headers are forwarded upstream.
 	Invoke(methodPath string, request []byte, headers map[string]string) (*InvokeResult, error)
+}
+
+// Forwarder is an app the client drives as HTTP rather than as RPC. The client has
+// read the document and knows the shape of every call; what it does not have, and
+// must not, is where the API is and what credential reaches it. So it sends a path
+// and this fills in the rest — which is the whole of what the server does for a
+// REST app.
+type Forwarder interface {
+	// Forward makes one upstream call. path is relative to the app's base URL and
+	// is never a URL: a script that could name the destination could aim this
+	// process at anything the machine can reach.
+	Forward(request *ForwardRequest) (*ForwardResult, error)
+}
+
+// ForwardRequest is one HTTP call, as the browser asked for it.
+type ForwardRequest struct {
+	Method string
+	// Relative to the app's base URL, query string included.
+	Path    string
+	Headers map[string]string
+	Body    []byte
+}
+
+// ForwardResult is what the API answered, whole. A status is data here rather than
+// a failure: an API that answers 404 has answered, and the script decides.
+type ForwardResult struct {
+	Status  int
+	Headers map[string]string
+	Body    []byte
+	// What was actually sent upstream, with the resolved secrets masked back out,
+	// for the Headers view.
+	RequestHeaders map[string]string
+	DurationMs     int64
 }
 
 // Documented is an app that can show where one of its methods came from. Optional:
@@ -172,7 +210,7 @@ func (m *Manager) Open(appType string, parameters map[string]string, protoDir st
 		return nil, err
 	}
 
-	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target, Protocol: opened.Protocol}
+	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target, Protocol: opened.Protocol, Document: opened.Document}
 	if opened.ProtoDir != "" {
 		result.ProtoDir = opened.ProtoDir
 	}
@@ -214,6 +252,29 @@ func (m *Manager) Invoke(target string, methodPath string, request []byte, heade
 	}
 
 	return instance.Invoke(methodPath, request, headers)
+}
+
+// Forward routes one HTTP call to the app behind a target. An app type that is not
+// driven as HTTP has no Forward, which is an error rather than a miss: a call has
+// to go somewhere.
+func (m *Manager) Forward(target string, request *ForwardRequest) (*ForwardResult, error) {
+	u, err := url.Parse(target)
+	if err != nil {
+		return nil, fmt.Errorf("invalid app target %q: %w", target, err)
+	}
+
+	m.mu.Lock()
+	instance, ok := m.instances[u.Host]
+	m.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("app instance %q not found (the app may need to be recompiled)", u.Host)
+	}
+
+	forwarder, ok := instance.(Forwarder)
+	if !ok {
+		return nil, fmt.Errorf("app instance %q is not driven as HTTP", u.Host)
+	}
+	return forwarder.Forward(request)
 }
 
 // Documentation answers for one of a live app's operations, or reports that the app

@@ -767,7 +767,12 @@ type OpenAppResponse struct {
 	// for in-process apps (only set on success).
 	Target string `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
 	// Transport the client uses to reach the target: "grpc" or "twirp".
-	Protocol      string `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	Protocol string `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// The app's own description, as JSON, for an app the client drives as HTTP.
+	// A REST document is read in the browser — a schema becomes TypeScript there,
+	// and an operation becomes an HTTP request — so an app that has one compiles no
+	// proto and `proto_dir` is empty for it.
+	Document      string `protobuf:"bytes,6,opt,name=document,proto3" json:"document,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -833,6 +838,13 @@ func (x *OpenAppResponse) GetTarget() string {
 func (x *OpenAppResponse) GetProtocol() string {
 	if x != nil {
 		return x.Protocol
+	}
+	return ""
+}
+
+func (x *OpenAppResponse) GetDocument() string {
+	if x != nil {
+		return x.Document
 	}
 	return ""
 }
@@ -3857,13 +3869,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"5\n" +
 	"\x0eOpenAppRequest\x12#\n" +
-	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"\xa1\x01\n" +
+	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"\xbd\x01\n" +
 	"\x0fOpenAppResponse\x12#\n" +
 	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x16\n" +
 	"\x06target\x18\x04 \x01(\tR\x06target\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\"2\n" +
+	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12\x1a\n" +
+	"\bdocument\x18\x06 \x01(\tR\bdocument\"2\n" +
 	"\x12InspectGrpcRequest\x12\x1c\n" +
 	"\x04grpc\x18\x01 \x01(\v2\b.GrpcAppR\x04grpc\"b\n" +
 	"\x13InspectGrpcResponse\x12#\n" +

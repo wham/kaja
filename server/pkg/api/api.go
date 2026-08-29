@@ -100,6 +100,24 @@ func (s *ApiService) InvokeApp(target string, method string, message []byte, hea
 	return result, nil
 }
 
+// ForwardApp makes one HTTP call on an app's behalf. The single door both builds
+// come through, the way InvokeApp is for the apps that are invoked as RPC: it
+// expands the headers the browser sent with their ${NAME} references intact, and
+// redacts the resolved values back out of what it reports having sent, so the
+// Headers view shows "Bearer ${TOKEN}" rather than the token.
+func (s *ApiService) ForwardApp(target string, request *apps.ForwardRequest) (*apps.ForwardResult, error) {
+	resolver := s.Variables()
+	sent := request.Headers
+	request.Headers = resolver.ExpandAll(request.Headers)
+
+	result, err := s.apps.Forward(target, request)
+	if err != nil {
+		return nil, err
+	}
+	result.RequestHeaders = resolver.Redact(result.RequestHeaders, sent)
+	return result, nil
+}
+
 func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
 	compiler, _ := s.compilers.LoadOrStore(id, NewCompiler())
 	return compiler.(*Compiler)
@@ -179,6 +197,7 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 		ProtoDir: result.ProtoDir,
 		Target:   result.Target,
 		Protocol: result.Protocol,
+		Document: string(result.Document),
 	}, nil
 }
 

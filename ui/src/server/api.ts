@@ -145,6 +145,15 @@ export interface OpenAppResponse {
      * @generated from protobuf field: string protocol = 5
      */
     protocol: string;
+    /**
+     * The app's own description, as JSON, for an app the client drives as HTTP.
+     * A REST document is read in the browser — a schema becomes TypeScript there,
+     * and an operation becomes an HTTP request — so an app that has one compiles no
+     * proto and `proto_dir` is empty for it.
+     *
+     * @generated from protobuf field: string document = 6
+     */
+    document: string;
 }
 /**
  * InspectGrpc reads the service surface a grpc app *would* be opened with -
@@ -1842,7 +1851,8 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
             { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "document", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenAppResponse>): OpenAppResponse {
@@ -1852,6 +1862,7 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         message.protoDir = "";
         message.target = "";
         message.protocol = "";
+        message.document = "";
         if (value !== undefined)
             reflectionMergePartial<OpenAppResponse>(this, message, value);
         return message;
@@ -1875,6 +1886,9 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
                     break;
                 case /* string protocol */ 5:
                     message.protocol = reader.string();
+                    break;
+                case /* string document */ 6:
+                    message.document = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1903,6 +1917,9 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         /* string protocol = 5; */
         if (message.protocol !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.protocol);
+        /* string document = 6; */
+        if (message.document !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.document);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

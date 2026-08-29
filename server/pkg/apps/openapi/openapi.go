@@ -113,7 +113,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		log("Authentication: " + summary)
 	}
 
-	return &apps.Opened{Instance: &instance{
+	return &apps.Opened{Document: s.raw, Instance: &instance{
 		baseURL: baseURL,
 		methods: methods,
 		client:  &http.Client{Timeout: 30 * time.Second},

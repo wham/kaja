@@ -83,6 +83,11 @@ message OpenAppResponse {
   string target = 4;
   // Transport the client uses to reach the target: "grpc" or "twirp".
   string protocol = 5;
+  // The app's own description, as JSON, for an app the client drives as HTTP.
+  // A REST document is read in the browser — a schema becomes TypeScript there,
+  // and an operation becomes an HTTP request — so an app that has one compiles no
+  // proto and `proto_dir` is empty for it.
+  string document = 6;
 }
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -

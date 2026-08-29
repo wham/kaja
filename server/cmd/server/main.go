@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -243,6 +245,44 @@ func main() {
 		}
 	})
 
+	// A REST app's calls come through here rather than through /target: the browser
+	// built the request itself from the document, so what crosses is an HTTP call
+	// rather than an encoded message. What this adds is the two things the browser
+	// is not given — where the API is, and the credential that opens it.
+	mux.HandleFunc("POST /rest", func(w http.ResponseWriter, r *http.Request) {
+		forwardHeaders := make(map[string]string)
+		for name, values := range r.Header {
+			if strings.HasPrefix(name, "X-Header-") && len(values) > 0 {
+				forwardHeaders[strings.TrimPrefix(name, "X-Header-")] = values[0]
+			}
+		}
+		apps.TakeAppName(forwardHeaders)
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "could not read the request body", http.StatusBadRequest)
+			return
+		}
+
+		result, err := apiService.ForwardApp(r.Header.Get("X-Target"), &apps.ForwardRequest{
+			Method:  r.Header.Get("X-Kaja-Method"),
+			Path:    r.Header.Get("X-Kaja-Path"),
+			Headers: forwardHeaders,
+			Body:    body,
+		})
+		if err != nil {
+			// The call could not be made at all, which is not a status the API
+			// returned — so it is reported as kaja failing as the gateway it is here
+			// rather than dressed up as an answer.
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		writeForwardResult(w, result)
+	})
+
 	root := http.NewServeMux()
 	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))
 
@@ -280,4 +320,32 @@ func (rw *responseWriter) Flush() {
 	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
+}
+
+// writeForwardResult hands one upstream answer back to the browser: the status and
+// body as they came, and everything kaja knows about the exchange under the
+// reserved kaja-upstream-* namespace the other transports already use, so the
+// Headers view shows the API's own headers and nothing of the hop.
+func writeForwardResult(w http.ResponseWriter, result *apps.ForwardResult) {
+	headers, err := json.Marshal(result.Headers)
+	if err != nil {
+		headers = []byte("{}")
+	}
+	requestHeaders, err := json.Marshal(result.RequestHeaders)
+	if err != nil {
+		requestHeaders = []byte("{}")
+	}
+
+	w.Header().Set("Kaja-Upstream-Response-Headers", string(headers))
+	w.Header().Set("Kaja-Upstream-Request-Headers", string(requestHeaders))
+	w.Header().Set("Kaja-Upstream-Duration-Ms", strconv.FormatInt(result.DurationMs, 10))
+	w.Header().Set("Kaja-Upstream-Status", strconv.Itoa(result.Status))
+	if contentType := result.Headers["Content-Type"]; contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+	// The browser is told 200 whatever the API said, and reads the real status off
+	// the reserved header: a 404 the API returned is an answer this hop delivered
+	// successfully, and letting fetch see it as a failure would lose the body.
+	w.WriteHeader(http.StatusOK)
+	w.Write(result.Body)
 }

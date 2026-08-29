@@ -358,6 +358,49 @@ type TargetResult struct {
 	DurationMs int64             `json:"durationMs"`
 }
 
+// RestResult is one upstream HTTP answer, whole. A status is data here rather than
+// an outcome, so there is no flag saying whether it failed: a REST app's script
+// decides what a 404 means.
+type RestResult struct {
+	Status         int               `json:"status"`
+	Body           []byte            `json:"body"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`
+	DurationMs     int64             `json:"durationMs"`
+}
+
+// Rest is the desktop's counterpart to POST /rest: one HTTP call an app's script
+// built for itself. The webview has read the document and knows the request; what
+// it does not have is where the API is and what credential opens it, and this is
+// the side that does.
+func (a *App) Rest(target string, method string, path string, headersJson string, body []byte) (*RestResult, error) {
+	headers := make(map[string]string)
+	if headersJson != "" && headersJson != "{}" {
+		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
+			return nil, fmt.Errorf("failed to parse headers: %w", err)
+		}
+	}
+	apps.TakeAppName(headers)
+
+	result, err := a.api.ForwardApp(target, &apps.ForwardRequest{
+		Method:  method,
+		Path:    path,
+		Headers: headers,
+		Body:    body,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &RestResult{
+		Status:         result.Status,
+		Body:           result.Body,
+		Headers:        result.Headers,
+		RequestHeaders: result.RequestHeaders,
+		DurationMs:     result.DurationMs,
+	}, nil
+}
+
 // Target proxies external API calls to configured endpoints (the desktop's
 // counterpart to /target/{method...}). protocol is 1 for gRPC and 2 for Twirp;
 // headersJson is a JSON-encoded map of headers to forward.
