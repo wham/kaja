@@ -8,6 +8,9 @@ export interface Source {
   stubModuleId: string;
   file: ts.SourceFile;
   serviceNames: string[];
+  // Whether this module declares the REST door (restDoor.ts). It is a member the module
+  // exports rather than a service, so nothing else about the module says it is there.
+  restDoor?: boolean;
   interfaces: { [key: string]: ts.InterfaceDeclaration };
   enums: { [key: string]: { object: any } };
   // The generated types this source declares, as a script reads them. Built

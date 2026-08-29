@@ -65,9 +65,15 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 
 func methodLine(resolved resolvedMethod) string {
 	method := resolved.method
-	line := fmt.Sprintf("%-6s %s", resolved.effect(), method.Signature)
+	// The index reads as the API's own list where the API has one: the path is in the
+	// signature, so repeating it as a mark beside it says the same thing twice.
+	signature, rest := method.Signature, method.RestSignature != ""
+	if rest {
+		signature = method.RestSignature
+	}
+	line := fmt.Sprintf("%-6s %s", resolved.effect(), signature)
 	var marks []string
-	if method.HTTP != "" {
+	if method.HTTP != "" && !rest {
 		marks = append(marks, method.HTTP)
 	}
 	// Which way it streams is only worth a mark for what it costs the caller: one

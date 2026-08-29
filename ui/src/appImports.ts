@@ -1,5 +1,6 @@
 import { App } from "./apps";
 import { Source } from "./sources";
+import { REST_DOOR } from "./restDoor";
 
 // An import names an app. A path follows it only where the app declares one name
 // in two modules and the app alone cannot say which is meant — which is the whole
@@ -17,9 +18,14 @@ export function importable(app: App): Source[] {
   return app.sources.filter((source) => !source.importPath.endsWith(".client"));
 }
 
-// declaring returns the app's modules that export `name` under it.
+// declaring returns the app's modules that export `name` under it. The REST door is
+// one of those names: a module that declares it exports it exactly as it exports a
+// service, so it is ambiguous under the same rule and reached by a path under the same
+// one.
 export function declaring(app: App, name: string): Source[] {
-  return importable(app).filter((source) => source.serviceNames.includes(name) || source.enums[name] !== undefined);
+  return importable(app).filter(
+    (source) => source.serviceNames.includes(name) || source.enums[name] !== undefined || (name === REST_DOOR && source.restDoor === true),
+  );
 }
 
 // moduleSpecifier is what a script writes to reach `name` in `source`.

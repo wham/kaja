@@ -197,6 +197,30 @@ describe("appendCall", () => {
     expect(merged.indexOf("Seating.GetSeatMap")).toBeGreaterThan(merged.indexOf("TheKajaTheatre.ListShows"));
   });
 
+  // The REST door is exported as `api` and read under the app's name, so a name folded
+  // into an existing line has to arrive as it was written: `api` alone binds nothing.
+  it("folds an aliased binding in as it was written", () => {
+    const merged = appendCall(
+      `import { TheKajaTheatre } from "theatre/service";\n\nTheKajaTheatre.ListShows({});\n`,
+      `import { api as theatre } from "theatre/service";\n\ntheatre.get("/shows");\n`,
+    );
+
+    expect(merged.match(/^import/gm)).toHaveLength(1);
+    expect(merged).toContain("{ TheKajaTheatre, api as theatre }");
+    expect(merged).toContain('theatre.get("/shows");');
+  });
+
+  it("does not fold in a binding the line already has under its alias", () => {
+    const merged = appendCall(
+      `import { api as theatre } from "theatre/service";\n\ntheatre.get("/shows");\n`,
+      `import { api as theatre } from "theatre/service";\n\ntheatre.get("/venues");\n`,
+    );
+
+    expect(merged.match(/^import/gm)).toHaveLength(1);
+    expect(merged).toContain("{ api as theatre }");
+    expect(merged).not.toContain("api as theatre, api as theatre");
+  });
+
   it("keeps whatever the author wrote in between", () => {
     const authored = `import { TheKajaTheatre } from "theatre/service";\n\n// my note\nconst shows = TheKajaTheatre.ListShows({});\n`;
     expect(appendCall(authored, getShow)).toContain("// my note");

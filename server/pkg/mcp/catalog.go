@@ -40,9 +40,13 @@ func isRuntimeName(name string) bool {
 }
 
 type CatalogApp struct {
-	Name     string           `json:"name"`
-	Type     string           `json:"type,omitempty"`
-	Services []CatalogService `json:"services"`
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
+	// What the app's REST door is read under, where it has one — "theatre" for
+	// `import { api as theatre }`. Empty for an app whose methods stand for no HTTP
+	// request.
+	RestBinding string           `json:"restBinding,omitempty"`
+	Services    []CatalogService `json:"services"`
 	// Every type the app's services name, by its TypeScript name.
 	Declarations map[string]Declaration `json:"declarations,omitempty"`
 }
@@ -64,8 +68,12 @@ type CatalogMethod struct {
 	Doc       string `json:"doc,omitempty"`
 	// The HTTP request the method stands for, e.g. "GET /shows", when the app said so.
 	// The only thing that states whether calling it reads or writes.
-	HTTP      string `json:"http,omitempty"`
-	Streaming string `json:"streaming,omitempty"`
+	HTTP string `json:"http,omitempty"`
+	// The method as the REST door declares it, where the app has one:
+	// `get(path: "/shows/{showId}", request: WithPath<GetShowRequest, "showId">, options?: CallOptions): Call<Show>`.
+	// It is what Example is an instance of, so the two cannot be two spellings.
+	RestSignature string `json:"restSignature,omitempty"`
+	Streaming     string `json:"streaming,omitempty"`
 	// The call Kaja writes for this method — the same code clicking it in the tree puts
 	// in a draft.
 	Example string `json:"example"`

@@ -3,6 +3,7 @@ import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { appFor, resolve as resolveImport } from "./appImports";
 import { printStatements } from "./appLoader";
+import { REST_DOOR, restDoorFor } from "./restDoor";
 import { scriptConsole } from "./scriptConsole";
 import { deviceConsole } from "./uiLog";
 
@@ -124,6 +125,13 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
           // An interface a script imports for its type has nothing to bind at run time.
           if ("absent" in resolution) return;
           const source = resolution.source;
+          // The door is the app's, not a service's — a path is addressed across every
+          // service the app has — so it is bound from the app rather than looked up in
+          // one. It routes to the same bound methods, so a script may use both doors.
+          if (name === REST_DOOR && source.restDoor) {
+            args[alias] = restDoorFor(app, kaja);
+            return;
+          }
           // Matched on source path too, to handle duplicate service names.
           const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
           if (service) {

@@ -31,6 +31,10 @@ export interface Destination {
   // A call Kaja won't make. Dimmed and marked with the glyph the tree row carries,
   // since the finder is the other list every method is in.
   uncallable?: boolean;
+  // Matched but never shown. A REST method is named by its path everywhere, so the
+  // generated name is nowhere on screen to be read off — and it is still what someone
+  // who has been reading the declarations will type.
+  search?: string;
   go: () => void;
 }
 
@@ -61,7 +65,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
 
   const { recentRows, otherRows } = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const matches = (destination: Destination) => `${destination.name} ${destination.path}`.toLowerCase().includes(term);
+    const matches = (destination: Destination) => `${destination.name} ${destination.path} ${destination.search ?? ""}`.toLowerCase().includes(term);
     const been = recent.filter(matches);
     const rest = elsewhere.filter(matches);
     return { recentRows: been, otherRows: term ? rest : rest.slice(0, RESTING_OTHERS) };

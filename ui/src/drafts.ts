@@ -161,7 +161,7 @@ export function appendCall(existingCode: string, generatedCode: string): string 
       continue;
     }
 
-    const missing = imported.names.filter((name) => !target.names.includes(name));
+    const missing = imported.specifiers.filter((_, index) => !target.names.includes(imported.names[index]));
     if (missing.length === 0) continue;
     // Insert after the last name in the existing named imports, keeping whatever spacing
     // sits before the closing brace.
@@ -183,7 +183,11 @@ export function appendCall(existingCode: string, generatedCode: string): string 
 
 interface ImportLine {
   module: string;
+  // The local names the line binds — what a name is matched against.
   names: string[];
+  // The specifiers as written, which is what a missing one is inserted as: `api as
+  // theatre` binds `theatre`, and re-inserting the local name alone would bind nothing.
+  specifiers: string[];
   text: string;
   end: number;
 }
@@ -193,8 +197,14 @@ function importsOf(file: ts.SourceFile, code: string): ImportLine[] {
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const bindings = statement.importClause?.namedBindings;
-    const names = bindings && ts.isNamedImports(bindings) ? bindings.elements.map((element) => element.name.text) : [];
-    lines.push({ module: statement.moduleSpecifier.text, names, text: code.slice(statement.getStart(file), statement.end), end: statement.end });
+    const elements = bindings && ts.isNamedImports(bindings) ? bindings.elements : [];
+    lines.push({
+      module: statement.moduleSpecifier.text,
+      names: elements.map((element) => element.name.text),
+      specifiers: elements.map((element) => code.slice(element.getStart(file), element.end)),
+      text: code.slice(statement.getStart(file), statement.end),
+      end: statement.end,
+    });
   }
   return lines;
 }

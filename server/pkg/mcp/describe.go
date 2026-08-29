@@ -48,8 +48,16 @@ func (c Catalog) describeMethod(resolved resolvedMethod) string {
 		fmt.Fprintf(&b, "streaming: %s\n", note)
 	}
 
-	fmt.Fprintf(&b, "\nimport { %s } from %q;\n", resolved.service.Name, resolved.service.ImportPath)
-	fmt.Fprintf(&b, "%s.%s\n", resolved.service.Name, method.Signature)
+	// A method that stands for an HTTP request is written the way its own API writes
+	// it, through the app's REST door. The service door still answers, and is what an
+	// app with no path has, so which one is shown is which one the method has.
+	if method.RestSignature != "" && resolved.app.RestBinding != "" {
+		fmt.Fprintf(&b, "\nimport { api as %s } from %q;\n", resolved.app.RestBinding, resolved.service.ImportPath)
+		fmt.Fprintf(&b, "%s.%s\n", resolved.app.RestBinding, method.RestSignature)
+	} else {
+		fmt.Fprintf(&b, "\nimport { %s } from %q;\n", resolved.service.Name, resolved.service.ImportPath)
+		fmt.Fprintf(&b, "%s.%s\n", resolved.service.Name, method.Signature)
+	}
 
 	b.WriteString("\n" + strings.TrimRight(resolved.app.renderDeclarations(method.Input, method.Output), "\n") + "\n")
 

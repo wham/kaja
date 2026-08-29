@@ -1,6 +1,8 @@
 import { generateMethodEditorCode } from "./appLoader";
 import { moduleSpecifier } from "./appImports";
 import { App, Method, Service } from "./apps";
+import { httpRequestOf, verbMember } from "./httpMethod";
+import { doorBinding } from "./restDoor";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
 import { kajaModuleDeclaration } from "./kajaModule";
@@ -23,6 +25,10 @@ export interface McpCatalog {
 export interface McpApp {
   name: string;
   type: string;
+  // What the app's REST door is read under, where it has one — `theatre` for
+  // `import { api as theatre }`. Absent for an app whose methods stand for no
+  // HTTP request, which is every app that isn't built from a REST document.
+  restBinding?: string;
   services: McpService[];
   // Every type the app's services name, by its TypeScript name. An answer closes
   // over this to reach everything a request or response mentions.
@@ -49,6 +55,11 @@ export interface McpMethod {
   // The HTTP request the method stands for, when the app said so. It is the only
   // thing that states whether calling the method reads or writes.
   http?: string;
+  // The method as the REST door declares it, where the app has one:
+  // `get(path: "/shows/{showId}", request: WithPath<GetShowRequest, "showId">, options?: CallOptions): Call<Show>`.
+  // It is what the generated call is written against, so an agent is shown the
+  // signature its example is an instance of rather than a second spelling of it.
+  restSignature?: string;
   // Which way the method streams. Two of the three are directions Kaja does not
   // carry, which is what the note beside the signature says.
   streaming?: StreamingKind;
@@ -77,9 +88,12 @@ export function buildMcpCatalog(apps: App[], variableNames: string[] = []): McpC
       Object.assign(declarations, source.declarations);
     }
 
+    const restBinding = app.sources.some((source) => source.restDoor) ? doorBinding(app.configuration.name) : undefined;
+
     catalog.apps.push({
       name: app.configuration.name,
       type: appType(app.configuration),
+      ...(restBinding ? { restBinding } : {}),
       declarations,
       services: app.services.map((service) => ({
         name: service.name,
@@ -104,9 +118,27 @@ function describeMethod(app: App, service: Service, method: Method): McpMethod {
   };
   if (method.doc) described.doc = method.doc;
   if (method.http) described.http = method.http;
+  const restSignature = doorSignature(app, service, method);
+  if (restSignature) described.restSignature = restSignature;
   const streaming = streamingKind(method);
   if (streaming) described.streaming = streaming;
   return described;
+}
+
+// The door's own declaration for this method, read back out of the generated module
+// rather than rebuilt: the overload is written once, in appLoader, and a second
+// rendering of it here is a thing that can disagree with what the editor checks.
+function doorSignature(app: App, service: Service, method: Method): string | undefined {
+  const request = httpRequestOf(method);
+  const source = app.sources.find((s) => s.importPath === service.sourcePath);
+  if (!request || !source?.restDoor) return undefined;
+
+  const declared = new RegExp(`^\\s*(${verbMember(request)}\\(path: ${escapeForRegExp(JSON.stringify(request.path))},.*)$`, "m").exec(source.file.text);
+  return declared ? declared[1].replace(/;$/, "") : undefined;
+}
+
+function escapeForRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // importSpecifierFor is what a script writes to import the service — the app's

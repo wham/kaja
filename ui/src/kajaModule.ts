@@ -101,6 +101,16 @@ export type Input<T> = T extends Uint8Array
       ? { [K in keyof T]?: Input<T[K]> }
       : T;
 
+/**
+ * The request a REST path takes: an \`Input\` whose path parameters are insisted on.
+ *
+ * A path templates the values it cannot be addressed without —
+ * \`GET /shows/{showId}\` is not an address until \`showId\` has one — so those fields
+ * are the exception to everything else being optional. Every other field stays as
+ * \`Input\` leaves it, marked \`[required]\` in its declaration where the API insists.
+ */
+export type WithPath<T, K extends keyof Input<T>> = Input<T> & Required<Pick<Input<T>, K>>;
+
 /** A plain JSON value, as accepted by kaja.value and friends. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 

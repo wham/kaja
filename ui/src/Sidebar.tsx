@@ -23,6 +23,8 @@ import { usePersistedState } from "./usePersistedState";
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
+import { methodLabel } from "./httpMethod";
+import { MethodName } from "./MethodName";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
@@ -348,7 +350,9 @@ export function Sidebar({
                                       }}
                                       onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
                                     >
-                                      <span className={cn(unsupported && "text-muted-foreground")}>{method.name}</span>
+<span className={cn(unsupported && "text-muted-foreground")}>
+                                        <MethodName method={method} />
+                                      </span>
                                       <TreeView.TrailingVisual>
                                         {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
@@ -361,7 +365,7 @@ export function Sidebar({
                                           (touch || hoveredMethod === mId) && (
                                             <RowAction
                                               icon={PlusIcon}
-                                              label={`Add ${method.name} to the open draft`}
+                                              label={`Add ${methodLabel(method)} to the open draft`}
                                               onClick={() => onSelect(method, service, app, "append")}
                                             />
                                           )

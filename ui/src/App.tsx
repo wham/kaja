@@ -46,6 +46,7 @@ import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitl
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
+import { methodLabel } from "./httpMethod";
 import { barrel } from "./appImports";
 import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
@@ -2118,7 +2119,8 @@ export function App() {
             // The package is part of the key: without it two same-named services in one app
             // share one, and React renders whichever it already had wherever the other belongs.
             key: `call:${app.configuration.name}/${service.packageName}.${service.name}/${method.name}`,
-            name: method.name,
+            name: methodLabel(method),
+            search: method.name,
             path: `${app.configuration.name} / ${qualified}`,
             origin: app.configuration.name,
             icon: FileCode,

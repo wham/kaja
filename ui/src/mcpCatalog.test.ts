@@ -190,16 +190,31 @@ describe("buildMcpCatalog", () => {
     const built = await catalog();
     const [listShows, getShow] = built.apps[0].services[0].methods;
 
-    expect(listShows.example).toContain('import { Shows } from "theatre"');
-    expect(listShows.example).toContain("Shows.ListShows({})");
+    // These methods stand for HTTP requests, so the call is written the way the API
+    // addresses them — the same code clicking the path in the tree writes.
+    expect(listShows.example).toContain('import { api as theatre } from "theatre"');
+    expect(listShows.example).toContain('theatre.get("/shows", {})');
     // Nothing in this request is required, so nothing is written out — including the
     // enum, whose import goes with it.
     expect(listShows.example).not.toContain("pageSize");
     expect(listShows.example).not.toContain("Sort");
 
-    expect(getShow.example).toContain("Shows.GetShow(");
+    expect(getShow.example).toContain('theatre.get("/shows/{showId}", {');
     expect(getShow.example).toContain('showId: ""');
     expect(getShow.example).not.toContain("fields");
+  });
+
+  // An agent is shown one spelling: the signature its example is an instance of.
+  it("carries the door's own declaration beside the example it writes", async () => {
+    const built = await catalog();
+    const [listShows, getShow] = built.apps[0].services[0].methods;
+
+    expect(built.apps[0].restBinding).toBe("theatre");
+    expect(listShows.restSignature).toContain('get(path: "/shows"');
+    expect(getShow.restSignature).toContain('get(path: "/shows/{showId}"');
+    // The declaration ends at the response type, not at the semicolon of the line it
+    // was read off.
+    expect(getShow.restSignature?.endsWith(";")).toBe(false);
   });
 
   it("leaves out an app that has not compiled", async () => {
