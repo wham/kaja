@@ -76,7 +76,7 @@ func methodLine(resolved resolvedMethod) string {
 	case "server":
 		marks = append(marks, "server stream")
 	case "client", "bidirectional":
-		marks = append(marks, "not callable")
+		marks = append(marks, "not supported yet")
 	}
 	if len(marks) > 0 {
 		line += "  [" + strings.Join(marks, ", ") + "]"

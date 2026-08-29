@@ -674,14 +674,14 @@ func TestStreamingIsMarkedByWhatItCosts(t *testing.T) {
 	srv := NewServer(bridge, token)
 
 	index := tool(t, srv, "list_services", nil)
-	contains(t, index, "[server stream]", "[not callable]")
+	contains(t, index, "[server stream]", "[not supported yet]")
 
 	// The method is described all the same - it is part of the app's surface - but
 	// the note says no request will make the call go.
 	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Feed.Upload"}),
-		"streaming: the client streams the requests, and Kaja carries a stream from the server only - calling this method is refused, whatever the request")
+		"streaming: client streaming is not supported by Kaja yet - calling this method is refused, whatever the request")
 	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Feed.Watch"}),
-		"streaming: the server streams many responses; the call hands back the last of them, and every message is in the run's log")
+		"streaming: server streaming; the call hands back the last message, and all of them are in the run's log")
 }
 
 func TestEmptyCatalog(t *testing.T) {

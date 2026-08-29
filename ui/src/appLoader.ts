@@ -7,7 +7,7 @@ import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
-import { isCallable, NOT_CALLABLE } from "./streaming";
+import { unsupportedReason } from "./streaming";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
 // written out: the whole shape for a person clicking the method in the tree, the
@@ -240,8 +240,9 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   // still what the method takes and reading it is why you clicked. What the editor
   // says about it — the method is not on the service — reads as Kaja having lost the
   // method, so the line above says whose decision it was.
-  if (!isCallable(methodInfo)) {
-    call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + NOT_CALLABLE, true);
+  const unsupported = unsupportedReason(methodInfo);
+  if (unsupported) {
+    call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + unsupported, true);
   }
 
   statements = [

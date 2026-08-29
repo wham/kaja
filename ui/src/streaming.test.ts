@@ -1,7 +1,7 @@
 import { describe, expect, it, test } from "bun:test";
 import { generateMethodEditorCode, loadApp } from "./appLoader";
 import type { Source as ApiSource } from "./server/api";
-import { isCallable, NOT_CALLABLE, streamingKind } from "./streaming";
+import { streamingKind, unsupportedReason } from "./streaming";
 
 // createClients reads window.location for the base URL; provide it as the browser would.
 (globalThis as any).window = { location: { href: "http://localhost/" } };
@@ -13,11 +13,11 @@ test("streamingKind reads the direction off the flags", () => {
   expect(streamingKind({ serverStreaming: true, clientStreaming: true })).toBe("bidirectional");
 });
 
-test("only a stream from the client is refused", () => {
-  expect(isCallable({})).toBe(true);
-  expect(isCallable({ serverStreaming: true })).toBe(true);
-  expect(isCallable({ clientStreaming: true })).toBe(false);
-  expect(isCallable({ serverStreaming: true, clientStreaming: true })).toBe(false);
+test("only a stream from the client is refused, and the reason names its kind", () => {
+  expect(unsupportedReason({})).toBeUndefined();
+  expect(unsupportedReason({ serverStreaming: true })).toBeUndefined();
+  expect(unsupportedReason({ clientStreaming: true })).toBe("Client streaming is not supported by Kaja yet.");
+  expect(unsupportedReason({ serverStreaming: true, clientStreaming: true })).toBe("Bidirectional streaming is not supported by Kaja yet.");
 });
 
 // A service with one method of each kind Kaja can meet.
@@ -71,10 +71,10 @@ describe("a method that streams from the client", () => {
     const upload = service.methods.find((m) => m.name === "Upload")!;
 
     const code = generateMethodEditorCode(app, service, upload);
-    expect(code).toContain("// " + NOT_CALLABLE);
+    expect(code).toContain("// Client streaming is not supported by Kaja yet.");
     expect(code).toContain("Numbers.Upload(");
     // The comment sits over the call, not at the top of the file above the import.
-    expect(code.indexOf("// " + NOT_CALLABLE)).toBeGreaterThan(code.indexOf("import"));
+    expect(code.indexOf("// Client streaming")).toBeGreaterThan(code.indexOf("import"));
   });
 
   it("leaves a callable method's code alone", async () => {
@@ -87,7 +87,7 @@ describe("a method that streams from the client", () => {
         service,
         service.methods.find((m) => m.name === name)!,
       );
-      expect(code).not.toContain(NOT_CALLABLE);
+      expect(code).not.toContain("not supported by Kaja");
       expect(code).toContain(`Numbers.${name}(`);
     }
   });

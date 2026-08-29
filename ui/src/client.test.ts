@@ -4,7 +4,7 @@ import { createAppRef, Service, Transport } from "./apps";
 import { Kaja, KajaHost, MethodCall } from "./kaja";
 import { LogLevel } from "./server/api";
 import { classifyFailure } from "./callFailure";
-import { NOT_CALLABLE, UNSUPPORTED_CODE } from "./streaming";
+import { UNSUPPORTED_CODE } from "./streaming";
 
 // The client asks where the page is served from when it builds its transport, which
 // is the one thing about a browser these tests need to be in.
@@ -165,7 +165,7 @@ describe("a method that streams from the client", () => {
 
     expect(await methods.Upload({ chunk: "a" })).toBeUndefined();
     expect(sent).toHaveLength(0);
-    expect(calls[0].error).toEqual({ message: NOT_CALLABLE, code: UNSUPPORTED_CODE });
+    expect(calls[0].error).toEqual({ message: "Client streaming is not supported by Kaja yet.", code: UNSUPPORTED_CODE });
     // Reported rather than thrown, like any other refused call, and read back as the
     // one kind no request can fix.
     expect(classifyFailure(calls[0].error).kind).toBe("UNSUPPORTED");

@@ -24,7 +24,7 @@ import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
-import { isCallable, NOT_CALLABLE } from "./streaming";
+import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { useMediaQuery } from "./useMediaQuery";
 import {
@@ -333,7 +333,7 @@ export function Sidebar({
                                   const mId = methodId(service, method);
                                   // Listed, because the tree is what the app has. Dimmed and marked,
                                   // because clicking it writes a script Kaja won't run.
-                                  const callable = isCallable(method);
+                                  const unsupported = unsupportedReason(method);
                                   return (
                                     <TreeView.Item
                                       id={mId}
@@ -346,17 +346,17 @@ export function Sidebar({
                                           el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
                                         } else elementRefs.current.delete(mId);
                                       }}
-                                      onSelect={(event) => onSelect(method, service, app, callable && event?.altKey ? "append" : "go")}
+                                      onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
                                     >
-                                      <span className={cn(!callable && "text-muted-foreground")}>{method.name}</span>
+                                      <span className={cn(unsupported && "text-muted-foreground")}>{method.name}</span>
                                       <TreeView.TrailingVisual>
                                         {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. A call
                                           that can't be made is offered no way into a draft you
                                           are working in. */}
-                                        {!callable ? (
-                                          <UncallableMarker />
+                                        {unsupported ? (
+                                          <UnsupportedMarker reason={unsupported} />
                                         ) : (
                                           (touch || hoveredMethod === mId) && (
                                             <RowAction
@@ -532,10 +532,10 @@ function SectionHeader({
 // app is broken and opens its log.
 // A method Kaja won't call still has a row — hiding it would make the tree say the
 // app has less than it does — so the row says why instead.
-function UncallableMarker() {
+function UnsupportedMarker({ reason }: { reason: string }) {
   return (
-    <SimpleTooltip text={NOT_CALLABLE}>
-      <span role="img" aria-label={NOT_CALLABLE} className="inline-flex shrink-0 items-center text-muted-foreground">
+    <SimpleTooltip text={reason}>
+      <span role="img" aria-label={reason} className="inline-flex shrink-0 items-center text-muted-foreground">
         <Ban size={12} />
       </span>
     </SimpleTooltip>

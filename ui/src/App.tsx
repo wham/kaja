@@ -49,7 +49,7 @@ import { barrel } from "./appImports";
 import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
-import { isCallable } from "./streaming";
+import { unsupportedReason } from "./streaming";
 import { RunButton } from "./RunButton";
 import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
 import { useSyntaxErrors } from "./syntaxErrors";
@@ -2125,7 +2125,7 @@ export function App() {
             path: `${app.configuration.name} / ${qualified}`,
             origin: app.configuration.name,
             icon: FileCode,
-            uncallable: !isCallable(method),
+            uncallable: unsupportedReason(method) !== undefined,
             go: () => void onMethodSelect(method, service, app),
           });
         }

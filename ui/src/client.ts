@@ -19,7 +19,7 @@ import { APP_OF } from "./rateLimit";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
-import { isCallable, NOT_CALLABLE, UNSUPPORTED_CODE } from "./streaming";
+import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 import { isWailsEnvironment } from "./wails";
 
 // absorbReserved routes one kaja-upstream-* entry onto the call. The prefix is
@@ -118,7 +118,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // What a method needs that the run has no say in, resolved once rather than per run.
   const prepared = service.methods.map((method) => ({
     method,
-    callable: isCallable(method),
+    unsupported: unsupportedReason(method),
     isServerStreaming: method.serverStreaming && !method.clientStreaming,
     inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
   }));
@@ -131,7 +131,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     const methods: Methods = {};
     // Read rather than captured, so a renamed app still answers for its own budget.
     Object.defineProperty(methods, APP_OF, { get: () => appRef.configuration.name });
-    for (const { method, callable, isServerStreaming, inputType } of prepared) {
+    for (const { method, unsupported, isServerStreaming, inputType } of prepared) {
       const newMethodCall = (input: any, requestHeaders: MethodCallHeaders): MethodCall => ({
         id: crypto.randomUUID(),
         appName: appRef.configuration.name,
@@ -152,10 +152,10 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         // Refused here rather than by the transport: each build has one of its own, each
         // with its own wording, and both of them describe themselves where the limit is
         // Kaja's. It is still a row, because the script did make the call.
-        if (!callable) {
+        if (unsupported) {
           const refused = newMethodCall(input, requestHeaders);
           hold(refused);
-          refused.error = { message: NOT_CALLABLE, code: UNSUPPORTED_CODE };
+          refused.error = { message: unsupported, code: UNSUPPORTED_CODE };
           kaja._internal.methodCallUpdate(refused);
           return undefined;
         }

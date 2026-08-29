@@ -15,19 +15,20 @@ export function streamingKind(method: Streams): StreamingKind | undefined {
   return undefined;
 }
 
-// Both builds carry a stream from the server and neither carries one to it, so a
-// method that streams from the client — a bidirectional one included — is listed
-// wherever the app's surface is listed and called nowhere.
-export function isCallable(method: Streams): boolean {
-  const kind = streamingKind(method);
-  return kind !== "client" && kind !== "bidirectional";
+// Why Kaja won't call this method, or undefined where it will. The one sentence,
+// wherever such a method is met: the tree's mark, the comment over the generated
+// call, and the error the run is refused with. It names the kind and says the plain
+// thing about it, because a reader who meets it in the sidebar and again in a run
+// must not have to work out whether they are the same limit.
+export function unsupportedReason(method: Streams): string | undefined {
+  switch (streamingKind(method)) {
+    case "client":
+      return "Client streaming is not supported by Kaja yet.";
+    case "bidirectional":
+      return "Bidirectional streaming is not supported by Kaja yet.";
+  }
+  return undefined;
 }
-
-// The one sentence, wherever such a method is met: the tree's mark, the comment over
-// the generated call, and the error the run is refused with. Said the same way three
-// times because it is one fact, and a reader who meets it twice must not have to work
-// out whether they are the same limit.
-export const NOT_CALLABLE = "Kaja doesn't call this method: it streams from the client, and Kaja carries a stream from the server only.";
 
 // What the refusal is labelled by. It is Kaja's own, not a status a server sent, so
 // classifyFailure reads it directly rather than off an HTTP status or a gRPC code.
