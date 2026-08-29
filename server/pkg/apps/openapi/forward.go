@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,21 +29,17 @@ const maxBody = 64 << 20
 // to make of it is the script's business. Only a call that could not be made at all
 // is an error here.
 func (in *instance) Forward(request *apps.ForwardRequest) (*apps.ForwardResult, error) {
-	if strings.Contains(request.Path, "://") || strings.HasPrefix(request.Path, "//") {
-		return nil, fmt.Errorf("path %q is a URL; a forwarded call is addressed relative to the app", request.Path)
-	}
-	path := request.Path
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
+	target, err := in.resolve(request.Path)
+	if err != nil {
+		return nil, err
 	}
 
-	target := strings.TrimSuffix(in.baseURL, "/") + path
 	var body io.Reader
 	if len(request.Body) > 0 {
 		body = bytes.NewReader(request.Body)
 	}
 
-	outgoing, err := http.NewRequest(strings.ToUpper(request.Method), target, body)
+	outgoing, err := http.NewRequest(strings.ToUpper(request.Method), target.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("building the upstream request: %w", err)
 	}
@@ -76,6 +73,68 @@ func (in *instance) Forward(request *apps.ForwardRequest) (*apps.ForwardResult, 
 		RequestHeaders: flatten(outgoing.Header),
 		DurationMs:     time.Since(started).Milliseconds(),
 	}, nil
+}
+
+// resolve turns the path a script asked for into the URL this process will call.
+//
+// The address is the security boundary of this whole lane: anything that reaches
+// here has crossed from a browser, and on a deployed kaja that browser is not
+// necessarily the workspace's owner. So the destination is not assembled from
+// text — every part of the authority is taken from the app's own base URL, and
+// the request supplies a path and a query and nothing else. Even a reference that
+// parses as absolute contributes only its path, because there is no branch here
+// that can read a host out of the input.
+//
+// Confining the result under the base path is the second half: a document mounted
+// at /v1 is an API that begins at /v1, and `../..` climbing out of it reaches
+// endpoints on that host the app was never opened for.
+func (in *instance) resolve(path string) (*url.URL, error) {
+	base, err := url.Parse(in.baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("the app's base URL %q is not a URL: %w", in.baseURL, err)
+	}
+
+	reference, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("path %q is not a path: %w", path, err)
+	}
+	if reference.IsAbs() || reference.Host != "" || reference.User != nil {
+		return nil, fmt.Errorf("path %q names a destination; a forwarded call is addressed relative to the app", path)
+	}
+
+	// An operation's path hangs off the server URL, which is what an OpenAPI
+	// document means by the two: /v1 and /shows are /v1/shows. So they are joined
+	// rather than resolved against one another, where an absolute /shows would
+	// replace the mount point instead of extending it.
+	basePath := base.EscapedPath()
+	if basePath == "" {
+		basePath = "/"
+	}
+	joined := strings.TrimSuffix(basePath, "/") + "/" + strings.TrimPrefix(reference.EscapedPath(), "/")
+
+	candidate, err := url.Parse(joined)
+	if err != nil {
+		return nil, fmt.Errorf("path %q is not a path: %w", path, err)
+	}
+	// Resolving the joined path against the base is what removes the dot segments,
+	// so `..` is settled here rather than left for the upstream to interpret.
+	candidate.RawQuery = reference.RawQuery
+	resolved := base.ResolveReference(candidate)
+
+	confined := strings.TrimSuffix(basePath, "/")
+	if resolved.EscapedPath() != confined && !strings.HasPrefix(resolved.EscapedPath(), confined+"/") {
+		return nil, fmt.Errorf("path %q reaches outside the app", path)
+	}
+
+	// Built from the base rather than from the reference, so the scheme, the host
+	// and any credentials in the base URL are the only ones that can be used.
+	target := *base
+	target.Path = resolved.Path
+	target.RawPath = resolved.RawPath
+	target.RawQuery = resolved.RawQuery
+	target.Fragment = ""
+	target.RawFragment = ""
+	return &target, nil
 }
 
 // One value per name, which is what the Headers view shows and what a script reads

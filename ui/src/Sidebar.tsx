@@ -350,7 +350,7 @@ export function Sidebar({
                                       }}
                                       onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
                                     >
-<span className={cn(unsupported && "text-muted-foreground")}>
+                                      <span className={cn(unsupported && "text-muted-foreground")}>
                                         <MethodName method={method} />
                                       </span>
                                       <TreeView.TrailingVisual>

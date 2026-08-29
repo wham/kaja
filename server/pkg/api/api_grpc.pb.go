@@ -19,17 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Api_Compile_FullMethodName             = "/Api/Compile"
-	Api_OpenApp_FullMethodName             = "/Api/OpenApp"
-	Api_InspectOpenApi_FullMethodName      = "/Api/InspectOpenApi"
-	Api_InspectGrpc_FullMethodName         = "/Api/InspectGrpc"
-	Api_InspectMcp_FullMethodName          = "/Api/InspectMcp"
-	Api_GetConfiguration_FullMethodName    = "/Api/GetConfiguration"
-	Api_UpdateConfiguration_FullMethodName = "/Api/UpdateConfiguration"
-	Api_SetStoredValue_FullMethodName      = "/Api/SetStoredValue"
-	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
-	Api_ListScripts_FullMethodName         = "/Api/ListScripts"
-	Api_ReadScript_FullMethodName          = "/Api/ReadScript"
+	Api_Compile_FullMethodName                = "/Api/Compile"
+	Api_OpenApp_FullMethodName                = "/Api/OpenApp"
+	Api_InspectOpenApi_FullMethodName         = "/Api/InspectOpenApi"
+	Api_InspectGrpc_FullMethodName            = "/Api/InspectGrpc"
+	Api_InspectMcp_FullMethodName             = "/Api/InspectMcp"
+	Api_GetConfiguration_FullMethodName       = "/Api/GetConfiguration"
+	Api_UpdateConfiguration_FullMethodName    = "/Api/UpdateConfiguration"
+	Api_SetStoredValue_FullMethodName         = "/Api/SetStoredValue"
+	Api_ClearStoredValue_FullMethodName       = "/Api/ClearStoredValue"
+	Api_ListScripts_FullMethodName            = "/Api/ListScripts"
+	Api_ReadScript_FullMethodName             = "/Api/ReadScript"
+	Api_GetMethodDocumentation_FullMethodName = "/Api/GetMethodDocumentation"
 )
 
 // ApiClient is the client API for Api service.
@@ -47,6 +48,7 @@ type ApiClient interface {
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
 	ReadScript(ctx context.Context, in *ReadScriptRequest, opts ...grpc.CallOption) (*ReadScriptResponse, error)
+	GetMethodDocumentation(ctx context.Context, in *GetMethodDocumentationRequest, opts ...grpc.CallOption) (*GetMethodDocumentationResponse, error)
 }
 
 type apiClient struct {
@@ -167,6 +169,16 @@ func (c *apiClient) ReadScript(ctx context.Context, in *ReadScriptRequest, opts 
 	return out, nil
 }
 
+func (c *apiClient) GetMethodDocumentation(ctx context.Context, in *GetMethodDocumentationRequest, opts ...grpc.CallOption) (*GetMethodDocumentationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMethodDocumentationResponse)
+	err := c.cc.Invoke(ctx, Api_GetMethodDocumentation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ApiServer is the server API for Api service.
 // All implementations should embed UnimplementedApiServer
 // for forward compatibility.
@@ -182,6 +194,7 @@ type ApiServer interface {
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
 	ReadScript(context.Context, *ReadScriptRequest) (*ReadScriptResponse, error)
+	GetMethodDocumentation(context.Context, *GetMethodDocumentationRequest) (*GetMethodDocumentationResponse, error)
 }
 
 // UnimplementedApiServer should be embedded to have
@@ -223,6 +236,9 @@ func (UnimplementedApiServer) ListScripts(context.Context, *ListScriptsRequest) 
 }
 func (UnimplementedApiServer) ReadScript(context.Context, *ReadScriptRequest) (*ReadScriptResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReadScript not implemented")
+}
+func (UnimplementedApiServer) GetMethodDocumentation(context.Context, *GetMethodDocumentationRequest) (*GetMethodDocumentationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMethodDocumentation not implemented")
 }
 func (UnimplementedApiServer) testEmbeddedByValue() {}
 
@@ -442,6 +458,24 @@ func _Api_ReadScript_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_GetMethodDocumentation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMethodDocumentationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).GetMethodDocumentation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_GetMethodDocumentation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).GetMethodDocumentation(ctx, req.(*GetMethodDocumentationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Api_ServiceDesc is the grpc.ServiceDesc for Api service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -492,6 +526,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReadScript",
 			Handler:    _Api_ReadScript_Handler,
+		},
+		{
+			MethodName: "GetMethodDocumentation",
+			Handler:    _Api_GetMethodDocumentation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
