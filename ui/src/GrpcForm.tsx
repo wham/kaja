@@ -43,11 +43,11 @@ import {
   TLS_ON,
   authNote,
   authSchemes,
+  clientStreamingMethods,
   count,
   deriveAppName,
   isDialableTarget,
   nameFromAddress,
-  streamingMethods,
   tlsFromServer,
   uniqueAppName,
 } from "./grpcServer";
@@ -456,7 +456,7 @@ function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRe
 }
 
 function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: () => void }) {
-  const streaming = streamingMethods(server);
+  const clientStreaming = clientStreamingMethods(server);
 
   return (
     <div className="flex flex-col gap-2">
@@ -477,16 +477,14 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
           <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
         </div>
       </div>
-      {/* Only where it is true. The desktop carries streaming calls fine, so there
-          the note would be describing another build of an app nobody said there
-          was two of. */}
-      {streaming > 0 && !isWailsEnvironment() && (
+      {clientStreaming > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
           <div className="pt-0.5 text-muted-foreground">
             <Info size={15} />
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
-            {count(streaming, "method")} stream. gRPC-Web can't carry a stream, so they are listed but can't be called.
+            {clientStreaming === 1 ? "One method streams" : `${clientStreaming} methods stream`} from the client, and Kaja carries a stream from the server only
+            — listed in the sidebar, but not callable. A stream from the server is called like any other method.
           </p>
         </div>
       )}

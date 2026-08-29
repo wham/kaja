@@ -39,10 +39,10 @@ request's `Content-Type` and `X-Target` decide which lane it takes.
 │  (openapi · mcp · openai ·   │  type               │  (twirp)           │
 │   folder)                    │                     │                    │
 │  ServeAppGRPCWeb             │  gRPC-Web ⇄ gRPC    │  reverse proxy,    │
-│   └─► InvokeApp — stamps     │  proxy — stamps     │  /target/→/twirp/  │
-│       duration, redacts      │  duration, forwards │  — stamps duration │
-│   └─► app transcodes         │  the upstream's own │                    │
-│       proto3-JSON ⇄ REST/MCP │  grpc-status back   │                    │
+│   └─► InvokeApp — stamps     │  proxy — one server │  /target/→/twirp/  │
+│       duration, redacts      │  stream, framed out │  — stamps duration │
+│   └─► app transcodes         │  a message at a     │                    │
+│       proto3-JSON ⇄ REST/MCP │  time               │                    │
 └──────────────┬───────────────┴──────────┬──────────┴─────────┬──────────┘
                │ HTTPS                    │ gRPC (HTTP/2)      │ HTTP POST
                ▼                          ▼                    ▼
@@ -51,6 +51,15 @@ request's `Content-Type` and `X-Target` decide which lane it takes.
 
 The folder app is the one lane with no upstream arrow: its "exchange" is the
 disk behind `os.Root`, and it forwards no headers.
+
+Every call the gRPC lane forwards is opened as a server stream, because nothing
+in a gRPC-Web request says which kind of method it names and a unary call is a
+stream of one. The response goes back as **binary** gRPC-Web frames, flushed one
+message at a time, whatever format the request arrived in — a `grpc-web-text`
+body is one continuous base64 stream, so a frame that misses a group boundary
+would hold its last bytes back until the next frame gave them company. The call
+lives as long as the browser's request: no deadline of Kaja's own to cut a long
+stream short, and an aborted fetch cancels the call upstream.
 
 On the way back, everything Kaja has to say travels beside the response, never
 inside it:

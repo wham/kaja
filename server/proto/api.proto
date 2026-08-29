@@ -99,9 +99,10 @@ message GrpcService {
   // Fully qualified name, e.g. "seating.Seating".
   string name = 1;
   int32 method_count = 2;
-  // Methods that stream in either direction. gRPC-Web can't carry them, so on
-  // the web they are listed but can't be called.
-  int32 streaming_method_count = 3;
+  // Methods that stream from the client, bidirectional ones included. Neither
+  // build carries a stream in that direction, so they are listed but can't be
+  // called; a stream from the server is carried on both.
+  int32 client_streaming_method_count = 3;
 }
 
 // GrpcProblem is a surface that couldn't be read, classified so the form can

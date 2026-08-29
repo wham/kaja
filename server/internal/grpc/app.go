@@ -1,7 +1,6 @@
 package grpc
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -52,8 +51,6 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/grpc-web-text")
-
 	result, err := invoke(method, message, headers)
 	if err != nil {
 		slog.Error("App invocation failed", "method", method, "error", err)
@@ -68,16 +65,16 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
 			trailers[upstreamErrorTrailer] = string(upstream.JSON())
 			trailers[upstreamDurationTrailer] = strconv.FormatInt(upstream.DurationMs, 10)
-			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.TransportStatus()), upstream.Error(), trailers)
+			writeGRPCWeb(w, nil, grpcStatusFromHTTP(upstream.TransportStatus()), upstream.Error(), trailers)
 			return
 		}
 		// gRPC status 2 = UNKNOWN; the browser surfaces grpc-message as the error.
-		writeGRPCWebText(w, nil, 2, err.Error(), nil)
+		writeGRPCWeb(w, nil, 2, err.Error(), nil)
 		return
 	}
 	trailers := upstreamHeaderTrailers(result.RequestHeaders, result.ResponseHeaders)
 	trailers[upstreamDurationTrailer] = strconv.FormatInt(result.DurationMs, 10)
-	writeGRPCWebText(w, result.Body, 0, "", trailers)
+	writeGRPCWeb(w, result.Body, 0, "", trailers)
 }
 
 // upstreamHeaderTrailers encodes an app's exchanged upstream headers as gRPC-Web
@@ -150,15 +147,39 @@ func grpcStatusFromHTTP(status int) int {
 // that merely describe the hop, so what is dropped under pressure is the lesser thing.
 const maxTrailerBytes = 64 << 10
 
-// writeGRPCWebText writes a base64 gRPC-Web-text response: an optional data frame
-// followed by a trailer frame carrying grpc-status, grpc-message, and any extra
-// trailers.
-func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMessage string, extraTrailers map[string]string) {
-	var full []byte
-	if message != nil {
-		full = grpcWebFrame(0, message)
-	}
+// grpcWebResponse writes a gRPC-Web response: zero or more data frames, then the one
+// trailer frame carrying grpc-status, grpc-message and whatever else this hop has to
+// say. A stream is the general case and a unary call the one that stops after a
+// message, which is why the frames are written as they are had rather than assembled.
+//
+// The frames are binary rather than base64. A grpc-web-text body is one continuous
+// base64 stream, so a frame whose bytes do not land on a group boundary holds its last
+// two bytes back until something follows them - which on a stream is a message held
+// until the next message. The client reads the format off the response's own content
+// type, so what the request was encoded in does not decide what the answer is.
+type grpcWebResponse struct {
+	w       http.ResponseWriter
+	flusher http.Flusher
+}
 
+func newGRPCWebResponse(w http.ResponseWriter) *grpcWebResponse {
+	w.Header().Set("Content-Type", "application/grpc-web+proto")
+	// A stream that arrives in one piece at the end is not a stream, so ask any
+	// reverse proxy in front of this one not to buffer it.
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher, _ := w.(http.Flusher)
+	return &grpcWebResponse{w: w, flusher: flusher}
+}
+
+// message writes one response message and pushes it out, because a message held back
+// for company is the whole of what a stream is not.
+func (r *grpcWebResponse) message(message []byte) {
+	r.write(grpcWebFrame(0, message))
+}
+
+// end writes the trailer frame. A status is carried here rather than in the HTTP
+// status because by the time a stream fails its response has long since started.
+func (r *grpcWebResponse) end(status int, grpcMessage string, extraTrailers map[string]string) {
 	var trailers strings.Builder
 	// grpc-message is a sentence rather than a document, so it is cut to fit instead of
 	// dropped: a truncated reason still reads as the reason.
@@ -176,9 +197,24 @@ func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMes
 		trailers.WriteString(line)
 	}
 
-	full = append(full, grpcWebFrame(0x80, []byte(trailers.String()))...)
+	r.write(grpcWebFrame(0x80, []byte(trailers.String())))
+}
 
-	w.Write([]byte(base64.StdEncoding.EncodeToString(full)))
+func (r *grpcWebResponse) write(frame []byte) {
+	r.w.Write(frame)
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
+}
+
+// writeGRPCWeb writes a whole response at once: an optional data frame followed by the
+// trailers. What a unary call has to say it has to say all at once.
+func writeGRPCWeb(w http.ResponseWriter, message []byte, status int, grpcMessage string, extraTrailers map[string]string) {
+	response := newGRPCWebResponse(w)
+	if message != nil {
+		response.message(message)
+	}
+	response.end(status, grpcMessage, extraTrailers)
 }
 
 // grpcWebFrame prefixes a payload with its gRPC-Web frame header: a flag byte (0 for

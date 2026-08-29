@@ -26,6 +26,11 @@ func NewProxy(target *url.URL, options pkggrpc.TLSOptions) (*Proxy, error) {
 	}, nil
 }
 
+// ServeHTTP forwards one gRPC-Web call. Every call is forwarded as a server stream,
+// because at this end of the wire there is nothing to tell one from a unary call: the
+// request framing is identical, and a unary method answers with the one message and
+// the status that a stream of one is. So the proxy forwards what arrives, however
+// many messages that turns out to be.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string, headers map[string]string) {
 	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
 
@@ -36,31 +41,56 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string,
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/grpc-web-text")
+	response := newGRPCWebResponse(w)
 
 	// The one Kaja process in the call's path stamps the upstream exchange, so what
 	// the client shows as the call's duration is the API's time, not the trip here.
 	started := time.Now()
-	res, responseMetadata, err := p.client.InvokeWithTimeout(method, message, 30*time.Second, headers)
-	// This lane is a bridge rather than a hop: the same call is forwarded, so what the
-	// server answered with is the response's own metadata and rides back under its own
-	// names, beside the one trailer that is Kaja's.
-	trailers := map[string]string{}
-	for name, value := range responseMetadata {
-		trailers[name] = value
-	}
-	trailers[upstreamDurationTrailer] = strconv.FormatInt(time.Since(started).Milliseconds(), 10)
-
+	// The call lives as long as the browser's request and no longer: a stream ends
+	// when the server runs out or when Stop aborts the fetch, and a deadline of
+	// Kaja's own would cut a long one short at a number nobody chose.
+	stream, err := p.client.OpenServerStream(r.Context(), method, message, headers)
 	if err != nil {
 		slog.Error("gRPC invocation failed", "method", method, "error", err)
 		// The upstream's own status rides back in the trailer frame, so the browser
 		// sees the NOT_FOUND the API answered rather than a 500 from the proxy.
 		code, grpcMessage := grpcStatusOf(err)
-		writeGRPCWebText(w, nil, code, grpcMessage, trailers)
+		response.end(code, grpcMessage, map[string]string{
+			upstreamDurationTrailer: strconv.FormatInt(time.Since(started).Milliseconds(), 10),
+		})
 		return
 	}
 
-	writeGRPCWebText(w, res, 0, "", trailers)
+	for {
+		received, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			slog.Error("gRPC invocation failed", "method", method, "error", err)
+			// A stream that fails partway through keeps the messages it already sent:
+			// the status says what stopped it, and the frames before it stand.
+			code, grpcMessage := grpcStatusOf(err)
+			response.end(code, grpcMessage, streamTrailers(stream, started))
+			return
+		}
+		response.message(received)
+	}
+
+	response.end(0, "", streamTrailers(stream, started))
+}
+
+// streamTrailers is what the call has to say for itself once it is over. This lane is
+// a bridge rather than a hop: the same call is forwarded, so what the server answered
+// with is the response's own metadata and rides back under its own names, beside the
+// one trailer that is Kaja's.
+func streamTrailers(stream *pkggrpc.ServerStream, started time.Time) map[string]string {
+	trailers := map[string]string{}
+	for name, value := range stream.Metadata() {
+		trailers[name] = value
+	}
+	trailers[upstreamDurationTrailer] = strconv.FormatInt(time.Since(started).Milliseconds(), 10)
+	return trailers
 }
 
 // grpcStatusOf reads the status a gRPC error carries, however deep the client

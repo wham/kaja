@@ -3,9 +3,7 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"strings"
 	"sync"
@@ -231,68 +229,58 @@ func ResponseMetadata(header, trailer metadata.MD) map[string]string {
 	return flattened
 }
 
-// ServerStream sends a single request and returns a channel that yields response
-// messages, closed when the stream ends. Errors are sent on the error channel.
-func (c *Client) ServerStream(ctx context.Context, method string, request []byte, headers map[string]string) (<-chan []byte, <-chan error) {
-	messages := make(chan []byte, 16)
-	errc := make(chan error, 1)
+// ServerStream is a call whose responses arrive one message at a time. A unary
+// method is a stream of one — the frames on the wire are the same either way — so a
+// caller that forwards whatever arrives never has to know which kind it is holding.
+type ServerStream struct {
+	stream grpc.ClientStream
+}
 
-	go func() {
-		defer close(messages)
-		defer close(errc)
+// OpenServerStream sends a single request and hands back the stream the responses
+// arrive on. The call lives as long as ctx and no longer: how long a stream runs is
+// the server's to decide and the caller's to cut short, so there is no deadline of
+// this client's own.
+func (c *Client) OpenServerStream(ctx context.Context, method string, request []byte, headers map[string]string) (*ServerStream, error) {
+	if !strings.HasPrefix(method, "/") {
+		method = "/" + method
+	}
 
-		if !strings.HasPrefix(method, "/") {
-			method = "/" + method
-		}
+	conn, err := sharedConnection(c.target, c.useTLS, c.options)
+	if err != nil {
+		return nil, err
+	}
 
-		conn, err := sharedConnection(c.target, c.useTLS, c.options)
-		if err != nil {
-			errc <- err
-			return
-		}
+	if len(headers) > 0 {
+		ctx = metadata.NewOutgoingContext(ctx, metadata.New(headers))
+	}
 
-		if len(headers) > 0 {
-			md := metadata.New(headers)
-			ctx = metadata.NewOutgoingContext(ctx, md)
-		}
+	stream, err := conn.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true}, method)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open stream: %w", err)
+	}
+	if err := stream.SendMsg(request); err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		return nil, fmt.Errorf("failed to close send: %w", err)
+	}
 
-		streamDesc := &grpc.StreamDesc{
-			ServerStreams: true,
-		}
+	return &ServerStream{stream: stream}, nil
+}
 
-		stream, err := conn.NewStream(ctx, streamDesc, method)
-		if err != nil {
-			errc <- fmt.Errorf("failed to open stream: %w", err)
-			return
-		}
+// Recv returns the next response message, io.EOF once the server has finished.
+func (s *ServerStream) Recv() ([]byte, error) {
+	var response []byte
+	if err := s.stream.RecvMsg(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
 
-		if err := stream.SendMsg(request); err != nil {
-			errc <- fmt.Errorf("failed to send request: %w", err)
-			return
-		}
-
-		if err := stream.CloseSend(); err != nil {
-			errc <- fmt.Errorf("failed to close send: %w", err)
-			return
-		}
-
-		for {
-			var response []byte
-			err := stream.RecvMsg(&response)
-			if err != nil {
-				if errors.Is(err, io.EOF) || ctx.Err() != nil {
-					return
-				}
-				errc <- fmt.Errorf("stream receive failed: %w", err)
-				return
-			}
-			select {
-			case messages <- response:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	return messages, errc
+// Metadata is what the server answered with, header and trailer read as one the way a
+// unary call's is. A trailer exists only once the stream has ended, so this is read
+// after Recv has reported io.EOF or a failure.
+func (s *ServerStream) Metadata() map[string]string {
+	header, _ := s.stream.Header()
+	return ResponseMetadata(header, s.stream.Trailer())
 }

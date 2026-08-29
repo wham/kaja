@@ -155,10 +155,11 @@ export function tlsFromServer(server: GrpcServer): string {
   return server.tls ? TLS_ON : TLS_OFF;
 }
 
-// streamingMethods counts the methods that stream in either direction, which gRPC-Web
-// can't carry.
-export function streamingMethods(server: GrpcServer): number {
-  return server.services.reduce((total, service) => total + service.streamingMethodCount, 0);
+// clientStreamingMethods counts the methods that stream from the client,
+// bidirectional ones included. A stream from the server is carried on both builds; one
+// from the client is carried on neither.
+export function clientStreamingMethods(server: GrpcServer): number {
+  return server.services.reduce((total, service) => total + service.clientStreamingMethodCount, 0);
 }
 
 export function count(value: number, noun: string): string {

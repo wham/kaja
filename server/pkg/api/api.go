@@ -267,9 +267,9 @@ func describeServer(server *rpc.Server) *GrpcServer {
 	}
 	for _, service := range server.Services {
 		described.Services = append(described.Services, &GrpcService{
-			Name:                 service.Name,
-			MethodCount:          int32(service.MethodCount),
-			StreamingMethodCount: int32(service.StreamingMethodCount),
+			Name:                       service.Name,
+			MethodCount:                int32(service.MethodCount),
+			ClientStreamingMethodCount: int32(service.ClientStreamingMethodCount),
 		})
 	}
 	return described

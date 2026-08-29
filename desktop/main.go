@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -607,24 +608,40 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 	a.activeStreams.Store(streamID, cancel)
 
 	started := time.Now()
-	messages, errc := client.ServerStream(ctx, method, req, headers)
 
 	go func() {
 		defer cancel()
 		defer a.activeStreams.Delete(streamID)
 
-		for msg := range messages {
-			encoded := base64.StdEncoding.EncodeToString(msg)
-			a.app.Event.Emit("stream:"+streamID, encoded)
-		}
-
-		if err := <-errc; err != nil {
+		fail := func(err error) {
 			slog.Error("Server stream error", "streamID", streamID, "error", err)
 			a.app.Event.Emit("stream:"+streamID+":error", err.Error())
-		} else {
-			// The stream's upstream duration rides the end event, mirroring the
-			// kaja-upstream-duration-ms trailer of a unary call.
+		}
+		// The stream's upstream duration rides the end event, mirroring the
+		// kaja-upstream-duration-ms trailer of a unary call.
+		end := func() {
 			a.app.Event.Emit("stream:"+streamID+":end", time.Since(started).Milliseconds())
+		}
+
+		stream, err := client.OpenServerStream(ctx, method, req, headers)
+		if err != nil {
+			fail(err)
+			return
+		}
+
+		for {
+			message, err := stream.Recv()
+			if err != nil {
+				// A cancelled stream ended because it was asked to, which is not a
+				// failure to report.
+				if errors.Is(err, io.EOF) || ctx.Err() != nil {
+					end()
+				} else {
+					fail(err)
+				}
+				return
+			}
+			a.app.Event.Emit("stream:"+streamID, base64.StdEncoding.EncodeToString(message))
 		}
 	}()
 

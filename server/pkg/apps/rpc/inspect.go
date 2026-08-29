@@ -42,7 +42,7 @@ type Server struct {
 type Service struct {
 	Name                 string
 	MethodCount          int
-	StreamingMethodCount int
+	ClientStreamingMethodCount int
 }
 
 // Problem is a surface that couldn't be read, classified so the form can name
@@ -356,8 +356,11 @@ func describe(server *Server, files []*descriptorpb.FileDescriptorProto, only []
 			}
 			described := Service{Name: name, MethodCount: len(service.GetMethod())}
 			for _, method := range service.GetMethod() {
-				if method.GetClientStreaming() || method.GetServerStreaming() {
-					described.StreamingMethodCount++
+				// A stream from the server is carried on both builds; one from the
+				// client is carried on neither, and a bidirectional method is one of
+				// those.
+				if method.GetClientStreaming() {
+					described.ClientStreamingMethodCount++
 				}
 			}
 			server.Services = append(server.Services, described)
