@@ -1,4 +1,5 @@
 import { Call, CallOptions, Kaja } from "./kaja";
+import type { RestModule } from "./openapi/module";
 import { APP_OF } from "./rateLimit";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
@@ -59,6 +60,10 @@ export function scriptName(script: { name: string; folder: string }): string {
 
 export interface App {
   configuration: ConfigurationApp;
+  // What the app's own document said, for an app read in the browser rather than
+  // compiled. It is how the generated call is written and what the hover reads,
+  // and its absence is what says an app came through the compiler.
+  rest?: RestModule;
   appRef: AppRef;
   compilation: Compilation;
   services: Service[];

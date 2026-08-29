@@ -11,11 +11,23 @@ import { moduleSpecifier } from "./appImports";
 import { unsupportedReason } from "./streaming";
 import { HttpRequest, httpRequestOf, parseHttpRequest, verbMember } from "./httpMethod";
 import { doorBinding, REST_DOOR } from "./restDoor";
+import { restEditorCode } from "./openapi/module";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
 // written out: the whole shape for a person clicking the method in the tree, the
 // required fields alone for a reader who has the declarations already (see FieldSet).
 export function generateMethodEditorCode(app: App, service: Service, method: Method, fields: FieldSet = "all"): string {
+  // An app read from its own document has no stub to look a method up in: the
+  // call is written from the operation, which is the only place it was ever
+  // described.
+  if (app.rest) {
+    const binding = doorBinding(app.configuration.name);
+    const call = restEditorCode(app.rest, method.name, binding);
+    if (!call) return `// Error: Could not find operation ${method.name}`;
+    const alias = binding === REST_DOOR ? REST_DOOR : `${REST_DOOR} as ${binding}`;
+    return `import { ${alias} } from ${JSON.stringify(app.configuration.name)};\n\n${call}`;
+  }
+
   const source = app.sources.find((s) => s.importPath === service.sourcePath);
   if (!source) {
     return `// Error: Could not find source for service ${service.name}`;

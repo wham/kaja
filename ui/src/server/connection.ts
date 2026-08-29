@@ -27,6 +27,12 @@ export function getBaseUrlForTarget(): string {
   return `${servedFrom()}/target`;
 }
 
+// Where a REST app's calls go. Its own door rather than /target's, because what
+// crosses is an HTTP request the browser built rather than an encoded message.
+export function getBaseUrlForRest(): string {
+  return `${servedFrom()}/rest`;
+}
+
 export function getBaseUrlForAi(): string {
   return `${servedFrom()}/ai`;
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, Transport, transportFromProtocol, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
+import { loadRestApp } from "./openapi/app";
+import { isWailsEnvironment } from "./wails";
 import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 
@@ -109,6 +111,33 @@ export function useCompilation(
       }
 
       if (signal.aborted) return;
+
+      // An app that reported its own document is read here rather than compiled:
+      // the schemas become TypeScript in the browser and a call becomes an HTTP
+      // request, so there is no proto to compile and nothing to poll for.
+      //
+      // Not yet on the desktop. The Go side of that lane exists (App.Rest), but
+      // reaching it needs the generated Wails bindings, and those are written by
+      // the Wails CLI rather than by hand — so until `scripts/desktop-build` has
+      // been run there, the desktop reads a REST app the compiled way. That is
+      // the one thing standing between this and the proto path being deleted.
+      if (openResponse.document && !isWailsEnvironment()) {
+        const app = appsRef.current.find((candidate) => candidate.configuration.name === appName);
+        if (!app) return;
+        const loaded = loadRestApp(openResponse.document, app.configuration, target);
+        const duration = formatDuration(Date.now() - (app?.compilation.startTime || 0));
+
+        onUpdate((prevApps) => {
+          const index = prevApps.findIndex((candidate) => candidate.configuration.name === appName);
+          if (index === -1) return prevApps;
+          const updatedApps = [...prevApps];
+          updatedApps[index] = { ...loaded, compilation: { status: "success", logs: openResponse.logs, duration } };
+          return updatedApps;
+        });
+
+        delete abortControllers.current[appName];
+        return;
+      }
 
       await pollCompilation(appName, compilationId, openResponse.protoDir, target, protocol, signal);
     } catch (error: any) {
