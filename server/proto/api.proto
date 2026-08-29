@@ -14,6 +14,38 @@ service Api {
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
   rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
   rpc ReadScript(ReadScriptRequest) returns (ReadScriptResponse);
+  rpc GetMethodDocumentation(GetMethodDocumentationRequest) returns (GetMethodDocumentationResponse);
+}
+
+// GetMethodDocumentation reads one of a live app's methods back out of the document
+// its surface was generated from. The generated proto carries what kaja could model;
+// this is the rest — the prose, the examples, the response codes — which is most of
+// what a person reads before writing the call.
+//
+// One operation at a time, because a document with nine hundred of them would
+// otherwise ride along with every compile to answer for the one under the cursor.
+message GetMethodDocumentationRequest {
+  // The opened app, as OpenApp reported it: "kaja-app://<id>".
+  string target = 1;
+  // The method, named the way the app's methods name theirs — "GET /shows/{showId}"
+  // for an app built from a REST document.
+  string method = 2;
+}
+
+message GetMethodDocumentationResponse {
+  // Unset where the app documents nothing, or the method is one it does not declare.
+  // Not an error: the caller is a hover, and a hover with nothing to say says nothing.
+  MethodDocumentation documentation = 1;
+}
+
+message MethodDocumentation {
+  string summary = 1;
+  string description = 2;
+  bool deprecated = 3;
+  // The declaration as it was written, ready to show.
+  string document = 4;
+  // What `document` is written in, so an editor can colour it: "yaml", "json".
+  string language = 5;
 }
 
 message CompileRequest {

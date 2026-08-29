@@ -104,6 +104,28 @@ type Instance interface {
 	Invoke(methodPath string, request []byte, headers map[string]string) (*InvokeResult, error)
 }
 
+// Documented is an app that can show where one of its methods came from. Optional:
+// an app whose surface it generated out of a document has one to show, and an app
+// that reflects a live server has nothing but what it already reported.
+type Documented interface {
+	// Documentation answers for one operation, named the way the app's methods name
+	// theirs — "GET /shows/{showId}" for an app built from a REST document.
+	Documentation(operation string) (*Documentation, bool)
+}
+
+// Documentation is one method as the document that generated it states it. The
+// generated proto carries what could be modelled; this is the rest, which is most of
+// what a person reads before writing the call.
+type Documentation struct {
+	Summary     string
+	Description string
+	Deprecated  bool
+	// The declaration as written, ready to show.
+	Document string
+	// What Document is written in, so an editor can colour it: "yaml", "json".
+	Language string
+}
+
 // InvokeResult is the outcome of a single Invoke. Body is the proto3-JSON response.
 // RequestHeaders/ResponseHeaders are what the app actually exchanged with its
 // upstream, which the transports surface to the Headers view; an in-process app with
@@ -192,6 +214,30 @@ func (m *Manager) Invoke(target string, methodPath string, request []byte, heade
 	}
 
 	return instance.Invoke(methodPath, request, headers)
+}
+
+// Documentation answers for one of a live app's operations, or reports that the app
+// has nothing to show for it — an app type that documents nothing, an operation the
+// document does not declare, or an instance that has since been replaced. A miss is
+// not an error: the caller is a hover, and a hover with nothing to say says nothing.
+func (m *Manager) Documentation(target string, operation string) (*Documentation, bool) {
+	u, err := url.Parse(target)
+	if err != nil {
+		return nil, false
+	}
+
+	m.mu.Lock()
+	instance, ok := m.instances[u.Host]
+	m.mu.Unlock()
+	if !ok {
+		return nil, false
+	}
+
+	documented, ok := instance.(Documented)
+	if !ok {
+		return nil, false
+	}
+	return documented.Documentation(operation)
 }
 
 func newID() (string, error) {

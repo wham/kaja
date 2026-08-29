@@ -47,6 +47,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { methodLabel } from "./httpMethod";
+import { setHoverApps } from "./restHover";
 import { barrel } from "./appImports";
 import { agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
@@ -810,6 +811,7 @@ export function App() {
 
   useEffect(() => {
     setValueCompletionApps(apps);
+    setHoverApps(apps);
   }, [apps]);
 
   useEffect(() => {

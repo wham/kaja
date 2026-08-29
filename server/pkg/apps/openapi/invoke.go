@@ -34,6 +34,9 @@ type instance struct {
 	methods map[string]*boundMethod
 	client  *http.Client
 	auth    *auth
+	// The document this app was generated from, kept so one operation can be shown
+	// the way it was written. See documentation.go.
+	raw []byte
 }
 
 func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {

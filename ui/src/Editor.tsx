@@ -5,6 +5,7 @@ import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
+import { registerRestHover } from "./restHover";
 import { codeFontSize } from "./monacoTheme";
 import { suggestValues } from "./valueCompletions";
 
@@ -195,6 +196,11 @@ monaco.languages.registerCompletionItemProvider("typescript", {
     };
   },
 });
+
+// What an API says about the operation under the cursor. The TypeScript worker
+// reports no hover inside a string literal argument, so the path is an empty slot
+// rather than a second opinion — and where it does speak, hovers are shown stacked.
+registerRestHover();
 
 const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
 let timestampCommandRegistered = false;

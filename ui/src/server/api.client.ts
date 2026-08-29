@@ -4,6 +4,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { GetMethodDocumentationResponse } from "./api";
+import type { GetMethodDocumentationRequest } from "./api";
 import type { ReadScriptResponse } from "./api";
 import type { ReadScriptRequest } from "./api";
 import type { ListScriptsResponse } from "./api";
@@ -76,6 +78,10 @@ export interface IApiClient {
      * @generated from protobuf rpc: ReadScript
      */
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse>;
+    /**
+     * @generated from protobuf rpc: GetMethodDocumentation
+     */
+    getMethodDocumentation(input: GetMethodDocumentationRequest, options?: RpcOptions): UnaryCall<GetMethodDocumentationRequest, GetMethodDocumentationResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -162,5 +168,12 @@ export class ApiClient implements IApiClient, ServiceInfo {
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
         const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: GetMethodDocumentation
+     */
+    getMethodDocumentation(input: GetMethodDocumentationRequest, options?: RpcOptions): UnaryCall<GetMethodDocumentationRequest, GetMethodDocumentationResponse> {
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetMethodDocumentationRequest, GetMethodDocumentationResponse>("unary", this._transport, method, opt, input);
     }
 }

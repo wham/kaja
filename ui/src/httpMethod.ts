@@ -1,4 +1,6 @@
-import { Method, Service } from "./apps";
+// Types only, so this module adds no runtime edge to apps — which is what lets
+// kaja.ts read it without a cycle.
+import type { Method, Service } from "./apps";
 
 // A method's HTTP request, as the app wrote it onto the method: `GET /shows/{showId}`.
 // See server/pkg/apps/openapi/http.proto.

@@ -118,6 +118,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		methods: methods,
 		client:  &http.Client{Timeout: 30 * time.Second},
 		auth:    authentication,
+		raw:     s.raw,
 	}}, nil
 }
 

@@ -174,3 +174,34 @@ describe("scripts that draw", () => {
     expect(deriveDraftTitle(code)).toBeUndefined();
   });
 });
+
+// A draft made by clicking a path is named by that path, the way the tree named it.
+// Every call through the door shares its verb, so a title read off the receiver and
+// the member alone would call them all `get`.
+describe("a call through the REST door", () => {
+  it("is named by the path it addresses", () => {
+    expect(deriveDraftTitle(`import { api as theatre } from "theatre";\n\ntheatre.get("/shows", {});\n`)).toBe("GET /shows");
+  });
+
+  it("takes its subject from the request, which is the second argument", () => {
+    expect(deriveDraftTitle(`import { api as theatre } from "theatre";\n\ntheatre.get("/shows/{showId}", { showId: "vera-lune" });\n`)).toBe(
+      "GET /shows/{showId} · vera-lune",
+    );
+  });
+
+  it("reads two paths as the sequence they are", () => {
+    const code = `import { api as theatre } from "theatre";\n\nawait theatre.get("/shows", {});\nawait theatre.post("/shows", { title: "x" });\n`;
+    expect(deriveDraftTitle(code)).toBe("GET /shows → POST /shows");
+  });
+
+  it("is unmoved by a receiver that only looks like a door", () => {
+    expect(deriveDraftTitle(`const theatre = { get: (p: string) => p };\ntheatre.get("/shows");\n`)).toBeUndefined();
+  });
+
+  it("proposes a filename from the path rather than from the verb every call shares", () => {
+    expect(proposeFileName("GET /shows")).toBe("shows");
+    expect(proposeFileName("GET /shows/{showId} · vera-lune")).toBe("shows");
+    // A title that is not a path is untouched.
+    expect(proposeFileName("ListShows")).toBe("listShows");
+  });
+});

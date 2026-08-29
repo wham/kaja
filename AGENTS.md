@@ -420,12 +420,40 @@ The experimental built-ins (mcp/openai/folder) appear in the sidebar's **New** d
 - **The editor is told the same rule by a barrel** (`barrel`), a `ts:/<app>.ts` model re-exporting each module. `export *` drops a name two modules declare, so the editor refuses exactly what `resolve` calls ambiguous.
 - **The app form shows the import the name produces** (`AppNameField`) rather than explaining that the name is a namespace. There is no longer a trailing `/…` to show, so the field states the whole line.
 
+### A REST app is addressed by its own paths
+
+An app built from a REST document has a second door beside its services, and it is the default:
+
+```ts
+import { api as theatre } from "theatre";
+await theatre.get("/shows/{showId}", { showId: "vera-lune" });
+```
+
+A verb and a path are what the document calls an operation, and they are unique by construction — which is the whole reason `protogen` has to work to make a generated method name unique (`sharedNamespace`, `trimServiceName`, per-service `seenRPC`). So the generated name was standing in front of one that was already there.
+
+- **Both doors reach the same methods.** `restDoor.ts` routes a verb and path to the bound `Methods` a service import gives, so the log row, the approvals, the rate limiter and the stats cannot tell which door a call came through, and both spellings compile in one file. It is bound per run for the same reason `Client.methodsFor` is.
+- **The declaration is one overload per operation**, written into the app's module by `restDoorDeclaration` (`appLoader.ts`). Not a map keyed on the path: **only an overload carries the API's description into the editor's hover and signature help** — a map's property documentation reaches neither, and that description is what a generated method name was already failing to say.
+- **A path parameter is the one field a request insists on** (`WithPath` in `kajaModule.ts`), because without it the path is not an address. It is read off the `kaja.http_in` marks rather than off the `{braces}`, since a path names the API's parameter and the request names the generated field. An operation that insists on nothing takes no request at all.
+- **The door is exported as `api`**, not under the app's name, which may be no identifier (`grpcb.in`) and which two REST apps in one script would collide on. Generated code aliases it back (`doorBinding`), so what is read is the app's own name.
+- **A method carrying an HTTP request is named by it everywhere one is named** (`httpMethod.ts`: `methodLabel`, `callLabel`; `MethodName.tsx`) — the tree, the finder, the draft title, the log row. The verb and each `{parameter}` are dimmed, the treatment a filename's extension gets. The finder still *matches* the generated name, which is now nowhere on screen to be read off.
+- **Only display moved.** `Service.Method` is still the identity: the approval scope, the sampled-method key, what a run stores and what `run_script` reports.
+- **The MCP catalog shows whichever door the method has** (`restSignature`, `restBinding`), so an agent is never shown a signature its example is not an instance of.
+
+### What an API says about an operation
+
+Hovering the path in a script shows the operation as its own document declares it (`restHover.ts` → `GetMethodDocumentation` → `apps.Documented`).
+
+- **It sits over the path string because the TypeScript worker has nothing to say there** — it reports no hover at all inside a string literal argument. Where the worker does speak, Monaco shows every provider's hover stacked, so nothing here is in front of anything.
+- **Fetched when hovered, never carried.** A document with nine hundred operations would otherwise ride along with every compile to answer for the one under the cursor — which is why the fragment is in neither the generated module nor the MCP catalog, both of which are read whole. An async provider is what buys that.
+- **The prose is stated once.** `summary` and `description` are the card's headline and body, so they are stripped from the fragment below it; what is left is what nothing else says — the parameters with their own descriptions and examples, the response codes that are never values, the vendor extensions.
+- **A miss is not an error.** An app type that documents nothing, an operation the document does not declare, an instance replaced by a recompile: all answer with nothing, because a hover with nothing to say says nothing.
+
 ### Architecture
 
 - **The map** — [docs/network-stack.md](docs/network-stack.md) draws every hop and how headers flow, per protocol, web and desktop, then traces one real call through each lane on both builds.
 - **Contract** — `server/pkg/apps` defines `App` (factory), `Instance` (live, invocable) and a `Manager` (type registry + live instances). `App.Open` returns an `*Opened` describing the proto surface (`ProtoDir`) and either an in-process `Instance` or a `Target`+`Protocol` the client invokes directly. `Manager.Open` registers an `Instance` under a `kaja-app://<id>` target; otherwise it passes the upstream URL and transport through.
 - **grpc/twirp** — `server/pkg/apps/rpc`. The proto surface is a workspace-relative `proto_dir` or, for gRPC, server reflection (the `reflection` field, reusing `server/pkg/grpc`). They have **no** in-process `Instance`: `Open` returns the upstream `url` and `"grpc"`/`"twirp"`, so the browser invokes them directly and gRPC-Web streaming is preserved.
-- **Open + compile** — the `OpenApp` RPC opens **every** app and returns the `proto_dir` to feed into `Compile`, the invocation `target`, and the `protocol`. `InspectOpenApi`, `InspectGrpc` and `InspectMcp` are the only app-type-specific RPCs, and none of them creates anything.
+- **Open + compile** — the `OpenApp` RPC opens **every** app and returns the `proto_dir` to feed into `Compile`, the invocation `target`, and the `protocol`. `InspectOpenApi`, `InspectGrpc` and `InspectMcp` are the only app-type-specific RPCs, and none of them creates anything. `GetMethodDocumentation` is not one of them: it takes a target and a method and asks whatever is behind it, through the optional `apps.Documented` interface, so an app type that documents nothing answers by not implementing it.
 - **Invoke** — in-process apps are invoked as gRPC via `kaja-app://` targets: the web `/target/{method}` handler calls `grpc.ServeAppGRPCWeb` (→ `Manager.Invoke`), the desktop Wails `Target` dispatches to `Manager.Invoke`. grpc/twirp keep their browser-direct transports.
 - **UI** — `ui/src/apps.ts` models an app as a `ConfigurationApp` plus a runtime `target`/`protocol` (`Transport`). `useCompilation` always calls `OpenApp`. `ui/src/appTypes.ts` is the single registry of app types and bridges the typed oneof to the generic form: `appType` is the set field, `appParameters`/`appHeaders` read the variant, `buildApp` constructs it, and its parameter keys are the generated camelCase field names (`protoDir`, `specUrl`). Each type's `icon` is how the app is shown everywhere it is named (`AppTypeIcon`, with the type label as a tooltip).
 - **App settings** is a document identified by the app: the view is titled with the app's name (a new one is `New <Type> app`), opened from the sidebar or by right-clicking an app → **Settings**. New apps come from the sidebar's **+**. Its `editMode` lives on the view, because the control that switches it (`</>` in the command row) sits in the row.

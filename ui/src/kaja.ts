@@ -31,6 +31,7 @@ import {
   rateLimitHost,
   readResponseHeaders,
 } from "./fetchCall";
+import { httpRequestOf } from "./httpMethod";
 import { loopKey } from "./loopKey";
 import { describeSchedule, PerfBody, PerfPlan, PerfReport, perfReport, PerfSchedule, PerfTestOptions, runPerfTest } from "./perfTest";
 import { RunMetrics } from "./runStats";
@@ -1191,12 +1192,19 @@ export interface MethodCall {
 
 /**
  * What a call is called, wherever one is named — the log's rows, the strip, the
- * stats table, a failure notice, the report an agent reads. A service method is its
- * service and its name; a fetch has neither, so it is the verb and the host it went
- * to, and the path that tells two hundred of them apart is the row's key.
+ * stats table, a failure notice, the report an agent reads.
+ *
+ * Three kinds, and each is named the way its own world names it. A fetch has no
+ * service and no method, so it is the verb and the host it went to, and the path
+ * that tells two hundred of them apart is the row's key. A method the API gives a
+ * path is that path, because the document named the operation and Kaja's generated
+ * name was standing in front of one that already existed. Everything else is its
+ * service and its name.
  */
 export function callLabel(methodCall: MethodCall): string {
   if (methodCall.http) return fetchLabel(methodCall.http.method, methodCall.http.url);
+  const request = httpRequestOf(methodCall.method);
+  if (request) return `${request.verb} ${request.path}`;
   return `${methodCall.service.name}.${methodCall.method.name}`;
 }
 

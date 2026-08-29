@@ -12,6 +12,73 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 /**
+ * GetMethodDocumentation reads one of a live app's methods back out of the document
+ * its surface was generated from. The generated proto carries what kaja could model;
+ * this is the rest — the prose, the examples, the response codes — which is most of
+ * what a person reads before writing the call.
+ *
+ * One operation at a time, because a document with nine hundred of them would
+ * otherwise ride along with every compile to answer for the one under the cursor.
+ *
+ * @generated from protobuf message GetMethodDocumentationRequest
+ */
+export interface GetMethodDocumentationRequest {
+    /**
+     * The opened app, as OpenApp reported it: "kaja-app://<id>".
+     *
+     * @generated from protobuf field: string target = 1
+     */
+    target: string;
+    /**
+     * The method, named the way the app's methods name theirs — "GET /shows/{showId}"
+     * for an app built from a REST document.
+     *
+     * @generated from protobuf field: string method = 2
+     */
+    method: string;
+}
+/**
+ * @generated from protobuf message GetMethodDocumentationResponse
+ */
+export interface GetMethodDocumentationResponse {
+    /**
+     * Unset where the app documents nothing, or the method is one it does not declare.
+     * Not an error: the caller is a hover, and a hover with nothing to say says nothing.
+     *
+     * @generated from protobuf field: MethodDocumentation documentation = 1
+     */
+    documentation?: MethodDocumentation;
+}
+/**
+ * @generated from protobuf message MethodDocumentation
+ */
+export interface MethodDocumentation {
+    /**
+     * @generated from protobuf field: string summary = 1
+     */
+    summary: string;
+    /**
+     * @generated from protobuf field: string description = 2
+     */
+    description: string;
+    /**
+     * @generated from protobuf field: bool deprecated = 3
+     */
+    deprecated: boolean;
+    /**
+     * The declaration as it was written, ready to show.
+     *
+     * @generated from protobuf field: string document = 4
+     */
+    document: string;
+    /**
+     * What `document` is written in, so an editor can colour it: "yaml", "json".
+     *
+     * @generated from protobuf field: string language = 5
+     */
+    language: string;
+}
+/**
  * @generated from protobuf message CompileRequest
  */
 export interface CompileRequest {
@@ -1478,6 +1545,186 @@ export enum VariableSource {
      */
     ENVIRONMENT = 3
 }
+// @generated message type with reflection information, may provide speed optimized methods
+class GetMethodDocumentationRequest$Type extends MessageType<GetMethodDocumentationRequest> {
+    constructor() {
+        super("GetMethodDocumentationRequest", [
+            { no: 1, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "method", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetMethodDocumentationRequest>): GetMethodDocumentationRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.target = "";
+        message.method = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetMethodDocumentationRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetMethodDocumentationRequest): GetMethodDocumentationRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string target */ 1:
+                    message.target = reader.string();
+                    break;
+                case /* string method */ 2:
+                    message.method = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetMethodDocumentationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string target = 1; */
+        if (message.target !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.target);
+        /* string method = 2; */
+        if (message.method !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.method);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message GetMethodDocumentationRequest
+ */
+export const GetMethodDocumentationRequest = new GetMethodDocumentationRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetMethodDocumentationResponse$Type extends MessageType<GetMethodDocumentationResponse> {
+    constructor() {
+        super("GetMethodDocumentationResponse", [
+            { no: 1, name: "documentation", kind: "message", T: () => MethodDocumentation }
+        ]);
+    }
+    create(value?: PartialMessage<GetMethodDocumentationResponse>): GetMethodDocumentationResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetMethodDocumentationResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetMethodDocumentationResponse): GetMethodDocumentationResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* MethodDocumentation documentation */ 1:
+                    message.documentation = MethodDocumentation.internalBinaryRead(reader, reader.uint32(), options, message.documentation);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetMethodDocumentationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* MethodDocumentation documentation = 1; */
+        if (message.documentation)
+            MethodDocumentation.internalBinaryWrite(message.documentation, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message GetMethodDocumentationResponse
+ */
+export const GetMethodDocumentationResponse = new GetMethodDocumentationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MethodDocumentation$Type extends MessageType<MethodDocumentation> {
+    constructor() {
+        super("MethodDocumentation", [
+            { no: 1, name: "summary", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "deprecated", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "document", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "language", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MethodDocumentation>): MethodDocumentation {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.summary = "";
+        message.description = "";
+        message.deprecated = false;
+        message.document = "";
+        message.language = "";
+        if (value !== undefined)
+            reflectionMergePartial<MethodDocumentation>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MethodDocumentation): MethodDocumentation {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string summary */ 1:
+                    message.summary = reader.string();
+                    break;
+                case /* string description */ 2:
+                    message.description = reader.string();
+                    break;
+                case /* bool deprecated */ 3:
+                    message.deprecated = reader.bool();
+                    break;
+                case /* string document */ 4:
+                    message.document = reader.string();
+                    break;
+                case /* string language */ 5:
+                    message.language = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MethodDocumentation, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string summary = 1; */
+        if (message.summary !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.summary);
+        /* string description = 2; */
+        if (message.description !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.description);
+        /* bool deprecated = 3; */
+        if (message.deprecated !== false)
+            writer.tag(3, WireType.Varint).bool(message.deprecated);
+        /* string document = 4; */
+        if (message.document !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.document);
+        /* string language = 5; */
+        if (message.language !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.language);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message MethodDocumentation
+ */
+export const MethodDocumentation = new MethodDocumentation$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileRequest$Type extends MessageType<CompileRequest> {
     constructor() {
@@ -4635,5 +4882,6 @@ export const Api = new ServiceType("Api", [
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },
-    { name: "ReadScript", options: {}, I: ReadScriptRequest, O: ReadScriptResponse }
+    { name: "ReadScript", options: {}, I: ReadScriptRequest, O: ReadScriptResponse },
+    { name: "GetMethodDocumentation", options: {}, I: GetMethodDocumentationRequest, O: GetMethodDocumentationResponse }
 ]);

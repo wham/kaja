@@ -1,6 +1,6 @@
 import { fetchHost, fetchKey } from "./fetchCall";
 import { SUBJECT_FIELDS } from "./loopKey";
-import { importedNames, runtimeNames } from "./scriptBindings";
+import { doorNames, importedNames, runtimeNames } from "./scriptBindings";
 import ts from "typescript";
 
 // A request small enough to read at a glance is described by its values, which is
@@ -8,6 +8,8 @@ import ts from "typescript";
 // rather than picking an arbitrary field out of a crowd.
 const SMALL_REQUEST_FIELDS = 3;
 const MAX_SUBJECT = 24;
+
+const HTTP_VERBS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
 // A call a draft makes, in source order.
 export interface DraftCall {
@@ -23,6 +25,7 @@ export function readCalls(code: string): DraftCall[] {
   const file = ts.createSourceFile("draft.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
   const imported = importedNames(file);
   const runtime = runtimeNames(file);
+  const doors = doorNames(file);
   const calls: DraftCall[] = [];
 
   const visit = (node: ts.Node) => {
@@ -40,6 +43,21 @@ export function readCalls(code: string): DraftCall[] {
       // `kaja.table(...)` is the script drawing rather than a call it made — a script that
       // only draws would otherwise be titled `text +3`.
       if (runtime.has(service)) {
+        ts.forEachChild(node, visit);
+        return;
+      }
+      // A call through the REST door is named by the path it addresses, the way the
+      // tree names it — `theatre.get(...)` would otherwise title every such draft `get`.
+      // The request is the second argument there, the first being the path itself.
+      if (doors.has(service)) {
+        const path = node.arguments[0];
+        if (path && ts.isStringLiteral(path)) {
+          calls.push({
+            service,
+            method: `${node.expression.name.text.toUpperCase()} ${path.text}`,
+            subject: subjectOf(node.arguments[1]),
+          });
+        }
         ts.forEachChild(node, visit);
         return;
       }
@@ -184,11 +202,15 @@ export function titleParts(title: string): { name: string; qualifier?: string } 
  * whole pile at once produces even where saving one at a time wouldn't.
  */
 export function proposeFileName(title: string, taken: Iterable<string> = []): string {
-  const word =
-    title
-      .replace(/[^A-Za-z0-9]+/g, " ")
-      .trim()
-      .split(" ")[0] || "draft";
+  // A REST title opens with the verb, which every call through that door shares — so
+  // the word that names this one is the next.
+  const words = title
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  if (words.length > 1 && HTTP_VERBS.has(words[0].toUpperCase())) words.shift();
+  const word = words[0] || "draft";
   const base = word.charAt(0).toLowerCase() + word.slice(1);
   const used = new Set([...taken].map((name) => name.replace(/\.ts$/, "").toLowerCase()));
   if (!used.has(base.toLowerCase())) return base;

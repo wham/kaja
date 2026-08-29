@@ -19,6 +19,10 @@ import (
 // understands. sigs.k8s.io/yaml honours the json tags and parses both JSON and
 // YAML documents.
 type spec struct {
+	// The whole document as JSON, for showing an operation the way it was written.
+	// Unexported, so it is never a field of the parsed shape anything else reads.
+	raw []byte
+
 	OpenAPI string `json:"openapi"`
 	// Swagger is the version field of the predecessor format. It is only read to
 	// tell a Swagger 2.0 document apart from a document that is not an API
@@ -369,6 +373,14 @@ func readSpec(body []byte, contentType string) (*spec, *problem) {
 	var s spec
 	if err := yaml.Unmarshal(body, &s); err != nil {
 		return nil, &problem{Kind: problemMalformed, Message: "Couldn't parse the document", Detail: err.Error()}
+	}
+	// The document as it was written, kept beside what was read out of it. An
+	// operation is shown as the API states it — every keyword, including the ones
+	// kaja has no field for — and a typed struct can only give back what it models.
+	// JSON rather than the original bytes because a YAML document and a JSON one have
+	// to be shown the same way, and this is the form both have already been reduced to.
+	if raw, err := yaml.YAMLToJSON(body); err == nil {
+		s.raw = raw
 	}
 
 	if s.OpenAPI == "" {
