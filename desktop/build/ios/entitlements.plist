@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>application-identifier</key>
+    <string>U5DMD247UW.tools.kaja.Kaja</string>
+
+    <key>com.apple.developer.team-identifier</key>
+    <string>U5DMD247UW</string>
+
+    <!-- A device build is signed for development, and this is what says so.
+         Without it the app installs and is refused at launch. -->
+    <key>get-task-allow</key>
+    <true/>
+
+    <!-- The group the keychain items land in, which is what variable_store's
+         data protection keychain queries are scoped to. iOS spells the key
+         `application-identifier` where macOS spells it `com.apple.application-identifier`,
+         and there is no sandbox block because on iOS every app is sandboxed. -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>U5DMD247UW.tools.kaja.Kaja</string>
+    </array>
+</dict>
+</plist>

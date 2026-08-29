@@ -50,6 +50,36 @@ tasks:
       - task: link
       - task: bundle
 
+  # A device is the same build signed for real. The signing is supplied on the
+  # command line rather than through call vars, because a var passed to a task
+  # does not reach the tasks that task then calls - `scripts/ios device` is the
+  # door that passes them, and it looks the identity and profile up.
+  device:
+    desc: Build and install on a connected iPhone (run it as `scripts/ios device`)
+    cmds:
+      - task: package
+      - task: deploy-device
+
+  deploy-device:
+    internal: true
+    cmds:
+      - |
+        DEVICE="{{.DEVICE_ID}}"
+        if [ -z "$DEVICE" ]; then
+          # -j wants a real file: to /dev/stdout inside a substitution it writes nothing.
+          LIST=$(mktemp)
+          xcrun devicectl list devices -j "$LIST" >/dev/null 2>&1
+          DEVICE=$(python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['result']['devices']; print(next((d['hardwareProperties']['udid'] for d in ds if d.get('connectionProperties',{}).get('tunnelState')!='unavailable'), ''))" "$LIST")
+          rm -f "$LIST"
+        fi
+        if [ -z "$DEVICE" ]; then
+          echo "No connected device. Plug one in, or pass DEVICE_ID=<udid>." >&2
+          exit 1
+        fi
+        xcrun devicectl device install app --device "$DEVICE" "{{.BUNDLE}}"
+        BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "{{.BUNDLE}}/Info.plist")
+        xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE_ID"
+
   xcode:
     desc: Open the generated Xcode project, which is where device signing is managed
     deps: [generate:xcode]
