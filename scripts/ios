@@ -1,0 +1,27 @@
+#!/bin/bash
+# Runs kaja on a booted iOS Simulator, and is the bootstrap in front of
+# desktop/build/ios/Taskfile.yml the way scripts/desktop-build is in front of
+# the Mac one: the wails3 that runs the Taskfile is installed into server/build
+# rather than onto the PATH, so the Taskfile is not reachable without this.
+#
+#   scripts/ios            build and launch on a booted simulator
+#   scripts/ios package    write the bundle without launching it
+#   scripts/ios xcode      open the project device signing is managed from
+#   scripts/ios logs       stream the simulator's log, filtered to this app
+#
+# Needs macOS with full Xcode, not just the command line tools.
+set -e
+
+source "$(dirname "$0")/common"
+cd "$(dirname "$0")/.."
+
+export GOBIN=$PWD/server/build
+export PATH=$GOBIN:$PATH
+
+# The version desktop/go.mod names, on the same rule scripts/desktop-build
+# follows: what is on the machine already is not what decides the build.
+install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 \
+    "$(module_version github.com/wailsapp/wails/v3 desktop)"
+
+cd desktop
+wails3 task "ios:${1:-run}"
