@@ -133,7 +133,11 @@ func renderCall(index int, call MethodCallLog) string {
 		status = call.Failure.Kind
 	}
 	where := call.Service + "." + call.Method
-	if call.App != "" {
+	if call.Http != "" {
+		// A fetch is named by the request it made: there is no service and no method,
+		// and the URL is the whole of what the agent asked for.
+		where = call.Http
+	} else if call.App != "" {
 		where = call.App + " " + where
 	}
 	fmt.Fprintf(&b, "  %d. %s  %s", index, where, status)

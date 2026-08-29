@@ -1,4 +1,4 @@
-import { callDurationMs } from "./kaja";
+import { callDurationMs, callLabel } from "./kaja";
 import { ConsoleItem } from "./runs";
 
 /**
@@ -412,7 +412,7 @@ export class RunMetrics {
     const call = item.call;
     if (call === undefined) return;
 
-    const method = `${call.service.name}.${call.method.name}`;
+    const method = callLabel(call);
     let seen = this.#of.get(item.id);
     if (seen === undefined) {
       seen = { startedAt: item.timestamp, failed: false, settled: false };

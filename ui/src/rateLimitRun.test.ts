@@ -58,10 +58,20 @@ describe("kaja.rateLimit", () => {
     expect(limits()[0].calls).toBe(0);
   });
 
-  it("refuses anything that is not a service", () => {
+  it("refuses anything that names neither an app nor a host", () => {
     const { kaja } = run();
     expect(() => kaja.rateLimit({})).toThrow(/expects a service imported from an app/);
-    expect(() => kaja.rateLimit("theatre" as unknown as object)).toThrow(/expects a service imported from an app/);
+    expect(() => kaja.rateLimit("  ")).toThrow(/expects a service imported from an app/);
+  });
+
+  it("takes a host, which is what a fetch has instead of an app", () => {
+    const { kaja, limits } = run();
+    // The same budget however it is named: what answers the calls is the host.
+    const first = kaja.rateLimit("https://api.example.com/v3");
+    const second = kaja.rateLimit("api.example.com");
+    expect(second).toBe(first);
+    expect(limits()).toHaveLength(1);
+    expect(limits()[0].app).toBe("api.example.com");
   });
 
   it("keeps one limiter per app and restates its options", () => {

@@ -102,6 +102,31 @@ describe("titleParts", () => {
   });
 });
 
+describe("a draft that fetches", () => {
+  it("is named the way its row in the log is", () => {
+    expect(deriveDraftTitle(`const response = await fetch("https://api.example.com/orders/42");`)).toBe("GET api.example.com · /orders/42");
+  });
+
+  it("reads the verb it was written with, however it was written", () => {
+    const code = `import { kaja } from "kaja";\nawait kaja.fetch("https://api.example.com/orders", { method: "post", body });`;
+    expect(deriveDraftTitle(code)).toBe("POST api.example.com · /orders");
+  });
+
+  it("reads the host out of a template it can only see the start of", () => {
+    expect(deriveDraftTitle("await fetch(`https://api.example.com/orders/${id}`);")).toBe("GET api.example.com · /orders/");
+  });
+
+  it("names nothing from an address it cannot read", () => {
+    expect(deriveDraftTitle("await fetch(url);")).toBeUndefined();
+    expect(deriveDraftTitle("await fetch(`${base}/orders`);")).toBeUndefined();
+  });
+
+  it("sits beside the calls a script makes to its apps", () => {
+    const code = `import { Shows } from "theatre";\nawait Shows.ListShows({});\nawait fetch("https://hooks.example.com/notify", { method: "POST" });`;
+    expect(deriveDraftTitle(code)).toBe("ListShows → POST hooks.example.com");
+  });
+});
+
 describe("proposeFileName", () => {
   it("takes the name and drops the qualifier, so the section keeps one convention", () => {
     expect(proposeFileName("GetShow · vera-lune")).toBe("getShow");

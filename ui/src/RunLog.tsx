@@ -5,10 +5,11 @@ import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
+import { fetchRequestLine } from "./fetchCall";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { KajaTrace } from "./KajaTrace";
-import { callDurationMs, MethodCall } from "./kaja";
+import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
@@ -146,7 +147,7 @@ export function RunLog({
                   <RunLog.CallRow
                     key={item.id}
                     id={item.id}
-                    name={`${item.call.service.name}.${item.call.method.name}`}
+                    name={callLabel(item.call)}
                     timestamp={item.timestamp}
                     loopKey={item.key}
                     status={itemStatus(item)}
@@ -498,6 +499,8 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
   // does — not over the headers table, not while a response is still coming.
   const showsJson = activeTab !== "headers" && !(activeTab === "response" && !hasResponse);
+  // Twirp posts to a URL of its own; a fetch carries the verb it was written with.
+  const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : methodCall.url ? `POST ${methodCall.url}` : undefined;
 
   const copy = async () => {
     if (!(await jsonViewerRef.current?.copyToClipboard())) return;
@@ -566,8 +569,8 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
         <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
       ) : (
         <>
-          {activeTab === "response" && hasError && methodCall.url && (
-            <div className="border-y border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
+          {activeTab === "response" && hasError && requestLine && (
+            <div className="border-y border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">{requestLine}</div>
           )}
           <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
         </>
@@ -653,9 +656,14 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
   const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
   // The request line of the upstream call, which a failure reports and the response no
-  // longer carries. A successful call doesn't report one.
-  const upstreamRequest = upstreamRequestLine(methodCall.error);
-  const hasUpstream = upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
+  // longer carries — so a call that succeeded reports none. A fetch states its own
+  // either way: the browser made that call, so nothing else records which one it was.
+  const upstreamRequest = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : upstreamRequestLine(methodCall.error);
+  // A fetch is the direct case by construction — nothing carried it, so the transport's
+  // headers below are the API's own.
+  const hasUpstream =
+    methodCall.http === undefined &&
+    (upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0);
   const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
 

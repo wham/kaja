@@ -288,6 +288,34 @@ export declare const kaja: {
    */
   approve<T>(call: Call<T>): Promise<T>;
   /**
+   * Make an HTTP request to something that isn't an app — a webhook, a health check,
+   * an API nobody has configured. The signature and the Response are \`fetch\`'s own,
+   * and inside a script the bare name is bound to this, so \`fetch(url)\` and
+   * \`kaja.fetch(url)\` are one function.
+   *
+   *   const response = await fetch("https://api.example.com/status");
+   *   const status = await response.json();
+   *
+   * It is a call like any other: a row in the run's log with its request, its
+   * response and its headers, a share of the run's stats, and something the verbs
+   * around it can be written around.
+   *
+   *   await kaja.approve(kaja.fetch(url, { method: "DELETE" }));
+   *   kaja.rateLimit("api.example.com", { perSecond: 5 });
+   *
+   * A budget is named by the host, because that is what a fetch has instead of an
+   * app. Two things follow from the browser making the call: an API that sends no
+   * CORS headers cannot be reached this way — that is what an app is for — and a
+   * \`\${NAME}\` in a header is not resolved for you, so read the value out of
+   * kaja.variables and pass it.
+   *
+   * Unlike a service method, this throws what fetch throws: a request that never
+   * completed is an error, and an HTTP status is not — a 404 is a response, handed
+   * back with \`ok\` false and reported in the log as the failure it is. The whole
+   * body is read before you see it, so it does not carry a stream.
+   */
+  fetch(input: RequestInfo | URL, init?: RequestInit): Call<Response>;
+  /**
    * Write a line onto the run's canvas.
    *
    *   kaja.text(\`Reconciling \${accounts.length} accounts\`);
@@ -404,6 +432,11 @@ export declare const kaja: {
    * exactly as it was written. It applies to the whole app, because a budget is the
    * API's rather than one service's.
    *
+   * A fetch has no app, so its budget is named by the host it goes to — the same
+   * budget however it is written:
+   *
+   *   kaja.rateLimit("api.example.com", { perSecond: 5 });
+   *
    * It reads what the API already says on every response: RateLimit-Limit /
    * -Remaining / -Reset, the X-RateLimit- and X-Rate-Limit- spellings of the same
    * three, and Retry-After. While there is headroom nothing waits. Below \`reserve\`
@@ -424,7 +457,7 @@ export declare const kaja: {
    *   // …
    *   if (limit.held > 0) kaja.text(\`held \${limit.held} calls for \${limit.waitedMs} ms\`);
    */
-  rateLimit(service: object, options?: RateLimitOptions): RateLimit;
+  rateLimit(target: object | string, options?: RateLimitOptions): RateLimit;
   /**
    * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
    *

@@ -295,8 +295,9 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
   are not supported by Kaja yet** — `list_services` marks such a method, and
   calling it is refused whatever the request.
 - **Top-level `await` works**: the body runs inside an `async` function.
+- **`fetch` is how a script reaches an API that isn't an app** — see below.
 - There is no DOM and no file system. What a script reaches, it reaches through
-  the apps in `list_services`.
+  the apps in `list_services` and through `fetch`.
 - `crypto.randomUUID()` is available, as is `kaja.uuidV4()`.
 - The `kaja` object is imported with `import { kaja } from "kaja";`.
 
@@ -328,6 +329,8 @@ What each member is for:
   they can press **Approve all**, which settles every later call to the same
   method in that run without asking again. So wrapping each call of a loop is
   right: the reader decides where to stop reading, not the script.
+- `kaja.fetch(input, init?)` — an HTTP request to something that isn't an app.
+  See below.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input` — what a `kaja://run/<script>?url=…&note=…` link handed this run,
   read by name (`kaja.input.url`). Every value is text, and the whole query
@@ -351,6 +354,44 @@ await Seating.Annotate({
   attributes: kaja.struct({ rows: ["F", "G"], accessible: true, holds: 2 }),
 });
 ```
+
+## An API that isn't an app
+
+Not everything worth calling is configured. A webhook, a health check, an API
+nobody has added — those are reached with **`fetch`**, which is the standard one:
+inside a script the bare name is bound to Kaja's own, so `fetch(url)` and
+`kaja.fetch(url)` are one function and there is nothing new to learn.
+
+```ts
+const response = await fetch("https://api.example.com/status", {
+  headers: { Authorization: `Bearer ${kaja.variables.TOKEN}` },
+});
+const status = await response.json();
+```
+
+Being Kaja's makes it a call like any other: a row in the run's log named
+`GET api.example.com`, with the request, the response and the headers under it, a
+share of the run's stats, and something the runtime's verbs work on.
+
+```ts
+await kaja.approve(kaja.fetch(url, { method: "DELETE" }));
+kaja.rateLimit("api.example.com", { perSecond: 5 });
+```
+
+A rate limit is named by the host, because that is what a fetch has instead of an
+app.
+
+**Prefer an app's method wherever there is one.** It is typed, its credential is
+already configured, and `describe_method` will show you the request. Three things
+follow from a fetch being made by the browser rather than by Kaja:
+
+- an API that sends no CORS headers cannot be reached this way, and an app is what
+  that call needs;
+- a `${NAME}` in a header is not resolved for you — read the value out of
+  `kaja.variables` and pass it, as above;
+- it throws what `fetch` throws. A request that never completed is an error; an
+  HTTP status is not — a 404 is a response with `ok` false, and the log reports it
+  as the failure it is either way.
 
 ## Reading a failure
 
