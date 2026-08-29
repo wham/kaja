@@ -13,6 +13,35 @@ ten thousand.
 
 This is a draft. Nothing here is built.
 
+## What happens without being asked
+
+Two different things get called "respecting a rate limit", and they deserve
+opposite defaults.
+
+**Obeying a refusal costs nothing, so Kaja does it by default.** When the API
+says `remaining: 0`, or answers `429`, the next call cannot succeed. Sending it
+anyway is not the fast option — it is the option where you lose the data *and*
+spend a request to be told so. Waiting out a reset that is seconds away is
+strictly better than being refused, and there is no judgement in it to put to
+the author.
+
+**Rationing a budget you still have is a trade, so it is opted into.** Spreading
+what is left over the time that is left buys safety with speed, and how much
+reserve to keep is a real decision — a script that means to spend its whole
+budget in ten seconds and stop is making a legitimate one. That is what
+`kaja.rateLimit()` is for.
+
+The line between them is the cap. **A reset a few seconds out is waited through;
+a long one is reported instead** — silently parking a run for the 47 minutes
+GitHub's hourly window can have left is worse than a clean failure, so past
+`maxWait` (10s by default, and the arguable part of this) the call goes out, is
+refused, and the block says why. `kaja.rateLimit({ maxWait: "1h" })` is how you
+say you would rather wait.
+
+The one place the default hold is off is inside `kaja.perfTest`, whose whole job
+is to find the wall and report where it is. A perf test that silently paced
+itself would measure Kaja.
+
 ## The shape
 
 ```ts
@@ -53,12 +82,15 @@ is not overridden by a comfortable `perSecond`.
 
 ## What it reads
 
-Every response already carries this. `MethodCall.upstreamResponseHeaders` holds
-what the API itself sent where Kaja carried the call, `responseHeaders` the
-transport's own where nothing did, and `callResponseHeaders` already picks
-between them and lowercases the names — which is the whole of the plumbing, and
-it is why **observation costs nothing and is always on**. The limiter is what
-turns the reading into waiting.
+Every response already carries this, and the plumbing is already built.
+`MethodCall.upstreamResponseHeaders` holds what the API itself sent where Kaja
+carried the call, `responseHeaders` the transport's own where nothing did, and
+`callResponseHeaders` picks between them and lowercases the names. The maps are
+forwarded whole rather than filtered, and `UpstreamError` carries them too — so
+**the headers on the `429` itself survive**, which is exactly the response whose
+`retry-after` is worth reading. `withHeaders()`'s own JSDoc already uses
+`headers["x-ratelimit-remaining"]` as its example; this is that example stopping
+being the reader's job.
 
 | Header                                                    | Read as                                             |
 | --------------------------------------------------------- | --------------------------------------------------- |
@@ -69,6 +101,15 @@ turns the reading into waiting.
 | `x-ratelimit-reset-after`                                  | always a delta, never a timestamp                    |
 | `retry-after`                                              | seconds or an HTTP-date, and **outranks everything** |
 | gRPC `resource_exhausted`, `grpc-retry-pushback-ms`        | the same three states with no headers at all         |
+
+**There is no standard here, but there is a convention, and it is a strong one.**
+`Retry-After` is the only genuinely standardised header of the set (RFC 9110),
+and it only appears once you have already been refused. The `RateLimit-*` family
+is an IETF draft that has not landed. What everything else has in common is not a
+spelling but a *shape*: limit, remaining, reset, as three integers. So the three
+spellings — `RateLimit-*`, `X-RateLimit-*`, `X-Rate-Limit-*` — are read as one
+thing, because they are one thing, and matching all three costs a lookup rather
+than a decision.
 
 **The one genuinely ambiguous field is `reset`**, which is a Unix epoch at one
 API and seconds-from-now at the next, with no way to ask which. The rule that
@@ -90,14 +131,28 @@ right speed, and the limiter is invisible. This is where a script that makes
 three calls against a 5,000/hour budget stays, and it is why the limiter is safe
 to leave in a script that does not need it.
 
-**Pacing** — headroom is below the reserve (20% by default), so what is left is
-spread over the time that is left: `delay = (resetAt − now) / remaining`. Five
-requests and sixty seconds is one every twelve seconds. **The last requests are
-rationed rather than refused**, and the budget lands exactly on the reset instead
-of running out at second nine. A script slower than the pace still never waits.
+**Pacing** *(enrolled services only)* — headroom is below the reserve (20% by
+default), so what is left is spread over the time that is left:
+`delay = (resetAt − now) / remaining`. Five requests and sixty seconds is one
+every twelve seconds. **The last requests are rationed rather than refused**, and
+the budget lands exactly on the reset instead of running out at second nine. A
+script slower than the pace still never waits.
 
-**Held** — `remaining` is zero, or a `429` came back, or `retry-after` said so.
-Every enrolled call waits for the reset.
+**Held** *(every call, enrolled or not)* — `remaining` is zero, or a `429` came
+back, or `retry-after` said so. The next call waits for the reset, up to
+`maxWait`.
+
+Worked against a real set of headers — 60 an interval, spent, six seconds to go:
+
+```
+X-Rate-Limit-Limit:     60     the budget
+X-Rate-Limit-Remaining: 0      → Held
+X-Rate-Limit-Reset:     6      → 6 is far below 10⁹, so six seconds, not 1970
+```
+
+Six seconds is inside `maxWait`, so the run holds and resumes rather than
+collecting six refusals. Nothing was enrolled and nothing was configured; the
+API said it, and this is only Kaja not arguing.
 
 Green, amber, red. The user's instinct about the drawing was right, and it is
 right because the mechanism genuinely has three states and not four.
@@ -220,10 +275,15 @@ per-call form (`await limit(Shows.GetShow({ id }))`, exactly the `approve` shape
 or a per-method cost table for the APIs that price calls in points. Whether the
 generated import should offer to enrol itself once a script has a limiter.
 
-**Out.** A rate limit declared per app in `kaja.json` — tempting, and it makes
-every script polite for free, but `Configuration` is the file and this is run
-behaviour, and free politeness is exactly the silent pacing that would make a
-perf test lie. Persisting a budget across restarts: stale state about a window
+And `maxWait`'s default: 10s is a guess at the line between "the run is slow" and
+"the run is stuck", and it is the number most worth arguing about, because it is
+the one thing the default hold does that the author did not ask for.
+
+**Out.** A *declared* rate limit per app in `kaja.json` — tempting, and it would
+make every script polite for free, but a declared limit is rationing rather than
+obeying a refusal, and rationing nobody asked for is what would make a perf test
+measure Kaja. `Configuration` is the file, and this is run behaviour.
+Persisting a budget across restarts: stale state about a window
 that has almost certainly rolled is worse than learning it again on the first
 call. Coordination between two Kajas, which is a distributed lock wearing a
 helpful hat.
