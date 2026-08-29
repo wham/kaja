@@ -134,300 +134,153 @@ a Wails binding and the response is a `TargetResult` value.
 
 ## Seven traces
 
-The diagrams above say what the lanes are. This says what one call *does*: hop
-by hop, in each lane, the same journey twice — once per build. Five of the seven
-are calls against the demo workspace ([`workspace/kaja.json`](../workspace/kaja.json))
-and can be pressed Run on as they are written; the demo workspace has no folder
-app, and a bare `fetch` belongs to no app at all.
+One real call per lane, hop by hop, on each build. Five are calls against the
+demo workspace ([`workspace/kaja.json`](../workspace/kaja.json)); the workspace
+has no folder app, and a bare `fetch` belongs to no app.
 
-Three families, and the family is what decides the trace:
+What decides a path is who talks to the API:
 
-| family | apps | who talks to the API |
+| family | apps | the upstream call is made by |
 | --- | --- | --- |
-| forwarded | `grpc` · `twirp` | the Go side forwards the browser's own call |
-| in-process | `openapi` · `mcp` · `openai` · `folder` | the Go side *makes* the call |
+| forwarded | `grpc` · `twirp` | Go, forwarding the browser's own call |
+| in-process | `openapi` · `mcp` · `openai` · `folder` | Go, from the request it built |
 | neither | the Api service · a bare `fetch` | nobody, or the page itself |
 
-### 1. A gRPC app call
+**Four doors** is the header work both builds share, in this order:
+`TakeAppName` (pull `X-Kaja-App` out) · `ExpandAll` (`${NAME}`) ·
+`AppConnection` (read the app out of `kaja.json` now, for its credential and TLS)
+· `MergeMetadata` (apply it without displacing a header of the same name).
+
+### 1. gRPC — `Seating.GetSeatMap({ showId: "apollo-13@the-lantern" })`
+
+Web
+
+1. `client.ts` — merge headers, add `X-Kaja-App: seating`; each goes on the meta as `X-Header-<name>`, plus `X-Target: dns:seating.kaja.tools:443`
+2. `POST localhost:41520/target/seating.Seating/GetSeatMap`, `application/grpc-web-text`
+3. `/target/{method...}` — the four doors
+4. `grpc.NewProxy` → `OpenServerStream` — every call, unary or not
+5. **gRPC/HTTP2 → `seating.kaja.tools:443`, `/seating.Seating/GetSeatMap`**. No deadline: the call lives as long as the browser's request
+6. back — binary `grpc-web+proto` frames as they arrive, then a trailer frame: `grpc-status`, the server's own metadata, `kaja-upstream-duration-ms`
+7. `absorbReserved` eats the `kaja-upstream-` prefix; the rest is the call's response headers
+
+Desktop
+
+1. same merge; no `X-Target` — `WailsTransport` reads it off the `appRef`
+2. `app.Target(target, method, <base64>, 1, headersJson)` — a Wails binding, same process
+3. `desktop/main.go Target` — the four doors
+4. `targetGRPC` → `InvokeWithTimeout(…, 30s, …)` — the one lane with a deadline
+5. **same wire**
+6. back as `TargetResult{ body, trailers, durationMs }`; the transport mirrors it into the same trailers, so hop 7 above is the same code
+
+A server stream takes `TargetServerStream` and returns as the Wails events
+`stream:<id>` · `:end(durationMs)` · `:error` — a duration and no headers.
+
+### 2. Twirp — `Quirks.Sum({ a: "2", b: "3" })`
+
+Web
+
+1. as trace 1
+2. `POST localhost:41520/target/quirks.v1.Quirks/Sum`
+3. the four doors
+4. reverse proxy, `/target/` → `/twirp/`: **`POST https://quirks.kaja.tools/twirp/quirks.v1.Quirks/Sum`**
+5. back — the upstream response as itself, plus `Kaja-Upstream-Duration-Ms` (Twirp has no trailers, so the measurement rides a header)
+
+Desktop
+
+1. `app.Target(url, method, <base64>, 2, headersJson)`
+2. the four doors, then `targetTwirp` builds the same URL by hand, `Content-Type: application/protobuf`
+3. back as `TargetResult{ body, statusCode, durationMs }` — **no headers**, so `call.withHeaders()` is empty here. `statusCode >= 400` throws an `UpstreamError`.
+
+### 3. Internal API — `GetConfiguration`
+
+No app, so none of the four doors and no upstream. `api.proto` declares no
+package, so the Twirp path is `/twirp/Api/GetConfiguration` on both.
+
+Web
+
+1. `POST localhost:41520/twirp/Api/GetConfiguration`
+2. `ApiService.GetConfiguration` — read `kaja.json`, migrate, resolve variables against the **environment alone** (no `VariableStore` on the web), build `Runtime`
+3. protobuf back. It never left the server's machine.
+
+Desktop
+
+1. `app.Twirp("GetConfiguration", <base64>)`
+2. served into an `httptest.NewRecorder()` against the same handler — HTTP with no socket
+3. same `ApiService`, but **with** a `VariableStore`, so a value can resolve `KEYCHAIN`
+4. non-200 → the Twirp error JSON as the binding's error; `apiError` parses it into the same `RpcError` the browser gets
+
+### 4. OpenAPI — `Theatre.ListShows({ city: "Chicago", limit: 25, … })`
+
+Title *Theatre*, no tags, so the method path is
+`openapi.theatre.Theatre/ListShows` and the target is `kaja-app://9f3c1d…`.
+
+Web
+
+1. `X-Kaja-App: theatre`; `X-Target: kaja-app://9f3c1d…`
+2. `POST localhost:41520/target/openapi.theatre.Theatre/ListShows`
+3. `IsAppTarget` → `ServeAppGRPCWeb` reads the frame → `apiService.InvokeApp`
+4. `InvokeApp` — `ExpandAll`, start the clock, route the id to the live instance
+5. protobuf → `protojson` → `transcode`: path `/shows`, query params from the marked fields, spec auth then app headers then per-call header params
+6. **`GET https://theatre.kaja.tools/shows?city=Chicago&limit=25`, made by Go**
+7. JSON → `protojson` back, strict first then with unreadable members pruned
+8. stamp `DurationMs`, `Redact` the resolved `${NAME}` values back out
+9. one message frame + trailers: `kaja-upstream-duration-ms` · `-request-headers` · `-response-headers`
+10. `absorbReserved` — so the Headers view shows the **theatre.kaja.tools** exchange, with `Bearer ${TOKEN}` where a variable stood
+
+An upstream `>= 400` is an `apps.UpstreamError`: the whole failure rides in
+`kaja-upstream-error` and the frame's `grpc-status` is only the closest mapping.
+
+Desktop — hops 4–8 are the same code. `app.Target("kaja-app://9f3c1d…", …)`
+(protocol ignored) → `a.api.InvokeApp` → `TargetResult{ body, requestHeaders,
+responseHeaders, durationMs }`, mirrored into the same trailers. A failure comes
+back as `Body: upstream.JSON()`, `StatusCode: 502` — Kaja failing as the gateway
+it is here, the upstream's own status inside the JSON.
+
+So on **both** builds Go talks to theatre.kaja.tools and the browser never
+connects. That is the whole difference from traces 1–2.
+
+### 5. MCP — `Concierge.SuggestFilm({ mood, party, city })`
+
+`suggest_film` becomes `mcp.Tools/SuggestFilm`; another `kaja-app://…`. Hops
+1–4 and 8–10 are trace 4's. The middle:
+
+5. protobuf → the arguments object it stands for (each field carries the property's own `json_name`, so the message **is** the arguments) → `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"suggest_film","arguments":{…}}}`
+6. **`POST https://concierge.kaja.tools/mcp`** — `application/json`, `Accept: application/json, text/event-stream`, `MCP-Protocol-Version`, then the era's pair: modern gets `Mcp-Method` + `Mcp-Name`, handshake-era gets `Mcp-Session-Id`. The era was settled once, by a `server/discover` probe.
+7. a JSON object, or an SSE stream whose last data event is the response → `content` + `isError` + `structuredContent`. `isError: true` is an ordinary response, not a failure.
+
+Desktop is trace 4's desktop; hops 5–7 don't change.
+
+### 6. Folder — `Folder.ReadFile({ file: "team/notes.md" })`
+
+Static proto surface, so `folder.Folder/ReadFile` whatever the app is called;
+another `kaja-app://…`. Hops 1–4 are trace 4's.
+
+5. **No wire.** `filepath.IsLocal` as a lexical check, then an `os.Root` rooted at the app's `path` — the boundary is the syscall, symlinks included
+6. nothing forwarded, nothing exchanged: no request or response headers, trailers hold the duration alone
+
+The one thing that differs by build is **whose disk**: yours on the desktop
+(sandboxed macOS reaches it through a security-scoped bookmark), the
+**server's** on the web — which is why a deployed kaja's folder app is a
+container's filesystem and not the reader's.
+
+### 7. A bare `fetch`
 
 ```ts
-import { Seating } from "seating/proto/seating";
-const { seatMap } = await Seating.GetSeatMap({ showId: "apollo-13@the-lantern" });
+const res = await fetch("https://api.example.com/v1/things");
 ```
 
-`seating` is `dns:seating.kaja.tools:443` by reflection, so the method path is
-`seating.Seating/GetSeatMap`.
+1. `runScript` hands the body to `new Function`, so it runs in the page with the page's own globals
+2. **browser → `api.example.com` directly.** No Kaja process in the path, on either build
 
-**Web**
+Which means, on both: no `X-Kaja-App`, so no credential and no `${NAME}`
+expansion; CORS is the API's to allow; no log row, no duration, no payload pane,
+nothing on the canvas.
 
-1. `client.ts` merges the app's configured headers with this call's
-   (`mergeHeaders`) and adds `X-Kaja-App: seating`. Each one goes onto the call's
-   metadata as `X-Header-<name>`, alongside `X-Target: dns:seating.kaja.tools:443`.
-2. `GrpcWebFetchTransport`, based at `/target`, sends
-   `POST http://localhost:41520/target/seating.Seating/GetSeatMap`,
-   `Content-Type: application/grpc-web-text`, body one base64'd length-prefixed frame.
-3. `/target/{method...}` collects the `X-Header-*` back into a map and
-   `apps.TakeAppName` lifts `seating` out of it.
-4. Not a `kaja-app://` target, so: `Variables().ExpandAll` resolves the `${NAME}`
-   references the browser sent unexpanded, `AppConnection("seating")` reads the app
-   out of `kaja.json` **now** and hands back its credential and TLS options, and
-   `apps.MergeMetadata` applies the credential without displacing a header the app
-   configures under the same name.
-5. Content type says gRPC-Web, so `grpc.NewProxy(target, connection.TLS)` and
-   `OpenServerStream(r.Context(), …)` — every call, unary or not, because nothing in
-   the request says which kind it names.
-6. **Wire:** gRPC over HTTP/2 and TLS to `seating.kaja.tools:443`, method
-   `/seating.Seating/GetSeatMap`. No deadline of Kaja's own: the call lives as long
-   as the browser's request, which is what carries Stop through.
-7. Back: each message as a **binary** `application/grpc-web+proto` frame, flushed
-   as it arrives; then a trailer frame with `grpc-status`, the server's own metadata
-   under its own names, and `kaja-upstream-duration-ms`.
-8. `collectResponseHeaders` → `absorbReserved` eats the `kaja-upstream-` prefix;
-   everything else becomes the call's response headers, which is what the Headers
-   view shows and what `call.withHeaders()` hands back.
+The one difference is `kaja.variables`. On the **desktop** it is resolved (the
+UI runs inside the app's process, `ResolvedVariables`), so a script can read a
+keychain value — the only place in kaja where that is true. On the **web** it is
+the configuration's own text, so `kaja.variables.TOKEN` reads back the literal
+`${secret}`.
 
-**Desktop**
-
-1. Same merge in `client.ts`. No `X-Target` — `WailsTransport` in `target` mode
-   holds the `appRef` and reads the target off it.
-2. `app.Target("dns:seating.kaja.tools:443", "seating.Seating/GetSeatMap", <base64>, 1, headersJson)`
-   — a Wails binding, same process, the `[]byte` crossing as base64.
-3. `desktop/main.go`'s `Target` walks the same four doors as the web handler:
-   `TakeAppName` · `ExpandAll` · `AppConnection` · `MergeMetadata`.
-4. Protocol 1 → `targetGRPC` → `grpc.NewClientFromString(target, options)` (the
-   connection cache is keyed on the target **and** the options) →
-   `InvokeWithTimeout(method, req, 30s, headers)`.
-5. **Wire:** identical to step 6 above — except for that 30 second deadline, which
-   the web lane has no counterpart for.
-6. Back as a `TargetResult{ body, trailers, durationMs }`; `wails-transport.ts`
-   mirrors it into the same `kaja-upstream-*` metadata shape, so step 8 above is
-   byte-for-byte the same code.
-
-A server stream takes `TargetServerStream` instead, and comes back as the Wails
-events `stream:<id>` · `:end(durationMs)` · `:error` — which is why a desktop
-server stream reports a duration and no headers.
-
-### 2. A Twirp app call
-
-```ts
-import { Quirks } from "quirks/v1/quirks";
-const { result } = await Quirks.Sum({ a: "2", b: "3" });
-```
-
-`quirks` is `https://quirks.kaja.tools` with two configured headers
-(`X-Yolo: kaja123`, `Authorization: Bear brown`); the method path is
-`quirks.v1.Quirks/Sum`.
-
-**Web**
-
-1. Same merge and same `X-Header-*` / `X-Target` metadata as trace 1.
-2. `TwirpFetchTransport` based at `/target` sends
-   `POST http://localhost:41520/target/quirks.v1.Quirks/Sum`.
-3. `/target/{method...}`: `TakeAppName` · `ExpandAll` · `AppConnection` ·
-   `MergeMetadata`, exactly as above.
-4. Content type is not gRPC-Web, so a `httputil.NewSingleHostReverseProxy` whose
-   director rewrites `/target/` → `/twirp/` and re-hosts the URL:
-   **`POST https://quirks.kaja.tools/twirp/quirks.v1.Quirks/Sum`**, with the merged
-   headers `Set` on it.
-5. Back: the upstream response passes through as itself, with
-   `Kaja-Upstream-Duration-Ms` added by `ModifyResponse` — Twirp has no trailers, so
-   the measurement rides a reserved *header* in the same namespace.
-
-**Desktop**
-
-1. `app.Target("https://quirks.kaja.tools", "quirks.v1.Quirks/Sum", <base64>, 2, headersJson)`.
-2. The same four doors, then protocol 2 → `targetTwirp`, which builds
-   `https://quirks.kaja.tools/twirp/quirks.v1.Quirks/Sum` by hand, sets
-   `Content-Type: application/protobuf` and the merged headers, and posts it with a
-   plain `http.Client`.
-3. Back as `TargetResult{ body, statusCode, status, durationMs }` — and **no
-   headers**: this is the one lane where the desktop reports less than the web, so
-   `call.withHeaders()` comes back empty on a desktop Twirp call. A `statusCode`
-   of 400 or more is thrown as an `UpstreamError` carrying the Twirp error body.
-
-### 3. An internal API call
-
-```ts
-const { response } = await getApiClient().getConfiguration({});
-```
-
-Nothing here is an app: no `X-Kaja-App`, no `X-Target`, no `X-Header-*`, no
-`kaja-upstream-*`, and no upstream. `api.proto` declares no package, so the Twirp
-path is `/twirp/Api/GetConfiguration` on both builds.
-
-**Web**
-
-1. `getApiClient()` → `TwirpFetchTransport` based at
-   `http://localhost:41520/twirp`.
-2. `POST http://localhost:41520/twirp/Api/GetConfiguration`.
-3. The generated Twirp handler → `ApiService.GetConfiguration`: read
-   `../workspace/kaja.json`, migrate it, resolve each variable against the
-   environment alone (the web server binds **no** `VariableStore`, so a `${secret}`
-   falls to `KAJA_<NAME>`), and build the `Runtime` beside it —
-   `can_update_configuration` is the `--editable` flag.
-4. Protobuf back over the same connection. It never left the machine the server is
-   on.
-
-**Desktop**
-
-1. `WailsTransport` in `api` mode → `app.Twirp("GetConfiguration", <base64>)`.
-2. `desktop/main.go`'s `Twirp` builds an `http.Request` for
-   `/twirp/Api/GetConfiguration` and serves it into an `httptest.NewRecorder()`
-   against the same generated handler — an HTTP round trip with no socket under it.
-3. The same `ApiService`, but constructed **with** a `VariableStore`, so a value can
-   resolve `KEYCHAIN` and `variable_store_available` can be true.
-4. A non-200 comes back as the recorder's Twirp error JSON, thrown as the binding's
-   error; `apiError` in the transport parses it back into the same `RpcError` the
-   browser's fetch arrives at.
-
-### 4. An OpenAPI app call
-
-```ts
-import { Theatre } from "theatre/service";
-const page = await Theatre.ListShows({ city: "Chicago", theaterId: "", movieId: "", limit: 25, cursor: "" });
-```
-
-`theatre` reads `https://theatre.kaja.tools/openapi.yaml`, whose title is
-*Theatre* and whose operations carry no tags — so the generated package is
-`openapi.theatre`, the service is the title-named default, and the method path is
-`openapi.theatre.Theatre/ListShows`. Opening the app minted a target like
-`kaja-app://9f3c1d…` (16 random bytes, hex).
-
-**Web**
-
-1. `client.ts` adds `X-Kaja-App: theatre`; `X-Target: kaja-app://9f3c1d…`.
-2. `POST http://localhost:41520/target/openapi.theatre.Theatre/ListShows`,
-   `application/grpc-web-text`.
-3. `/target/{method...}`: `TakeAppName`, then `apps.IsAppTarget` is true — so the
-   proxying branch is never reached. `grpc.ServeAppGRPCWeb` reads the one gRPC-Web
-   frame out of the body and calls `apiService.InvokeApp`.
-4. `InvokeApp`: `ExpandAll` the headers, start the clock, `Manager.Invoke` routes
-   `9f3c1d…` to the live openapi instance.
-5. The instance: protobuf → `protojson` → `transcode`. Path template `/shows`, the
-   fields the binding marked as query parameters become the query string, the spec's
-   own `securitySchemes` are applied first, then the app's configured headers, then
-   any per-call header parameter, then `Accept: application/json` if nothing set one.
-6. **Wire, made by the Go process:**
-   `GET https://theatre.kaja.tools/shows?city=Chicago&limit=25`.
-7. The JSON response → `protojson` into `ListShowsResponse`, strict first and then
-   with the members it can't read pruned out (`pruneMismatched`) → protobuf bytes.
-8. Back in `InvokeApp`: stamp `DurationMs`, and `Redact` the resolved `${NAME}`
-   values back out of what the app reports having sent.
-9. `ServeAppGRPCWeb` writes one message frame plus trailers —
-   `kaja-upstream-duration-ms`, `kaja-upstream-request-headers`,
-   `kaja-upstream-response-headers`, each a JSON object.
-10. `absorbReserved` routes all of it onto the call. The Headers view therefore
-    shows the **theatre.kaja.tools** exchange, not the browser-to-Kaja hop, and with
-    `Bearer ${TOKEN}` where a variable stood.
-
-An upstream `>= 400` is an `apps.UpstreamError` instead: the whole failure rides
-in a `kaja-upstream-error` trailer and the frame's `grpc-status` is only the
-closest mapping, for the benefit of a plain gRPC-Web client.
-
-**Desktop**
-
-Steps 4–8 are the same code. Only the way in and the way out differ:
-
-1. `app.Target("kaja-app://9f3c1d…", "openapi.theatre.Theatre/ListShows", <base64>, 1, headersJson)`
-   — the protocol argument is ignored on this branch.
-2. `apps.IsAppTarget` → `a.api.InvokeApp(…)`, the same `ApiService` method the web
-   handler calls.
-3. Back as `TargetResult{ body, requestHeaders, responseHeaders, durationMs }`,
-   which the transport mirrors into the same trailers. A failure becomes
-   `Body: upstream.JSON()` with `StatusCode: 502` — Kaja failing as the gateway it
-   is here, the upstream's own status travelling inside the JSON.
-
-So on **both** builds `theatre.kaja.tools` is talked to by Go, and the browser
-never opens a connection to it. That is the whole difference between this family
-and traces 1–2.
-
-### 5. An MCP app call
-
-```ts
-import { Tools as Concierge } from "concierge/mcp";
-const suggestion = await Concierge.SuggestFilm({ mood: "something loud", party: 2, city: "Chicago", maxMinutes: 0 });
-```
-
-The generated package is always `mcp`, and a tool becomes a method of a `Tools`
-service — so the server's own `suggest_film` is `mcp.Tools/SuggestFilm`, and the
-target is another `kaja-app://…`. Hops 1–4 and 8–10 are trace 4's, unchanged.
-What differs is the middle:
-
-5. The instance decodes the protobuf into the arguments object it stands for —
-   every field carries the tool property's own name as its `json_name`, so the
-   message **is** the arguments, with no mapping table — and wraps it as
-   `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"suggest_film","arguments":{…}}}`.
-6. **Wire:** `POST https://concierge.kaja.tools/mcp`,
-   `Content-Type: application/json`,
-   `Accept: application/json, text/event-stream`, `MCP-Protocol-Version`, and then
-   whichever pair the era calls for — a modern server gets `Mcp-Method: tools/call`
-   and `Mcp-Name: suggest_film`, mirroring the routed fields so an intermediary need
-   not parse the body; a handshake-era one gets its `Mcp-Session-Id` instead. Which
-   era it is was settled **once**, by a `server/discover` probe.
-7. The answer is a JSON object, or an SSE stream whose last data event is the
-   response (notifications sent ahead of it are stepped over) → `content` +
-   `isError` + `structuredContent` → protobuf. A tool reporting `isError: true`
-   comes back as an ordinary response, not a failure.
-
-Desktop is trace 4's desktop: the door changes, hops 5–7 do not.
-
-### 6. A folder app call
-
-```ts
-import { Folder } from "<app>/folder";
-const { content } = await Folder.ReadFile({ file: "team/notes.md" });
-```
-
-The proto surface is static, so the method path is `folder.Folder/ReadFile`
-whatever the app is called, and the target is another `kaja-app://…`. Hops 1–4
-are trace 4's.
-
-5. **There is no wire.** `resolve` runs `filepath.IsLocal` as a lexical check and
-   then opens through an `os.Root` rooted at the app's `path` — the syscall-level
-   boundary, symlinks included. `makeParents` creates the folders a write implies.
-6. Nothing is forwarded and nothing is exchanged, so `InvokeResult` carries no
-   request or response headers and the trailers hold the duration alone. The
-   Headers view has nothing to show, correctly.
-
-The one thing this trace changes between builds is **whose disk**: on the desktop
-it is yours (on the sandboxed macOS build, reached through a security-scoped
-bookmark saved when you picked the folder), and on the web it is the **server's**,
-which is why a deployed kaja's folder app is a container's filesystem and not the
-reader's.
-
-### 7. A bare `fetch` in a script
-
-```ts
-const res = await fetch("https://api.example.com/v1/things", {
-  headers: { Authorization: `Bearer ${kaja.variables.TOKEN}` },
-});
-```
-
-This one is the odd trace, and worth having written down precisely because it
-looks like the others.
-
-**Web**
-
-1. `runScript` transpiles the file and hands the body to `new Function`, so it runs
-   in the page with the page's own globals — `fetch` among them.
-2. The request goes **from the browser straight to `api.example.com`**. There is no
-   Kaja process in its path on either end.
-3. Which means: no `X-Kaja-App`, so no credential lookup and no `${NAME}`
-   expansion; CORS is the API's to allow, from the origin kaja is served on; no log
-   row, no duration, no payload pane, nothing on the canvas. And `kaja.variables` on
-   the web is the **configuration's own text**, so `kaja.variables.TOKEN` reads back
-   the literal `${secret}` rather than a value.
-
-**Desktop**
-
-1. Same `new Function`, the webview's own `fetch`, leaving the webview process
-   directly. Kaja's Go side is not in the path here either.
-2. `kaja.variables` **is** resolved: the UI runs inside the app's own process, so
-   `App.tsx` fills it from the desktop-only `ResolvedVariables` binding. A keychain
-   value is readable by a script, which is the one place in kaja where that is true.
-3. Everything in point 3 above still holds: no row, no duration, no redaction, and
-   the page's origin is whatever the Wails asset handler serves it under.
-
-Use it for the thing a script genuinely needs and no app models — a webhook, a
-one-off `GET` of a text file. Anything you want to *see* belongs in an app, because
-the console only knows about calls that went through a client.
+Use it for what no app models — a webhook, a one-off `GET`. Anything you want to
+*see* belongs in an app: the console only knows calls that went through a client.
