@@ -69,10 +69,11 @@ inside it:
 
 The gRPC lane is a bridge rather than a hop — the same call is forwarded — so
 what the server answered with is the response's own headers and rides back
-under its own names, on a refusal as well as a success. Header and trailer
-metadata are read as one; the names carrying the frame (`content-type`,
-`grpc-status`, anything `-bin` or under `kaja-upstream-`) are dropped, so an
-upstream cannot write into Kaja's own channel.
+under its own names, on a refusal as well as a success, which is what the
+Headers view shows as the API's own. Header and trailer metadata are read as
+one; the names carrying the frame (`content-type`, `grpc-status`, anything
+`-bin` or under `kaja-upstream-`) are dropped, so an upstream cannot write
+into Kaja's own channel.
 
 ## Desktop
 
