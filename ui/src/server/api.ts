@@ -609,6 +609,11 @@ export interface Source {
 export interface GetConfigurationRequest {
 }
 /**
+ * @generated from protobuf message WatchConfigurationRequest
+ */
+export interface WatchConfigurationRequest {
+}
+/**
  * @generated from protobuf message GetConfigurationResponse
  */
 export interface GetConfigurationResponse {
@@ -3058,6 +3063,44 @@ class GetConfigurationRequest$Type extends MessageType<GetConfigurationRequest> 
  */
 export const GetConfigurationRequest = new GetConfigurationRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class WatchConfigurationRequest$Type extends MessageType<WatchConfigurationRequest> {
+    constructor() {
+        super("WatchConfigurationRequest", []);
+    }
+    create(value?: PartialMessage<WatchConfigurationRequest>): WatchConfigurationRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<WatchConfigurationRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: WatchConfigurationRequest): WatchConfigurationRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: WatchConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message WatchConfigurationRequest
+ */
+export const WatchConfigurationRequest = new WatchConfigurationRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse> {
     constructor() {
         super("GetConfigurationResponse", [
@@ -4581,6 +4624,7 @@ export const Api = new ServiceType("Api", [
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
+    { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },

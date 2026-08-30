@@ -1,10 +1,19 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { ApiClient } from "./api.client";
 
+/**
+ * How every call kaja makes is framed, on the Api lane and the app lane alike. The
+ * transport's own default is base64, which is a third more bytes on the way out and,
+ * coming back, a frame that cannot be read until the base64 group its last bytes land
+ * in is complete - which on a stream is a message held until the next one.
+ */
+export const GRPC_WEB_FORMAT = "binary" as const;
+
 export function getApiClient(): ApiClient {
   return new ApiClient(
     new GrpcWebFetchTransport({
       baseUrl: getBaseUrlForApi(),
+      format: GRPC_WEB_FORMAT,
     }),
   );
 }

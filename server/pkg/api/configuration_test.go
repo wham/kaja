@@ -3,8 +3,12 @@ package api
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"google.golang.org/grpc"
 )
 
 func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
@@ -464,4 +468,79 @@ func logged(logs []*Log, text string) bool {
 		}
 	}
 	return false
+}
+
+// configurationStream is the stream a watcher writes into, keeping the last messages
+// sent. A send never blocks: the test decides how many changes it waits for, and the
+// watcher's own beat decides how many it reports.
+type configurationStream struct {
+	grpc.ServerStream
+	ctx  context.Context
+	sent chan *GetConfigurationResponse
+}
+
+func (s *configurationStream) Context() context.Context { return s.ctx }
+
+func (s *configurationStream) Send(response *GetConfigurationResponse) error {
+	select {
+	case s.sent <- response:
+	default:
+	}
+	return nil
+}
+
+// A watcher is answered with the file rather than with a notice that something
+// happened, so nothing is fetched after being told - and the stream says nothing while
+// the file is as it was, since whoever opened it has just read that.
+func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kaja.json")
+	if err := os.WriteFile(path, []byte(`{"apps":[]}`), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(path, true, "", "", nil)
+	defer service.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stream := &configurationStream{ctx: ctx, sent: make(chan *GetConfigurationResponse, 1)}
+	watch := make(chan error, 1)
+	go func() { watch <- service.WatchConfiguration(&WatchConfigurationRequest{}, stream) }()
+
+	time.Sleep(300 * time.Millisecond)
+	if len(stream.sent) != 0 {
+		t.Fatal("the stream opened with a message, but nothing had changed")
+	}
+
+	// Written on a beat rather than once: the watcher reads the modification time it
+	// starts from in a goroutine of its own, and a write that lands before that read is
+	// not a change to it.
+	changed := []byte(`{"apps":[{"name":"shows","grpc":{"url":"http://localhost:8080"}}]}`)
+	write := time.NewTicker(200 * time.Millisecond)
+	defer write.Stop()
+	deadline := time.After(15 * time.Second)
+
+	for {
+		select {
+		case response := <-stream.sent:
+			if len(response.Configuration.Apps) != 1 {
+				t.Fatalf("got %d apps, want the file as it now stands", len(response.Configuration.Apps))
+			}
+			if response.Runtime == nil || !response.Runtime.CanUpdateConfiguration {
+				t.Error("the message carries no runtime, which is what GetConfiguration answers with")
+			}
+			cancel()
+			if err := <-watch; err != nil {
+				t.Errorf("watch ended with %v, want nil when the caller went away", err)
+			}
+			return
+		case <-write.C:
+			if err := os.WriteFile(path, changed, 0644); err != nil {
+				t.Fatalf("failed to write config file: %v", err)
+			}
+		case <-deadline:
+			t.Fatal("the change was never reported")
+		}
+	}
 }

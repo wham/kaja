@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 	"google.golang.org/grpc/status"
@@ -28,9 +27,7 @@ type Invoker func(ctx context.Context, method string, message []byte, headers ma
 // a call that answers with a stream, and a unary method is the stream that stops after
 // one message. Which of those it is, the browser never has to say.
 func Serve(w http.ResponseWriter, r *http.Request, method string, headers map[string]string, invoke Invoker) {
-	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
-
-	message, err := readGRPCWebMessage(r.Body, isText)
+	message, err := readGRPCWebMessage(r.Body)
 	if err != nil {
 		slog.Error("Failed to read gRPC-Web request", "method", method, "error", err)
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
