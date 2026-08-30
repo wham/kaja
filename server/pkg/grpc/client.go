@@ -195,14 +195,16 @@ func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.D
 // Reserved names carry the frame rather than anything the server said: HTTP/2
 // pseudo-headers, the status the transport already reports, and the content type the
 // codec settled. A -bin name is base64 of arbitrary bytes, which is not a header
-// anything downstream can show. The kaja-upstream- prefix is Kaja's own channel back
-// to the client, so an upstream may not write into it.
+// anything downstream can show. A kaja-upstream name is Kaja's own channel back to the
+// client, so an upstream may not write into it: a duration, an exchange and a failure
+// the client reads as this process's are exactly what a server must not be able to
+// state.
 func reservedMetadata(name string) bool {
 	switch name {
 	case "content-type", "grpc-status", "grpc-message", "grpc-encoding", "grpc-accept-encoding", "trailer":
 		return true
 	}
-	return strings.HasPrefix(name, ":") || strings.HasSuffix(name, "-bin") || strings.HasPrefix(name, "kaja-upstream-")
+	return strings.HasPrefix(name, ":") || strings.HasSuffix(name, "-bin") || strings.HasPrefix(name, "kaja-upstream")
 }
 
 // ResponseMetadata flattens a call's header and trailer metadata into the headers the

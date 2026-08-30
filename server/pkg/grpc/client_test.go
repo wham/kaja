@@ -85,6 +85,7 @@ func TestResponseMetadataKeepsWhatTheServerSaid(t *testing.T) {
 	trailer := metadata.MD{
 		"grpc-status":               []string{"8"},
 		"retry-after":               []string{"12"},
+		"kaja-upstream":             []string{`{"durationMs":1}`},
 		"kaja-upstream-duration-ms": []string{"9999"},
 		"set-cookie":                []string{"a=1", "b=2"},
 	}

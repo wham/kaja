@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -157,4 +159,55 @@ func TestInvokeServerStreamingEndsWhenTheCallerGoesAway(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the stream never ended")
 	}
+}
+
+// The one door writes one line about every call it carried, and what makes that line
+// safe to keep is that it names the headers a ${NAME} resolved in rather than saying
+// what any of them resolved to: the whole reason expansion happens in Go is that the
+// value is not the browser's to read, and a log file is no better a place for it.
+func TestInvokeAppLogsTheCallWithoutItsValues(t *testing.T) {
+	t.Setenv("KAJA_TOKEN", "s3cr3t-token-value")
+	path := t.TempDir() + "/kaja.json"
+	if err := os.WriteFile(path, []byte(`{"variables":{"TOKEN":"${secret}"}}`), 0o600); err != nil {
+		t.Fatalf("failed to write configuration: %v", err)
+	}
+	service := NewApiService(path, false, "", "", nil)
+	headers := map[string]string{"X-Kaja-App": "quirks", "Authorization": "Bearer ${TOKEN}"}
+
+	written := atLevel(t, slog.LevelDebug, func() {
+		// No app is open under that name, so the call fails at the door - which is
+		// still a call the door carried, and still a line.
+		if _, err := service.InvokeApp(context.Background(), "quirks.v1.Quirks/Sum", nil, maps.Clone(headers)); err == nil {
+			t.Fatal("expected a call to an app that is not open to be refused")
+		}
+	})
+
+	for _, want := range []string{"quirks.v1.Quirks/Sum", `"app":"quirks"`, "Authorization", "durationMs"} {
+		if !strings.Contains(written, want) {
+			t.Errorf("the line says nothing of %s: %s", want, written)
+		}
+	}
+	if strings.Contains(written, "s3cr3t-token-value") {
+		t.Errorf("the resolved value reached the log: %s", written)
+	}
+
+	// And nothing at all when nobody asked, which is what makes it free to leave in.
+	if quiet := atLevel(t, slog.LevelInfo, func() {
+		service.InvokeApp(context.Background(), "quirks.v1.Quirks/Sum", nil, maps.Clone(headers))
+	}); strings.Contains(quiet, "App call") {
+		t.Errorf("the line was written at a level nobody asked for: %s", quiet)
+	}
+}
+
+// atLevel runs act with the default logger replaced by one writing JSON at level, and
+// hands back what it wrote.
+func atLevel(t *testing.T, level slog.Level, act func()) string {
+	t.Helper()
+	previous := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	var written strings.Builder
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&written, &slog.HandlerOptions{Level: level})))
+	act()
+	return written.String()
 }

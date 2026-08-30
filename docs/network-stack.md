@@ -69,6 +69,14 @@ work in a fixed order:
 Then the clock starts and `Manager.Invoke` routes the call to the instance
 registered under that name.
 
+Because every call passes here, this is also the one place a headless kaja can
+be watched from: the door writes a single `slog` debug line per call — the
+method, the app, the duration it measured, the **names** of the headers a
+`${NAME}` resolved in, and an upstream failure's status. Names and never
+values, since expanding in Go is what keeps a value out of the browser and a
+log file is no better a place for it; and nothing is written, or even
+gathered, unless the level is on.
+
 ## Who talks to the API
 
 | family | apps | the upstream call is made by |
@@ -170,6 +178,14 @@ and the MCP bridge. None of it is a call.
 - **Durations are stamped where the exchange happened.** Every Go hop measures
   its upstream call and the UI shows that number; only the run's wall time is
   the client's own clock.
+
+Each of those is a test rather than only a claim.
+[`server/pkg/router/traces_test.go`](../server/pkg/router/traces_test.go) runs
+the lane whole — `router.Mount` → `grpc.Serve` → `InvokeApp` → a real app → an
+upstream that records what it was sent — and asserts one bullet per case. A
+layer's own test can only say what that layer did with what it was handed;
+which values reach the wire is a property of the lane as a whole, so a line
+here that stops being true fails there instead of rotting quietly.
 
 ## Seven traces
 
