@@ -10,6 +10,7 @@ import { APP_OF } from "./rateLimit";
 import { getBaseUrlForApp } from "./server/connection";
 import { Stub } from "./sources";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
+import { uuidV4 } from "./uuid";
 
 // absorbReserved routes the one kaja-upstream trailer onto the call. It is Kaja's own
 // out-of-band channel — what Kaja measured or exchanged upstream, never a header the
@@ -100,7 +101,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     Object.defineProperty(methods, APP_OF, { get: () => appRef.configuration.name });
     for (const { method, unsupported, isServerStreaming, inputType } of prepared) {
       const newMethodCall = (input: any, requestHeaders: MethodCallHeaders): MethodCall => ({
-        id: crypto.randomUUID(),
+        id: uuidV4(),
         appName: appRef.configuration.name,
         service,
         method,
