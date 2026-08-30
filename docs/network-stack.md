@@ -136,7 +136,7 @@ a Wails binding and the response is a `TargetResult` value.
 
 One real call per lane, hop by hop, on each build. Five are calls against the
 demo workspace ([`workspace/kaja.json`](../workspace/kaja.json)); the workspace
-has no folder app, and a bare `fetch` belongs to no app.
+has no folder app, and `kaja.fetch` belongs to no app.
 
 What decides a path is who talks to the API:
 
@@ -144,7 +144,7 @@ What decides a path is who talks to the API:
 | --- | --- | --- |
 | forwarded | `grpc` · `twirp` | Go, forwarding the browser's own call |
 | in-process | `openapi` · `mcp` · `openai` · `folder` | Go, from the request it built |
-| neither | the Api service · a bare `fetch` | nobody, or the page itself |
+| neither | the Api service · `kaja.fetch` | nobody, or the browser itself |
 
 **Four doors** is the header work both builds share, in this order:
 `TakeAppName` (pull `X-Kaja-App` out) · `ExpandAll` (`${NAME}`) ·
@@ -263,24 +263,32 @@ The one thing that differs by build is **whose disk**: yours on the desktop
 **server's** on the web — which is why a deployed kaja's folder app is a
 container's filesystem and not the reader's.
 
-### 7. A bare `fetch`
+### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
 
-```ts
-const res = await fetch("https://api.example.com/v1/things");
-```
+The bare name inside a script body is bound to `kaja.fetch` (`runtimeBindings`),
+unless an import of the script's own is called `fetch`. So there is no
+unrecorded request a script can make, and this trace is the same on both builds.
 
-1. `runScript` hands the body to `new Function`, so it runs in the page with the page's own globals
-2. **browser → `api.example.com` directly.** No Kaja process in the path, on either build
+1. `describeRequest` reads the verb, the absolute URL, the body and the headers — without sending
+2. back comes a `Call<Response>`, which starts when awaited; holding it instead is what makes `kaja.approve(kaja.fetch(url, { method: "DELETE" }))` work
+3. on start — `acquireRateLimit(host)`. The budget is the **host's**, because that is what a fetch has instead of an app (`kaja.rateLimit("api.example.com")`)
+4. the row is written: `http` on the `MethodCall` is what marks it a fetch, with `service`/`method` filled from the host and the verb, so it is named `GET api.example.com · /v1/things`
+5. **browser → `api.example.com` directly.** Kaja carries nothing: no four doors, no `X-Kaja-App`, no Go process on either build
+6. `holdResponse` reads the body once and hands the script a `Response` over the same bytes — which is why a streamed response is the one thing `kaja.fetch` does not carry
+7. 2xx → `output`; non-2xx → an upstream-failure-shaped error (status, request line, body), so the row goes red with `404` on it and the response tab shows what the API sent — **and the `Response` is still handed back**, with `ok` false, because that is fetch
 
-Which means, on both: no `X-Kaja-App`, so no credential and no `${NAME}`
-expansion; CORS is the API's to allow; no log row, no duration, no payload pane,
-nothing on the canvas.
+A request that never completed **throws**, unlike a service method's failure: a
+script that wrote a `try`/`catch` is written against fetch's contract, and this
+is the one place Kaja's "reported, never thrown" gives way to the API it
+borrowed.
 
-The one difference is `kaja.variables`. On the **desktop** it is resolved (the
-UI runs inside the app's process, `ResolvedVariables`), so a script can read a
-keychain value — the only place in kaja where that is true. On the **web** it is
-the configuration's own text, so `kaja.variables.TOKEN` reads back the literal
-`${secret}`.
+Because Kaja is not in the path: CORS is the API's to allow (an API that sends
+none needs an app), a `${NAME}` in a header is **not** expanded — the script
+reads `kaja.variables` and passes the value — and the response headers are the
+API's own directly. Routing it through Go would make a deployed kaja a proxy
+for arbitrary URLs, which it must not be.
 
-Use it for what no app models — a webhook, a one-off `GET`. Anything you want to
-*see* belongs in an app: the console only knows calls that went through a client.
+The one thing that differs by build is what `kaja.variables` holds: resolved on
+the **desktop** (the UI runs inside the app's process, `ResolvedVariables`), so
+a script can read a keychain value; the configuration's own text on the **web**,
+where `kaja.variables.TOKEN` reads back the literal `${secret}`.
