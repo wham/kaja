@@ -304,10 +304,10 @@ export declare const kaja: {
    *   kaja.rateLimit("api.example.com", { perSecond: 5 });
    *
    * A budget is named by the host, because that is what a fetch has instead of an
-   * app. Two things follow from the browser making the call: an API that sends no
-   * CORS headers cannot be reached this way — that is what an app is for — and a
-   * \`\${NAME}\` in a header is not resolved for you, so read the value out of
-   * kaja.variables and pass it.
+   * app. A \`\${NAME}\` in a header is not resolved for you, so read the value out
+   * of kaja.variables and pass it. In the browser the call is the page's own, so an
+   * API that sends no CORS headers cannot be reached this way — that is what an app
+   * is for; the desktop makes it from its own process, where CORS does not apply.
    *
    * Unlike a service method, this throws what fetch throws: a request that never
    * completed is an error, and an HTTP status is not — a 404 is a response, handed

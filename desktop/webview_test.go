@@ -53,9 +53,22 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 		t.Fatalf("POST /app/… reached the assets: %q", body)
 	}
 
+	// The lane only the desktop has. Named no target, it refuses the call rather than
+	// falling through to the UI and answering a script's fetch with HTML.
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest("POST", fetchPath, nil))
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("POST %s = %d, want 400", fetchPath, response.Code)
+	}
+	if response.Header().Get(fetchErrorHeader) == "" {
+		t.Fatalf("POST %s was refused without saying why", fetchPath)
+	}
+
 	// Everything else is the UI's. The Api lane is POST-only, so a GET under it is
-	// the assets' too rather than a call that lost its body.
-	for _, path := range []string{"/", "/main.js", "/Api/GetConfiguration"} {
+	// the assets' too rather than a call that lost its body. So is a GET on the fetch
+	// lane, which is POST-only for the same reason.
+	for _, path := range []string{"/", "/main.js", "/Api/GetConfiguration", fetchPath} {
 		response = httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest("GET", path, nil))
 		if response.Body.String() != "the UI" {

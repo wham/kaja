@@ -31,6 +31,7 @@ import {
   rateLimitHost,
   readResponseHeaders,
 } from "./fetchCall";
+import { sendFetch } from "./fetchTransport";
 import { loopKey } from "./loopKey";
 import { describeSchedule, PerfBody, PerfPlan, PerfReport, perfReport, PerfSchedule, PerfTestOptions, runPerfTest } from "./perfTest";
 import { RunMetrics } from "./runStats";
@@ -582,7 +583,7 @@ export class Kaja {
       const startedAt = performance.now();
       const { signal, release } = combineSignals([this._internal.abortSignal, init?.signal ?? undefined, input instanceof Request ? input.signal : undefined]);
       try {
-        const response = await fetch(input as RequestInfo, signal ? { ...init, signal } : init);
+        const response = await sendFetch(request, input as RequestInfo, signal ? { ...init, signal } : init);
         const held = await holdResponse(response);
         call.durationMs = Math.round(performance.now() - startedAt);
         call.responseHeaders = readResponseHeaders(response);
