@@ -194,12 +194,13 @@ export function ShowFileInFinder(path: string): $CancellablePromise<void> {
 }
 
 /**
- * Target proxies external API calls to configured endpoints (the desktop's
- * counterpart to /target/{method...}). protocol is 1 for gRPC and 2 for Twirp;
- * headersJson is a JSON-encoded map of headers to forward.
+ * Target makes one call on the webview's behalf (the desktop's counterpart to
+ * /target/{method...}). headersJson is a JSON-encoded map of headers to forward. What
+ * the target names decides the rest: an app invoked in this process, or the gRPC
+ * server to dial.
  */
-export function Target(target: string, method: string, req: string, protocol: number, headersJson: string): $CancellablePromise<$models.TargetResult | null> {
-    return $Call.ByID(1492274224, target, method, req, protocol, headersJson).then(($result: any) => {
+export function Target(target: string, method: string, req: string, headersJson: string): $CancellablePromise<$models.TargetResult | null> {
+    return $Call.ByID(1492274224, target, method, req, headersJson).then(($result: any) => {
         return $$createType7($result);
     });
 }

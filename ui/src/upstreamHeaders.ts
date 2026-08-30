@@ -1,8 +1,7 @@
 import { MethodCallHeaders } from "./kaja";
 
 // Trailers carrying what happened upstream of Kaja, out of band from the response
-// message. The server emits them as gRPC-Web trailers (a Twirp response carries the
-// duration as a response header under the same name) and the Wails transport mirrors
+// message. The server emits them as gRPC-Web trailers and the Wails transport mirrors
 // them, so the client reads every transport the same way.
 //
 // The prefix is the response side of the reserved X-Kaja-App request header: anything
@@ -94,7 +93,7 @@ export function parseUpstreamError(value: unknown): UpstreamFailure | undefined 
 
 // asUpstreamFailure recognizes one of these where a call's error is read back — from
 // a live call or from a stored run. A status and the request that produced it are what
-// an HTTP failure has and a gRPC or Twirp failure doesn't.
+// an HTTP failure has and a gRPC failure doesn't.
 function asUpstreamFailure(error: unknown): UpstreamFailure | undefined {
   if (!error || typeof error !== "object") return undefined;
   const candidate = error as Partial<UpstreamFailure>;

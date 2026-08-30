@@ -9,7 +9,7 @@ import { RunStatus } from "./runs";
 
 /**
  * How a failed call is labelled: an upstream HTTP failure by its status, and
- * anything else by its gRPC/Twirp status code. A call against an HTTP app failed
+ * anything else by its gRPC status code. A call against an HTTP app failed
  * with a 404, not with NOT_FOUND — the gRPC code is the tunnel, not the failure.
  */
 export function callErrorCode(methodCall: MethodCall): string | undefined {

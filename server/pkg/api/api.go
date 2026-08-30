@@ -15,6 +15,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps/openai"
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
+	"github.com/wham/kaja/v2/pkg/apps/twirp"
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
@@ -41,8 +42,8 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 		buildNumber:            buildNumber,
 		variableStore:          variableStore,
 		apps: apps.NewManager(map[string]apps.App{
-			"grpc":    rpc.New("grpc"),
-			"twirp":   rpc.New("twirp"),
+			"grpc":    rpc.New(),
+			"twirp":   twirp.New(),
 			"openapi": openapi.New(),
 			"openai":  openai.New(),
 			"folder":  folder.New(),
@@ -178,7 +179,6 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 		Logs:     logger.logs,
 		ProtoDir: result.ProtoDir,
 		Target:   result.Target,
-		Protocol: result.Protocol,
 	}, nil
 }
 

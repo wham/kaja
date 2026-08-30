@@ -1,9 +1,12 @@
-// Package rpc implements the built-in "grpc" and "twirp" apps: plain RPC services
-// kaja talks to directly. Their proto surface comes either from a static directory
-// on disk (parameter "proto_dir", resolved against the workspace) or, for gRPC,
-// from server reflection (parameter "reflection": "true"). Unlike in-process apps,
-// their methods are invoked by the client straight against the upstream URL, so
-// Open just returns the proto directory, the target URL, and the transport.
+// Package rpc implements the built-in "grpc" app: a gRPC service kaja talks to
+// directly. Its proto surface comes either from a static directory on disk
+// (parameter "proto_dir", resolved against the workspace) or from server reflection
+// (parameter "reflection": "true").
+//
+// It is the one app kaja does not invoke in this process. A gRPC call is forwarded
+// rather than transcoded - the request the client framed is the request that reaches
+// the server, which is what carries a server stream through - so Open returns the
+// upstream URL for the forwarder to dial rather than an instance to call.
 package rpc
 
 import (
@@ -16,30 +19,23 @@ import (
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
-// App opens "grpc" or "twirp" apps. protocol is the transport reported back to the
-// client ("grpc" or "twirp").
-type App struct {
-	protocol string
-}
+// App opens "grpc" apps.
+type App struct{}
 
-// New returns an App for the given transport: "grpc" or "twirp".
-func New(protocol string) *App { return &App{protocol: protocol} }
+func New() *App { return &App{} }
 
 func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	url := strings.TrimSpace(parameters["url"])
 	if url == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "url")
 	}
-	log(strings.ToUpper(a.protocol) + " target: " + url)
+	log("GRPC target: " + url)
 
 	if strings.TrimSpace(parameters["reflection"]) == "true" {
-		if a.protocol != "grpc" {
-			return nil, fmt.Errorf("reflection is only supported for grpc apps")
-		}
 		if err := reflect(url, TLS(parameters), Metadata(parameters), protoDir, log); err != nil {
 			return nil, err
 		}
-		return &apps.Opened{ProtoDir: protoDir, Target: url, Protocol: a.protocol}, nil
+		return &apps.Opened{ProtoDir: protoDir, Target: url}, nil
 	}
 
 	dir := strings.TrimSpace(parameters["proto_dir"])
@@ -48,7 +44,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Proto directory: " + dir)
 	// A relative dir is resolved by the compiler against the workspace.
-	return &apps.Opened{ProtoDir: dir, Target: url, Protocol: a.protocol}, nil
+	return &apps.Opened{ProtoDir: dir, Target: url}, nil
 }
 
 // reflect discovers the upstream's services via gRPC reflection and writes the

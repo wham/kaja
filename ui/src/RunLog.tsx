@@ -499,8 +499,9 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
   // does — not over the headers table, not while a response is still coming.
   const showsJson = activeTab !== "headers" && !(activeTab === "response" && !hasResponse);
-  // Twirp posts to a URL of its own; a fetch carries the verb it was written with.
-  const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : methodCall.url ? `POST ${methodCall.url}` : undefined;
+  // A fetch carries the verb it was written with; a call kaja carried states its
+  // request line beside the headers it went out with instead.
+  const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : undefined;
 
   const copy = async () => {
     if (!(await jsonViewerRef.current?.copyToClipboard())) return;

@@ -12,7 +12,7 @@ import { Deferred, RpcError, RpcOutputStreamController, ServerStreamingCall, Una
 import { desktop, onWailsEvent } from "../wails";
 import { HEADER_META_PREFIX } from "../appTypes";
 import { UPSTREAM_DURATION_TRAILER, UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
-import { AppRef, Transport } from "../apps";
+import { AppRef } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
 
@@ -53,10 +53,10 @@ export function responseBytes(body: unknown): Uint8Array {
   return Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
 }
 
-// UpstreamError is an HTTP error response from the invoked app's upstream API
-// (or a Twirp error body). Unlike transport failures it is thrown as-is — no
-// "transport error" wrapping — and its extra fields (status, request, body,
-// ...) end up on the method call's serialized error for the console to show.
+// UpstreamError is an HTTP error response from the invoked app's upstream API.
+// Unlike transport failures it is thrown as-is — no "transport error" wrapping —
+// and its extra fields (status, request, body, ...) end up on the method call's
+// serialized error for the console to show.
 class UpstreamError extends Error {
   constructor(message: string, fields: Record<string, unknown>) {
     super(message);
@@ -64,13 +64,12 @@ class UpstreamError extends Error {
   }
 }
 
-// upstreamError shapes a >= 400 Target result into an UpstreamError. The body is
-// the structured error JSON produced by the server (or a Twirp error), so its
-// message becomes the error message and the rest — status, statusText, request,
-// body — becomes error fields, the same shape the web transport arrives at from
-// its trailer. The exchanged upstream headers are mirrored onto the error's
-// `meta` in the trailer shape the web transport uses, so the Headers view is
-// populated on a failure too.
+// upstreamError shapes a >= 400 Target result into an UpstreamError. The body is the
+// structured error JSON produced by the server, so its message becomes the error
+// message and the rest — status, statusText, request, body — becomes error fields,
+// the same shape the web transport arrives at from its trailer. The exchanged
+// upstream headers are mirrored onto the error's `meta` in the trailer shape the web
+// transport uses, so the Headers view is populated on a failure too.
 function upstreamError(result: {
   body: unknown;
   statusCode: number;
@@ -89,8 +88,8 @@ function upstreamError(result: {
   if (!errorJson || typeof errorJson !== "object") {
     error = new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
   } else {
-    const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
-    const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
+    const { message, ...fields } = errorJson as { message?: unknown };
+    const summary = typeof message === "string" && message !== "" ? message : undefined;
     error = new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
   }
   const meta: RpcMetadata = {};
@@ -125,7 +124,6 @@ function headersFromMeta(meta: RpcMetadata | undefined): Record<string, string> 
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   appRef?: AppRef; // Dynamic app reference for "target" mode
-  protocol: Transport;
 }
 
 /**
@@ -135,12 +133,10 @@ export interface WailsTransportOptions {
 export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
   private appRef?: AppRef;
-  private protocol: number;
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
     this.appRef = options.appRef;
-    this.protocol = options.protocol;
 
     if (this.mode === "target" && !this.appRef) {
       throw new Error("appRef is required when mode is 'target'");
@@ -163,8 +159,8 @@ export class WailsTransport implements RpcTransport {
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
-    if (this.mode !== "target" || this.protocol !== Transport.GRPC) {
-      throw new Error(`Server streaming only supported for gRPC targets in Wails transport`);
+    if (this.mode !== "target") {
+      throw new Error(`Server streaming only supported for target calls in Wails transport`);
     }
 
     const streamID = crypto.randomUUID();
@@ -307,10 +303,10 @@ export class WailsTransport implements RpcTransport {
         // call: they are the app's own with this call's laid over them, merged once in the
         // client so both builds send the same set.
         const headersJson = JSON.stringify(headersFromMeta(options.meta));
-        const result = (await app.Target(this.appRef!.target, fullMethodPath, request, this.protocol, headersJson))!;
+        const result = (await app.Target(this.appRef!.target, fullMethodPath, request, headersJson))!;
 
         if (result.statusCode >= 400) {
-          // A structured error body: an upstream failure from an app, or a Twirp error.
+          // A structured upstream failure from an app rather than the method's response.
           throw upstreamError(result);
         }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/base64"
@@ -340,8 +339,9 @@ func (a *App) Invoke(method string, request []byte) ([]byte, error) {
 	return a.api.Invoke(context.Background(), method, request)
 }
 
-// TargetResult holds the response from a Target call, including HTTP status for
-// Twirp. RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
+// TargetResult holds the response from a Target call. StatusCode marks a body that
+// is a structured upstream failure rather than the method's response.
+// RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
 // upstream, surfaced in the Headers view. DurationMs is the upstream exchange as this
 // process measured it — the call without the webview round trip — which the UI shows
 // in place of its own timing.
@@ -358,11 +358,12 @@ type TargetResult struct {
 	DurationMs int64             `json:"durationMs"`
 }
 
-// Target proxies external API calls to configured endpoints (the desktop's
-// counterpart to /target/{method...}). protocol is 1 for gRPC and 2 for Twirp;
-// headersJson is a JSON-encoded map of headers to forward.
-func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) (*TargetResult, error) {
-	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req), "headers", headersJson)
+// Target makes one call on the webview's behalf (the desktop's counterpart to
+// /target/{method...}). headersJson is a JSON-encoded map of headers to forward. What
+// the target names decides the rest: an app invoked in this process, or the gRPC
+// server to dial.
+func (a *App) Target(target string, method string, req []byte, headersJson string) (*TargetResult, error) {
+	slog.Info("Target called", "target", target, "method", method, "req_length", len(req), "headers", headersJson)
 
 	if req == nil {
 		slog.Error("Received nil request")
@@ -418,19 +419,13 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	// so a "${secret}" token stays where kaja keeps it.
 	connection := a.api.AppConnection(appName)
 	headers = apps.MergeMetadata(headers, connection.Metadata)
-	switch protocol {
-	case 1: // gRPC
-		started := time.Now()
-		resp, responseMetadata, err := a.targetGRPC(target, method, req, headers, connection.TLS)
-		if err != nil {
-			return nil, err
-		}
-		return &TargetResult{Body: resp, Trailers: responseMetadata, DurationMs: time.Since(started).Milliseconds()}, nil
-	case 2: // Twirp
-		return a.targetTwirp(target, method, req, headers)
-	default:
-		return nil, fmt.Errorf("invalid protocol: %d (must be 1 for gRPC or 2 for Twirp)", protocol)
+
+	started := time.Now()
+	resp, responseMetadata, err := a.targetGRPC(target, method, req, headers, connection.TLS)
+	if err != nil {
+		return nil, err
 	}
+	return &TargetResult{Body: resp, Trailers: responseMetadata, DurationMs: time.Since(started).Milliseconds()}, nil
 }
 
 func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, map[string]string, error) {
@@ -452,56 +447,6 @@ func (a *App) targetGRPC(target string, method string, req []byte, headers map[s
 
 	slog.Info("gRPC response received", "target", target, "method", method, "response_length", len(response))
 	return response, responseMetadata, nil
-}
-
-func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) (*TargetResult, error) {
-	var url string
-	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		// Already a valid HTTP URL.
-		url = target + "/twirp/" + method
-	} else {
-		// Assume host:port.
-		url = "http://" + target + "/twirp/" + method
-	}
-
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
-	if err != nil {
-		slog.Error("Failed to create HTTP request", "target", target, "method", method, "error", err)
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/protobuf")
-
-	for name, value := range headers {
-		httpReq.Header.Set(name, value)
-	}
-
-	client := &http.Client{}
-	started := time.Now()
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		slog.Error("Failed to make HTTP request", "target", target, "method", method, "error", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var responseBuffer bytes.Buffer
-	_, err = responseBuffer.ReadFrom(resp.Body)
-	if err != nil {
-		slog.Error("Failed to read response body", "target", target, "method", method, "error", err)
-		return nil, err
-	}
-	durationMs := time.Since(started).Milliseconds()
-
-	response := responseBuffer.Bytes()
-	slog.Info("Target response", "target", target, "method", method, "status", resp.StatusCode, "response_length", len(response))
-
-	return &TargetResult{
-		Body:       response,
-		StatusCode: resp.StatusCode,
-		Status:     http.StatusText(resp.StatusCode),
-		DurationMs: durationMs,
-	}, nil
 }
 
 // restoreBookmarks resolves saved security-scoped bookmarks for all directories

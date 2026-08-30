@@ -1,6 +1,5 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { ApiClient } from "./api.client";
-import { Transport } from "../apps";
 import { WailsTransport } from "./wails-transport";
 import { isWailsEnvironment } from "../wails";
 
@@ -8,7 +7,7 @@ export function getApiClient(): ApiClient {
   // Always check environment fresh - don't cache if we're in a transitional state
   const isWails = isWailsEnvironment();
   if (isWails) {
-    return new ApiClient(new WailsTransport({ mode: "api", protocol: Transport.GRPC }));
+    return new ApiClient(new WailsTransport({ mode: "api" }));
   } else {
     return new ApiClient(
       new GrpcWebFetchTransport({
@@ -25,10 +24,6 @@ export function getBaseUrlForApi(): string {
 
 export function getBaseUrlForTarget(): string {
   return `${servedFrom()}/target`;
-}
-
-export function getBaseUrlForAi(): string {
-  return `${servedFrom()}/ai`;
 }
 
 /**

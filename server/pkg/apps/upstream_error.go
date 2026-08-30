@@ -120,13 +120,14 @@ func (e *UpstreamError) JSON() []byte {
 }
 
 // upstreamMessage extracts a human summary from an error response body. It
-// understands RFC 7807 problem+json (detail/title) and the common {"message"}
-// and {"error"} envelopes, falling back to the HTTP status text.
+// understands RFC 7807 problem+json (detail/title), Twirp's {"code","msg"}, and the
+// common {"message"} and {"error"} envelopes, falling back to the HTTP status text.
 func upstreamMessage(status int, body []byte) string {
 	var envelope struct {
 		Detail  string          `json:"detail"`
 		Title   string          `json:"title"`
 		Message string          `json:"message"`
+		Msg     string          `json:"msg"`
 		Error   json.RawMessage `json:"error"`
 	}
 	if json.Unmarshal(body, &envelope) == nil {
@@ -135,6 +136,9 @@ func upstreamMessage(status int, body []byte) string {
 		}
 		if envelope.Message != "" {
 			return envelope.Message
+		}
+		if envelope.Msg != "" {
+			return envelope.Msg
 		}
 		if s := errorEnvelopeMessage(envelope.Error); s != "" {
 			return s

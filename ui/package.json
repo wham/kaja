@@ -9,7 +9,6 @@
     "@protobuf-ts/grpcweb-transport": "^2.11.1",
     "@protobuf-ts/runtime": "^2.11.1",
     "@protobuf-ts/runtime-rpc": "^2.11.1",
-    "@protobuf-ts/twirp-transport": "^2.11.1",
     "@tailwindcss/cli": "^4",
     "@wailsio/runtime": "3.0.0-beta.14",
     "lucide-react": "^1.28.0",
