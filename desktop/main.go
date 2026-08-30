@@ -17,8 +17,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 	"sigs.k8s.io/yaml"
 
+	"github.com/wham/kaja/v2/pkg/agent"
 	"github.com/wham/kaja/v2/pkg/api"
-	"github.com/wham/kaja/v2/pkg/mcp"
 	"github.com/wham/kaja/v2/pkg/router"
 )
 
@@ -99,23 +99,26 @@ type App struct {
 	linksReady   bool
 	pendingLinks []string
 
-	// MCP server state. Guarded by mcpMu.
-	mcpMu      sync.Mutex
-	mcpServer  *http.Server
-	mcpURL     string
-	mcpToken   string
-	mcpError   string
-	mcpCatalog mcp.Catalog
-	mcpPending map[string]chan mcp.RunResult
+	// The switchboard an agent reaches this window through, and the loopback listener
+	// that puts it in front of a process that is not this one. Guarded by mcpMu.
+	agents    *agent.Registry
+	mcpMu     sync.Mutex
+	mcpServer *http.Server
+	mcpURL    string
+	mcpToken  string
+	mcpError  string
 }
 
 func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, workspaceDir string) *App {
-	return &App{
+	app := &App{
 		api:           apiService,
 		bookmarkStore: bookmarkStore,
 		workspaceDir:  workspaceDir,
-		mcpPending:    make(map[string]chan mcp.RunResult),
 	}
+	// One session, one window, and no proxy between an agent and this process: the same
+	// switchboard the web runs, with the two answers only the desktop can give.
+	app.agents = agent.NewRegistry(desktopScripts{app}, agent.Direct)
+	return app
 }
 
 // attach hands the service the application and the window it drives. Called from
@@ -348,13 +351,15 @@ func appSupportDir() (string, error) {
 }
 
 // webviewHandler is everything the window fetches: the UI, the two call lanes the
-// web server answers on, and the one lane only the desktop has. The webview asks for
-// a call over HTTP the way a browser does — same request, same gRPC-Web framing, same
-// X-Kaja-App and kaja-upstream channels — so the desktop has no transport of its own
-// and nothing to keep in step.
-func webviewHandler(apiService *api.ApiService, assets http.Handler) http.Handler {
+// web server answers on, the agent switchboard it offers itself to, and the one lane
+// only the desktop has. The webview asks for all of it over HTTP the way a browser
+// does — same requests, same gRPC-Web framing, same X-Kaja-App and kaja-upstream
+// channels, same NDJSON stream — so the desktop has no transport of its own and
+// nothing to keep in step.
+func webviewHandler(apiService *api.ApiService, agents *agent.Registry, assets http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	router.Mount(mux, apiService)
+	agent.Mount(mux, agents)
 	// Registered here rather than in router.Mount, which the web serves too: a script's
 	// own fetch is the browser's call everywhere a browser can make it.
 	mountFetch(mux, &http.Client{})
@@ -406,7 +411,7 @@ func main() {
 			application.NewService(kaja),
 		},
 		Assets: application.AssetOptions{
-			Handler: webviewHandler(apiService, assetHandler()),
+			Handler: webviewHandler(apiService, kaja.agents, assetHandler()),
 		},
 		LogLevel: slog.LevelError,
 		Mac: application.MacOptions{

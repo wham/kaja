@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -14,13 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wham/kaja/v2/pkg/agent"
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
-// MCP wiring. The server runs inside this desktop process for as long as the process
-// does, bound to localhost and guarded by a persisted token. Editing scripts is plain
-// file I/O; running one has to round-trip into the webview, which is the only place
-// the script runtime and the service clients live.
+// MCP wiring. The switchboard is pkg/agent's, the same one a deployed kaja answers an
+// agent with, and the desktop is its degenerate case: one session on the token this
+// process persists, with one window permanently attached over the mux the webview
+// already fetches its calls on. What is left here is what only this process can do —
+// the disk under the scripts folder, and a loopback listener, because an agent lives
+// in another process and cannot reach a wails:// URL.
 
 // mcpPort is the fixed loopback port the MCP server binds to. Fixed rather than
 // OS-assigned so the connection command shown to the user stays valid across restarts.
@@ -28,8 +30,9 @@ import (
 // hand it out as an ephemeral port.
 const mcpPort = 41521
 
-// MCPInfo is reported to the UI so it can show the connection command. Error is set
-// when the server couldn't start (e.g. the fixed port was already in use).
+// MCPInfo is reported to the UI so it can show the connection command and attach its
+// window to the session that command reaches. Error is set when the server couldn't
+// start (e.g. the fixed port was already in use).
 type MCPInfo struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
@@ -69,35 +72,6 @@ func mcpClientConfigurationPaths() map[string]string {
 	return paths
 }
 
-// MCPSetCatalog receives the live services/methods picture from the UI, so
-// list_services and the stub resources reflect what is actually callable.
-func (a *App) MCPSetCatalog(catalogJSON string) error {
-	var catalog mcp.Catalog
-	if err := json.Unmarshal([]byte(catalogJSON), &catalog); err != nil {
-		return err
-	}
-	a.mcpMu.Lock()
-	a.mcpCatalog = catalog
-	a.mcpMu.Unlock()
-	return nil
-}
-
-// MCPScriptResult is called by the UI to deliver the outcome of a run started by
-// the run_script tool. id correlates with the pending RunScript call.
-func (a *App) MCPScriptResult(id string, resultJSON string) error {
-	var result mcp.RunResult
-	if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
-		return err
-	}
-	a.mcpMu.Lock()
-	ch := a.mcpPending[id]
-	a.mcpMu.Unlock()
-	if ch != nil {
-		ch <- result
-	}
-	return nil
-}
-
 func (a *App) startMCPServer() {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
@@ -107,6 +81,13 @@ func (a *App) startMCPServer() {
 	a.mcpError = ""
 	if a.mcpToken == "" {
 		a.mcpToken = a.loadOrCreateMCPToken()
+	}
+	// Opened rather than waited for: the window attaches under this token a moment from
+	// now, and an agent pointed at it before then must not be told the token is wrong.
+	if _, err := a.agents.Open(a.mcpToken); err != nil {
+		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Delete mcp-token and restart Kaja.", err)
+		slog.Error("Failed to open the agent session", "error", err)
+		return
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", mcpPort)
 	ln, err := net.Listen("tcp", addr)
@@ -118,7 +99,7 @@ func (a *App) startMCPServer() {
 		return
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcp.NewServer(mcpBridge{a}, a.mcpToken))
+	mux.HandleFunc("/mcp", a.agents.ServeMCP)
 	srv := &http.Server{Handler: mux}
 	a.mcpServer = srv
 	a.mcpURL = fmt.Sprintf("http://%s/mcp", ln.Addr().String())
@@ -144,49 +125,6 @@ func (a *App) stopMCPServer() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 	slog.Info("MCP server stopped")
-}
-
-// runScript asks the webview to run a script and waits for the result.
-func (a *App) runScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
-	id := randomToken(8)
-	ch := make(chan mcp.RunResult, 1)
-	a.mcpMu.Lock()
-	a.mcpPending[id] = ch
-	a.mcpMu.Unlock()
-	defer func() {
-		a.mcpMu.Lock()
-		delete(a.mcpPending, id)
-		a.mcpMu.Unlock()
-	}()
-
-	a.app.Event.Emit("mcp:runScript", map[string]string{"id": id, "path": a.scriptPath(path), "code": code, "client": client})
-
-	select {
-	case result := <-ch:
-		return result, nil
-	case <-ctx.Done():
-		return mcp.RunResult{}, ctx.Err()
-	case <-time.After(2 * time.Minute):
-		return mcp.RunResult{}, fmt.Errorf("script run timed out")
-	}
-}
-
-// notifyMCPActivity tells the webview a request is being served. inFlight is zero
-// once the last one is answered; the UI decides how long the mark lingers.
-func (a *App) notifyMCPActivity(inFlight int) {
-	a.app.Event.Emit("mcp:activity", map[string]int{"inFlight": inFlight})
-}
-
-// notifyScriptsChanged tells the webview an MCP tool changed a script on disk,
-// so an open tab can live-reload its content and the sidebar list stays fresh.
-func (a *App) notifyScriptsChanged(payload map[string]string) {
-	a.app.Event.Emit("mcp:scriptsChanged", payload)
-}
-
-func (a *App) catalog() mcp.Catalog {
-	a.mcpMu.Lock()
-	defer a.mcpMu.Unlock()
-	return a.mcpCatalog
 }
 
 // loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
@@ -216,16 +154,16 @@ func randomToken(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// mcpBridge adapts the App's file methods to the mcp.Bridge interface: the App
-// already exposes ListScripts/CreateScript with Wails-shaped return types.
+// desktopScripts is the scripts folder as the process that owns it reads and writes
+// it, which is the whole of what the desktop's half of the switchboard is.
 //
-// Nothing guards paths here: every one of those methods resolves the name it is given
-// inside the scripts folder through an os.Root, which is the whole access boundary and
-// the same one the browser goes through.
-type mcpBridge struct{ app *App }
+// Nothing guards paths here: every one of the App's methods resolves the name it is
+// given inside the scripts folder through an os.Root, which is the whole access
+// boundary and the same one the browser goes through.
+type desktopScripts struct{ app *App }
 
-func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
-	files, err := b.app.ListScripts()
+func (s desktopScripts) List() ([]mcp.ScriptInfo, error) {
+	files, err := s.app.ListScripts()
 	if err != nil {
 		return nil, err
 	}
@@ -236,66 +174,46 @@ func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
 	return out, nil
 }
 
-func (b mcpBridge) ReadScript(path string) (string, error) {
-	f, err := b.app.ReadScriptFile(path)
-	if err != nil {
-		return "", err
-	}
-	return f.Content, nil
-}
-
-func (b mcpBridge) WriteScript(path, content string) error {
-	if err := b.app.WriteScriptFile(path, content); err != nil {
-		return err
-	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "write", "path": b.app.scriptPath(path), "content": content})
-	return nil
-}
-
-func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
-	f, err := b.app.CreateScript(name, content)
+func (s desktopScripts) Read(path string) (mcp.ScriptInfo, error) {
+	f, err := s.app.ReadScriptFile(path)
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
-	// The content travels with it so the UI can tell whether this file is the agent's own
-	// draft being saved, in which case the draft goes with it.
-	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name, "folder": f.Folder, "content": f.Content})
 	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
 
-func (b mcpBridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
-	from := b.app.scriptPath(path)
-	f, err := b.app.RenameScript(path, newName)
+func (s desktopScripts) Write(path, content string) (agent.ScriptChange, error) {
+	if err := s.app.WriteScriptFile(path, content); err != nil {
+		return agent.ScriptChange{}, err
+	}
+	return agent.ScriptChange{Action: "write", Path: s.app.scriptPath(path), Content: content}, nil
+}
+
+func (s desktopScripts) Create(name, content string) (agent.ScriptChange, error) {
+	f, err := s.app.CreateScript(name, content)
 	if err != nil {
-		return mcp.ScriptInfo{}, err
+		return agent.ScriptChange{}, err
 	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "rename", "oldPath": from, "path": f.Path, "name": f.Name, "folder": f.Folder})
-	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
+	return agent.ScriptChange{Action: "create", Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
 
-func (b mcpBridge) DeleteScript(path string) error {
-	resolved := b.app.scriptPath(path)
-	if err := b.app.DeleteScript(path); err != nil {
-		return err
+func (s desktopScripts) Rename(path, newName string) (agent.ScriptChange, error) {
+	from := s.app.scriptPath(path)
+	f, err := s.app.RenameScript(path, newName)
+	if err != nil {
+		return agent.ScriptChange{}, err
 	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "delete", "path": resolved})
-	return nil
+	return agent.ScriptChange{Action: "rename", OldPath: from, Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
 
-func (b mcpBridge) RunScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
-	return b.app.runScript(ctx, path, code, client)
+func (s desktopScripts) Delete(path string) (agent.ScriptChange, error) {
+	resolved := s.app.scriptPath(path)
+	if err := s.app.DeleteScript(path); err != nil {
+		return agent.ScriptChange{}, err
+	}
+	return agent.ScriptChange{Action: "delete", Path: resolved}, nil
 }
 
-func (b mcpBridge) Catalog() mcp.Catalog {
-	return b.app.catalog()
-}
-
-// CanWriteScripts is the desktop's answer to the question a deployed kaja answers the
-// other way: this process owns the workspace it opened.
-func (b mcpBridge) CanWriteScripts() bool {
-	return true
-}
-
-func (b mcpBridge) Activity(inFlight int) {
-	b.app.notifyMCPActivity(inFlight)
-}
+// CanWrite is the desktop's answer to the question a deployed kaja answers the other
+// way: this process owns the workspace it opened.
+func (s desktopScripts) CanWrite() bool { return true }

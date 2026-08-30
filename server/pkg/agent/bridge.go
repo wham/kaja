@@ -2,57 +2,68 @@ package agent
 
 import (
 	"context"
-	"errors"
-	"path/filepath"
 
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
-// Scripts is the workspace's scripts folder as the server reads it. Only the
-// reads are here: a server serves a workspace it does not own, so nothing an
-// agent asks for may write one — the same rule that keeps Save out of the web
-// UI. mcp.Bridge.CanWriteScripts reports that, and the tools that write a file
-// are absent from tools/list rather than offered and then refused.
-type Scripts interface {
-	List() ([]mcp.ScriptInfo, error)
-	Read(name string) (string, error)
-}
-
-var errReadOnly = errors.New("this Kaja serves a workspace it does not own, so scripts here can be read and run, not written")
-
-// bridge is what kaja's MCP server sees of one browser. Everything that is a
-// file is answered by the server, which holds the disk; everything that is a run
-// is forwarded to the window, which holds the runtime.
+// bridge is what kaja's MCP server sees of one browser, and it is the same bridge in
+// both builds. Everything that is a file is answered by the process holding the disk;
+// everything that is a run is forwarded to the window, which holds the runtime. A write
+// is both: it happens here and is then told to every window.
 type bridge struct{ session *Session }
 
-func (b *bridge) ListScripts() ([]mcp.ScriptInfo, error) { return b.session.scripts.List() }
+func (b *bridge) scripts() Scripts { return b.session.scripts }
+
+func (b *bridge) ListScripts() ([]mcp.ScriptInfo, error) { return b.scripts().List() }
 
 func (b *bridge) ReadScript(path string) (string, error) {
-	return b.session.scripts.Read(filepath.Base(path))
+	script, err := b.scripts().Read(path)
+	if err != nil {
+		return "", err
+	}
+	return script.Content, nil
 }
 
-func (b *bridge) WriteScript(path, content string) error { return errReadOnly }
-func (b *bridge) DeleteScript(path string) error         { return errReadOnly }
-func (b *bridge) CanWriteScripts() bool                  { return false }
-func (b *bridge) Activity(inFlight int)                  { b.session.Activity(inFlight) }
+func (b *bridge) WriteScript(path, content string) error {
+	_, err := b.change(b.scripts().Write(path, content))
+	return err
+}
+
 func (b *bridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
-	return mcp.ScriptInfo{}, errReadOnly
-}
-func (b *bridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
-	return mcp.ScriptInfo{}, errReadOnly
+	return b.change(b.scripts().Create(name, content))
 }
 
-// RunScript reads a saved script here rather than asking the window to: the
-// server owns the disk, so the window is only ever handed source. The path
-// travels with it because that is what the run lands under in the console — its
-// name, its history, its row in the sidebar.
+func (b *bridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
+	return b.change(b.scripts().Rename(path, newName))
+}
+
+func (b *bridge) DeleteScript(path string) error {
+	_, err := b.change(b.scripts().Delete(path))
+	return err
+}
+
+// change publishes a write that happened and answers with the file it left behind.
+func (b *bridge) change(change ScriptChange, err error) (mcp.ScriptInfo, error) {
+	if err != nil {
+		return mcp.ScriptInfo{}, err
+	}
+	b.session.ScriptChanged(change)
+	return change.Script(), nil
+}
+
+func (b *bridge) CanWriteScripts() bool { return b.scripts().CanWrite() }
+func (b *bridge) Activity(inFlight int) { b.session.Activity(inFlight) }
+
+// RunScript reads a saved script here rather than asking the window to: the process
+// serving the agent owns the disk, so the window is only ever handed source. The
+// script's own path travels with it because that is what the run lands under.
 func (b *bridge) RunScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
 	if path != "" {
-		content, err := b.session.scripts.Read(filepath.Base(path))
+		script, err := b.scripts().Read(path)
 		if err != nil {
 			return mcp.RunResult{}, err
 		}
-		code = content
+		path, code = script.Path, script.Content
 	}
 	return b.session.Run(ctx, path, code, client)
 }

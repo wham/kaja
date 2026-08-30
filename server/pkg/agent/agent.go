@@ -1,17 +1,22 @@
-// Package agent is how a deployed Kaja answers an agent: it holds the sessions a
-// browser opens, and bridges kaja's MCP server (pkg/mcp) to whichever window is on
-// duty.
+// Package agent is the switchboard between kaja's MCP server (pkg/mcp) and the window
+// that can answer it. No process running this can run a script itself — the script
+// runtime, the `kaja` object and the service clients are JavaScript in a webview — so
+// every run_script goes down a window's stream and its answer comes back up.
 //
-// The desktop needs none of this because the process is the window. A server cannot
-// run a script at all — the script runtime, the `kaja` object and the service clients
-// are JavaScript in a browser tab — so every run_script is forwarded to a tab and its
-// answer forwarded back.
+// Both builds are that one switchboard. A deployed kaja holds a session per browser,
+// each with the windows that browser has open; the desktop is the degenerate case of
+// the same design — one session, on the token the process persists, with one window
+// permanently attached over the mux its webview already fetches its calls on. What
+// differs between them is Scripts, because the desktop owns the workspace it opened
+// and a server serves one it does not.
 //
-// A session is therefore something a browser offers, not something the server has.
+// On the web a session is something a browser offers, not something the server has.
 // The tab makes up a token, keeps it in its own storage, and holds an open stream
 // under it. The token is the address of a browser rather than a key to the server:
 // it opens nothing while no tab is listening, nothing here is written to disk, and a
-// token that has never been attached with is unknown.
+// token that has never been attached with is unknown. The desktop's token is the one
+// it persists so the connection command stays valid across restarts, which is why it
+// opens its session rather than waiting to be offered one.
 package agent
 
 import (
@@ -46,7 +51,7 @@ const (
 // tool failure they are, so it reads a sentence saying what to do rather than a timeout.
 var (
 	ErrNoWindow = errors.New("no Kaja window is attached to this agent session. " +
-		"Open Kaja in a browser and connect the agent again — a script runs in the browser, not on the server")
+		"A script runs in a Kaja window, not in the process answering you — open Kaja, and in a browser connect the agent again")
 	ErrWindowClosed = errors.New("the Kaja window was closed while the script was running, so the run was lost")
 )
 
@@ -70,6 +75,8 @@ type Message struct {
 	InFlight int `json:"inFlight"`
 	// OnDuty is whether this window is the one runs are sent to, on "duty".
 	OnDuty bool `json:"onDuty"`
+	// Change is what an agent did to a file on disk, on "scripts".
+	Change *ScriptChange `json:"change,omitempty"`
 }
 
 // Stream is one attached window.
@@ -278,50 +285,89 @@ func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunRe
 // Activity tells every window of this browser that an agent is being served, so
 // the plug in the footer lights wherever you are looking.
 func (s *Session) Activity(inFlight int) {
+	s.broadcast(Message{Type: "activity", InFlight: inFlight})
+}
+
+// ScriptChanged tells every window what an agent did to a file, so the sidebar and an
+// open editor stay in step with a write nobody in the window made.
+func (s *Session) ScriptChanged(change ScriptChange) {
+	s.broadcast(Message{Type: "scripts", Change: &change})
+}
+
+func (s *Session) broadcast(message Message) {
 	s.mu.Lock()
 	streams := append([]*Stream(nil), s.streams...)
 	s.mu.Unlock()
 	for _, stream := range streams {
-		stream.send(Message{Type: "activity", InFlight: inFlight})
+		stream.send(message)
 	}
 }
 
-// Registry is every browser this server has seen.
+// Delivery is how the MCP server answers, which depends on what sits in front of it.
+type Delivery int
+
+const (
+	// Direct answers with a single JSON body. Nothing sits between an agent and the
+	// desktop, so there is no idle connection anyone has to be reassured about.
+	Direct Delivery = iota
+	// Streamed offers SSE whenever the client takes one, so a minute-long run is not a
+	// request that has carried no bytes for a minute past whatever proxy is in front.
+	Streamed
+)
+
+// Registry is every browser this process has seen. The desktop's holds exactly one.
 type Registry struct {
-	scripts Scripts
+	scripts  Scripts
+	delivery Delivery
 
 	mu       sync.Mutex
 	sessions map[string]*Session
 }
 
-// NewRegistry builds the registry. scripts is the server's own reader for the
-// workspace's scripts folder: the server owns the disk, and the browser is only ever
-// asked to run source.
-func NewRegistry(scripts Scripts) *Registry {
-	return &Registry{scripts: scripts, sessions: map[string]*Session{}}
+// NewRegistry builds the registry. scripts is how this process reads and writes the
+// workspace's scripts folder: it owns the disk, and the window is only ever asked to
+// run source.
+func NewRegistry(scripts Scripts, delivery Delivery) *Registry {
+	return &Registry{scripts: scripts, delivery: delivery, sessions: map[string]*Session{}}
 }
 
-// Attach opens a window's stream, creating the session if this is the first one.
-func (r *Registry) Attach(token string) (*Stream, error) {
+// Open makes a session without a window attached. It is what the desktop does with the
+// token it persists: an agent may be pointed at that token before the window has
+// offered itself, and a 401 there would say the token was wrong rather than that the
+// window was not up yet. Nothing on the web calls it — there a session is something a
+// browser offers.
+func (r *Registry) Open(token string) (*Session, error) {
 	if err := ValidateToken(token); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.sweep()
-	session := r.sessions[token]
-	if session == nil {
-		session = &Session{
-			token:     token,
-			scripts:   r.scripts,
-			pending:   map[string]chan mcp.RunResult{},
-			idleSince: time.Now(),
-		}
-		// The bridge is bound to the session and the server to the bridge, so a request
-		// carrying this token can only ever reach this browser.
-		session.server = mcp.NewServer(&bridge{session: session}, token).Streamed()
-		r.sessions[token] = session
+	if session := r.sessions[token]; session != nil {
+		return session, nil
 	}
-	r.mu.Unlock()
+	session := &Session{
+		token:     token,
+		scripts:   r.scripts,
+		pending:   map[string]chan mcp.RunResult{},
+		idleSince: time.Now(),
+	}
+	// The bridge is bound to the session and the server to the bridge, so a request
+	// carrying this token can only ever reach this browser.
+	session.server = mcp.NewServer(&bridge{session: session}, token)
+	if r.delivery == Streamed {
+		session.server = session.server.Streamed()
+	}
+	r.sessions[token] = session
+	return session, nil
+}
+
+// Attach opens a window's stream, creating the session if this is the first one.
+func (r *Registry) Attach(token string) (*Stream, error) {
+	session, err := r.Open(token)
+	if err != nil {
+		return nil, err
+	}
 	return session.attach(), nil
 }
 

@@ -16,26 +16,79 @@ import (
 
 const token = "0123456789abcdef0123456789abcdef"
 
-type fakeScripts struct{ files map[string]string }
+// fakeScripts is a scripts folder held in memory, keyed by name. It stands in for
+// both halves of the one difference between the builds: writable is the desktop, and
+// the zero value is the workspace a server does not own.
+type fakeScripts struct {
+	files    map[string]string
+	writable bool
+}
+
+const scriptsRoot = "/w/scripts/"
 
 func (f *fakeScripts) List() ([]mcp.ScriptInfo, error) {
 	scripts := make([]mcp.ScriptInfo, 0, len(f.files))
 	for name := range f.files {
-		scripts = append(scripts, mcp.ScriptInfo{Path: "/w/scripts/" + name, Name: name})
+		scripts = append(scripts, mcp.ScriptInfo{Path: scriptsRoot + name, Name: name})
 	}
 	return scripts, nil
 }
 
-func (f *fakeScripts) Read(name string) (string, error) {
+func (f *fakeScripts) Read(path string) (mcp.ScriptInfo, error) {
+	name := strings.TrimPrefix(path, scriptsRoot)
 	content, ok := f.files[name]
 	if !ok {
-		return "", errors.New("no script " + name)
+		return mcp.ScriptInfo{}, errors.New("no script " + path)
 	}
-	return content, nil
+	return mcp.ScriptInfo{Path: scriptsRoot + name, Name: name, Content: content}, nil
 }
 
+func (f *fakeScripts) Write(path, content string) (ScriptChange, error) {
+	if !f.writable {
+		return ScriptChange{}, ErrReadOnly
+	}
+	name := strings.TrimPrefix(path, scriptsRoot)
+	f.files[name] = content
+	return ScriptChange{Action: "write", Path: scriptsRoot + name, Content: content}, nil
+}
+
+func (f *fakeScripts) Create(name, content string) (ScriptChange, error) {
+	if !f.writable {
+		return ScriptChange{}, ErrReadOnly
+	}
+	f.files[name] = content
+	return ScriptChange{Action: "create", Path: scriptsRoot + name, Name: name, Content: content}, nil
+}
+
+func (f *fakeScripts) Rename(path, newName string) (ScriptChange, error) {
+	if !f.writable {
+		return ScriptChange{}, ErrReadOnly
+	}
+	name := strings.TrimPrefix(path, scriptsRoot)
+	f.files[newName] = f.files[name]
+	delete(f.files, name)
+	return ScriptChange{Action: "rename", OldPath: scriptsRoot + name, Path: scriptsRoot + newName, Name: newName}, nil
+}
+
+func (f *fakeScripts) Delete(path string) (ScriptChange, error) {
+	if !f.writable {
+		return ScriptChange{}, ErrReadOnly
+	}
+	name := strings.TrimPrefix(path, scriptsRoot)
+	delete(f.files, name)
+	return ScriptChange{Action: "delete", Path: scriptsRoot + name}, nil
+}
+
+func (f *fakeScripts) CanWrite() bool { return f.writable }
+
 func newRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}})
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, Streamed)
+}
+
+// newOwnedRegistry is the desktop's half: a process that owns the workspace it opened,
+// answering an agent with nothing in front of it.
+func newOwnedRegistry() *Registry {
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, Direct)
 }
 
 // next reads the next message a window is sent, failing rather than hanging.
@@ -424,5 +477,84 @@ func TestAttachStreamsTheWindowsIdentity(t *testing.T) {
 
 	if !strings.Contains(recorder.Body.String(), `"type":"hello"`) {
 		t.Errorf("expected the window to be told its id, got %q", recorder.Body.String())
+	}
+}
+
+// A file an agent wrote is a file nobody in the window wrote, so every window is told
+// down the same stream a run goes down. This is what the desktop's Wails event was.
+func TestAWriteReachesEveryWindow(t *testing.T) {
+	registry := newOwnedRegistry()
+	first, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer first.Detach()
+	second, _ := registry.Attach(token)
+	defer second.Detach()
+
+	call(t, registry, "tools/call", map[string]any{
+		"name":      "create_script",
+		"arguments": map[string]string{"name": "usage.ts", "content": "// usage"},
+	})
+
+	for _, stream := range []*Stream{first, second} {
+		message := drain(t, stream, "scripts")
+		if message.Change == nil {
+			t.Fatal("a scripts message reached a window with nothing in it")
+		}
+		if message.Change.Action != "create" || message.Change.Path != "/w/scripts/usage.ts" {
+			t.Errorf("change = %+v", *message.Change)
+		}
+		// The content travels so a window can tell the agent's own draft being saved.
+		if message.Change.Content != "// usage" {
+			t.Errorf("expected the content to travel with a create, got %q", message.Change.Content)
+		}
+	}
+}
+
+// The desktop opens its session on the token it persists, so an agent pointed at that
+// token before the window has offered itself is answered rather than told the token is
+// wrong. The window then joins that same session.
+func TestAProcessMayOpenItsOwnSession(t *testing.T) {
+	registry := newOwnedRegistry()
+	opened, err := registry.Open(token)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if opened.Attached() {
+		t.Error("a session opened by the process has no window yet")
+	}
+
+	// Discovery answers with no window; only a run needs one.
+	call(t, registry, "tools/list", nil)
+
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+	if session, _ := registry.Session(token); session != opened {
+		t.Error("the window opened a second session rather than joining the one that was there")
+	}
+}
+
+// Every door is registered in one place, so the desktop's webview reaches the same
+// switchboard a browser does.
+func TestMountRegistersTheDoors(t *testing.T) {
+	mux := http.NewServeMux()
+	Mount(mux, newRegistry())
+	for _, path := range []string{"/agent-session/detach", "/agent-session/focus", "/agent-session/catalog", "/agent-session/result", "/mcp"} {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}"))
+		recorder := httptest.NewRecorder()
+		mux.ServeHTTP(recorder, request)
+		// No token, so every one of them refuses rather than falling through to a 404.
+		if recorder.Code != http.StatusUnauthorized {
+			t.Errorf("POST %s = %d, want 401", path, recorder.Code)
+		}
+	}
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/agent-session", nil))
+	if recorder.Code != http.StatusOK {
+		t.Errorf("GET /agent-session = %d, want 200", recorder.Code)
 	}
 }

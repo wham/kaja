@@ -47,7 +47,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
-import { agentSession } from "./agentSession";
+import { AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
 import { unsupportedReason } from "./streaming";
@@ -118,10 +118,6 @@ import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
 
 const UNDO_DISCARD_MS = 8000;
-
-// Calls arrive in bursts of a few milliseconds; without a linger the indicator
-// would come and go inside one frame.
-const MCP_ACTIVITY_LINGER_MS = 2500;
 
 // Read so start-up pruning can't drop a draft that is about to reopen.
 function openDraftIds(): string[] {
@@ -1329,11 +1325,16 @@ export function App() {
     return onWailsEvent("menu:saveScript", () => onRequestSaveRef.current());
   }, []);
 
+  // The desktop's token is the process's, persisted so the connection command stays
+  // valid; taking it is how this window attaches to the session that command reaches.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     desktop()
       .then((app) => app.MCPServerInfo())
-      .then((info) => setMcpInfo(info))
+      .then((info) => {
+        setMcpInfo(info);
+        if (info.enabled && info.token) agentSession.adopt(info.token);
+      })
       .catch((err) => showFileError(`MCP server: ${rpcErrorMessage(err)}`));
   }, [showFileError]);
 
@@ -1341,54 +1342,19 @@ export function App() {
   // deleting an app, above all the last one — must still be reflected.
   useEffect(() => {
     const variableNames = Object.keys(configuration?.variables ?? {});
-    const catalog = JSON.stringify(buildMcpCatalog(apps, variableNames));
-    if (isWailsEnvironment()) {
-      void desktop()
-        .then((app) => app.MCPSetCatalog(catalog))
-        .catch(() => {});
-    } else {
-      agentSession.setCatalog(catalog);
-    }
+    agentSession.setCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames)));
   }, [apps, configuration?.variables]);
 
-  useEffect(() => {
-    if (!isWailsEnvironment()) return;
-    let timer: number | undefined;
-    const unsub = onWailsEvent<{ inFlight: number }>("mcp:activity", (payload) => {
-      window.clearTimeout(timer);
-      setMcpActive(true);
-      if (payload.inFlight <= 0) {
-        timer = window.setTimeout(() => setMcpActive(false), MCP_ACTIVITY_LINGER_MS);
-      }
-    });
-    return () => {
-      window.clearTimeout(timer);
-      unsub();
-    };
-  }, []);
-
+  // The source always arrives with the run: whichever process holds the disk reads the
+  // file itself, and the window is only ever handed what to run and where it lands.
   const runForAgent = useCallback(async ({ path, code, client }: { path: string; code: string; client?: string }): Promise<McpRunReport> => {
-    let source = code;
-    // The desktop asks the window to read the file, because the window is in the
-    // process that holds the disk; a server reads it itself and sends the source down.
-    if (path && !source) {
-      try {
-        const known = (scriptsRef.current ?? []).find((script) => script.path === path);
-        const file = known && (await readScriptFile(known));
-        source = file ? file.content : "";
-        if (!file) throw new Error(`No script at ${path}`);
-      } catch (err) {
-        return { console: [], error: rpcErrorMessage(err), methodCalls: [] };
-      }
-    }
-
     // Started before the run and read after it: type-checking is the editor worker's
     // job, so it costs the run no time. Nothing here waits on it to decide anything —
     // a type error is reported, not refused, exactly as pressing Run in the window
     // leaves one to the person who wrote it.
-    const checking = checkScript(source);
+    const checking = checkScript(code);
 
-    const draft = path ? undefined : agentDraftRef.current(source, client || "Agent");
+    const draft = path ? undefined : agentDraftRef.current(code, client || "Agent");
     const fileId = path || draft?.id;
     const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
     const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
@@ -1398,7 +1364,7 @@ export function App() {
       collect,
     });
     try {
-      const captured = await runScriptCaptured(source, kaja, appsRef.current);
+      const captured = await runScriptCaptured(code, kaja, appsRef.current);
       await kaja.settleTables();
       result = { ...captured, ...report() };
     } catch (err) {
@@ -1411,18 +1377,11 @@ export function App() {
   const runForAgentRef = useRef(runForAgent);
   runForAgentRef.current = runForAgent;
 
-  useEffect(() => {
-    if (!isWailsEnvironment()) return;
-    return onWailsEvent<{ id: string; path: string; code: string; client?: string }>("mcp:runScript", async (payload) => {
-      const result = await runForAgentRef.current(payload);
-      void desktop()
-        .then((app) => app.MCPScriptResult(payload.id, JSON.stringify(result)))
-        .catch(() => {});
-    });
-  }, []);
+  const onAgentScriptsRef = useRef<(change: AgentScriptChange) => void>(() => {});
 
+  // One offer, both builds: the desktop's window attaches over the mux it fetches its
+  // calls on, a browser's over the one the server answers on.
   useEffect(() => {
-    if (isWailsEnvironment()) return;
     let timer: number | undefined;
     agentSession.start(
       (run) => runForAgentRef.current(run),
@@ -1430,6 +1389,7 @@ export function App() {
         window.clearTimeout(timer);
         setMcpActive(active);
       },
+      (change) => onAgentScriptsRef.current(change),
     );
     return () => window.clearTimeout(timer);
   }, []);
@@ -1615,46 +1575,41 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!isWailsEnvironment()) return;
-    const unsub = onWailsEvent<{ action: string; path: string; name?: string; folder?: string; content?: string; oldPath?: string }>(
-      "mcp:scriptsChanged",
-      (payload) => {
-        switch (payload.action) {
-          case "write": {
-            const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
-            const content = payload.content ?? "";
-            if (view?.type === "script" && view.model.getValue() !== content) {
-              // Apply as an edit rather than setValue so undo history survives, and record it as
-              // saved — an agent's write is a save.
-              suppressScriptSave.current.add(view.id);
-              view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: content }], () => null);
-              suppressScriptSave.current.delete(view.id);
-              // Keep the persisted view-state cache in step so a reload restores this content.
-              persistViews();
-            }
-            break;
-          }
-          case "create": {
-            const script: Script = { path: payload.path, name: payload.name ?? "", folder: payload.folder ?? "" };
-            setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? sortScripts([...prev, script]) : prev));
-            if (script.folder) setScriptFolders((prev) => (prev.includes(script.folder) ? prev : [...prev, script.folder].sort()));
-            consumeAgentDraft(script, payload.content ?? "");
-            break;
-          }
-          case "rename":
-            if (payload.oldPath) {
-              applyScriptRename(payload.oldPath, { path: payload.path, name: payload.name ?? "", folder: payload.folder ?? "" });
-            }
-            break;
-          case "delete":
-            removeScriptFromUI(payload.path);
-            break;
+  // A file an agent wrote is a file nobody in this window wrote, so it arrives down the
+  // same stream a run does and the sidebar and any open editor are brought into step.
+  onAgentScriptsRef.current = (change: AgentScriptChange) => {
+    switch (change.action) {
+      case "write": {
+        const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === change.path);
+        const content = change.content ?? "";
+        if (view?.type === "script" && view.model.getValue() !== content) {
+          // Apply as an edit rather than setValue so undo history survives, and record it as
+          // saved — an agent's write is a save.
+          suppressScriptSave.current.add(view.id);
+          view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: content }], () => null);
+          suppressScriptSave.current.delete(view.id);
+          // Keep the persisted view-state cache in step so a reload restores this content.
+          persistViews();
         }
-      },
-    );
-    return () => unsub();
-  }, [applyScriptRename, applyViews, removeScriptFromUI, persistViews, consumeAgentDraft]);
+        break;
+      }
+      case "create": {
+        const script: Script = { path: change.path, name: change.name ?? "", folder: change.folder ?? "" };
+        setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? sortScripts([...prev, script]) : prev));
+        if (script.folder) setScriptFolders((prev) => (prev.includes(script.folder) ? prev : [...prev, script.folder].sort()));
+        consumeAgentDraft(script, change.content ?? "");
+        break;
+      }
+      case "rename":
+        if (change.oldPath) {
+          applyScriptRename(change.oldPath, { path: change.path, name: change.name ?? "", folder: change.folder ?? "" });
+        }
+        break;
+      case "delete":
+        removeScriptFromUI(change.path);
+        break;
+    }
+  };
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
