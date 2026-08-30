@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,12 +48,22 @@ const (
 // mount — the web server's and the desktop webview's are this one.
 func workspace(t *testing.T, upstreamURL string) *http.ServeMux {
 	t.Helper()
+	entry := fmt.Sprintf(`{"name": %q, "twirp": {"url": %q, "proto_dir": "proto"}}`, appName, upstreamURL)
+	return workspaceWith(t, entry, appName, "twirp", map[string]string{"url": upstreamURL, "proto_dir": "proto"})
+}
+
+// workspaceWith is that workspace for any one app: the entry as kaja.json carries it,
+// and the parameters the door will invoke it with. The TOKEN variable's value lives
+// outside the file whatever the app is, which is the whole reason the browser may
+// never be told it.
+func workspaceWith(t *testing.T, entry string, name string, appType string, parameters map[string]string) *http.ServeMux {
+	t.Helper()
 	t.Setenv("KAJA_TOKEN", tokenValue)
 
 	configuration := fmt.Sprintf(`{
 		"variables": {"TOKEN": "${secret}"},
-		"apps": [{"name": %q, "twirp": {"url": %q, "proto_dir": "proto"}}]
-	}`, appName, upstreamURL)
+		"apps": [%s]
+	}`, entry)
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(configuration), 0o600); err != nil {
 		t.Fatalf("write configuration: %v", err)
@@ -60,7 +72,7 @@ func workspace(t *testing.T, upstreamURL string) *http.ServeMux {
 	service := api.NewApiService(path, false, "", "", nil)
 	// What OpenApp does once it has flattened the app's typed parameters. Compiling
 	// the proto surface is the other half of that RPC and no part of a call.
-	if _, err := service.Apps().Open(appName, "twirp", map[string]string{"url": upstreamURL, "proto_dir": "proto"}, t.TempDir(), func(string) {}); err != nil {
+	if _, err := service.Apps().Open(name, appType, parameters, t.TempDir(), func(string) {}); err != nil {
 		t.Fatalf("open app: %v", err)
 	}
 
@@ -83,9 +95,16 @@ type exchange struct {
 // name among them.
 func call(t *testing.T, mux *http.ServeMux, headers map[string]string) exchange {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, "/app/"+method, bytes.NewReader(frame(0, []byte("request"))))
+	return callApp(t, mux, appName, method, []byte("request"), headers)
+}
+
+// callApp is that call against any app: the one the client names in the reserved
+// header, the method it names in the path, and the request bytes it framed.
+func callApp(t *testing.T, mux *http.ServeMux, app string, method string, message []byte, headers map[string]string) exchange {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "/app/"+method, bytes.NewReader(frame(0, message)))
 	request.Header.Set("Content-Type", "application/grpc-web+proto")
-	request.Header.Set("X-Header-X-Kaja-App", appName)
+	request.Header.Set("X-Header-X-Kaja-App", app)
 	for name, value := range headers {
 		request.Header.Set("X-Header-"+name, value)
 	}
@@ -366,4 +385,166 @@ func parseFrames(t *testing.T, body []byte) (messages [][]byte, trailers string)
 		body = body[5+n:]
 	}
 	return messages, trailers
+}
+
+// The traces above run on the app that forwards the bytes the client framed. The three
+// tests below are the same lane with something else at the end of it — an app that
+// builds its own HTTP request out of a document, one that speaks a protocol of its
+// own, and one that answers in this process without an upstream at all — because the
+// door's rules are the door's rather than any app's.
+
+const ordersSpec = `
+openapi: 3.0.0
+info:
+  title: Orders
+  version: "1.0"
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+`
+
+// A transcoded call is a request kaja builds rather than one it passes on, so nothing
+// the client framed reaches the wire by simply being left alone: the reserved header
+// has to be gone because the door took it out, and the resolved credential has to be
+// there because the door put it there.
+func TestATranscodedCallCarriesTheDoorsRules(t *testing.T) {
+	var seen *http.Request
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"total":2}`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	parameters := map[string]string{"spec_content": ordersSpec, "base_url": upstream.URL}
+	entry := fmt.Sprintf(`{"name": "orders", "openapi": {"spec_content": %s, "base_url": %q}}`, strconv.Quote(ordersSpec), upstream.URL)
+	mux := workspaceWith(t, entry, "orders", "openapi", parameters)
+
+	e := callApp(t, mux, "orders", "orders.Orders/ListOrders", nil, map[string]string{"Authorization": "Bearer ${TOKEN}"})
+
+	if seen == nil {
+		t.Fatalf("the upstream was never called\nresponse = %q", e.body)
+	}
+	if seen.URL.Path != "/orders" {
+		t.Errorf("upstream path = %q, want the one the document binds the method to", seen.URL.Path)
+	}
+	for name := range seen.Header {
+		if strings.Contains(strings.ToLower(name), "kaja") {
+			t.Errorf("upstream was sent %q, and the app's name is the browser's whole address", name)
+		}
+	}
+	if got := seen.Header.Get("Authorization"); got != "Bearer "+tokenValue {
+		t.Errorf("upstream Authorization = %q, want the resolved value", got)
+	}
+	if bytes.Contains(e.body, []byte(tokenValue)) {
+		t.Errorf("the resolved value reached the client: %q", e.body)
+	}
+	if request := headersOf(t, e.upstreamOf(t), "requestHeaders"); request["Authorization"] != "Bearer ${TOKEN}" {
+		t.Errorf("reported Authorization = %#v, want the reference the client sent", request["Authorization"])
+	}
+	if len(e.messages) != 1 {
+		t.Errorf("messages = %q, want the one the API answered with", e.messages)
+	}
+}
+
+// An app that speaks a protocol of its own is the same call to the door: the headers
+// it carries are the door's to expand and redact, whatever the app wraps them around.
+func TestAnAppSpeakingItsOwnProtocolCarriesTheDoorsRules(t *testing.T) {
+	var invoked *http.Request
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var message struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		json.Unmarshal(body, &message)
+		if len(message.ID) == 0 {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		if message.Method == "tools/call" {
+			invoked = r
+		}
+		result, ok := mcpResults[message.Method]
+		w.Header().Set("Content-Type", "application/json")
+		if !ok {
+			// What a server that doesn't know the method says, which for the modern
+			// era's probe is what settles the client on the handshake instead.
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"Method not found"}}`, message.ID)
+			return
+		}
+		fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":%s}`, message.ID, result)
+	}))
+	t.Cleanup(upstream.Close)
+
+	entry := fmt.Sprintf(`{"name": "orders", "mcp": {"url": %q}}`, upstream.URL)
+	mux := workspaceWith(t, entry, "orders", "mcp", map[string]string{"url": upstream.URL})
+
+	e := callApp(t, mux, "orders", "mcp.Tools/ListOrders", nil, map[string]string{"Authorization": "Bearer ${TOKEN}"})
+
+	if invoked == nil {
+		t.Fatalf("the tool was never called\nresponse = %q", e.body)
+	}
+	for name := range invoked.Header {
+		if strings.Contains(strings.ToLower(name), "kaja") {
+			t.Errorf("upstream was sent %q, and the app's name is the browser's whole address", name)
+		}
+	}
+	if got := invoked.Header.Get("Authorization"); got != "Bearer "+tokenValue {
+		t.Errorf("upstream Authorization = %q, want the resolved value", got)
+	}
+	if bytes.Contains(e.body, []byte(tokenValue)) {
+		t.Errorf("the resolved value reached the client: %q", e.body)
+	}
+	if request := headersOf(t, e.upstreamOf(t), "requestHeaders"); request["Authorization"] != "Bearer ${TOKEN}" {
+		t.Errorf("reported Authorization = %#v, want the reference the client sent", request["Authorization"])
+	}
+}
+
+// What a server answers the calls an mcp app opens with, and the one tool it exposes.
+var mcpResults = map[string]string{
+	"initialize": `{"protocolVersion":"2025-06-18","serverInfo":{"name":"orders","version":"1"},"capabilities":{"tools":{}}}`,
+	"tools/list": `{"tools":[{"name":"list_orders","description":"Lists orders","inputSchema":{"type":"object","properties":{}}}]}`,
+	"tools/call": `{"content":[{"type":"text","text":"two"}]}`,
+}
+
+// A local app makes no upstream call at all, and the lane says so: the door still
+// times what it carried, and the exchange it reports is empty rather than invented.
+func TestALocalAppReportsNoHop(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "notes.md"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	entry := fmt.Sprintf(`{"name": "files", "folder": {"path": %q}}`, directory)
+	mux := workspaceWith(t, entry, "files", "folder", map[string]string{"path": directory})
+
+	e := callApp(t, mux, "files", "folder.Folder/ListFolder", nil, map[string]string{"Authorization": "Bearer ${TOKEN}"})
+
+	if len(e.messages) != 1 || !bytes.Contains(e.messages[0], []byte("notes.md")) {
+		t.Fatalf("messages = %q, want the folder it listed", e.messages)
+	}
+	if bytes.Contains(e.body, []byte(tokenValue)) {
+		t.Errorf("the resolved value reached the client: %q", e.body)
+	}
+	envelope := e.upstreamOf(t)
+	if _, ok := envelope["durationMs"].(float64); !ok {
+		t.Errorf("durationMs missing: %q", e.trailers)
+	}
+	for _, key := range []string{"requestHeaders", "responseHeaders", "error"} {
+		if value, ok := envelope[key]; ok {
+			t.Errorf("%s = %#v, want nothing: a call that never left this process made no exchange", key, value)
+		}
+	}
 }

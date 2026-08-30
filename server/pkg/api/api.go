@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	fmt "fmt"
+	"io"
 	"log/slog"
 	"sort"
 	"sync"
@@ -182,9 +183,19 @@ type timedStream struct {
 	resolver *Resolver
 	sent     map[string]string
 	log      callLog
+	// failure is what ended the stream, held for the line: a call that fails after it
+	// has started answering fails at Recv, and the report the line is written from
+	// says nothing about it.
+	failure error
 }
 
-func (s *timedStream) Recv() ([]byte, error) { return s.stream.Recv() }
+func (s *timedStream) Recv() ([]byte, error) {
+	message, err := s.stream.Recv()
+	if err != nil && !errors.Is(err, io.EOF) {
+		s.failure = err
+	}
+	return message, err
+}
 
 func (s *timedStream) Report() *apps.Report {
 	report := s.stream.Report()
@@ -193,7 +204,7 @@ func (s *timedStream) Report() *apps.Report {
 	}
 	report.DurationMs = time.Since(s.started).Milliseconds()
 	report.RequestHeaders = s.resolver.Redact(report.RequestHeaders, s.sent)
-	s.log.write(report.DurationMs, nil)
+	s.log.write(report.DurationMs, s.failure)
 	return report
 }
 

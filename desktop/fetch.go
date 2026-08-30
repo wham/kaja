@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -154,6 +155,26 @@ func copyUpstreamHeaders(destination, source http.Header) {
 // A failure of the lane rather than a status the API answered with. The header is what
 // tells the two apart, so an API's own 502 stays a response.
 func fetchFailed(w http.ResponseWriter, status int, message string) {
-	w.Header().Set(fetchErrorHeader, strings.ReplaceAll(strings.ReplaceAll(message, "\r", " "), "\n", " "))
+	w.Header().Set(fetchErrorHeader, escapeHeaderValue(message))
 	w.WriteHeader(status)
+}
+
+// escapeHeaderValue percent-encodes everything a header value cannot carry verbatim,
+// the same rule and the same reason as a gRPC-Web trailer's: a header is a byte string
+// the Fetch API reads as Latin-1, so the UTF-8 of a message naming a host, a
+// certificate or an OS error in a language that has accents arrives mangled, and a
+// newline in one would be a second header. Encoding the bytes outside printable ASCII
+// - and "%" itself, so the escape is reversible - is what the reader undoes with
+// decodeURIComponent.
+func escapeHeaderValue(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c < 0x20 || c > 0x7e || c == '%' {
+			fmt.Fprintf(&b, "%%%02X", c)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }

@@ -195,7 +195,11 @@ the lane whole — `router.Mount` → `grpc.Serve` → `InvokeApp` → a real ap
 upstream that records what it was sent — and asserts one bullet per case. A
 layer's own test can only say what that layer did with what it was handed;
 which values reach the wire is a property of the lane as a whole, so a line
-here that stops being true fails there instead of rotting quietly.
+here that stops being true fails there instead of rotting quietly. The bullets
+run on the app that forwards the bytes the client framed, and then once more
+per family — an app that transcodes a document, one that speaks a protocol of
+its own, and one that answers here with no upstream at all — because they are
+the door's rules rather than any app's.
 
 ## Seven traces
 
