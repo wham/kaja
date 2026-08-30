@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { AskBlock } from "./blocks";
-import { Kaja } from "./kaja";
+import { Kaja, MethodCall } from "./kaja";
 import { App, createPendingApp } from "./apps";
 import { Source } from "./sources";
 import { runScriptCaptured } from "./scriptRunner";
@@ -309,6 +309,31 @@ describe("kaja.value", () => {
         },
       },
     });
+  });
+});
+
+describe("the fetch a script sees", () => {
+  it("is the run's, so a script that writes plain fetch is a script kaja recorded", async () => {
+    const calls: MethodCall[] = [];
+    const kaja = new Kaja({
+      onMethodCallUpdate: (call) => void calls.push(call),
+      onAsk: async () => "",
+      onApprove: async () => "approved" as const,
+      onBlockUpdate: () => {},
+      onLog: () => {},
+    });
+    const real = globalThis.fetch;
+    globalThis.fetch = (() => Promise.resolve(new Response('{"ok":true}', { headers: { "content-type": "application/json" } }))) as unknown as typeof fetch;
+    try {
+      const run = await runScriptCaptured(`const response = await fetch("https://api.example.com/status");\nreturn await response.json();`, kaja, []);
+
+      expect(run.error).toBeUndefined();
+      expect(run.result).toEqual({ ok: true });
+      expect(calls).toHaveLength(2);
+      expect(calls[0].http).toEqual({ method: "GET", url: "https://api.example.com/status" });
+    } finally {
+      globalThis.fetch = real;
+    }
   });
 });
 

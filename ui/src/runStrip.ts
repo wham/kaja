@@ -1,4 +1,4 @@
-import { callDurationMs } from "./kaja";
+import { callDurationMs, callLabel } from "./kaja";
 import { ConsoleItem } from "./runs";
 
 /**
@@ -94,7 +94,7 @@ export class RunStrip {
 
     let seen = this.#of.get(item.id);
     if (seen === undefined) {
-      const method = `${call.service.name}.${call.method.name}`;
+      const method = callLabel(call);
       seen = { ordinal: this.#calls, failed: false };
       this.#of.set(item.id, seen);
       this.#calls++;

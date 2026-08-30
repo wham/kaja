@@ -1,3 +1,4 @@
+import { fetchHost, fetchKey } from "./fetchCall";
 import { SUBJECT_FIELDS } from "./loopKey";
 import { importedNames, runtimeNames } from "./scriptBindings";
 import ts from "typescript";
@@ -25,6 +26,14 @@ export function readCalls(code: string): DraftCall[] {
   const calls: DraftCall[] = [];
 
   const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const fetched = fetchCall(node, runtime);
+      if (fetched) {
+        calls.push(fetched);
+        ts.forEachChild(node, visit);
+        return;
+      }
+    }
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
       const service = node.expression.expression.text;
       // The kaja runtime is imported like a service and called like one, but
@@ -45,6 +54,53 @@ export function readCalls(code: string): DraftCall[] {
   ts.forEachChild(file, visit);
 
   return calls;
+}
+
+/**
+ * An HTTP call the script makes itself. `fetch(...)` and `kaja.fetch(...)` are one
+ * function, so a draft that only fetches is named the way its row in the log is: the
+ * verb and the host, with the path as the qualifier.
+ *
+ * A URL this cannot read — built out of variables, or not a URL at all — names
+ * nothing rather than being guessed at, on the same rule a request's subject is.
+ */
+function fetchCall(node: ts.CallExpression, runtime: Set<string>): DraftCall | undefined {
+  const bare = ts.isIdentifier(node.expression) && node.expression.text === "fetch";
+  const verb =
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    runtime.has(node.expression.expression.text) &&
+    node.expression.name.text === "fetch";
+  if (!bare && !verb) return undefined;
+
+  const url = urlText(node.arguments[0]);
+  if (url === undefined) return undefined;
+  const host = fetchHost(url);
+  if (host === url) return undefined;
+  return { service: "fetch", method: `${methodText(node.arguments[1])} ${host}`, subject: fetchKey(url) };
+}
+
+// The literal part of the address. A template's head is enough for the host, which is
+// the half of the title that has to be right.
+function urlText(argument: ts.Expression | undefined): string | undefined {
+  if (!argument) return undefined;
+  if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) return argument.text;
+  if (ts.isTemplateExpression(argument)) return argument.head.text;
+  return undefined;
+}
+
+// A verb written as anything but a literal is not one this can read, and GET is what
+// fetch does when nothing says otherwise.
+function methodText(argument: ts.Expression | undefined): string {
+  if (!argument || !ts.isObjectLiteralExpression(argument)) return "GET";
+  for (const property of argument.properties) {
+    if (!ts.isPropertyAssignment(property) || property.name.getText === undefined) continue;
+    const name = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : undefined;
+    if (name !== "method") continue;
+    const value = property.initializer;
+    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value.text.toUpperCase();
+  }
+  return "GET";
 }
 
 // The generated request only ever holds zero values, so an empty string, a 0 or a

@@ -1,5 +1,5 @@
 import { Block, blockLabel, isAwaitingUser } from "./blocks";
-import { callDurationMs, isCallInFlight, MethodCall } from "./kaja";
+import { callDurationMs, callLabel, isCallInFlight, MethodCall } from "./kaja";
 // Type only: the strip is maintained in runStrip, which reads its items from here.
 // Importing the value would close the circle.
 import type { PerfSchedule } from "./perfTest";
@@ -150,7 +150,7 @@ export function failureNotices(items: ConsoleItem[]): FailureNotice[] {
   const notices = new Map<string, FailureNotice>();
   for (const item of items) {
     if (!item.call?.error) continue;
-    const method = `${item.call.service.name}.${item.call.method.name}`;
+    const method = callLabel(item.call);
     const code = failureCode(item.call);
     const message = failureMessage(item.call);
     const key = `${method} ${code ?? ""} ${message ?? ""}`;
@@ -220,7 +220,7 @@ export function printedLevel(item: ConsoleItem): LogLevel {
 }
 
 export function itemName(item: ConsoleItem): string {
-  if (item.call) return `${item.call.service.name}.${item.call.method.name}`;
+  if (item.call) return callLabel(item.call);
   if (item.block) return blockLabel(item.block);
   const logs = item.logs ?? [];
   return logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`;

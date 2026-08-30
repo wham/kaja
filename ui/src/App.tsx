@@ -22,6 +22,7 @@ import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
+import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
@@ -472,7 +473,8 @@ export function App() {
             if (i > -1) collect.calls[i] = methodCall;
             else collect.calls.push(methodCall);
           }
-          recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
+          // A fetch is not in the tree, so there is no path for it to open.
+          if (!methodCall.http) recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
           consoles.recordCall(run.fileId, run.id, methodCall, Date.now());
         },
         onLog: (level: LogLevel, message: string) => {
@@ -2876,9 +2878,12 @@ function countCells(table: TableBlock | undefined): { pending?: number; failed?:
 
 function toMethodCallLog(call: MethodCall) {
   return {
-    app: call.appName,
+    app: call.http ? undefined : call.appName,
     service: call.service.name,
     method: call.method.name,
+    // What the call was, where a service and a method are not it. The agent reads the
+    // report rather than the log, so the request line has to be in it.
+    http: call.http && fetchRequestLine(call.http.method, call.http.url),
     // The API's time when Kaja measured it — what an agent reasoning about
     // latency wants — the round trip when nothing did.
     durationMs: callDurationMs(call),

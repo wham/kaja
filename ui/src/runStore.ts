@@ -34,6 +34,7 @@ interface StoredCall {
   upstreamRequestHeaders?: { [key: string]: string };
   upstreamResponseHeaders?: { [key: string]: string };
   url?: string;
+  http?: { method: string; url: string };
   timestamp: number;
   durationMs?: number;
   upstreamDurationMs?: number;
@@ -82,6 +83,7 @@ function toStoredCall(call: MethodCall): StoredCall {
     upstreamRequestHeaders: call.upstreamRequestHeaders,
     upstreamResponseHeaders: call.upstreamResponseHeaders,
     url: call.url,
+    http: call.http,
     timestamp: call.timestamp,
     durationMs: call.durationMs,
     upstreamDurationMs: call.upstreamDurationMs,
@@ -112,6 +114,7 @@ function fromStoredCall(stored: StoredCall): MethodCall {
     responseHeaders: stored.responseHeaders,
     upstreamRequestHeaders: stored.upstreamRequestHeaders,
     upstreamResponseHeaders: stored.upstreamResponseHeaders,
+    http: stored.http,
     url: stored.url,
     timestamp: stored.timestamp,
     durationMs: stored.durationMs,

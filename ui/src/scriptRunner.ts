@@ -48,6 +48,22 @@ function requireNamedImport(importClause: ts.ImportClause | undefined, path: str
   throw new Error(`Cannot resolve import "${path}": ${form} does not resolve. Use a named import: import { ${example} } from "${path}".`);
 }
 
+/**
+ * What a script's body is handed beyond its imports: the run's console, and the run's
+ * fetch. Both are parameters of the wrapper rather than globals, which is the whole of
+ * how a script's own lines and calls are told from Kaja's — inside the body the name
+ * resolves to the run's, and everywhere else to the real one, including in app code
+ * this script calls into.
+ *
+ * A binding of the script's own wins: an import named `fetch` is a name the author
+ * chose, and shadowing it here would be kaja taking a word it does not own.
+ */
+function runtimeBindings(kaja: Kaja, args: { [key: string]: Client | Object }, console: Console): { names: string[]; values: unknown[] } {
+  const bindings: Array<[string, unknown]> = [["console", console]];
+  if (!("fetch" in args)) bindings.push(["fetch", (input: RequestInfo | URL, init?: RequestInit) => kaja.fetch(input, init)]);
+  return { names: bindings.map(([name]) => name), values: bindings.map(([, value]) => value) };
+}
+
 // prepareTask resolves a script's imports against the loaded apps and splits out the
 // runnable body, returning the args every binding maps to plus the code.
 function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
@@ -141,13 +157,11 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
 
-    // Wrapped in an async function so `await` can be used at the top level. `console` is
-    // a parameter of that wrapper, which is the whole of how a script's log lines are told
-    // from Kaja's own: inside the body the name resolves to the run's console, and
-    // everywhere else to the real one — including in app code this script calls into.
+    // Wrapped in an async function so `await` can be used at the top level.
+    const runtime = runtimeBindings(kaja, args, scriptConsole(kaja._internal.onLog, deviceConsole));
     const func = new Function(
       ...Object.keys(args),
-      "console",
+      ...runtime.names,
       `
       return (async function() {
         ${runCode}
@@ -155,7 +169,7 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
     `,
     );
 
-    result = func(...Object.values(args), scriptConsole(kaja._internal.onLog, deviceConsole));
+    result = func(...Object.values(args), ...runtime.values);
   } catch (err) {
     onError(err);
     return Promise.resolve();
@@ -191,9 +205,10 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
 
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
+    const runtime = runtimeBindings(kaja, args, captureConsole);
     const func = new Function(
       ...Object.keys(args),
-      "console",
+      ...runtime.names,
       `
       return (async function() {
         ${runCode}
@@ -201,7 +216,7 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
     `,
     );
 
-    const result = await func(...Object.values(args), captureConsole);
+    const result = await func(...Object.values(args), ...runtime.values);
     return { console: lines, result };
   } catch (err) {
     if (err instanceof AskCancelledError) {

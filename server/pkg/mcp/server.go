@@ -40,9 +40,12 @@ type ScriptInfo struct {
 // MethodCallLog is a single RPC made while a script ran, mirrored from the UI so
 // the agent can see what the script actually did.
 type MethodCallLog struct {
-	App        string          `json:"app,omitempty"`
-	Service    string          `json:"service"`
-	Method     string          `json:"method"`
+	App     string `json:"app,omitempty"`
+	Service string `json:"service"`
+	Method  string `json:"method"`
+	// The request line of a call the script made with fetch, which has no app and no
+	// service to be named by. Set instead of App, never beside it.
+	Http       string          `json:"http,omitempty"`
 	DurationMs float64         `json:"durationMs,omitempty"`
 	Input      json.RawMessage `json:"input,omitempty"`
 	Output     json.RawMessage `json:"output,omitempty"`

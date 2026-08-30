@@ -1,6 +1,5 @@
 import { Block, isAwaitingUser } from "./blocks";
-import { MethodCall } from "./kaja";
-import { loopKey } from "./loopKey";
+import { callKey, MethodCall } from "./kaja";
 import {
   ConsoleItem,
   ConsoleTab,
@@ -244,7 +243,7 @@ export class FileConsole {
       return;
     }
     if (this.#ignored.has(call.id)) return;
-    const item: ConsoleItem = { id: newItemId(), runId, timestamp: call.timestamp, call, key: loopKey(call.input) };
+    const item: ConsoleItem = { id: newItemId(), runId, timestamp: call.timestamp, call, key: callKey(call) };
     if (this.#append(runId, item)) {
       this.#byCall.set(call.id, item);
       this.#hold(item);
