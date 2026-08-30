@@ -383,12 +383,13 @@ app.
 
 **Prefer an app's method wherever there is one.** It is typed, its credential is
 already configured, and `describe_method` will show you the request. Three things
-follow from a fetch being made by the browser rather than by Kaja:
+follow from a fetch being the standard one rather than a call Kaja carries:
 
-- an API that sends no CORS headers cannot be reached this way, and an app is what
-  that call needs;
 - a `${NAME}` in a header is not resolved for you — read the value out of
   `kaja.variables` and pass it, as above;
+- in a browser the request is the page's own, so an API that sends no CORS headers
+  cannot be reached this way and an app is what that call needs. The desktop makes
+  it from its own process, where that limit does not apply;
 - it throws what `fetch` throws. A request that never completed is an error; an
   HTTP status is not — a 404 is a response with `ok` false, and the log reports it
   as the failure it is either way.

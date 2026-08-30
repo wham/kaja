@@ -75,7 +75,7 @@ registered under that name.
 | --- | --- | --- |
 | forwarded | `grpc` | Go, forwarding the browser's own call |
 | in-process | `openapi` · `twirp` · `mcp` · `openai` · `folder` | Go, from the request it built |
-| neither | the Api service · `kaja.fetch` | nobody, or the browser itself |
+| neither | the Api service · `kaja.fetch` | nobody, or the browser — the desktop's own process where the webview cannot |
 
 The two families are "who talks to the API", not two lanes. Every app answers
 `Invoke` with an `apps.Stream` — the response messages, then the `Report` the
@@ -291,8 +291,8 @@ trailer.
 
 The bare name inside a script body is bound to `kaja.fetch`
 (`runtimeBindings`), so there is no unrecorded request a script can make.
-**Kaja carries nothing**: no door, no `X-Kaja-App`, no Go process on either
-build.
+**No app, so no `X-Kaja-App` and nothing to look up** — and on the web, no Go
+process either.
 
 1. `describeRequest` reads the verb, the absolute URL, the body and the
    headers — without sending.
@@ -304,7 +304,19 @@ build.
    (`kaja.rateLimit("api.example.com")`).
 4. The row is written: `http` on the `MethodCall` marks it a fetch, named
    `GET api.example.com · /v1/things`.
-5. **Browser → `api.example.com` directly.**
+5. **Who makes it is the build's one difference** (`sendFetch` in
+   `fetchTransport.ts`). On the **web**, browser → `api.example.com`
+   directly. On the **desktop** the page is served from `wails://`, an origin
+   WebKit reads as insecure and opaque, so the browser's own request fails
+   before it is sent whatever CORS the API allows: the call goes
+   `POST wails://localhost/fetch` instead — the target under
+   `X-Kaja-Fetch-Url` / `-Method`, the script's headers under `X-Header-<name>`
+   as on the app lane — and `desktop/fetch.go` makes it. Back come the API's
+   own status, headers and body, plus `X-Kaja-Fetch-Url` for where the response
+   was finally read from and `X-Kaja-Fetch-Error` where there was no response
+   at all. The transport consumes that channel and hands up the `Response`.
+   The lane is registered in `webviewHandler`, never in `router.Mount`: a door
+   that forwards any URL a caller names is one the web must not have.
 6. `holdResponse` reads the body once and hands the script a `Response` over
    the same bytes — which is why a streamed response is the one thing
    `kaja.fetch` does not carry.
@@ -315,13 +327,14 @@ build.
    **throws**: the one place Kaja's "reported, never thrown" gives way to the
    API it borrowed.
 
-Because Kaja is not in the path: CORS is the API's to allow (an API that
-sends none needs an app), a `${NAME}` in a header is **not** expanded — the
-script reads `kaja.variables` and passes the value — and the response headers
-are the API's own directly. Routing it through Go would make a deployed kaja
-a proxy for arbitrary URLs, which it must not be.
+On the web, Kaja is not in the path: CORS is the API's to allow (an API that
+sends none needs an app), and the response headers are the API's own directly.
+Routing *that* through Go would make a deployed kaja a proxy for arbitrary
+URLs, which it must not be — which is why the desktop's lane is the desktop's
+alone. Either way a `${NAME}` in a header is **not** expanded: the script reads
+`kaja.variables` and passes the value.
 
-The one build difference is what `kaja.variables` holds: resolved values on
+What `kaja.variables` holds is the build's other difference: resolved values on
 the **desktop** (the UI runs inside the app's process), the configuration's
 own text on the **web**, where `kaja.variables.TOKEN` reads back the literal
 `${secret}`.
