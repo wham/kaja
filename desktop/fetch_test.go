@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -135,6 +136,31 @@ func TestFetchReportsARequestThatNeverCompleted(t *testing.T) {
 	}
 	if strings.ContainsAny(failure, "\r\n") {
 		t.Fatalf("a header value with a newline in it: %q", failure)
+	}
+}
+
+// The message rides as a header, and a header value is a byte string the Fetch API
+// reads as Latin-1: the UTF-8 of a host, a certificate or an OS error with an accent
+// in it arrives mangled, and a newline in one would be a second header. So it is
+// percent-encoded, and the reader undoes it.
+func TestFetchEscapesWhatAHeaderValueCannotCarry(t *testing.T) {
+	message := "dial tcp: lookup café.example.com:\r\nno such host (100%)"
+
+	response := httptest.NewRecorder()
+	fetchFailed(response, http.StatusBadGateway, message)
+
+	failure := response.Header().Get(fetchErrorHeader)
+	for i := 0; i < len(failure); i++ {
+		if failure[i] < 0x20 || failure[i] > 0x7e {
+			t.Fatalf("byte %d of %q is not one a header value carries", i, failure)
+		}
+	}
+	decoded, err := url.PathUnescape(failure)
+	if err != nil {
+		t.Fatalf("the reader cannot undo it: %v", err)
+	}
+	if decoded != message {
+		t.Fatalf("decoded = %q, want the message as it was written", decoded)
 	}
 }
 

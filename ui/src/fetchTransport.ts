@@ -64,9 +64,21 @@ export async function sendThroughDesktop(request: FetchRequest, input: RequestIn
   const failure = answer.headers.get(ERROR_HEADER);
   // A request that never completed, which is what fetch throws for. A TypeError
   // because that is what fetch throws, and the message is the lane's own.
-  if (failure) throw new TypeError(failure);
+  if (failure) throw new TypeError(laneMessage(failure));
 
   return apiResponse(answer, request.url);
+}
+
+// The lane's own sentence, as it was written. A header value is a byte string the
+// Fetch API reads as Latin-1, so the lane percent-encodes it on the way out - the
+// rule a gRPC-Web trailer is written under, for the same reason. A value that does
+// not decode is shown as it came rather than lost.
+function laneMessage(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 // The API's answer as the script sees it: the lane's status, the API's own headers,

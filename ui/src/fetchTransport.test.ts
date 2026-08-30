@@ -80,6 +80,19 @@ describe("the desktop's fetch lane", () => {
     expect(send("https://api.example.com/orders")).rejects.toThrow("connection refused");
   });
 
+  it("reads the lane's sentence as it was written", async () => {
+    const escaped = "dial tcp: lookup caf%C3%A9.example.com: no such host";
+    lane(() => new Response("", { status: 502, headers: { "X-Kaja-Fetch-Error": escaped } }));
+
+    expect(send("https://xn--caf-dma.example.com/orders")).rejects.toThrow("café.example.com");
+  });
+
+  it("shows a sentence it cannot decode as it came", async () => {
+    lane(() => new Response("", { status: 502, headers: { "X-Kaja-Fetch-Error": "100% of the time" } }));
+
+    expect(send("https://api.example.com/orders")).rejects.toThrow("100% of the time");
+  });
+
   it("hands back a status the API answered with rather than throwing", async () => {
     lane(() => new Response('{"error":"nope"}', { status: 404, statusText: "Not Found" }));
 
