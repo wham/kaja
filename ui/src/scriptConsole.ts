@@ -1,3 +1,4 @@
+import { bindMembers } from "./bindMembers";
 import { LogLevel } from "./server/api";
 
 /**
@@ -33,7 +34,7 @@ export type LogSink = (level: LogLevel, message: string) => void;
  * an agent's snippet. Anything that isn't a level passes straight through to devtools.
  */
 export function scriptConsole(sink: LogSink, real: Console = console): Console {
-  const wrapper = cloneConsole(real) as unknown as { [key: string]: unknown };
+  const wrapper = bindMembers(real) as unknown as { [key: string]: unknown };
 
   for (const [method, level] of Object.entries(CONSOLE_LEVELS)) {
     const forward = wrapper[method] as ((...parts: unknown[]) => void) | undefined;
@@ -50,26 +51,6 @@ export function scriptConsole(sink: LogSink, real: Console = console): Console {
   }
 
   return wrapper as unknown as Console;
-}
-
-/**
- * A standalone object with every method the given console has, each forwarding to it.
- *
- * Console methods sit on the object in some engines and on its prototype in others,
- * and are not reliably enumerable in either — so the chain is walked by property name
- * rather than spread or `for..in`. Each is bound to its owner: a method called with a
- * different receiver is a detail no engine promises to tolerate.
- */
-export function cloneConsole(real: Console): Console {
-  const clone: { [key: string]: unknown } = {};
-  for (let object: object | null = real; object && object !== Object.prototype; object = Object.getPrototypeOf(object)) {
-    for (const key of Object.getOwnPropertyNames(object)) {
-      if (key in clone) continue;
-      const value = (real as unknown as { [key: string]: unknown })[key];
-      clone[key] = typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(real) : value;
-    }
-  }
-  return clone as unknown as Console;
 }
 
 // Strings are themselves, so the commonest case reads as it was written; everything

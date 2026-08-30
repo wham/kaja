@@ -83,7 +83,7 @@ gathered, unless the level is on.
 | --- | --- | --- |
 | forwarded | `grpc` | Go, forwarding the browser's own call |
 | in-process | `openapi` · `twirp` · `mcp` · `openai` · `folder` | Go, from the request it built |
-| neither | the Api service · `kaja.fetch` | nobody, or the browser — the desktop's own process where the webview cannot |
+| neither | the Api service · a script's `fetch` | nobody, or the browser — the desktop's own process where the webview cannot |
 
 The two families are "who talks to the API", not two lanes. Every app answers
 `Invoke` with an `apps.Stream` — the response messages, then the `Report` the
@@ -191,7 +191,7 @@ here that stops being true fails there instead of rotting quietly.
 
 One real call per lane. Five are calls against the demo workspace
 ([`workspace/kaja.json`](../workspace/kaja.json)); the workspace has no folder
-app, and `kaja.fetch` belongs to no app.
+app, and a script's `fetch` belongs to no app.
 
 Every app call — traces 1 to 5 — shares one spine, on both builds:
 
@@ -307,17 +307,18 @@ configuration each time `kaja.json` changes on disk — the file being watched i
 read where the change is noticed, so nothing is fetched after being told, and
 neither build has a notification transport of its own.
 
-### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
+### 7. A script's own `fetch` — `await fetch("https://api.example.com/v1/things")`
 
-The bare name inside a script body is bound to `kaja.fetch`
-(`runtimeBindings`), so there is no unrecorded request a script can make.
+The bare name inside a script body is bound to `runFetch` (`scriptGlobals`),
+so there is no unrecorded request a script can make and no second spelling to
+learn — `fetch` is the standard API and the only one.
 **No app, so no `X-Kaja-App` and nothing to look up** — and on the web, no Go
 process either.
 
 1. `describeRequest` reads the verb, the absolute URL, the body and the
    headers — without sending.
 2. Back comes a `Call<Response>`, which starts when awaited; holding it
-   instead is what makes `kaja.approve(kaja.fetch(url, { method: "DELETE" }))`
+   instead is what makes `kaja.approve(fetch(url, { method: "DELETE" }))`
    work.
 3. On start — `acquireRateLimit(host)`. The budget is the **host's**, because
    that is what a fetch has instead of an app
@@ -339,7 +340,7 @@ process either.
    that forwards any URL a caller names is one the web must not have.
 6. `holdResponse` reads the body once and hands the script a `Response` over
    the same bytes — which is why a streamed response is the one thing
-   `kaja.fetch` does not carry.
+   a script's `fetch` does not carry.
 7. 2xx → `output`; non-2xx → an upstream-failure-shaped error (status,
    request line, body), so the row goes red with `404` on it and the response
    tab shows what the API sent — **and the `Response` is still handed back**,
