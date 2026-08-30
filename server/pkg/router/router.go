@@ -6,13 +6,11 @@
 package router
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/pkg/api"
-	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // Mount registers the two lanes every kaja answers on: the internal Api service
@@ -20,18 +18,10 @@ import (
 func Mount(mux *http.ServeMux, apiService *api.ApiService) {
 	// api.proto declares no package, so the gRPC path of the internal service is
 	// /Api/<Method>. It is answered in the same framing the app lane answers in, by the
-	// same handler: a service running in this process is a call that answers with one
-	// message, which is the stream every call is.
+	// same handler: a service running in this process is a call that answers with a
+	// stream, and a unary method is the one that answers with a single message.
 	mux.HandleFunc("POST /Api/{method}", func(w http.ResponseWriter, r *http.Request) {
-		grpc.Serve(w, r, r.PathValue("method"), nil, func(ctx context.Context, method string, message []byte, _ map[string]string) (apps.Stream, error) {
-			response, err := apiService.Invoke(ctx, method, message)
-			if err != nil {
-				return nil, err
-			}
-			// Nothing is forwarded, so there is no upstream to report and no trailer
-			// beyond the status.
-			return apps.OneMessage(response, nil), nil
-		})
+		grpc.Serve(w, r, r.PathValue("method"), nil, apiService.Invoke)
 	})
 
 	// Every call the client makes arrives here as gRPC-Web, whatever the app talks to

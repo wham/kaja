@@ -254,8 +254,8 @@ container's filesystem and not the reader's.
 No app, so the door has nothing to look up and there is no upstream. `api.proto` declares no
 package, so the gRPC path is `/Api/GetConfiguration`. Both builds reach the
 service through `ApiService.Invoke`, which dispatches off the generated
-`Api_ServiceDesc` and takes and returns encoded protobuf, so neither door needs
-generated code of its own.
+`Api_ServiceDesc` and takes encoded protobuf, handing back the stream its responses
+arrive on, so neither door needs generated code of its own.
 
 Web
 
@@ -270,6 +270,11 @@ Desktop
 2. the same `grpc.Serve` → `ApiService.Invoke`
 3. same service, but **with** a `VariableStore`, so a value can resolve `KEYCHAIN`
 4. a failed call is `status.Convert`'s `UNKNOWN` in the trailer either way, carrying the service's own message
+
+`Compile` is the one method here that streams — the compilation's log as it is
+written, then its verdict. Nothing in the request says which kind of call this
+is, so the door is the same `grpc.Serve`, writing more data frames before the
+same trailer.
 
 ### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
 

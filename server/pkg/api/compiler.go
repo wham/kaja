@@ -5,71 +5,59 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
-	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
 )
 
 type Compiler struct {
-	mu      sync.Mutex
-	status  CompileStatus
-	logger  *Logger
-	sources []*Source
-	stub    string
+	logger *Logger
 }
 
-func NewCompiler() *Compiler {
-	return &Compiler{
-		status: CompileStatus_STATUS_READY,
-	}
+func NewCompiler(logger *Logger) *Compiler {
+	return &Compiler{logger: logger}
 }
 
-func (c *Compiler) start(id string, protoDir string) error {
-	c.logger.debug("id: " + id)
+// run compiles the proto directory into the TypeScript sources and the stub the
+// client loads an app from. It runs where the call is answered, so its logger writes
+// each line straight on to the stream.
+func (c *Compiler) run(protoDir string) ([]*Source, string, error) {
+	c.logger.info("Starting compilation")
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Failed to get working directory", err)
-		return err
+		return nil, "", err
 	}
 	c.logger.debug("cwd: " + cwd)
 
 	sourcesDir, err := tempdir.NewSourcesDir()
 	if err != nil {
-		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Failed to create temp directory", err)
-		return err
+		return nil, "", err
 	}
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
-	c.logger.debug("Starting compilation")
-	err = c.compile(sourcesDir, protoDir)
-	if err != nil {
-		c.status = CompileStatus_STATUS_ERROR
+	if err := c.compile(sourcesDir, protoDir); err != nil {
 		c.logger.error("Compilation failed", err)
-		return err
+		return nil, "", err
 	}
 
-	c.sources = c.getSources(sourcesDir)
+	sources := c.getSources(sourcesDir)
 
 	c.logger.debug("Building stub")
 	stub, err := ui.BuildStub(sourcesDir)
 	if err != nil {
-		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Failed to build stub", err)
-		return err
+		return nil, "", err
 	}
-	c.stub = string(stub)
 
-	c.status = CompileStatus_STATUS_READY
 	c.logger.info("Compilation completed successfully, Kaja is ready to go")
 
-	return nil
+	return sources, string(stub), nil
 }
 
 func (c *Compiler) getSources(sourcesDir string) []*Source {

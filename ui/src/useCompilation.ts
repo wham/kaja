@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
-import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, OpenStatus } from "./server/api";
+import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, LogLevel, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
-
-const POLL_INTERVAL_MS = 1000;
 
 function formatDuration(milliseconds: number): string {
   const seconds = Math.round(milliseconds / 1000);
   return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+}
+
+function elapsed(app: App): string {
+  return formatDuration(Date.now() - (app.compilation.startTime || 0));
 }
 
 export function useCompilation(
@@ -23,43 +25,42 @@ export function useCompilation(
 
   appsRef.current = apps;
 
-  const compile = async (appName: string) => {
-    const currentApps = appsRef.current;
-    const appIndex = currentApps.findIndex((p) => p.configuration.name === appName);
-    const app = currentApps[appIndex];
+  // An update names the app it is about, and finds it when it is applied: apps
+  // compile at their own pace, so an index read before the call is one the list may
+  // have moved by the time the answer comes back.
+  const updateApp = (appName: string, update: (app: App) => App) => {
+    onUpdate((prevApps) => {
+      const index = prevApps.findIndex((p) => p.configuration.name === appName);
+      if (index === -1) return prevApps;
 
-    if (!app || appIndex === -1) return;
+      const updatedApps = [...prevApps];
+      updatedApps[index] = update(prevApps[index]);
+      return updatedApps;
+    });
+  };
+
+  const compile = async (appName: string) => {
+    const app = appsRef.current.find((p) => p.configuration.name === appName);
+
+    if (!app) return;
 
     if (app.compilation.status === "running") {
       return;
     }
 
-    if (abortControllers.current[appName]) {
-      abortControllers.current[appName].abort();
-    }
+    abortControllers.current[appName]?.abort();
     abortControllers.current[appName] = new AbortController();
     const signal = abortControllers.current[appName].signal;
 
     try {
-      const compilationId = crypto.randomUUID();
-
-      onUpdate((prevApps) => {
-        const index = prevApps.findIndex((p) => p.configuration.name === appName);
-        if (index === -1) return prevApps;
-
-        const updatedApps = [...prevApps];
-        updatedApps[index] = {
-          ...prevApps[index],
-          compilation: {
-            ...prevApps[index].compilation,
-            id: compilationId,
-            status: "running",
-            startTime: Date.now(),
-            logOffset: 0,
-          },
-        };
-        return updatedApps;
-      });
+      updateApp(appName, (app) => ({
+        ...app,
+        compilation: {
+          ...app.compilation,
+          status: "running",
+          startTime: Date.now(),
+        },
+      }));
 
       // Opening an app yields the proto surface to compile. Where the app is invoked
       // is not part of the answer: the server holds it under the app's own name.
@@ -67,143 +68,83 @@ export function useCompilation(
         app: app.configuration,
       });
 
-      onUpdate((prevApps) => {
-        const index = prevApps.findIndex((p) => p.configuration.name === appName);
-        if (index === -1) return prevApps;
-
-        const updatedApps = [...prevApps];
-        updateAppRef(prevApps[index].appRef, prevApps[index].configuration);
-        updatedApps[index] = {
-          ...prevApps[index],
+      updateApp(appName, (app) => {
+        updateAppRef(app.appRef, app.configuration);
+        return {
+          ...app,
           compilation: {
-            ...prevApps[index].compilation,
+            ...app.compilation,
             logs: openResponse.logs,
           },
         };
-        return updatedApps;
       });
-
-      if (openResponse.status === OpenStatus.ERROR) {
-        const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
-        const duration = formatDuration(Date.now() - (finalApp?.compilation.startTime || 0));
-
-        onUpdate((prevApps) => {
-          const index = prevApps.findIndex((p) => p.configuration.name === appName);
-          if (index === -1) return prevApps;
-
-          const updatedApps = [...prevApps];
-          updatedApps[index] = {
-            ...prevApps[index],
-            compilation: { status: "error", logs: openResponse.logs, duration },
-          };
-          return updatedApps;
-        });
-
-        delete abortControllers.current[appName];
-        return;
-      }
 
       if (signal.aborted) return;
 
-      await pollCompilation(appName, compilationId, openResponse.protoDir, signal);
+      if (openResponse.status === OpenStatus.ERROR) {
+        updateApp(appName, (app) => ({
+          ...app,
+          compilation: { status: "error", logs: app.compilation.logs, duration: elapsed(app) },
+        }));
+        return;
+      }
+
+      await streamCompilation(appName, openResponse.protoDir, signal);
     } catch (error: any) {
-      if (error?.name !== "AbortError") {
-        console.error("Compilation error:", error);
+      if (signal.aborted) return;
+
+      console.error("Compilation error:", error);
+      // A call that never answered has nothing to report but itself, and an app left
+      // at "running" would spin for the rest of the session.
+      updateApp(appName, (app) => ({
+        ...app,
+        compilation: {
+          status: "error",
+          logs: [...app.compilation.logs, { level: LogLevel.LEVEL_ERROR, message: `Compilation failed: ${error?.message ?? error}` }],
+          duration: elapsed(app),
+        },
+      }));
+    } finally {
+      if (abortControllers.current[appName]?.signal === signal) {
+        delete abortControllers.current[appName];
       }
     }
   };
 
-  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, signal: AbortSignal) => {
-    while (!signal.aborted) {
-      const appIndex = appsRef.current.findIndex((p) => p.configuration.name === appName);
-      const app = appsRef.current[appIndex];
-      if (!app || appIndex === -1) return;
+  // The compilation is a stream: every log line arrives as it is written and the last
+  // message is the verdict, carrying the generated sources on a success.
+  const streamCompilation = async (appName: string, protoDir: string, signal: AbortSignal) => {
+    const call = client.compile({ protoDir }, { abort: signal });
 
-      const { response } = await client.compile({
-        id: compilationId,
-        logOffset: app.compilation.logOffset || 0,
-        protoDir,
-      });
-
+    for await (const response of call.responses) {
       if (signal.aborted) return;
 
-      const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
-      const isReady = response.status === ApiCompileStatus.STATUS_READY;
-
-      if (isRunning) {
-        onUpdate((prevApps) => {
-          const index = prevApps.findIndex((p) => p.configuration.name === appName);
-          if (index === -1) return prevApps;
-
-          const currentApp = prevApps[index];
-          const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
-          const newLogOffset = (currentApp.compilation.logOffset || 0) + response.logs.length;
-
-          const updatedApps = [...prevApps];
-          updatedApps[index] = {
-            ...currentApp,
-            compilation: {
-              ...currentApp.compilation,
-              status: "running",
-              logs: newLogs,
-              logOffset: newLogOffset,
-            },
-          };
-          return updatedApps;
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      } else {
-        const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
-        if (!finalApp) return;
-
-        const duration = formatDuration(Date.now() - (finalApp.compilation.startTime || 0));
-
-        if (isReady) {
-          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration);
-
-          onUpdate((prevApps) => {
-            const index = prevApps.findIndex((p) => p.configuration.name === appName);
-            if (index === -1) return prevApps;
-
-            const currentApp = prevApps[index];
-            const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
-
-            const updatedApps = [...prevApps];
-            updatedApps[index] = {
-              ...loadedApp,
-              compilation: {
-                status: "success",
-                logs: newLogs,
-                duration,
-              },
-            };
-            return updatedApps;
-          });
-        } else {
-          onUpdate((prevApps) => {
-            const index = prevApps.findIndex((p) => p.configuration.name === appName);
-            if (index === -1) return prevApps;
-
-            const currentApp = prevApps[index];
-            const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
-
-            const updatedApps = [...prevApps];
-            updatedApps[index] = {
-              ...currentApp,
-              compilation: {
-                status: "error",
-                logs: newLogs,
-                duration,
-              },
-            };
-            return updatedApps;
-          });
-        }
-
-        delete abortControllers.current[appName];
-        return;
+      if (response.status === ApiCompileStatus.STATUS_RUNNING) {
+        updateApp(appName, (app) => ({
+          ...app,
+          compilation: {
+            ...app.compilation,
+            status: "running",
+            logs: [...app.compilation.logs, ...response.logs],
+          },
+        }));
+        continue;
       }
+
+      const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
+      if (!finalApp) return;
+
+      const loadedApp = response.status === ApiCompileStatus.STATUS_READY ? await loadApp(response.sources, response.stub, finalApp.configuration) : undefined;
+
+      updateApp(appName, (app) => ({
+        ...(loadedApp ?? app),
+        compilation: {
+          status: loadedApp ? "success" : "error",
+          logs: [...app.compilation.logs, ...response.logs],
+          duration: elapsed(app),
+        },
+      }));
+      return;
     }
   };
 

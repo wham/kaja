@@ -16,15 +16,7 @@ import { MessageType } from "@protobuf-ts/runtime";
  */
 export interface CompileRequest {
     /**
-     * @generated from protobuf field: string id = 1
-     */
-    id: string;
-    /**
-     * @generated from protobuf field: int32 log_offset = 2
-     */
-    logOffset: number;
-    /**
-     * @generated from protobuf field: string proto_dir = 3
+     * @generated from protobuf field: string proto_dir = 1
      */
     protoDir: string;
 }
@@ -560,6 +552,11 @@ export interface McpProblem {
     detail: string;
 }
 /**
+ * CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
+ * message carries the log lines written since the last one and nothing else; the
+ * last message of a stream is the terminal status, with the sources and the stub
+ * on a STATUS_READY.
+ *
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
@@ -1467,15 +1464,11 @@ export enum VariableSource {
 class CompileRequest$Type extends MessageType<CompileRequest> {
     constructor() {
         super("CompileRequest", [
-            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.id = "";
-        message.logOffset = 0;
         message.protoDir = "";
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
@@ -1486,13 +1479,7 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string id */ 1:
-                    message.id = reader.string();
-                    break;
-                case /* int32 log_offset */ 2:
-                    message.logOffset = reader.int32();
-                    break;
-                case /* string proto_dir */ 3:
+                case /* string proto_dir */ 1:
                     message.protoDir = reader.string();
                     break;
                 default:
@@ -1507,15 +1494,9 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         return message;
     }
     internalBinaryWrite(message: CompileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string id = 1; */
-        if (message.id !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.id);
-        /* int32 log_offset = 2; */
-        if (message.logOffset !== 0)
-            writer.tag(2, WireType.Varint).int32(message.logOffset);
-        /* string proto_dir = 3; */
+        /* string proto_dir = 1; */
         if (message.protoDir !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
+            writer.tag(1, WireType.LengthDelimited).string(message.protoDir);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4594,7 +4575,7 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
  * @generated ServiceType for protobuf service Api
  */
 export const Api = new ServiceType("Api", [
-    { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
+    { name: "Compile", serverStreaming: true, options: {}, I: CompileRequest, O: CompileResponse },
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
