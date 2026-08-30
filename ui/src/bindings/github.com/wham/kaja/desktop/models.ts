@@ -98,8 +98,9 @@ export class ScriptFile {
 }
 
 /**
- * TargetResult holds the response from a Target call, including HTTP status for
- * Twirp. RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
+ * TargetResult holds the response from a Target call. StatusCode marks a body that
+ * is a structured upstream failure rather than the method's response.
+ * RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
  * upstream, surfaced in the Headers view. DurationMs is the upstream exchange as this
  * process measured it — the call without the webview round trip — which the UI shows
  * in place of its own timing.

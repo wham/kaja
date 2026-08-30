@@ -6,12 +6,9 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/grpc"
@@ -163,8 +160,10 @@ func main() {
 		}
 	})
 
+	// Every call the client makes arrives here as gRPC-Web, whatever the app talks to
+	// upstream. X-Target says which of the two things this process does with it: dial
+	// the gRPC server it names, or invoke the app it names in this process.
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
-		contentType := r.Header.Get("Content-Type")
 		targetHeader := r.Header.Get("X-Target")
 
 		// Headers with an X-Header- prefix are forwarded to the target. Their values still
@@ -206,41 +205,13 @@ func main() {
 			return
 		}
 
-		if strings.HasPrefix(contentType, "application/grpc-web") ||
-			strings.HasPrefix(contentType, "application/grpc-web-text") {
-
-			proxy, err := grpc.NewProxy(target, connection.TLS)
-			if err != nil {
-				slog.Error("Failed to create gRPC proxy", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			proxy.ServeHTTP(w, r, r.PathValue("method"), forwardHeaders)
+		proxy, err := grpc.NewProxy(target, connection.TLS)
+		if err != nil {
+			slog.Error("Failed to create gRPC proxy", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
-		} else {
-			proxy := httputil.NewSingleHostReverseProxy(target)
-			proxy.Director = func(req *http.Request) {
-				req.Host = target.Host
-				req.URL.Scheme = target.Scheme
-				req.URL.Host = target.Host
-				// Replace /target/ with /twirp/ and append to the target path.
-				path := strings.Replace(req.URL.Path, "/target/", "/twirp/", 1)
-				req.URL.Path = target.Path + path
-				for name, value := range forwardHeaders {
-					req.Header.Set(name, value)
-				}
-			}
-			started := time.Now()
-			// The one Kaja process in the call's path stamps the upstream exchange.
-			// Twirp has no trailers, so the measurement rides a reserved response
-			// header (kaja-upstream-*, the same namespace the gRPC paths use as
-			// trailers), which the client strips before showing response headers.
-			proxy.ModifyResponse = func(resp *http.Response) error {
-				resp.Header.Set("Kaja-Upstream-Duration-Ms", strconv.FormatInt(time.Since(started).Milliseconds(), 10))
-				return nil
-			}
-			proxy.ServeHTTP(w, r)
 		}
+		proxy.ServeHTTP(w, r, r.PathValue("method"), forwardHeaders)
 	})
 
 	root := http.NewServeMux()

@@ -46,7 +46,7 @@ describe("proto doc comments in service model", () => {
       { path: "proto/addsvc.client.ts", content: clientTs },
     ] as ApiSource[];
 
-    const app = await loadApp(apiSources, stubCode, { name: "grpcbin" } as any, "kaja-app://x", "grpc" as any);
+    const app = await loadApp(apiSources, stubCode, { name: "grpcbin", app: { oneofKind: "grpc" } } as any, "kaja-app://x");
     const serviceSource = app.sources.find((s) => s.serviceNames.includes("Add"));
     expect(serviceSource).toBeDefined();
     const text = serviceSource!.file.text;

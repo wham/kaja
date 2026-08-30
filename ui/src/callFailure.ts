@@ -4,9 +4,9 @@ import { UNSUPPORTED_CODE } from "./streaming";
 // whether to change the request, the credentials, or nothing at all.
 //
 // A failed call reaches a script as an error whose shape depends on how it
-// travelled - an HTTP status from an app that transcodes REST, a gRPC/Twirp
-// status code from a service reached directly, and neither when the exchange
-// itself broke. Read raw, "invalid argument" and "decoding response JSON" look
+// travelled - an HTTP status from an app kaja called for it, a gRPC status code
+// from a service the call was forwarded to, and neither when the exchange itself
+// broke. Read raw, "invalid argument" and "decoding response JSON" look
 // alike, and the only way to tell them apart is to try again with a different
 // request, which is wasted on a failure the request had nothing to do with.
 export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER" | "TRANSPORT" | "UNSUPPORTED" | "UNKNOWN";
@@ -14,13 +14,13 @@ export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RA
 export interface CallFailure {
   kind: FailureKind;
   message: string;
-  // The HTTP status of an upstream failure, or the gRPC/Twirp status code of a
-  // service failure. What labels the failure where it is shown.
+  // The HTTP status of an upstream failure, or the gRPC status code of a service
+  // failure. What labels the failure where it is shown.
   status?: number;
   code?: string;
 }
 
-// How a gRPC/Twirp status maps onto the kinds. Codes not listed here are read as
+// How a gRPC status maps onto the kinds. Codes not listed here are read as
 // SERVER: the call reached a server and the server refused it.
 const codeKinds: { [code: string]: FailureKind } = {
   invalid_argument: "INVALID_REQUEST",

@@ -1174,7 +1174,6 @@ export interface MethodCall {
   // headers above.
   upstreamRequestHeaders?: MethodCallHeaders;
   upstreamResponseHeaders?: MethodCallHeaders;
-  url?: string;
   // The HTTP call a script made itself, with kaja.fetch. It has no app and no
   // generated request, so this is what says it was one — and its request line is what
   // identifies it, the way a service and a method identify every other call.

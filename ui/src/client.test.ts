@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
-import { createAppRef, Service, Transport } from "./apps";
+import { createAppRef, Service } from "./apps";
 import { Kaja, KajaHost, MethodCall } from "./kaja";
 import { LogLevel } from "./server/api";
 import { classifyFailure } from "./callFailure";
@@ -74,7 +74,7 @@ function client() {
     onLog: (_level: LogLevel, _message: string) => {},
   });
   const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
-  const appRef = createAppRef(app as never, "https://theatre.example", Transport.GRPC);
+  const appRef = createAppRef(app as never, "https://theatre.example");
   return { methods: createClient(service, stub, appRef).methodsFor(kaja), calls };
 }
 
@@ -156,7 +156,7 @@ describe("a method that streams from the client", () => {
       onLog: (_level: LogLevel, _message: string) => {},
     });
     const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
-    const appRef = createAppRef(app as never, "https://theatre.example", Transport.GRPC);
+    const appRef = createAppRef(app as never, "https://theatre.example");
     return { methods: createClient(streaming, stub, appRef).methodsFor(kaja), calls };
   }
 

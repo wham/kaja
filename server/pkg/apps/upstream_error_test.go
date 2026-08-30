@@ -32,6 +32,12 @@ func TestUpstreamMessage(t *testing.T) {
 			want:   "name is required",
 		},
 		{
+			name:   "twirp envelope",
+			status: 400,
+			body:   `{"code":"invalid_argument","msg":"a must be a number"}`,
+			want:   "a must be a number",
+		},
+		{
 			name:   "error string envelope",
 			status: 500,
 			body:   `{"error":"boom"}`,

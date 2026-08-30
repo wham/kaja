@@ -69,7 +69,7 @@ test("shows a body that is an array or a plain string as itself", () => {
   expect(unwrapFailure(failure({ body: "quota exceeded" }))).toBe("quota exceeded");
 });
 
-// A gRPC or Twirp failure was never wrapped: it has no HTTP status and no
+// A gRPC failure was never wrapped: it has no HTTP status and no
 // request line, and there is nothing to see past.
 test("leaves a failure that is not an HTTP one alone", () => {
   const rpcError = { message: "invalid argument", code: "INVALID_ARGUMENT" };

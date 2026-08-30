@@ -518,13 +518,11 @@ func (x *CompileRequest) GetProtoDir() string {
 	return ""
 }
 
-// OpenApp opens an app from its configuration. "grpc"/
-// "twirp" apps describe a gRPC/Twirp service (proto files come from a static
-// directory or gRPC reflection), while built-in apps like "openapi" or "folder"
-// generate their own proto surface. In all cases the app produces proto files to
-// feed into Compile, an invocation target, and the transport protocol the client
-// uses to reach it. The server flattens the app's typed parameters to a string map
-// for the in-process app contract.
+// OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
+// service (proto files come from a static directory or gRPC reflection), while every
+// other app generates its own proto surface. In all cases the app produces proto
+// files to feed into Compile and an invocation target. The server flattens the app's
+// typed parameters to a string map for the in-process app contract.
 type OpenAppRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	App           *ConfigurationApp      `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
@@ -577,11 +575,9 @@ type OpenAppResponse struct {
 	// temp directory (generated/reflected protos) or a workspace-relative path (static
 	// protos), which Compile resolves against the workspace.
 	ProtoDir string `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
-	// Invocation target: the upstream URL for grpc/twirp apps, or "kaja-app://<id>"
-	// for in-process apps (only set on success).
-	Target string `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
-	// Transport the client uses to reach the target: "grpc" or "twirp".
-	Protocol      string `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
+	// app invoked in the server's own process (only set on success).
+	Target        string `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -640,13 +636,6 @@ func (x *OpenAppResponse) GetProtoDir() string {
 func (x *OpenAppResponse) GetTarget() string {
 	if x != nil {
 		return x.Target
-	}
-	return ""
-}
-
-func (x *OpenAppResponse) GetProtocol() string {
-	if x != nil {
-		return x.Protocol
 	}
 	return ""
 }
@@ -3658,13 +3647,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"5\n" +
 	"\x0eOpenAppRequest\x12#\n" +
-	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"\xa1\x01\n" +
+	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"\x8b\x01\n" +
 	"\x0fOpenAppResponse\x12#\n" +
 	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x16\n" +
-	"\x06target\x18\x04 \x01(\tR\x06target\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\"2\n" +
+	"\x06target\x18\x04 \x01(\tR\x06targetJ\x04\b\x05\x10\x06\"2\n" +
 	"\x12InspectGrpcRequest\x12\x1c\n" +
 	"\x04grpc\x18\x01 \x01(\v2\b.GrpcAppR\x04grpc\"b\n" +
 	"\x13InspectGrpcResponse\x12#\n" +

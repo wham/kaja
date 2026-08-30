@@ -29,13 +29,11 @@ export interface CompileRequest {
     protoDir: string;
 }
 /**
- * OpenApp opens an app from its configuration. "grpc"/
- * "twirp" apps describe a gRPC/Twirp service (proto files come from a static
- * directory or gRPC reflection), while built-in apps like "openapi" or "folder"
- * generate their own proto surface. In all cases the app produces proto files to
- * feed into Compile, an invocation target, and the transport protocol the client
- * uses to reach it. The server flattens the app's typed parameters to a string map
- * for the in-process app contract.
+ * OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
+ * service (proto files come from a static directory or gRPC reflection), while every
+ * other app generates its own proto surface. In all cases the app produces proto
+ * files to feed into Compile and an invocation target. The server flattens the app's
+ * typed parameters to a string map for the in-process app contract.
  *
  * @generated from protobuf message OpenAppRequest
  */
@@ -66,18 +64,12 @@ export interface OpenAppResponse {
      */
     protoDir: string;
     /**
-     * Invocation target: the upstream URL for grpc/twirp apps, or "kaja-app://<id>"
-     * for in-process apps (only set on success).
+     * Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
+     * app invoked in the server's own process (only set on success).
      *
      * @generated from protobuf field: string target = 4
      */
     target: string;
-    /**
-     * Transport the client uses to reach the target: "grpc" or "twirp".
-     *
-     * @generated from protobuf field: string protocol = 5
-     */
-    protocol: string;
 }
 /**
  * InspectGrpc reads the service surface a grpc app *would* be opened with -
@@ -1594,8 +1586,7 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
             { no: 1, name: "status", kind: "enum", T: () => ["OpenStatus", OpenStatus, "OPEN_STATUS_"] },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
             { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenAppResponse>): OpenAppResponse {
@@ -1604,7 +1595,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         message.logs = [];
         message.protoDir = "";
         message.target = "";
-        message.protocol = "";
         if (value !== undefined)
             reflectionMergePartial<OpenAppResponse>(this, message, value);
         return message;
@@ -1625,9 +1615,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
                     break;
                 case /* string target */ 4:
                     message.target = reader.string();
-                    break;
-                case /* string protocol */ 5:
-                    message.protocol = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1653,9 +1640,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         /* string target = 4; */
         if (message.target !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.target);
-        /* string protocol = 5; */
-        if (message.protocol !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.protocol);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

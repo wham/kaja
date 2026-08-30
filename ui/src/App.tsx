@@ -2122,7 +2122,7 @@ export function App() {
             path: `${app.configuration.name} / ${qualified}`,
             origin: app.configuration.name,
             icon: FileCode,
-            uncallable: unsupportedReason(method) !== undefined,
+            uncallable: unsupportedReason(method, appType(app.configuration)) !== undefined,
             go: () => void onMethodSelect(method, service, app),
           });
         }

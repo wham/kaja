@@ -77,34 +77,33 @@ type App interface {
 type Opened struct {
 	// ProtoDir overrides where the proto surface to compile lives. Empty means the
 	// protoDir passed to Open. A relative path ("seating/proto") is resolved by the
-	// compiler against the workspace, which is what grpc/twirp apps with on-disk protos use.
+	// compiler against the workspace, which is what an app with protos on disk uses.
 	ProtoDir string
 	// Instance, when non-nil, makes the app invocable in-process: the Manager
 	// registers it and the client reaches it through a kaja-app:// target.
 	Instance Instance
-	// Target and Protocol describe apps whose methods the client invokes directly
-	// (grpc/twirp): Target is the upstream URL and Protocol the transport ("grpc"
-	// or "twirp"). Ignored when Instance is non-nil.
-	Target   string
-	Protocol string
+	// Target is the upstream URL of an app whose calls are forwarded rather than
+	// invoked here — the gRPC app, and only it. Ignored when Instance is non-nil.
+	Target string
 }
 
 // OpenResult tells the caller how a freshly opened app is compiled and invoked.
 type OpenResult struct {
 	ProtoDir string
 	Target   string
-	Protocol string
 }
 
 // Instance is a live, opened app that can invoke its generated methods.
 type Instance interface {
-	// Invoke runs the method identified by its Twirp path, e.g.
-	// "openapi.petstore.PetstoreApi/GetPet". request is the proto3-JSON request body;
-	// headers are forwarded upstream.
+	// Invoke runs the method identified by its path, e.g.
+	// "openapi.petstore.PetstoreApi/GetPet". request and the result's Body are the
+	// encoded protobuf of the method's request and response messages; headers are
+	// forwarded upstream.
 	Invoke(methodPath string, request []byte, headers map[string]string) (*InvokeResult, error)
 }
 
-// InvokeResult is the outcome of a single Invoke. Body is the proto3-JSON response.
+// InvokeResult is the outcome of a single Invoke. Body is the encoded protobuf of
+// the method's response message.
 // RequestHeaders/ResponseHeaders are what the app actually exchanged with its
 // upstream, which the transports surface to the Headers view; an in-process app with
 // no upstream hop leaves them empty.
@@ -135,8 +134,8 @@ func NewManager(types map[string]App) *Manager {
 }
 
 // Open instantiates an app of the given type. In-process apps are registered and
-// reached through a "kaja-app://<id>" target; grpc/twirp apps return their upstream
-// URL and transport directly. Generated protos are written into protoDir.
+// reached through a "kaja-app://<id>" target; the gRPC app returns its upstream URL,
+// which is what the forwarder dials. Generated protos are written into protoDir.
 func (m *Manager) Open(appType string, parameters map[string]string, protoDir string, log func(string)) (*OpenResult, error) {
 	m.mu.Lock()
 	app, ok := m.types[appType]
@@ -150,7 +149,7 @@ func (m *Manager) Open(appType string, parameters map[string]string, protoDir st
 		return nil, err
 	}
 
-	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target, Protocol: opened.Protocol}
+	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target}
 	if opened.ProtoDir != "" {
 		result.ProtoDir = opened.ProtoDir
 	}
@@ -163,9 +162,7 @@ func (m *Manager) Open(appType string, parameters map[string]string, protoDir st
 		m.mu.Lock()
 		m.instances[id] = opened.Instance
 		m.mu.Unlock()
-		// In-process apps are gRPC apps reached through the app target scheme.
 		result.Target = TargetScheme + "://" + id
-		result.Protocol = "grpc"
 	}
 
 	return result, nil

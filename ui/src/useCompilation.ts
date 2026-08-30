@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createAppRef, App, Transport, transportFromProtocol, updateAppRef } from "./apps";
+import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
 import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -61,25 +61,22 @@ export function useCompilation(
         return updatedApps;
       });
 
-      // Opening an app yields the proto surface to compile, the invocation
-      // target, and the transport the client uses to reach it.
+      // Opening an app yields the proto surface to compile and the invocation target.
       const { response: openResponse } = await client.openApp({
         app: app.configuration,
       });
 
       const target = openResponse.target;
-      const protocol = transportFromProtocol(openResponse.protocol);
 
       onUpdate((prevApps) => {
         const index = prevApps.findIndex((p) => p.configuration.name === appName);
         if (index === -1) return prevApps;
 
         const updatedApps = [...prevApps];
-        updateAppRef(prevApps[index].appRef, prevApps[index].configuration, target, protocol);
+        updateAppRef(prevApps[index].appRef, prevApps[index].configuration, target);
         updatedApps[index] = {
           ...prevApps[index],
           target,
-          protocol,
           compilation: {
             ...prevApps[index].compilation,
             logs: openResponse.logs,
@@ -110,7 +107,7 @@ export function useCompilation(
 
       if (signal.aborted) return;
 
-      await pollCompilation(appName, compilationId, openResponse.protoDir, target, protocol, signal);
+      await pollCompilation(appName, compilationId, openResponse.protoDir, target, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -118,7 +115,7 @@ export function useCompilation(
     }
   };
 
-  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, target: string, protocol: Transport, signal: AbortSignal) => {
+  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, target: string, signal: AbortSignal) => {
     while (!signal.aborted) {
       const appIndex = appsRef.current.findIndex((p) => p.configuration.name === appName);
       const app = appsRef.current[appIndex];
@@ -165,7 +162,7 @@ export function useCompilation(
         const duration = formatDuration(Date.now() - (finalApp.compilation.startTime || 0));
 
         if (isReady) {
-          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration, target, protocol);
+          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration, target);
 
           onUpdate((prevApps) => {
             const index = prevApps.findIndex((p) => p.configuration.name === appName);
@@ -236,7 +233,6 @@ export function useCompilation(
           sources: [],
           stub: { serviceInfos: {} },
           target: "",
-          protocol: Transport.GRPC,
         }));
 
         onUpdate(initialApps);

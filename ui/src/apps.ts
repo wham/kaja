@@ -3,40 +3,26 @@ import { APP_OF } from "./rateLimit";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
-// Transport used to reach an opened app. "grpc"/"twirp" apps talk to their upstream
-// directly; in-process apps are reached as gRPC. The numeric values match the desktop
-// Wails Target protocol parameter.
-export enum Transport {
-  GRPC = 1,
-  TWIRP = 2,
-}
-
-export function transportFromProtocol(protocol: string): Transport {
-  return protocol === "twirp" ? Transport.TWIRP : Transport.GRPC;
-}
-
 // Mutable reference clients read at request time, so an app's target URL and headers
-// are picked up without rebuilding the client.
+// are picked up without rebuilding the client. There is no transport beside it: every
+// app is called as gRPC, and which protocol reaches the API is the server's business.
 export interface AppRef {
   configuration: ConfigurationApp;
-  // Filled in once the app is opened: the upstream URL for grpc/twirp apps, or
-  // "kaja-app://<id>" for in-process ones.
+  // Filled in once the app is opened: the upstream URL of a gRPC app, or
+  // "kaja-app://<id>" for one the server invokes in its own process.
   target: string;
-  protocol: Transport;
 }
 
-export function createAppRef(configuration: ConfigurationApp, target = "", protocol: Transport = Transport.GRPC): AppRef {
+export function createAppRef(configuration: ConfigurationApp, target = ""): AppRef {
   return {
     configuration: { ...configuration },
     target,
-    protocol,
   };
 }
 
-export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp, target?: string, protocol?: Transport): void {
+export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp, target?: string): void {
   appRef.configuration = { ...configuration };
   if (target !== undefined) appRef.target = target;
-  if (protocol !== undefined) appRef.protocol = protocol;
 }
 
 // A file has a name and a place; that is the whole of what makes it one rather than a
@@ -65,10 +51,9 @@ export interface App {
   clients: Clients;
   sources: Sources;
   stub: Stub;
-  // Filled in once the app is opened during compilation. Mirrors appRef.target/protocol
-  // for convenient display.
+  // Filled in once the app is opened during compilation. Mirrors appRef.target for
+  // convenient display.
   target: string;
-  protocol: Transport;
 }
 
 export function createPendingApp(configuration: ConfigurationApp): App {
@@ -81,7 +66,6 @@ export function createPendingApp(configuration: ConfigurationApp): App {
     sources: [],
     stub: { serviceInfos: {} },
     target: "",
-    protocol: Transport.GRPC,
   };
 }
 

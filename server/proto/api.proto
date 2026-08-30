@@ -28,13 +28,11 @@ enum OpenStatus {
   OPEN_STATUS_ERROR = 2;
 }
 
-// OpenApp opens an app from its configuration. "grpc"/
-// "twirp" apps describe a gRPC/Twirp service (proto files come from a static
-// directory or gRPC reflection), while built-in apps like "openapi" or "folder"
-// generate their own proto surface. In all cases the app produces proto files to
-// feed into Compile, an invocation target, and the transport protocol the client
-// uses to reach it. The server flattens the app's typed parameters to a string map
-// for the in-process app contract.
+// OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
+// service (proto files come from a static directory or gRPC reflection), while every
+// other app generates its own proto surface. In all cases the app produces proto
+// files to feed into Compile and an invocation target. The server flattens the app's
+// typed parameters to a string map for the in-process app contract.
 message OpenAppRequest {
   ConfigurationApp app = 1;
 }
@@ -46,11 +44,13 @@ message OpenAppResponse {
   // temp directory (generated/reflected protos) or a workspace-relative path (static
   // protos), which Compile resolves against the workspace.
   string proto_dir = 3;
-  // Invocation target: the upstream URL for grpc/twirp apps, or "kaja-app://<id>"
-  // for in-process apps (only set on success).
+  // Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
+  // app invoked in the server's own process (only set on success).
   string target = 4;
-  // Transport the client uses to reach the target: "grpc" or "twirp".
-  string protocol = 5;
+  // 5 was "protocol", the transport the client used to reach the target. The client
+  // speaks gRPC-Web to everything now; which protocol reaches the API is the
+  // server's business.
+  reserved 5;
 }
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -

@@ -333,7 +333,7 @@ export function Sidebar({
                                   const mId = methodId(service, method);
                                   // Listed, because the tree is what the app has. Dimmed and marked,
                                   // because clicking it writes a script Kaja won't run.
-                                  const unsupported = unsupportedReason(method);
+                                  const unsupported = unsupportedReason(method, appType(app.configuration));
                                   return (
                                     <TreeView.Item
                                       id={mId}

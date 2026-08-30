@@ -20,6 +20,18 @@ test("only a stream from the client is refused, and the reason names its kind", 
   expect(unsupportedReason({ serverStreaming: true, clientStreaming: true })).toBe("Bidirectional streaming is not supported by Kaja yet.");
 });
 
+// A gRPC app is the only one whose calls are forwarded, so it is the only one a
+// stream can come back through. Everywhere else the limit is the app's own, which is
+// why it is said without a "yet" and covers the kind Kaja does support.
+test("an app that cannot stream at all says so, for every kind", () => {
+  expect(unsupportedReason({}, "twirp")).toBeUndefined();
+  expect(unsupportedReason({ serverStreaming: true }, "twirp")).toBe("Twirp has no streaming.");
+  expect(unsupportedReason({ clientStreaming: true }, "twirp")).toBe("Twirp has no streaming.");
+  expect(unsupportedReason({ serverStreaming: true, clientStreaming: true }, "twirp")).toBe("Twirp has no streaming.");
+  expect(unsupportedReason({ serverStreaming: true }, "grpc")).toBeUndefined();
+  expect(unsupportedReason({ clientStreaming: true }, "grpc")).toBe("Client streaming is not supported by Kaja yet.");
+});
+
 // A service with one method of each kind Kaja can meet.
 const serviceTs = `
 import { ServiceType } from "@protobuf-ts/runtime-rpc";
@@ -61,7 +73,7 @@ async function numbersApp() {
     { path: "proto/numbers.ts", content: serviceTs },
     { path: "proto/numbers.client.ts", content: clientTs },
   ] as ApiSource[];
-  return loadApp(apiSources, stubCode, { name: "demo" } as any, "kaja-app://x", "grpc" as any);
+  return loadApp(apiSources, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any, "kaja-app://x");
 }
 
 describe("a method that streams from the client", () => {

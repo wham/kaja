@@ -2,11 +2,12 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
-import { Clients, createAppRef, Method, App, AppRef, Service, serviceId, Transport } from "./apps";
+import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";
 import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
+import { appType } from "./appTypes";
 import { unsupportedReason } from "./streaming";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
@@ -31,7 +32,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app, fields);
 }
 
-export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string, protocol: Transport): Promise<App> {
+export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string): Promise<App> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];
@@ -110,7 +111,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
     });
   });
 
-  const appRef = createAppRef(configuration, target, protocol);
+  const appRef = createAppRef(configuration, target);
 
   return {
     compilation: {
@@ -124,7 +125,6 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
     sources: kajaSources,
     stub,
     target,
-    protocol,
   };
 }
 
@@ -240,7 +240,7 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   // still what the method takes and reading it is why you clicked. What the editor
   // says about it — the method is not on the service — reads as Kaja having lost the
   // method, so the line above says whose decision it was.
-  const unsupported = unsupportedReason(methodInfo);
+  const unsupported = unsupportedReason(methodInfo, appType(app.configuration));
   if (unsupported) {
     call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + unsupported, true);
   }

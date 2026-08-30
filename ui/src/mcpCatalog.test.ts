@@ -114,7 +114,7 @@ async function loadTheatre(status: "success" | "pending" = "success") {
     { path: "proto/theatre.ts", content: serviceTs },
     { path: "proto/theatre.client.ts", content: clientTs },
   ] as ApiSource[];
-  const app = await loadApp(apiSources, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any, "kaja-app://x", 1 as any);
+  const app = await loadApp(apiSources, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any, "kaja-app://x");
   app.compilation.status = status;
   return app;
 }

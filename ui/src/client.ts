@@ -1,8 +1,7 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import type { IMessageType } from "@protobuf-ts/runtime";
 import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
-import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { APP_HEADER, appHeaders, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
+import { APP_HEADER, appHeaders, appType, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
@@ -15,7 +14,7 @@ import {
   parseUpstreamError,
   parseUpstreamHeaders,
 } from "./upstreamHeaders";
-import { Client, AppRef, Methods, Service, serviceId, Transport } from "./apps";
+import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -74,28 +73,10 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
 }
 
 export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
-  const isTwirp = appRef.protocol === Transport.TWIRP;
-
-  let transport;
-  if (isWailsEnvironment()) {
-    // Target mode, so both Twirp and gRPC go through it. appRef is passed so the URL and
-    // headers are read at request time.
-    transport = new WailsTransport({
-      mode: "target",
-      appRef,
-      protocol: appRef.protocol,
-    });
-  } else {
-    if (isTwirp) {
-      transport = new TwirpFetchTransport({
-        baseUrl: getBaseUrlForTarget(),
-      });
-    } else {
-      transport = new GrpcWebFetchTransport({
-        baseUrl: getBaseUrlForTarget(),
-      });
-    }
-  }
+  // One transport per build and no choice inside it: whatever an app talks to
+  // upstream, the call kaja is handed is gRPC. appRef is passed to the Wails one so
+  // the target is read at request time.
+  const transport = isWailsEnvironment() ? new WailsTransport({ mode: "target", appRef }) : new GrpcWebFetchTransport({ baseUrl: getBaseUrlForTarget() });
 
   const stubModule = stub[service.clientStubModuleId];
   const ClientClass = stubModule[service.name + "Client"];
@@ -119,7 +100,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // What a method needs that the run has no say in, resolved once rather than per run.
   const prepared = service.methods.map((method) => ({
     method,
-    unsupported: unsupportedReason(method),
+    unsupported: unsupportedReason(method, appType(appRef.configuration)),
     isServerStreaming: method.serverStreaming && !method.clientStreaming,
     inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
   }));
@@ -140,7 +121,6 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         method,
         input,
         requestHeaders,
-        url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
         timestamp: Date.now(),
       });
 
