@@ -1,7 +1,7 @@
 package grpc
 
 import (
-	"encoding/base64"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -28,11 +28,11 @@ const maxTrailerBytes = 64 << 10
 // say. A stream is the general case and a unary call the one that stops after a
 // message, which is why the frames are written as they are had rather than assembled.
 //
-// The frames are binary rather than base64. A grpc-web-text body is one continuous
-// base64 stream, so a frame whose bytes do not land on a group boundary holds its last
-// two bytes back until something follows them - which on a stream is a message held
-// until the next message. The client reads the format off the response's own content
-// type, so what the request was encoded in does not decide what the answer is.
+// The frames are binary rather than base64, in both directions. A grpc-web-text body is
+// one continuous base64 stream, so a frame whose bytes do not land on a group boundary
+// holds its last two bytes back until something follows them - which on a stream is a
+// message held until the next message. Going the other way it buys a third more bytes
+// and nothing else.
 type grpcWebResponse struct {
 	w       http.ResponseWriter
 	flusher http.Flusher
@@ -135,15 +135,24 @@ func escapeTrailerValue(s string) string {
 	return b.String()
 }
 
-func readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
-	if isText {
-		data, err := io.ReadAll(r)
-		if err != nil {
-			return nil, fmt.Errorf("reading text body: %w", err)
-		}
-		bin, err := base64.StdEncoding.DecodeString(string(data))
-
-		return bin[5:], err
+// readGRPCWebMessage reads the one message a gRPC-Web request carries: the five-byte
+// frame header - a flag byte, then the payload's length as a big-endian uint32 - and
+// the payload behind it. Binary only, which is what kaja's client sends. No call kaja
+// serves streams from the client, so the frame after this one, if a client sent one, is
+// nobody's to read.
+//
+// The payload is copied rather than allocated up front, because the length is the
+// client's to write and nothing has to make it good: a header claiming four gigabytes
+// would otherwise be four gigabytes asked of this process before a byte of it arrives.
+func readGRPCWebMessage(r io.Reader) ([]byte, error) {
+	header := make([]byte, 5)
+	if _, err := io.ReadFull(r, header); err != nil {
+		return nil, fmt.Errorf("reading frame header: %w", err)
 	}
-	return io.ReadAll(r)
+
+	var message bytes.Buffer
+	if _, err := io.CopyN(&message, r, int64(binary.BigEndian.Uint32(header[1:5]))); err != nil {
+		return nil, fmt.Errorf("reading frame payload: %w", err)
+	}
+	return message.Bytes(), nil
 }

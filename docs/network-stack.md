@@ -100,12 +100,13 @@ fetch cancels the call upstream.
 ## The way back
 
 Responses leave as **binary** gRPC-Web frames (`application/grpc-web+proto`),
-one frame per message, flushed as each arrives — whatever format the request
-came in. A `grpc-web-text` body is one continuous base64 stream, so a frame
-whose bytes miss a group boundary would hold its last two back until the next
-message gave them company; binary frames have no such seam. The client reads
-the format off the response's own content type, so the two directions need
-not agree.
+one frame per message, flushed as each arrives. Requests arrive in the same
+format: the transport is told to send binary rather than the base64 it
+defaults to. A `grpc-web-text` body is a third more bytes, and it is one
+continuous base64 stream — a frame whose bytes miss a group boundary holds its
+last two back until the next message gives them company, which on a stream is
+a message held until the one after it. Binary frames have no such seam, so
+neither direction has one.
 
 The last frame is the trailer block:
 
@@ -182,7 +183,7 @@ Every app call — traces 1 to 5 — shares one spine, on both builds:
    `X-Kaja-App: <name>`; each rides the request as `X-Header-<name>`,
    `${NAME}` references intact. There is nothing else to say: the app's name
    is the address.
-2. `POST <origin>/app/<pkg.Service/Method>`, `application/grpc-web-text` —
+2. `POST <origin>/app/<pkg.Service/Method>`, `application/grpc-web+proto` —
    the origin is `localhost:41520` in a browser, `wails://localhost` on the
    desktop, and the same mux answers both.
 3. `grpc.Serve` de-frames the message → `InvokeApp`,
