@@ -66,7 +66,7 @@ import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { logScriptLine } from "./uiLog";
-import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
+import { Configuration, ConfigurationApp, GetConfigurationResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
@@ -796,14 +796,15 @@ export function App() {
     }
   }, [configuration?.variables]);
 
-  const handleConfigurationFileChange = useCallback(async () => {
-    const client = getApiClient();
-    const { response } = await client.getConfiguration({});
-    setVariableStatus(response.variableStatus);
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
-    }
-  }, [applyConfiguration]);
+  const handleConfigurationFileChange = useCallback(
+    (response: GetConfigurationResponse) => {
+      setVariableStatus(response.variableStatus);
+      if (response.configuration) {
+        applyConfiguration(response.configuration);
+      }
+    },
+    [applyConfiguration],
+  );
 
   useConfigurationChanges(handleConfigurationFileChange);
 

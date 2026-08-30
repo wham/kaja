@@ -100,12 +100,13 @@ fetch cancels the call upstream.
 ## The way back
 
 Responses leave as **binary** gRPC-Web frames (`application/grpc-web+proto`),
-one frame per message, flushed as each arrives — whatever format the request
-came in. A `grpc-web-text` body is one continuous base64 stream, so a frame
-whose bytes miss a group boundary would hold its last two back until the next
-message gave them company; binary frames have no such seam. The client reads
-the format off the response's own content type, so the two directions need
-not agree.
+one frame per message, flushed as each arrives. Requests arrive in the same
+format: the transport is told to send binary rather than the base64 it
+defaults to. A `grpc-web-text` body is a third more bytes, and it is one
+continuous base64 stream — a frame whose bytes miss a group boundary holds its
+last two back until the next message gives them company, which on a stream is
+a message held until the one after it. Binary frames have no such seam, so
+neither direction has one.
 
 The last frame is the trailer block:
 
@@ -182,7 +183,7 @@ Every app call — traces 1 to 5 — shares one spine, on both builds:
    `X-Kaja-App: <name>`; each rides the request as `X-Header-<name>`,
    `${NAME}` references intact. There is nothing else to say: the app's name
    is the address.
-2. `POST <origin>/app/<pkg.Service/Method>`, `application/grpc-web-text` —
+2. `POST <origin>/app/<pkg.Service/Method>`, `application/grpc-web+proto` —
    the origin is `localhost:41520` in a browser, `wails://localhost` on the
    desktop, and the same mux answers both.
 3. `grpc.Serve` de-frames the message → `InvokeApp`,
@@ -282,10 +283,13 @@ the door to look up, no upstream.
    was forwarded, so there is no `kaja-upstream` to say. A failed call is
    `status.Convert`'s `UNKNOWN`, carrying the service's own message.
 
-`Compile` is the one method here that streams — the log as it is written,
-then the verdict. Nothing in the request says which kind of call this is, so
-the door is the same `grpc.Serve`, writing more data frames before the same
-trailer.
+Two methods here stream, and nothing in a request says which kind of call it
+is: the door is the same `grpc.Serve`, writing more data frames before the same
+trailer. `Compile` streams the log as it is written, then the verdict.
+`WatchConfiguration` stays open for the life of the window and sends the whole
+configuration each time `kaja.json` changes on disk — the file being watched is
+read where the change is noticed, so nothing is fetched after being told, and
+neither build has a notification transport of its own.
 
 ### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
 

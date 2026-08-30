@@ -12,6 +12,10 @@ service Api {
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
+  // WatchConfiguration streams the configuration file as it is edited: one message
+  // carrying the whole configuration each time the file changes. What changed is
+  // never asked for afterwards, because the message is the new configuration.
+  rpc WatchConfiguration(WatchConfigurationRequest) returns (stream GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
@@ -346,6 +350,8 @@ message Source {
 }
 
 message GetConfigurationRequest {}
+
+message WatchConfigurationRequest {}
 
 message GetConfigurationResponse {
   Configuration configuration = 1;

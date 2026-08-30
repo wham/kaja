@@ -87,12 +87,11 @@ type App struct {
 	// The application and the one window it opens. v3 has no ambient context to
 	// call the runtime through: what a v2 runtime.* call took a context for is a
 	// method on one of these two.
-	app                  *application.App
-	window               *application.WebviewWindow
-	api                  *api.ApiService
-	configurationWatcher *api.ConfigurationWatcher
-	bookmarkStore        *BookmarkStore
-	workspaceDir         string // base for resolving relative protoDir; also holds the global scripts dir
+	app           *application.App
+	window        *application.WebviewWindow
+	api           *api.ApiService
+	bookmarkStore *BookmarkStore
+	workspaceDir  string // base for resolving relative protoDir; also holds the global scripts dir
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
 	// Guarded by linkMu.
@@ -110,13 +109,12 @@ type App struct {
 	mcpPending map[string]chan mcp.RunResult
 }
 
-func NewApp(apiService *api.ApiService, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
-		api:                  apiService,
-		configurationWatcher: configurationWatcher,
-		bookmarkStore:        bookmarkStore,
-		workspaceDir:         workspaceDir,
-		mcpPending:           make(map[string]chan mcp.RunResult),
+		api:           apiService,
+		bookmarkStore: bookmarkStore,
+		workspaceDir:  workspaceDir,
+		mcpPending:    make(map[string]chan mcp.RunResult),
 	}
 }
 
@@ -137,21 +135,13 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// The MCP server's lifetime is the process's: the UI only reports it.
 	a.startMCPServer()
 
-	if a.configurationWatcher != nil {
-		a.configurationWatcher.Subscribe(func() {
-			a.app.Event.Emit("configuration:changed")
-		})
-	}
 	return nil
 }
 
-// ServiceShutdown stops the MCP server and the configuration watcher.
+// ServiceShutdown stops the MCP server and whatever the Api service is watching.
 func (a *App) ServiceShutdown() error {
 	a.stopMCPServer()
-	if a.configurationWatcher != nil {
-		a.configurationWatcher.Close()
-	}
-	return nil
+	return a.api.Close()
 }
 
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
@@ -404,12 +394,7 @@ func main() {
 	// OS keychain, filed under this configuration.
 	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
 
-	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
-	if err != nil {
-		slog.Warn("Failed to start configuration watcher", "error", err)
-	}
-
-	kaja := NewApp(apiService, configurationWatcher, bookmarkStore, kajaDir)
+	kaja := NewApp(apiService, bookmarkStore, kajaDir)
 
 	// Creating the application, creating the window and running are three steps in v3.
 	// The About box is the application's Name and Description rather than a Mac option:

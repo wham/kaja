@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/wham/kaja/v2/pkg/apps"
@@ -83,7 +83,7 @@ func call(t *testing.T, url string, request []byte) io.ReadCloser {
 	}))
 	t.Cleanup(server.Close)
 
-	response, err := http.Post(server.URL, "application/grpc-web-text", strings.NewReader(grpcWebTextFrame(request)))
+	response, err := http.Post(server.URL, "application/grpc-web+proto", bytes.NewReader(requestFrame(request)))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}

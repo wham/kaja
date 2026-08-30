@@ -1,8 +1,8 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -20,12 +20,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// grpcWebTextFrame builds a base64 gRPC-Web-text request body wrapping msg.
-func grpcWebTextFrame(msg []byte) string {
+// requestFrame builds the gRPC-Web request body carrying msg, which is the message
+// behind its frame header and nothing else: kaja speaks the binary format in both
+// directions.
+func requestFrame(msg []byte) []byte {
 	frame := make([]byte, 5+len(msg))
 	binary.BigEndian.PutUint32(frame[1:5], uint32(len(msg)))
 	copy(frame[5:], msg)
-	return base64.StdEncoding.EncodeToString(frame)
+	return frame
 }
 
 // parseGRPCWebFrames splits a gRPC-Web response body into its data messages and the
@@ -63,9 +65,11 @@ func parseGRPCWebResponse(t *testing.T, body []byte) (message []byte, trailers s
 	return message, trailers
 }
 
-func serveText(method string, body string, invoke Invoker) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(http.MethodPost, "/app/"+method, strings.NewReader(body))
-	r.Header.Set("Content-Type", "application/grpc-web-text")
+// serveMessage answers one request carrying message, which is every request the lane
+// takes: no call kaja serves streams from the client.
+func serveMessage(method string, message []byte, invoke Invoker) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodPost, "/app/"+method, bytes.NewReader(requestFrame(message)))
+	r.Header.Set("Content-Type", "application/grpc-web+proto")
 	w := httptest.NewRecorder()
 	Serve(w, r, method, nil, invoke)
 	return w
@@ -98,7 +102,7 @@ func upstreamTrailer(t *testing.T, trailers string) map[string]any {
 func TestServeSuccess(t *testing.T) {
 	var gotMethod string
 	var gotMessage []byte
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1, 2, 3}), func(_ context.Context, method string, message []byte, _ map[string]string) (apps.Stream, error) {
+	w := serveMessage("svc/Method", []byte{1, 2, 3}, func(_ context.Context, method string, message []byte, _ map[string]string) (apps.Stream, error) {
 		gotMethod = method
 		gotMessage = message
 		return apps.OneMessage([]byte{9, 8, 7}, &apps.Report{}), nil
@@ -120,10 +124,32 @@ func TestServeSuccess(t *testing.T) {
 	}
 }
 
+// A body that ends inside its frame is refused rather than invoked with whatever
+// arrived: a message the frame header says is longer than the body is not the request
+// anyone made.
+func TestServeRefusesATruncatedFrame(t *testing.T) {
+	frame := requestFrame([]byte{1, 2, 3})
+	r := httptest.NewRequest(http.MethodPost, "/app/svc/Method", bytes.NewReader(frame[:len(frame)-1]))
+	w := httptest.NewRecorder()
+
+	invoked := false
+	Serve(w, r, "svc/Method", nil, func(context.Context, string, []byte, map[string]string) (apps.Stream, error) {
+		invoked = true
+		return apps.OneMessage(nil, nil), nil
+	})
+
+	if invoked {
+		t.Error("the call was invoked on a message that never fully arrived")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
 // A call with nothing to report - the internal Api service, which forwards nothing -
 // writes no trailer of Kaja's at all, rather than an empty one saying so.
 func TestServeReportsNothingWhenThereIsNoHop(t *testing.T) {
-	w := serveText("GetConfiguration", grpcWebTextFrame([]byte("request")), answers([]byte("response"), nil))
+	w := serveMessage("GetConfiguration", []byte("request"), answers([]byte("response"), nil))
 
 	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if string(message) != "response" {
@@ -137,7 +163,7 @@ func TestServeReportsNothingWhenThereIsNoHop(t *testing.T) {
 // The whole of what Kaja has to say about a call rides one trailer: the hop it made,
 // what that hop took, and - on a failure - the failure itself.
 func TestServeReportsTheHopInOneTrailer(t *testing.T) {
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), answers([]byte{9}, &apps.Report{
+	w := serveMessage("svc/Method", []byte{1}, answers([]byte{9}, &apps.Report{
 		RequestHeaders:  map[string]string{"Authorization": "Bearer secret"},
 		ResponseHeaders: map[string]string{"Content-Type": "application/json"},
 		DurationMs:      42,
@@ -168,7 +194,7 @@ func TestServeError(t *testing.T) {
 		{errors.New("failed to save configuration"), "grpc-status: 2"},
 		{status.Error(codes.InvalidArgument, "failed to save configuration"), "grpc-status: 3"},
 	} {
-		w := serveText("UpdateConfiguration", grpcWebTextFrame(nil), fails(test.err))
+		w := serveMessage("UpdateConfiguration", nil, fails(test.err))
 
 		message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 		if message != nil {
@@ -186,7 +212,7 @@ func TestServeError(t *testing.T) {
 // A newline in a message is escaped rather than dropped, so it cannot end the trailer
 // line early and the message still reads as it was written once decoded.
 func TestServeErrorMessageSurvivesANewline(t *testing.T) {
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), fails(fmt.Errorf("upstream 404\nnot found")))
+	w := serveMessage("svc/Method", []byte{1}, fails(fmt.Errorf("upstream 404\nnot found")))
 
 	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if got := trailerValue(t, trailers, "grpc-message"); got != "upstream 404\nnot found" {
@@ -202,7 +228,7 @@ func TestServeErrorMessageSurvivesANewline(t *testing.T) {
 // client shows instead of the gRPC error - rides whole in Kaja's own trailer.
 func TestServeUpstreamError(t *testing.T) {
 	body := `{"title":"Bad Request","detail":"request body has an error"}`
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), fails(
+	w := serveMessage("svc/Method", []byte{1}, fails(
 		apps.NewUpstreamError(http.MethodPost, "https://api.example.com/v1/events", http.StatusBadRequest, []byte(body)).
 			WithHeaders(map[string]string{"Authorization": "Bearer secret"}, map[string]string{"Content-Type": "application/json"})))
 
@@ -245,7 +271,7 @@ func TestServeUpstreamError(t *testing.T) {
 // "â€"" — which is what used to show up in the console.
 func TestTrailerValuesSurviveNonASCII(t *testing.T) {
 	const detail = `no show "glass-mountainz" — list them all`
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), fails(
+	w := serveMessage("svc/Method", []byte{1}, fails(
 		apps.NewUpstreamError(http.MethodGet, "https://api.example.com/shows/x", http.StatusNotFound,
 			[]byte(`{"detail":`+strconv.Quote(detail)+`}`))))
 
@@ -314,7 +340,7 @@ func TestGRPCStatusOf(t *testing.T) {
 // describing the hop, never the failure itself.
 func TestTrailerBlockIsBounded(t *testing.T) {
 	huge := strings.Repeat("x", 4*maxTrailerBytes)
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), fails(
+	w := serveMessage("svc/Method", []byte{1}, fails(
 		apps.NewUpstreamError(http.MethodGet, "https://api.example.com/x", http.StatusBadGateway, []byte(`{"detail":"gone"}`)).
 			WithHeaders(map[string]string{"X-Huge": huge}, map[string]string{"X-Also-Huge": huge})))
 
@@ -341,7 +367,7 @@ func TestTrailerBlockIsBounded(t *testing.T) {
 // A dropped trailer is dropped whole: a value cut in half would reach the client as
 // JSON it cannot parse, which is worse than the trailer never arriving.
 func TestOversizedTrailerIsDroppedNotCut(t *testing.T) {
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), answers([]byte{9}, &apps.Report{
+	w := serveMessage("svc/Method", []byte{1}, answers([]byte{9}, &apps.Report{
 		Metadata: map[string]string{"x-huge": strings.Repeat("y", 4*maxTrailerBytes)},
 	}))
 
@@ -365,7 +391,7 @@ func TestOversizedTrailerIsDroppedNotCut(t *testing.T) {
 // grpc-message is cut before it is escaped, and escaping can triple what it is given,
 // so the cut has to leave room for that.
 func TestLongGRPCMessageFitsOnceEscaped(t *testing.T) {
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), fails(fmt.Errorf("%s", strings.Repeat("→", 4*maxTrailerBytes))))
+	w := serveMessage("svc/Method", []byte{1}, fails(fmt.Errorf("%s", strings.Repeat("→", 4*maxTrailerBytes))))
 
 	_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if len(trailers) > maxTrailerBytes {

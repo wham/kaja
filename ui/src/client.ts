@@ -7,7 +7,7 @@ import { rpcErrorMessage } from "./rpcMessage";
 import { UPSTREAM_TRAILER, parseUpstream } from "./upstream";
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
-import { getBaseUrlForApp } from "./server/connection";
+import { getBaseUrlForApp, GRPC_WEB_FORMAT } from "./server/connection";
 import { Stub } from "./sources";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 import { uuidV4 } from "./uuid";
@@ -65,7 +65,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // One transport, and no choice inside it: whatever an app talks to upstream, the
   // call kaja is handed is gRPC-Web over the page's own origin — which on the desktop
   // is the mux the app mounts behind its webview's scheme.
-  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp() });
+  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp(), format: GRPC_WEB_FORMAT });
 
   const stubModule = stub[service.clientStubModuleId];
   const ClientClass = stubModule[service.name + "Client"];
