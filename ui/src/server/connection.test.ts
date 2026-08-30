@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { getBaseUrlForApi, getBaseUrlForTarget } from "./connection";
+import { getBaseUrlForApi, getBaseUrlForApp } from "./connection";
 
 const originalWindow = globalThis.window;
 
@@ -18,14 +18,14 @@ test("getBaseUrlForApi", () => {
   expect(baseUrl).toBe("http://example.com/path");
 });
 
-test("getBaseUrlForTarget", () => {
+test("getBaseUrlForApp", () => {
   globalThis.window = {
     location: {
       href: "http://example.com/path/",
     },
   } as any;
-  const baseUrl = getBaseUrlForTarget();
-  expect(baseUrl).toBe("http://example.com/path/target");
+  const baseUrl = getBaseUrlForApp();
+  expect(baseUrl).toBe("http://example.com/path/app");
 });
 
 // A deeplink is `/#run/<script>?…`, so the page's own URL routinely carries a
@@ -38,7 +38,7 @@ test("ignores a fragment and a query the page happens to carry", () => {
   } as any;
 
   expect(getBaseUrlForApi()).toBe("http://example.com/path");
-  expect(getBaseUrlForTarget()).toBe("http://example.com/path/target");
+  expect(getBaseUrlForApp()).toBe("http://example.com/path/app");
 });
 
 // The desktop is a page like any other now: the webview is served from its own
@@ -51,5 +51,5 @@ test("reads the desktop's own origin", () => {
   } as any;
 
   expect(getBaseUrlForApi()).toBe("wails://localhost");
-  expect(getBaseUrlForTarget()).toBe("wails://localhost/target");
+  expect(getBaseUrlForApp()).toBe("wails://localhost/app");
 });

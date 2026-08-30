@@ -73,7 +73,7 @@ async function numbersApp() {
     { path: "proto/numbers.ts", content: serviceTs },
     { path: "proto/numbers.client.ts", content: clientTs },
   ] as ApiSource[];
-  return loadApp(apiSources, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any, "kaja-app://x");
+  return loadApp(apiSources, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any);
 }
 
 describe("a method that streams from the client", () => {

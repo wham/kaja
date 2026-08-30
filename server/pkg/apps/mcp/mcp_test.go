@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -235,7 +236,7 @@ func TestInvokeTool(t *testing.T) {
 	bound := in.methods["mcp.Tools/GetWeather"]
 
 	request := encodeRequest(t, bound, `{"location":"Seattle","units":"metric","days":3}`)
-	result, err := in.Invoke("mcp.Tools/GetWeather", request, map[string]string{"X-Tenant": "acme"})
+	result, err := invoke(in, "mcp.Tools/GetWeather", request, map[string]string{"X-Tenant": "acme"})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -286,7 +287,7 @@ func TestInvokeToolExecutionError(t *testing.T) {
 	in, _ := openApp(t, endpoint, nil)
 	bound := in.methods["mcp.Tools/GetWeather"]
 
-	result, err := in.Invoke("mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Atlantis"}`), nil)
+	result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Atlantis"}`), nil)
 	if err != nil {
 		t.Fatalf("a failing tool is a result, not an error: %v", err)
 	}
@@ -305,7 +306,7 @@ func TestInvokeInputRequired(t *testing.T) {
 	in, _ := openApp(t, endpoint, nil)
 	bound := in.methods["mcp.Tools/GetWeather"]
 
-	_, err := in.Invoke("mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	_, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
 	if err == nil || !strings.Contains(err.Error(), "asked for input") {
 		t.Fatalf("expected an input-required error, got %v", err)
 	}
@@ -354,7 +355,7 @@ func TestLegacyHandshake(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected mcp.Prompts/ReviewCode, got %v", methodPaths(in))
 	}
-	if _, err := in.Invoke("mcp.Prompts/ReviewCode", encodeRequest(t, bound, `{"diff":"-a +b"}`), nil); err != nil {
+	if _, err := invoke(in, "mcp.Prompts/ReviewCode", encodeRequest(t, bound, `{"diff":"-a +b"}`), nil); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	get := fake.asked("prompts/get")
@@ -374,7 +375,7 @@ func TestStreamedResponse(t *testing.T) {
 	in, _ := openApp(t, endpoint, nil)
 	bound := in.methods["mcp.Tools/GetWeather"]
 
-	result, err := in.Invoke("mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -497,7 +498,7 @@ func TestInvokeUpstreamFailure(t *testing.T) {
 	opened = true
 	bound := in.methods["mcp.Tools/GetWeather"]
 
-	_, err := in.Invoke("mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	_, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
 	var upstream *apps.UpstreamError
 	if !asUpstream(err, &upstream) {
 		t.Fatalf("expected an upstream error, got %v", err)
@@ -546,4 +547,29 @@ func decodeResponseJSON(t *testing.T, bound *boundMethod, body []byte) string {
 	// protojson inserts non-breaking spaces at random to discourage exact
 	// comparison; the tests only ever look for substrings.
 	return strings.ReplaceAll(string(encoded), " ", " ")
+}
+
+// invoked is one call as these tests read it. Every app here answers with one message,
+// so the stream a call hands back is collapsed to that message and the report beside it.
+type invoked struct {
+	Body            []byte
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+}
+
+func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
+	stream, err := in.Invoke(context.Background(), &apps.Call{Method: method, Request: request, Headers: headers})
+	if err != nil {
+		return nil, err
+	}
+	body, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	result := &invoked{Body: body}
+	if report := stream.Report(); report != nil {
+		result.RequestHeaders = report.RequestHeaders
+		result.ResponseHeaders = report.ResponseHeaders
+	}
+	return result, nil
 }

@@ -369,8 +369,10 @@ func TestOpenApp_ExpandsVariables(t *testing.T) {
 	if response.Status != OpenStatus_OPEN_STATUS_OK {
 		t.Fatalf("expected OK status, got %v: %v", response.Status, response.Logs)
 	}
-	if response.Target != "dns:kaja.tools:443" {
-		t.Errorf("expected expanded target 'dns:kaja.tools:443', got %q", response.Target)
+	// The address is the app's own and never leaves this process, so the logs of the
+	// open are where an expansion can be seen at all.
+	if !logged(response.Logs, "dns:kaja.tools:443") {
+		t.Errorf("expected the expanded address in the logs, got %v", response.Logs)
 	}
 }
 
@@ -397,8 +399,8 @@ func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
 	}
 
 	// The reference is left as-is and the logs call it out.
-	if response.Target != "dns:${MISSING}:443" {
-		t.Errorf("expected unresolved reference to pass through, got %q", response.Target)
+	if !logged(response.Logs, "dns:${MISSING}:443") {
+		t.Errorf("expected the unresolved reference to pass through, got %v", response.Logs)
 	}
 	found := false
 	for _, log := range response.Logs {
@@ -452,4 +454,14 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 	if !foundDebug {
 		t.Error("expected to find debug log about path prefix normalization")
 	}
+}
+
+// logged reports whether any line of an open's logs contains text.
+func logged(logs []*Log, text string) bool {
+	for _, log := range logs {
+		if strings.Contains(log.Message, text) {
+			return true
+		}
+	}
+	return false
 }

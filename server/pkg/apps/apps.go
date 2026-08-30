@@ -4,28 +4,26 @@
 // Apps are built in today, but the App/Instance interfaces are shaped like a future
 // generic gRPC "App" service so remote apps — separate processes speaking a standard
 // contract — can be added without changing how the UI consumes them: Open generates
-// the proto surface to render, Invoke executes a single method.
+// the proto surface to render, Invoke runs a method and streams back what it answers
+// with.
 package apps
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
 	"fmt"
-	"net/url"
+	"io"
 	"strings"
 	"sync"
+
+	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
-// TargetScheme is the URL scheme used as an app's URL for an opened app
-// instance. Method calls whose X-Target uses this scheme are routed back into
-// the app manager for invocation instead of being proxied to an external host.
-const TargetScheme = "kaja-app"
-
 // AppHeader is the reserved header the client sends alongside the app's own, naming
-// the app a call belongs to. It never reaches the wire: both request routers take it
-// out and use it to look up the credential and transport kaja holds for that app.
-// That is what keeps a "${secret}" token where it lives, and what makes Basic's
-// base64 kaja's to do rather than yours.
+// the app a call belongs to. It never reaches the wire: the request routers take it
+// out and use it to look up the app — the instance to invoke, and the credential and
+// transport kaja holds for it. That is what keeps a "${secret}" token where it lives,
+// what makes Basic's base64 kaja's to do rather than yours, and what leaves the
+// browser with no address to be told.
 const AppHeader = "X-Kaja-App"
 
 // TakeAppName removes the reserved header and returns the app it named. Header case
@@ -67,58 +65,107 @@ func MergeMetadata(headers map[string]string, metadata map[string]string) map[st
 
 // App is the contract every app type satisfies. An App is a factory: Open turns
 // creation parameters into an Opened result, describing the proto surface to
-// compile and how the app is invoked.
+// compile and the instance its methods are invoked on.
 type App interface {
 	Open(parameters map[string]string, protoDir string, log func(string)) (*Opened, error)
 }
 
-// Opened is the result of opening an app: where its proto surface lives and how
-// its methods are invoked.
+// Opened is the result of opening an app: where its proto surface lives and what
+// its methods are invoked on.
 type Opened struct {
 	// ProtoDir overrides where the proto surface to compile lives. Empty means the
 	// protoDir passed to Open. A relative path ("seating/proto") is resolved by the
 	// compiler against the workspace, which is what an app with protos on disk uses.
 	ProtoDir string
-	// Instance, when non-nil, makes the app invocable in-process: the Manager
-	// registers it and the client reaches it through a kaja-app:// target.
+	// Instance is what the app's methods are invoked on. Every app has one, the
+	// forwarding gRPC app included: forwarding is a way of answering a call, not a
+	// second kind of app.
 	Instance Instance
-	// Target is the upstream URL of an app whose calls are forwarded rather than
-	// invoked here — the gRPC app, and only it. Ignored when Instance is non-nil.
-	Target string
 }
 
-// OpenResult tells the caller how a freshly opened app is compiled and invoked.
-type OpenResult struct {
-	ProtoDir string
-	Target   string
+// Call is one method invocation on its way to an app.
+type Call struct {
+	// Method is the gRPC method path, e.g. "openapi.petstore.PetstoreApi/GetPet".
+	Method string
+	// Request is the encoded protobuf of the method's request message.
+	Request []byte
+	// Headers are forwarded upstream, the app's own credential already merged in.
+	Headers map[string]string
+	// TLS is how a forwarded call reaches its server. It is read from kaja.json when
+	// the call is made rather than held from Open, which is what makes a replaced
+	// certificate take effect on the next call; an app that answers in this process
+	// makes no such connection and ignores it.
+	TLS grpc.TLSOptions
 }
 
 // Instance is a live, opened app that can invoke its generated methods.
 type Instance interface {
-	// Invoke runs the method identified by its path, e.g.
-	// "openapi.petstore.PetstoreApi/GetPet". request and the result's Body are the
-	// encoded protobuf of the method's request and response messages; headers are
-	// forwarded upstream.
-	Invoke(methodPath string, request []byte, headers map[string]string) (*InvokeResult, error)
+	// Invoke starts the call and hands back the stream its responses arrive on. A
+	// unary method is a stream of one — the frames on the wire are the same either
+	// way — which is what lets one lane carry every app and every kind of method.
+	Invoke(ctx context.Context, call *Call) (Stream, error)
 }
 
-// InvokeResult is the outcome of a single Invoke. Body is the encoded protobuf of
-// the method's response message.
-// RequestHeaders/ResponseHeaders are what the app actually exchanged with its
-// upstream, which the transports surface to the Headers view; an in-process app with
-// no upstream hop leaves them empty.
-type InvokeResult struct {
-	Body            []byte
+// Stream is a call in progress: the response messages, then what the exchange had to
+// say for itself.
+type Stream interface {
+	// Recv returns the next response message as encoded protobuf, io.EOF once there
+	// are none left.
+	Recv() ([]byte, error)
+	// Report is what the call has to say once Recv has stopped — a trailer is
+	// metadata about a response, so there is nothing to read before there is one.
+	Report() *Report
+}
+
+// Report is what a call says about itself beside its response messages: the hop kaja
+// made on its behalf, and what a forwarded call's server answered with.
+type Report struct {
+	// Metadata is what a forwarded call's server answered with, under its own names.
+	// That lane is a bridge rather than a hop — the same call is forwarded — so the
+	// server's metadata is the response's own rather than an exchange of kaja's.
+	Metadata map[string]string
+	// RequestHeaders/ResponseHeaders are the upstream exchange an app made on the
+	// call's behalf, which the client shows as the API's own headers. An app with no
+	// upstream hop leaves them empty.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
-	// DurationMs is the wall-clock time of the invocation as this process measured
-	// it — the upstream exchange plus the app's own encode/decode, and nothing of the
-	// trip between the UI and here. Stamped by ApiService.InvokeApp, the one door both
-	// request routers call, so an app never fills it in itself.
+	// DurationMs is the wall-clock time of the call as this process measured it — the
+	// upstream exchange plus the app's own encode/decode, and nothing of the trip
+	// between the UI and here. Stamped by ApiService.InvokeApp, the one door every
+	// call goes through, so an app never fills it in itself.
 	DurationMs int64
 }
 
+// OneMessage is the stream of a call that answers all at once, which is every app
+// kaja invokes in this process rather than forwards. A nil report is a call with
+// nothing to report — a local app, or a service running in this process — and stays
+// nil rather than becoming an empty one nobody asked for.
+func OneMessage(body []byte, report *Report) Stream {
+	return &oneMessage{body: body, report: report}
+}
+
+type oneMessage struct {
+	body   []byte
+	sent   bool
+	report *Report
+}
+
+func (s *oneMessage) Recv() ([]byte, error) {
+	if s.sent {
+		return nil, io.EOF
+	}
+	s.sent = true
+	return s.body, nil
+}
+
+func (s *oneMessage) Report() *Report { return s.report }
+
 // Manager owns the registry of app types and the set of live instances.
+//
+// An instance is registered under the app's own name, which is the address the client
+// already sends: there is nothing for the browser to be told and nothing for it to get
+// wrong, and reopening an app replaces the instance it had rather than leaving it
+// behind.
 type Manager struct {
 	mu        sync.Mutex
 	types     map[string]App
@@ -133,68 +180,40 @@ func NewManager(types map[string]App) *Manager {
 	}
 }
 
-// Open instantiates an app of the given type. In-process apps are registered and
-// reached through a "kaja-app://<id>" target; the gRPC app returns its upstream URL,
-// which is what the forwarder dials. Generated protos are written into protoDir.
-func (m *Manager) Open(appType string, parameters map[string]string, protoDir string, log func(string)) (*OpenResult, error) {
+// Open instantiates an app of the given type and registers it under name, replacing
+// whatever was open under that name before. Generated protos are written into
+// protoDir; the directory the surface actually lives in is what comes back.
+func (m *Manager) Open(name string, appType string, parameters map[string]string, protoDir string, log func(string)) (string, error) {
 	m.mu.Lock()
 	app, ok := m.types[appType]
 	m.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("unknown app type %q", appType)
+		return "", fmt.Errorf("unknown app type %q", appType)
 	}
 
 	opened, err := app.Open(parameters, protoDir, log)
 	if err != nil {
-		return nil, err
-	}
-
-	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target}
-	if opened.ProtoDir != "" {
-		result.ProtoDir = opened.ProtoDir
-	}
-
-	if opened.Instance != nil {
-		id, err := newID()
-		if err != nil {
-			return nil, err
-		}
-		m.mu.Lock()
-		m.instances[id] = opened.Instance
-		m.mu.Unlock()
-		result.Target = TargetScheme + "://" + id
-	}
-
-	return result, nil
-}
-
-// IsAppTarget reports whether target refers to an opened app instance.
-func IsAppTarget(target string) bool {
-	return strings.HasPrefix(target, TargetScheme+"://")
-}
-
-// Invoke routes a method call to the instance referenced by target.
-func (m *Manager) Invoke(target string, methodPath string, request []byte, headers map[string]string) (*InvokeResult, error) {
-	u, err := url.Parse(target)
-	if err != nil {
-		return nil, fmt.Errorf("invalid app target %q: %w", target, err)
-	}
-	id := u.Host
-
-	m.mu.Lock()
-	instance, ok := m.instances[id]
-	m.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("app instance %q not found (the app may need to be recompiled)", id)
-	}
-
-	return instance.Invoke(methodPath, request, headers)
-}
-
-func newID() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(b), nil
+
+	m.mu.Lock()
+	m.instances[name] = opened.Instance
+	m.mu.Unlock()
+
+	if opened.ProtoDir != "" {
+		return opened.ProtoDir, nil
+	}
+	return protoDir, nil
+}
+
+// Invoke routes a call to the app registered under name.
+func (m *Manager) Invoke(ctx context.Context, name string, call *Call) (Stream, error) {
+	m.mu.Lock()
+	instance, ok := m.instances[name]
+	m.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("app %q is not open (it may need to be recompiled)", name)
+	}
+
+	return instance.Invoke(ctx, call)
 }

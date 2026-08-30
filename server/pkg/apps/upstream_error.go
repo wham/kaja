@@ -30,7 +30,7 @@ type UpstreamError struct {
 	// exactly when they matter most.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
-	// DurationMs mirrors InvokeResult's: the failed exchange still took time, and it is
+	// DurationMs mirrors the Report's: the failed exchange still took time, and it is
 	// stamped the same way (ApiService.InvokeApp). Carried out of band by the
 	// transports, never in JSON() — the JSON is the failure as the API reported it.
 	DurationMs int64

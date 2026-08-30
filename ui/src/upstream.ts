@@ -1,21 +1,26 @@
 import { MethodCallHeaders } from "./kaja";
 
-// Trailers carrying what happened upstream of Kaja, out of band from the response
-// message, emitted as gRPC-Web trailers.
+// UPSTREAM_TRAILER carries what happened upstream of Kaja, out of band from the
+// response message: the hop Kaja made on the call's behalf, how long it took, and the
+// failure when there was one. It is one gRPC-Web trailer holding one object, so the
+// client reads one thing, once — where four names meant four values to escape, four to
+// parse, and four passes of the trailer block's budget.
 //
-// The prefix is the response side of the reserved X-Kaja-App request header: anything
-// under it is Kaja's own channel, never a header the server sent, and the client
-// strips the whole prefix out of what it shows as response headers.
-//
-// The headers ones are a JSON object of header name to value. The error one is the
-// HTTP failure itself, shown in place of the gRPC error the call was tunnelled
-// through. The duration one is the upstream exchange in milliseconds as the Kaja
-// process measured it, shown in place of the client's own round-trip timing.
-export const UPSTREAM_TRAILER_PREFIX = "kaja-upstream-";
-export const UPSTREAM_REQUEST_HEADERS_TRAILER = "kaja-upstream-request-headers";
-export const UPSTREAM_RESPONSE_HEADERS_TRAILER = "kaja-upstream-response-headers";
-export const UPSTREAM_ERROR_TRAILER = "kaja-upstream-error";
-export const UPSTREAM_DURATION_TRAILER = "kaja-upstream-duration-ms";
+// It is the response side of the reserved X-Kaja-App request header: Kaja's own
+// channel, never a header the server sent, which is why the client consumes it rather
+// than showing it among the response headers.
+export const UPSTREAM_TRAILER = "kaja-upstream";
+
+// Upstream is that object. Every field is optional because a call reports only what it
+// had: a local app exchanged no headers, and a call that succeeded has no failure.
+export interface Upstream {
+  requestHeaders?: MethodCallHeaders;
+  responseHeaders?: MethodCallHeaders;
+  durationMs?: number;
+  // The HTTP failure itself, shown in place of the gRPC error the call was tunnelled
+  // through.
+  error?: UpstreamFailure;
+}
 
 // An upstream HTTP call that failed, as the app reported it: the request that was
 // made, what came back, and nothing about the gRPC frame it travelled in.
@@ -33,61 +38,50 @@ export interface UpstreamFailure {
   body: unknown;
 }
 
-// decodeTrailer reads a trailer value: RpcMetadata gives either a string or a
+// parseUpstream reads the trailer. RpcMetadata gives either a string or a
 // single-element array, and the value is percent-encoded (escapeTrailerValue
-// server-side) because trailers are read back byte by byte as Latin-1.
-function decodeTrailer(value: unknown): string | undefined {
+// server-side) because a trailer block is read back byte by byte as Latin-1. Anything
+// that is not the object it should be reads as a call that reported nothing, which is
+// what a missing trailer already means.
+export function parseUpstream(value: unknown): Upstream | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
   if (raw === undefined || raw === null) return undefined;
+  let decoded = String(raw);
   try {
-    return decodeURIComponent(String(raw));
+    decoded = decodeURIComponent(decoded);
   } catch {
     // Not a valid escape sequence; the raw value is still worth more than nothing.
-    return String(raw);
   }
-}
-
-// Tolerates anything that is not a valid JSON object by returning undefined.
-export function parseUpstreamHeaders(value: unknown): MethodCallHeaders | undefined {
-  const decoded = decodeTrailer(value);
-  if (decoded === undefined) return undefined;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(decoded);
-    if (parsed && typeof parsed === "object") {
-      const out: MethodCallHeaders = {};
-      for (const [key, headerValue] of Object.entries(parsed)) {
-        out[key] = String(headerValue);
-      }
-      return out;
-    }
+    parsed = JSON.parse(decoded);
   } catch {
-    // Not valid JSON; ignore rather than surfacing a broken trailer.
+    return undefined;
   }
-  return undefined;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const object = parsed as Record<string, unknown>;
+  return {
+    requestHeaders: headersOf(object.requestHeaders),
+    responseHeaders: headersOf(object.responseHeaders),
+    durationMs: durationOf(object.durationMs),
+    error: object.error && typeof object.error === "object" && !Array.isArray(object.error) ? (object.error as UpstreamFailure) : undefined,
+  };
 }
 
-// parseUpstreamDuration decodes the duration trailer: a non-negative integer of
-// milliseconds, and nothing else — a mangled value reads as never measured.
-export function parseUpstreamDuration(value: unknown): number | undefined {
-  const decoded = decodeTrailer(value);
-  if (decoded === undefined || decoded === "") return undefined;
-  const parsed = Number(decoded);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined;
+function headersOf(value: unknown): MethodCallHeaders | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const headers: MethodCallHeaders = {};
+  for (const [name, headerValue] of Object.entries(value)) {
+    headers[name] = String(headerValue);
+  }
+  return headers;
 }
 
-// parseUpstreamError decodes the structured HTTP failure trailer.
-export function parseUpstreamError(value: unknown): UpstreamFailure | undefined {
-  const decoded = decodeTrailer(value);
-  if (decoded === undefined) return undefined;
-  try {
-    const parsed = JSON.parse(decoded);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as UpstreamFailure;
-    }
-  } catch {
-    // Not valid JSON; fall back to whatever the transport made of the error.
-  }
-  return undefined;
+// A duration is a non-negative number of milliseconds and nothing else — a mangled one
+// reads as never measured, which is what makes the client fall back on its own timing.
+function durationOf(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
+  return Math.round(value);
 }
 
 // asUpstreamFailure recognizes one of these where a call's error is read back — from

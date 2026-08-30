@@ -12,6 +12,7 @@ package twirp
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,16 +71,16 @@ type instance struct {
 	client  *http.Client
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
-	endpoint := in.baseURL + "/twirp/" + strings.TrimPrefix(methodPath, "/")
+func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
+	endpoint := in.baseURL + "/twirp/" + strings.TrimPrefix(call.Method, "/")
 
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(request))
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(call.Request))
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
 	// The app's own headers go on first so one configured as Content-Type still
 	// outranks kaja's, the rule every app applies to what it sets itself.
-	for name, value := range headers {
+	for name, value := range call.Headers {
 		httpReq.Header.Set(name, value)
 	}
 	if httpReq.Header.Get("Content-Type") == "" {
@@ -106,5 +107,5 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, apps.NewUpstreamError(http.MethodPost, endpoint, resp.StatusCode, body).WithHeaders(requestHeaders, responseHeaders)
 	}
 
-	return &apps.InvokeResult{Body: body, RequestHeaders: requestHeaders, ResponseHeaders: responseHeaders}, nil
+	return apps.OneMessage(body, &apps.Report{RequestHeaders: requestHeaders, ResponseHeaders: responseHeaders}), nil
 }

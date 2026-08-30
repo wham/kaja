@@ -1,12 +1,14 @@
 package folder
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/wham/kaja/v2/pkg/apps"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -74,11 +76,11 @@ func call(inst *instance, methodName, requestJSON string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := inst.Invoke("folder.Folder/"+methodName, reqBytes, nil)
+	stream, err := inst.Invoke(context.Background(), &apps.Call{Method: "folder.Folder/" + methodName, Request: reqBytes})
 	if err != nil {
 		return nil, err
 	}
-	return result.Body, nil
+	return stream.Recv()
 }
 
 func TestWriteAndRead(t *testing.T) {

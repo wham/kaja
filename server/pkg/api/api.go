@@ -73,32 +73,65 @@ func (s *ApiService) variableStoreAvailable() bool {
 	return s.variableStore != nil && s.variableStore.Available()
 }
 
-// InvokeApp invokes a method on an opened in-process app. It expands the ${NAME}
-// references in the headers the client sent - the client sends them unexpanded,
-// because a variable's value may be one it is not allowed to know - and masks
-// every resolved value back out of the headers the app reports exchanging with
-// its upstream. Both request routers go through here, so neither can surface a
-// value kaja.json doesn't carry. It also stamps the invocation's duration, on the
-// result and the failure alike: measured here, it is server-side time with nothing
-// of the trip between the UI and this process in it.
-func (s *ApiService) InvokeApp(target string, method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
+// InvokeApp is the one door every call goes through, whichever build it arrived on.
+// The reserved header names the app the call belongs to and goes no further. The
+// ${NAME} references the client left in the rest are expanded here — the client sends
+// them unexpanded, because a variable's value may be one it is not allowed to know —
+// and the app's own credential and transport security are read from kaja.json now
+// rather than held from Open, so replacing a token takes effect on the next call
+// instead of the next compile.
+//
+// Coming back, every resolved value is masked out of the headers the app reports
+// exchanging upstream, so no value kaja.json doesn't carry can reach the client, and
+// the call is timed here: measured at this end, the duration is server-side time with
+// nothing of the trip between the UI and this process in it, which is why an app never
+// fills one in itself.
+func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byte, headers map[string]string) (apps.Stream, error) {
+	name := apps.TakeAppName(headers)
 	resolver := s.Variables()
+	connection := s.appConnection(name)
+
+	call := &apps.Call{
+		Method:  method,
+		Request: message,
+		Headers: apps.MergeMetadata(resolver.ExpandAll(headers), connection.Metadata),
+		TLS:     connection.TLS,
+	}
 
 	started := time.Now()
-	result, err := s.apps.Invoke(target, method, message, resolver.ExpandAll(headers))
-	durationMs := time.Since(started).Milliseconds()
+	stream, err := s.apps.Invoke(ctx, name, call)
 	if err != nil {
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
-			upstream.DurationMs = durationMs
+			upstream.DurationMs = time.Since(started).Milliseconds()
 			upstream.RequestHeaders = resolver.Redact(upstream.RequestHeaders, headers)
 		}
 		return nil, err
 	}
+	return &timedStream{stream: stream, started: started, resolver: resolver, sent: headers}, nil
+}
 
-	result.DurationMs = durationMs
-	result.RequestHeaders = resolver.Redact(result.RequestHeaders, headers)
-	return result, nil
+// timedStream is the call as InvokeApp hands it on: the app's own stream, with the
+// duration and the redaction applied to the report it ends with. A stream is over when
+// it is over, so both are settled where the report is read rather than where the call
+// was made.
+type timedStream struct {
+	stream   apps.Stream
+	started  time.Time
+	resolver *Resolver
+	sent     map[string]string
+}
+
+func (s *timedStream) Recv() ([]byte, error) { return s.stream.Recv() }
+
+func (s *timedStream) Report() *apps.Report {
+	report := s.stream.Report()
+	if report == nil {
+		report = &apps.Report{}
+	}
+	report.DurationMs = time.Since(s.started).Milliseconds()
+	report.RequestHeaders = s.resolver.Redact(report.RequestHeaders, s.sent)
+	return report
 }
 
 func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
@@ -166,7 +199,9 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
 	}
 
-	result, err := s.apps.Open(appType, parameters, protoDir, func(message string) {
+	// The app is registered under its own name, which is the address every call
+	// already carries: nothing about where it lives is handed to the client.
+	openedDir, err := s.apps.Open(req.App.Name, appType, parameters, protoDir, func(message string) {
 		logger.info(message)
 	})
 	if err != nil {
@@ -177,8 +212,7 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	return &OpenAppResponse{
 		Status:   OpenStatus_OPEN_STATUS_OK,
 		Logs:     logger.logs,
-		ProtoDir: result.ProtoDir,
-		Target:   result.Target,
+		ProtoDir: openedDir,
 	}, nil
 }
 
@@ -191,10 +225,10 @@ type AppConnection struct {
 	TLS      grpc.TLSOptions
 }
 
-// AppConnection resolves how the named app connects. The name arrives on the
+// appConnection resolves how the named app connects. The name arrives on the
 // reserved header the client sends with every call; an app that isn't there, or
 // isn't a grpc app, connects the way it always has.
-func (s *ApiService) AppConnection(name string) AppConnection {
+func (s *ApiService) appConnection(name string) AppConnection {
 	if name == "" {
 		return AppConnection{}
 	}

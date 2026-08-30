@@ -1,24 +1,38 @@
 import { expect, test } from "bun:test";
-import { parseUpstreamDuration, parseUpstreamError, parseUpstreamHeaders, unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
+import { parseUpstream, unwrapFailure, upstreamRequestLine } from "./upstream";
 
-// Trailers are percent-encoded on the way out because a gRPC-Web client reads
-// them byte by byte as Latin-1; without it an em dash arrives as "â€"".
-const escape = (value: string) =>
-  [...new TextEncoder().encode(value)]
+// Trailers are percent-encoded on the way out because a gRPC-Web client reads them
+// byte by byte as Latin-1; without it an em dash arrives as "â€"".
+const trailer = (upstream: unknown) =>
+  [...new TextEncoder().encode(JSON.stringify(upstream))]
     .map((b) => (b < 0x20 || b > 0x7e || b === 0x25 ? "%" + b.toString(16).toUpperCase().padStart(2, "0") : String.fromCharCode(b)))
     .join("");
 
-test("decodes a header trailer, including non-ASCII values", () => {
-  const headers = { "Content-Type": "application/problem+json", "X-Note": "café — closed" };
-  expect(parseUpstreamHeaders(escape(JSON.stringify(headers)))).toEqual(headers);
+test("reads the hop an app made, including non-ASCII header values", () => {
+  const requestHeaders = { Accept: "application/json" };
+  const responseHeaders = { "Content-Type": "application/problem+json", "X-Note": "café — closed" };
+
+  expect(parseUpstream(trailer({ requestHeaders, responseHeaders, durationMs: 42 }))).toEqual({
+    requestHeaders,
+    responseHeaders,
+    durationMs: 42,
+    error: undefined,
+  });
 });
 
-test("reads a header trailer from a single-element metadata array", () => {
-  expect(parseUpstreamHeaders([escape('{"Accept":"application/json"}')])).toEqual({ Accept: "application/json" });
+test("reads the trailer from a single-element metadata array", () => {
+  const value = trailer({ durationMs: 1200 }) as string;
+  expect(parseUpstream([value])?.durationMs).toBe(1200);
 });
 
-test("decodes the structured HTTP failure, keeping the body a value", () => {
-  const failure = {
+// A percent sign in a value is escaped on the way out, so it survives rather
+// than being read as the start of an escape sequence.
+test("round-trips a value containing a percent sign", () => {
+  expect(parseUpstream(trailer({ responseHeaders: { "X-Ratio": "50% off" } }))?.responseHeaders).toEqual({ "X-Ratio": "50% off" });
+});
+
+test("carries the structured HTTP failure, keeping the body a value", () => {
+  const error = {
     message: 'no show "glass-mountainz" — list them all',
     status: 404,
     statusText: "Not Found",
@@ -26,16 +40,25 @@ test("decodes the structured HTTP failure, keeping the body a value", () => {
     body: { detail: 'no show "glass-mountainz" — list them all', status: 404, title: "Show not found" },
   };
 
-  const parsed = parseUpstreamError(escape(JSON.stringify(failure)));
-  expect(parsed).toEqual(failure);
+  const parsed = parseUpstream(trailer({ durationMs: 7, error }));
+  expect(parsed!.error).toEqual(error);
   // The body is a value, not a string of JSON the console would show escaped.
-  expect(typeof parsed!.body).toBe("object");
+  expect(typeof parsed!.error!.body).toBe("object");
 });
 
-// A percent sign in a value is escaped on the way out, so it survives rather
-// than being read as the start of an escape sequence.
-test("round-trips a value containing a percent sign", () => {
-  expect(parseUpstreamHeaders(escape('{"X-Ratio":"50% off"}'))).toEqual({ "X-Ratio": "50% off" });
+test("returns nothing for a missing or unparseable trailer", () => {
+  expect(parseUpstream(undefined)).toBeUndefined();
+  expect(parseUpstream("not json")).toBeUndefined();
+  expect(parseUpstream(trailer([1, 2]))).toBeUndefined();
+});
+
+// A field that is not what it should be reads as one the call never reported, which is
+// what makes the client fall back on its own round-trip timing.
+test("refuses a duration that is not a non-negative number", () => {
+  expect(parseUpstream(trailer({}))?.durationMs).toBeUndefined();
+  expect(parseUpstream(trailer({ durationMs: "fast" }))?.durationMs).toBeUndefined();
+  expect(parseUpstream(trailer({ durationMs: -5 }))?.durationMs).toBeUndefined();
+  expect(parseUpstream(trailer({ durationMs: 0 }))?.durationMs).toBe(0);
 });
 
 const failure = (overrides: Record<string, unknown> = {}) => ({
@@ -105,26 +128,3 @@ function unreadable(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-test("returns undefined for a missing or unparseable trailer", () => {
-  expect(parseUpstreamError(undefined)).toBeUndefined();
-  expect(parseUpstreamError("not json")).toBeUndefined();
-  expect(parseUpstreamError(escape("[1,2]"))).toBeUndefined();
-  expect(parseUpstreamHeaders(undefined)).toBeUndefined();
-});
-
-test("reads the milliseconds the server stamped, from a string or a metadata array", () => {
-  expect(parseUpstreamDuration("42")).toBe(42);
-  expect(parseUpstreamDuration("0")).toBe(0);
-  expect(parseUpstreamDuration(["1200"])).toBe(1200);
-});
-
-// A mangled duration reads as never measured, so the client falls back to its own
-// round-trip timing instead of showing a number nothing produced.
-test("refuses a duration that is not a non-negative number", () => {
-  expect(parseUpstreamDuration(undefined)).toBeUndefined();
-  expect(parseUpstreamDuration("")).toBeUndefined();
-  expect(parseUpstreamDuration("fast")).toBeUndefined();
-  expect(parseUpstreamDuration("-5")).toBeUndefined();
-  expect(parseUpstreamDuration("Infinity")).toBeUndefined();
-});

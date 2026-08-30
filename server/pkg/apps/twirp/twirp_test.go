@@ -1,6 +1,7 @@
 package twirp
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -53,7 +54,7 @@ func TestInvokePostsTheRequestVerbatim(t *testing.T) {
 	defer server.Close()
 
 	in := openTestApp(t, server.URL)
-	result, err := in.Invoke("quirks.v1.Quirks/Sum", []byte{0x08, 0x02, 0x10, 0x03}, map[string]string{"Authorization": "Bearer t"})
+	result, err := invoke(in, "quirks.v1.Quirks/Sum", []byte{0x08, 0x02, 0x10, 0x03}, map[string]string{"Authorization": "Bearer t"})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -94,7 +95,7 @@ func TestConfiguredContentTypeOutranksTheDefault(t *testing.T) {
 	defer server.Close()
 
 	in := openTestApp(t, server.URL)
-	if _, err := in.Invoke("quirks.v1.Quirks/Sum", nil, map[string]string{"Content-Type": "application/json"}); err != nil {
+	if _, err := invoke(in, "quirks.v1.Quirks/Sum", nil, map[string]string{"Content-Type": "application/json"}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if gotContentType != "application/json" {
@@ -115,7 +116,7 @@ func TestTwirpErrorIsReportedAsAnUpstreamFailure(t *testing.T) {
 	defer server.Close()
 
 	in := openTestApp(t, server.URL)
-	_, err := in.Invoke("quirks.v1.Quirks/Sum", nil, nil)
+	_, err := invoke(in, "quirks.v1.Quirks/Sum", nil, nil)
 
 	var upstream *apps.UpstreamError
 	if !errors.As(err, &upstream) {
@@ -149,4 +150,29 @@ func TestBaseURL(t *testing.T) {
 			t.Errorf("baseURL(%q) = %q, want %q", test.in, got, test.want)
 		}
 	}
+}
+
+// invoked is one call as these tests read it. Every app here answers with one message,
+// so the stream a call hands back is collapsed to that message and the report beside it.
+type invoked struct {
+	Body            []byte
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+}
+
+func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
+	stream, err := in.Invoke(context.Background(), &apps.Call{Method: method, Request: request, Headers: headers})
+	if err != nil {
+		return nil, err
+	}
+	body, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	result := &invoked{Body: body}
+	if report := stream.Report(); report != nil {
+		result.RequestHeaders = report.RequestHeaders
+		result.ResponseHeaders = report.ResponseHeaders
+	}
+	return result, nil
 }
