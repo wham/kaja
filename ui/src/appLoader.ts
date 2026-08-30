@@ -32,7 +32,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app, fields);
 }
 
-export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string): Promise<App> {
+export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp): Promise<App> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];
@@ -111,7 +111,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
     });
   });
 
-  const appRef = createAppRef(configuration, target);
+  const appRef = createAppRef(configuration);
 
   return {
     compilation: {
@@ -124,7 +124,6 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
     clients: createClients(services, stub, appRef),
     sources: kajaSources,
     stub,
-    target,
   };
 }
 

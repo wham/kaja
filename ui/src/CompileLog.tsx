@@ -6,6 +6,7 @@ import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, App } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
+import { appAddress } from "./compileSummary";
 
 interface CompileLogProps {
   apps: App[];
@@ -119,7 +120,7 @@ export function CompileLog({ apps, configurationLoaded, onNewAppClick, canUpdate
                     {app.configuration.name}
                     <ActionList.Description>
                       {appTypeLabel(appType(app.configuration))}
-                      {app.target ? ` • ${app.target}` : ""}
+                      {appAddress(app) ? ` • ${appAddress(app)}` : ""}
                     </ActionList.Description>
                     {app.compilation.duration && (
                       <ActionList.TrailingVisual>

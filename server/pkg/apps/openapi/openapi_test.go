@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -43,7 +44,7 @@ func encodeRequest(t *testing.T, inst *instance, method, requestJSON string) []b
 }
 
 // decodeResponse turns a method's protobuf response bytes back into JSON.
-func decodeResponse(t *testing.T, inst *instance, method string, result *apps.InvokeResult) []byte {
+func decodeResponse(t *testing.T, inst *instance, method string, result *invoked) []byte {
 	t.Helper()
 	m := inst.lookup(method)
 	msg := dynamicpb.NewMessage(m.output)
@@ -419,7 +420,7 @@ func TestInvokeMapField(t *testing.T) {
 	inst := opened.Instance.(*instance)
 
 	const method = "openapi.metering.Metering/ListMeters"
-	out, err := inst.Invoke(method, encodeRequest(t, inst, method, `{}`), nil)
+	out, err := invoke(inst, method, encodeRequest(t, inst, method, `{}`), nil)
 	if err != nil {
 		t.Fatalf("ListMeters: %v", err)
 	}
@@ -471,14 +472,14 @@ func TestOpenAndInvoke(t *testing.T) {
 	const svc = "openapi.swagger_petstore.SwaggerPetstore"
 
 	// GET /pets/{petId} -> object pass-through
-	out, err := inst.Invoke(svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
+	out, err := invoke(inst, svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
 	if err != nil {
 		t.Fatalf("GetPetById: %v", err)
 	}
 	assertJSONEq(t, decodeResponse(t, inst, svc+"/GetPetById", out), `{"id":1,"name":"Rex","tag":"dog"}`)
 
 	// GET /pets?limit=5 -> array wrapped under "items"
-	out, err = inst.Invoke(svc+"/ListPets", encodeRequest(t, inst, svc+"/ListPets", `{"limit":5}`), nil)
+	out, err = invoke(inst, svc+"/ListPets", encodeRequest(t, inst, svc+"/ListPets", `{"limit":5}`), nil)
 	if err != nil {
 		t.Fatalf("ListPets: %v", err)
 	}
@@ -493,7 +494,7 @@ func TestOpenAndInvoke(t *testing.T) {
 	}
 
 	// POST /pets: the request message is the body, so it is sent as written.
-	out, err = inst.Invoke(svc+"/CreatePet", encodeRequest(t, inst, svc+"/CreatePet", `{"name":"Milo","tag":"cat"}`), nil)
+	out, err = invoke(inst, svc+"/CreatePet", encodeRequest(t, inst, svc+"/CreatePet", `{"name":"Milo","tag":"cat"}`), nil)
 	if err != nil {
 		t.Fatalf("CreatePet: %v", err)
 	}
@@ -558,7 +559,7 @@ func TestHeaderParameters(t *testing.T) {
 	const method = "openapi.trace.Trace/PatchItem"
 
 	request := encodeRequest(t, inst, method, `{"itemId":"42","X-Trace-Id":"abc-123","body":{"name":"Milo"}}`)
-	result, err := inst.Invoke(method, request, map[string]string{"X-Trace-Id": "configured", "X-Tenant": "acme"})
+	result, err := invoke(inst, method, request, map[string]string{"X-Trace-Id": "configured", "X-Tenant": "acme"})
 	if err != nil {
 		t.Fatalf("PatchItem: %v", err)
 	}
@@ -599,7 +600,7 @@ func TestInvokeUpstreamError(t *testing.T) {
 	}
 	inst := opened.Instance.(*instance)
 	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
-	_, err = inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
+	_, err = invoke(inst, method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
 	var upstream *apps.UpstreamError
 	if !errors.As(err, &upstream) {
 		t.Fatalf("expected apps.UpstreamError for 400 upstream, got %v", err)
@@ -640,7 +641,7 @@ func TestInvokeUnreadableResponse(t *testing.T) {
 	}
 	inst := opened.Instance.(*instance)
 	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
-	_, err = inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
+	_, err = invoke(inst, method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
 
 	var upstream *apps.UpstreamError
 	if !errors.As(err, &upstream) {
@@ -737,7 +738,7 @@ components:
 	}
 	inst := opened.Instance.(*instance)
 	const method = "openapi.sequence_api.SequenceApi/CreateSequence"
-	result, err := inst.Invoke(method, encodeRequest(t, inst, method, `{"name":"GFP"}`), nil)
+	result, err := invoke(inst, method, encodeRequest(t, inst, method, `{"name":"GFP"}`), nil)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -997,7 +998,7 @@ func TestIngestEventsInvoke(t *testing.T) {
 	const svc = "openapi.events.Events"
 
 	// POST /events with the single-event body.
-	out, err := inst.Invoke(svc+"/IngestEvents", encodeRequest(t, inst, svc+"/IngestEvents", `{"id":"1","type":"prompt"}`), nil)
+	out, err := invoke(inst, svc+"/IngestEvents", encodeRequest(t, inst, svc+"/IngestEvents", `{"id":"1","type":"prompt"}`), nil)
 	if err != nil {
 		t.Fatalf("IngestEvents: %v", err)
 	}
@@ -1008,7 +1009,7 @@ func TestIngestEventsInvoke(t *testing.T) {
 	}
 
 	// GET /events with csv and deepObject query styles.
-	_, err = inst.Invoke(svc+"/ListEvents", encodeRequest(t, inst, svc+"/ListEvents",
+	_, err = invoke(inst, svc+"/ListEvents", encodeRequest(t, inst, svc+"/ListEvents",
 		`{"expand":["lines","preceding"],"filterGroupBy":{"model":"gpt-4","region":"us"}}`), nil)
 	if err != nil {
 		t.Fatalf("ListEvents: %v", err)
@@ -1018,7 +1019,7 @@ func TestIngestEventsInvoke(t *testing.T) {
 	}
 
 	// GET /metrics returns plain text wrapped as a string value.
-	out, err = inst.Invoke(svc+"/GetMetrics", encodeRequest(t, inst, svc+"/GetMetrics", `{}`), nil)
+	out, err = invoke(inst, svc+"/GetMetrics", encodeRequest(t, inst, svc+"/GetMetrics", `{}`), nil)
 	if err != nil {
 		t.Fatalf("GetMetrics: %v", err)
 	}
@@ -1086,7 +1087,7 @@ components:
 	inst := opened.Instance.(*instance)
 	const method = "openapi.loose.Loose/ListEvents"
 
-	out, err := inst.Invoke(method, encodeRequest(t, inst, method, `{}`), nil)
+	out, err := invoke(inst, method, encodeRequest(t, inst, method, `{}`), nil)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -1178,7 +1179,7 @@ paths:
 				t.Fatalf("Open: %v", err)
 			}
 			inst := opened.Instance.(*instance)
-			out, err := inst.Invoke(svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
+			out, err := invoke(inst, svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
 			if err != nil {
 				t.Fatalf("GetPetById: %v", err)
 			}
@@ -1906,4 +1907,29 @@ func TestTrimServiceName(t *testing.T) {
 			t.Errorf("trimServiceName(%q, %q) = %q, want %q", tc.method, tc.service, got, tc.want)
 		}
 	}
+}
+
+// invoked is one call as these tests read it. Every app here answers with one message,
+// so the stream a call hands back is collapsed to that message and the report beside it.
+type invoked struct {
+	Body            []byte
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+}
+
+func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
+	stream, err := in.Invoke(context.Background(), &apps.Call{Method: method, Request: request, Headers: headers})
+	if err != nil {
+		return nil, err
+	}
+	body, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	result := &invoked{Body: body}
+	if report := stream.Report(); report != nil {
+		result.RequestHeaders = report.RequestHeaders
+		result.ResponseHeaders = report.ResponseHeaders
+	}
+	return result, nil
 }

@@ -14,15 +14,17 @@ export function getBaseUrlForApi(): string {
   return servedFrom();
 }
 
-export function getBaseUrlForTarget(): string {
-  return `${servedFrom()}/target`;
+// Where an app's calls go. The transport appends the method path; which app the call
+// belongs to is the reserved header it already carries, so the address never varies.
+export function getBaseUrlForApp(): string {
+  return `${servedFrom()}/app`;
 }
 
 /**
  * Where this page is served from, which is not the same as where it currently
  * points. A deeplink names its script in the fragment (`/#run/<script>?…`), and
  * appending a path to a URL that carries a query or a fragment puts the path
- * inside one — `…/#run/nightly/target` resolves back to `/`, so every call lands
+ * inside one — `…/#run/nightly/app` resolves back to `/`, so every call lands
  * on index.html and comes back as a protobuf that won't decode.
  *
  * The desktop is served from `wails://localhost/`, which is a page origin like

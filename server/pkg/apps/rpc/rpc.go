@@ -3,10 +3,10 @@
 // (parameter "proto_dir", resolved against the workspace) or from server reflection
 // (parameter "reflection": "true").
 //
-// It is the one app kaja does not invoke in this process. A gRPC call is forwarded
-// rather than transcoded - the request the client framed is the request that reaches
-// the server, which is what carries a server stream through - so Open returns the
-// upstream URL for the forwarder to dial rather than an instance to call.
+// It is the one app that forwards rather than transcodes: the request the client
+// framed is the request that reaches the server, which is what carries a server
+// stream through. Forwarding is how this app answers a call, not a second kind of
+// app, so what Open returns is an instance like any other.
 package rpc
 
 import (
@@ -35,7 +35,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		if err := reflect(url, TLS(parameters), Metadata(parameters), protoDir, log); err != nil {
 			return nil, err
 		}
-		return &apps.Opened{ProtoDir: protoDir, Target: url}, nil
+		return &apps.Opened{ProtoDir: protoDir, Instance: &instance{url: url}}, nil
 	}
 
 	dir := strings.TrimSpace(parameters["proto_dir"])
@@ -44,7 +44,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Proto directory: " + dir)
 	// A relative dir is resolved by the compiler against the workspace.
-	return &apps.Opened{ProtoDir: dir, Target: url}, nil
+	return &apps.Opened{ProtoDir: dir, Instance: &instance{url: url}}, nil
 }
 
 // reflect discovers the upstream's services via gRPC reflection and writes the

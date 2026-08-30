@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,13 +19,13 @@ type instance struct {
 	methods map[string]*boundMethod
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
-	method := in.lookup(methodPath)
+func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
+	method := in.lookup(call.Method)
 	if method == nil {
-		return nil, fmt.Errorf("unknown method %q (the app may need to be recompiled)", methodPath)
+		return nil, fmt.Errorf("unknown method %q (the app may need to be recompiled)", call.Method)
 	}
 
-	arguments, err := decodeRequest(method, request)
+	arguments, err := decodeRequest(method, call.Request)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, err
 	}
 
-	result, exchange, err := in.client.Call(method.binding.method, params, headers)
+	result, exchange, err := in.client.Call(method.binding.method, params, call.Headers)
 	if err != nil {
 		return nil, withExchange(err, exchange)
 	}
@@ -43,12 +44,12 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err != nil {
 		return nil, err
 	}
-	invoked := &apps.InvokeResult{Body: body}
+	report := &apps.Report{}
 	if exchange != nil {
-		invoked.RequestHeaders = exchange.RequestHeaders
-		invoked.ResponseHeaders = exchange.ResponseHeaders
+		report.RequestHeaders = exchange.RequestHeaders
+		report.ResponseHeaders = exchange.ResponseHeaders
 	}
-	return invoked, nil
+	return apps.OneMessage(body, report), nil
 }
 
 // lookup finds a method by its exact gRPC path, falling back to its name alone,

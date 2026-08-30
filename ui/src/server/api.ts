@@ -63,13 +63,6 @@ export interface OpenAppResponse {
      * @generated from protobuf field: string proto_dir = 3
      */
     protoDir: string;
-    /**
-     * Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
-     * app invoked in the server's own process (only set on success).
-     *
-     * @generated from protobuf field: string target = 4
-     */
-    target: string;
 }
 /**
  * InspectGrpc reads the service surface a grpc app *would* be opened with -
@@ -1585,8 +1578,7 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         super("OpenAppResponse", [
             { no: 1, name: "status", kind: "enum", T: () => ["OpenStatus", OpenStatus, "OPEN_STATUS_"] },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenAppResponse>): OpenAppResponse {
@@ -1594,7 +1586,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         message.status = 0;
         message.logs = [];
         message.protoDir = "";
-        message.target = "";
         if (value !== undefined)
             reflectionMergePartial<OpenAppResponse>(this, message, value);
         return message;
@@ -1612,9 +1603,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
                     break;
                 case /* string proto_dir */ 3:
                     message.protoDir = reader.string();
-                    break;
-                case /* string target */ 4:
-                    message.target = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1637,9 +1625,6 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
         /* string proto_dir = 3; */
         if (message.protoDir !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
-        /* string target = 4; */
-        if (message.target !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.target);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

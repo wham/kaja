@@ -4,34 +4,24 @@ import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@
 import { APP_HEADER, appHeaders, appType, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import { rpcErrorMessage } from "./rpcMessage";
-import {
-  UPSTREAM_DURATION_TRAILER,
-  UPSTREAM_ERROR_TRAILER,
-  UPSTREAM_REQUEST_HEADERS_TRAILER,
-  UPSTREAM_RESPONSE_HEADERS_TRAILER,
-  UPSTREAM_TRAILER_PREFIX,
-  parseUpstreamDuration,
-  parseUpstreamError,
-  parseUpstreamHeaders,
-} from "./upstreamHeaders";
+import { UPSTREAM_TRAILER, parseUpstream } from "./upstream";
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
-import { getBaseUrlForTarget } from "./server/connection";
+import { getBaseUrlForApp } from "./server/connection";
 import { Stub } from "./sources";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 
-// absorbReserved routes one kaja-upstream-* entry onto the call. The prefix is
-// Kaja's own out-of-band channel — what Kaja measured or exchanged upstream, never a
-// header the server sent — so a key it doesn't know is consumed rather than shown as
-// a response header. The error trailer is among those: it is already the call's error.
+// absorbReserved routes the one kaja-upstream trailer onto the call. It is Kaja's own
+// out-of-band channel — what Kaja measured or exchanged upstream, never a header the
+// server sent — so it is consumed rather than shown as a response header. The failure
+// it may carry is left where it is: it is already the call's error.
 function absorbReserved(methodCall: MethodCall, key: string, value: unknown): boolean {
-  if (!key.startsWith(UPSTREAM_TRAILER_PREFIX)) return false;
-  if (key === UPSTREAM_REQUEST_HEADERS_TRAILER) {
-    methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
-  } else if (key === UPSTREAM_RESPONSE_HEADERS_TRAILER) {
-    methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
-  } else if (key === UPSTREAM_DURATION_TRAILER) {
-    methodCall.upstreamDurationMs = parseUpstreamDuration(value);
+  if (key !== UPSTREAM_TRAILER) return false;
+  const upstream = parseUpstream(value);
+  if (upstream) {
+    methodCall.upstreamRequestHeaders = upstream.requestHeaders;
+    methodCall.upstreamResponseHeaders = upstream.responseHeaders;
+    methodCall.upstreamDurationMs = upstream.durationMs;
   }
   return true;
 }
@@ -74,7 +64,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // One transport, and no choice inside it: whatever an app talks to upstream, the
   // call kaja is handed is gRPC-Web over the page's own origin — which on the desktop
   // is the mux the app mounts behind its webview's scheme.
-  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForTarget() });
+  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp() });
 
   const stubModule = stub[service.clientStubModuleId];
   const ClientClass = stubModule[service.name + "Client"];
@@ -85,7 +75,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
   // be kaja's to hold and the browser's never to read, and the Go side resolves them
   // where it applies the app's own credential.
   const requestMeta = (requestHeaders: MethodCallHeaders): RpcMetadata => {
-    const meta: RpcMetadata = { "X-Target": appRef.target };
+    const meta: RpcMetadata = {};
     for (const [name, value] of Object.entries(transportHeaders(appRef.configuration, requestHeaders))) {
       meta[HEADER_META_PREFIX + name] = value;
     }
@@ -258,8 +248,8 @@ function lcfirst(str: string): string {
 function callError(error: unknown): any {
   const meta = errorMeta(error);
   if (meta) {
-    const upstream = parseUpstreamError(meta[UPSTREAM_ERROR_TRAILER]);
-    if (upstream) return upstream;
+    const failure = parseUpstream(meta[UPSTREAM_TRAILER])?.error;
+    if (failure) return failure;
   }
   return serializeError(error);
 }

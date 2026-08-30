@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,17 +37,17 @@ type instance struct {
 	auth    *auth
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
-	method := in.lookup(methodPath)
+func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
+	method := in.lookup(call.Method)
 	if method == nil {
-		return nil, fmt.Errorf("unknown method %q", methodPath)
+		return nil, fmt.Errorf("unknown method %q", call.Method)
 	}
 
 	// Decode the protobuf request into the proto3-JSON shape the transcoder reads.
 	// Field json_names match the OpenAPI parameter/property names by construction.
 	reqMsg := dynamicpb.NewMessage(method.input)
-	if len(request) > 0 {
-		if err := proto.Unmarshal(request, reqMsg); err != nil {
+	if len(call.Request) > 0 {
+		if err := proto.Unmarshal(call.Request, reqMsg); err != nil {
 			return nil, fmt.Errorf("decoding request: %w", err)
 		}
 	}
@@ -55,7 +56,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, fmt.Errorf("encoding request to JSON: %w", err)
 	}
 
-	ex, err := in.transcode(method.binding, reqJSON, headers)
+	ex, err := in.transcode(method.binding, reqJSON, call.Headers)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err != nil {
 		return nil, err
 	}
-	return &apps.InvokeResult{Body: body, RequestHeaders: ex.requestHeaders, ResponseHeaders: ex.responseHeaders}, nil
+	return apps.OneMessage(body, &apps.Report{RequestHeaders: ex.requestHeaders, ResponseHeaders: ex.responseHeaders}), nil
 }
 
 // exchange is the upstream HTTP call a method transcoded to together with what came

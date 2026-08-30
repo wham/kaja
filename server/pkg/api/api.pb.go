@@ -574,10 +574,7 @@ type OpenAppResponse struct {
 	// Directory containing the proto files to compile (only set on success). Either a
 	// temp directory (generated/reflected protos) or a workspace-relative path (static
 	// protos), which Compile resolves against the workspace.
-	ProtoDir string `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
-	// Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
-	// app invoked in the server's own process (only set on success).
-	Target        string `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
+	ProtoDir      string `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -629,13 +626,6 @@ func (x *OpenAppResponse) GetLogs() []*Log {
 func (x *OpenAppResponse) GetProtoDir() string {
 	if x != nil {
 		return x.ProtoDir
-	}
-	return ""
-}
-
-func (x *OpenAppResponse) GetTarget() string {
-	if x != nil {
-		return x.Target
 	}
 	return ""
 }
@@ -3647,12 +3637,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"5\n" +
 	"\x0eOpenAppRequest\x12#\n" +
-	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"\x8b\x01\n" +
+	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"y\n" +
 	"\x0fOpenAppResponse\x12#\n" +
 	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x16\n" +
-	"\x06target\x18\x04 \x01(\tR\x06targetJ\x04\b\x05\x10\x06\"2\n" +
+	"\tproto_dir\x18\x03 \x01(\tR\bprotoDirJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"2\n" +
 	"\x12InspectGrpcRequest\x12\x1c\n" +
 	"\x04grpc\x18\x01 \x01(\v2\b.GrpcAppR\x04grpc\"b\n" +
 	"\x13InspectGrpcResponse\x12#\n" +

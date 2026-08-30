@@ -1,46 +1,28 @@
 package grpc
 
 import (
+	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/apps/rpc"
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	pkggrpc "github.com/wham/kaja/v2/pkg/grpc"
 )
 
-// TestGRPCStatusOf locks in that the status an upstream gRPC server answered with
-// survives the client's error wrapping, so the browser is shown NOT_FOUND from the
-// API rather than a 500 from the proxy.
-func TestGRPCStatusOf(t *testing.T) {
-	wrapped := fmt.Errorf("gRPC invocation failed: %w", status.Error(codes.NotFound, "no such show"))
-	code, message := grpcStatusOf(wrapped)
-	if code != int(codes.NotFound) || message != "no such show" {
-		t.Errorf("grpcStatusOf(wrapped) = %d %q, want %d %q", code, message, codes.NotFound, "no such show")
-	}
-
-	// An error with no status never left this process, which is what UNKNOWN says.
-	code, message = grpcStatusOf(errors.New("dial tcp: connection refused"))
-	if code != 2 || message != "dial tcp: connection refused" {
-		t.Errorf("grpcStatusOf(plain) = %d %q, want 2 and the message intact", code, message)
-	}
-}
-
 // passthroughCodec is the server-side counterpart of the client's raw-bytes codec.
-// The proxy forwards frames it never decodes, so the upstream it is pointed at must
-// not decode them either.
+// A forwarded call is never decoded, so the upstream a test points at must not decode
+// it either.
 type passthroughCodec struct{}
 
 func (passthroughCodec) Marshal(v any) ([]byte, error) {
@@ -60,10 +42,10 @@ func (passthroughCodec) Unmarshal(data []byte, v any) error {
 
 func (passthroughCodec) Name() string { return "proto" }
 
-// upstream runs a gRPC server answering every method with handle, and returns the URL
-// a proxy reaches it at. Registering no service and handling the unknown one is what
-// lets a test answer a method no proto declares.
-func upstream(t *testing.T, handle func(request []byte, stream googlegrpc.ServerStream) error) *url.URL {
+// upstream runs a gRPC server answering every method with handle, and returns the
+// address a grpc app reaches it at. Registering no service and handling the unknown
+// one is what lets a test answer a method no proto declares.
+func upstream(t *testing.T, handle func(request []byte, stream googlegrpc.ServerStream) error) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -82,23 +64,22 @@ func upstream(t *testing.T, handle func(request []byte, stream googlegrpc.Server
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
 
-	target, err := url.Parse("http://" + listener.Addr().String())
-	if err != nil {
-		t.Fatalf("parse target: %v", err)
-	}
-	return target
+	return "http://" + listener.Addr().String()
 }
 
-// call posts one gRPC-Web request at a proxy in front of target and hands back the
-// response body to be read as it arrives.
-func call(t *testing.T, target *url.URL, request []byte) io.ReadCloser {
+// call posts one gRPC-Web request at the handler in front of a grpc app pointed at
+// url, and hands back the response body to be read as it arrives. The app is the real
+// one: forwarding is how it answers a call, so the lane under test is the whole of it.
+func call(t *testing.T, url string, request []byte) io.ReadCloser {
 	t.Helper()
-	proxy, err := NewProxy(target, pkggrpc.TLSOptions{})
+	opened, err := rpc.New().Open(map[string]string{"url": url, "proto_dir": "unused"}, "", func(string) {})
 	if err != nil {
-		t.Fatalf("new proxy: %v", err)
+		t.Fatalf("open grpc app: %v", err)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		proxy.ServeHTTP(w, r, "test.Service/Method", nil)
+		Serve(w, r, "test.Service/Method", nil, func(ctx context.Context, method string, message []byte, headers map[string]string) (apps.Stream, error) {
+			return opened.Instance.Invoke(ctx, &apps.Call{Method: method, Request: message, Headers: headers})
+		})
 	}))
 	t.Cleanup(server.Close)
 
@@ -127,13 +108,13 @@ func nextFrame(t *testing.T, body io.Reader) (flag byte, payload []byte) {
 	return header[0], payload
 }
 
-// TestProxyStreamsAsItGoes locks in the whole point of the lane: a server stream's
-// messages reach the browser one at a time. The upstream holds the second message
-// back until the first has been read off the wire, so a proxy that collected the
-// stream before answering would deadlock here rather than merely arrive late.
-func TestProxyStreamsAsItGoes(t *testing.T) {
+// TestForwardStreamsAsItGoes locks in the whole point of the lane: a server stream's
+// messages reach the browser one at a time. The upstream holds the second message back
+// until the first has been read off the wire, so a lane that collected the stream
+// before answering would deadlock here rather than merely arrive late.
+func TestForwardStreamsAsItGoes(t *testing.T) {
 	read := make(chan struct{})
-	target := upstream(t, func(_ []byte, stream googlegrpc.ServerStream) error {
+	url := upstream(t, func(_ []byte, stream googlegrpc.ServerStream) error {
 		if err := stream.SendMsg([]byte("first")); err != nil {
 			return err
 		}
@@ -141,7 +122,7 @@ func TestProxyStreamsAsItGoes(t *testing.T) {
 		return stream.SendMsg([]byte("second"))
 	})
 
-	body := call(t, target, []byte{1})
+	body := call(t, url, []byte{1})
 
 	flag, payload := nextFrame(t, body)
 	if flag != 0 || string(payload) != "first" {
@@ -158,23 +139,19 @@ func TestProxyStreamsAsItGoes(t *testing.T) {
 	if flag&0x80 == 0 {
 		t.Fatalf("third frame = %d %q, want the trailers", flag, payload)
 	}
-	trailers := string(payload)
-	if got := trailerValue(t, trailers, "grpc-status"); got != "0" {
-		t.Errorf("grpc-status = %q, want 0\ntrailers = %q", got, trailers)
-	}
-	if trailerValue(t, trailers, "kaja-upstream-duration-ms") == "" {
-		t.Errorf("no upstream duration\ntrailers = %q", trailers)
+	if got := trailerValue(t, string(payload), "grpc-status"); got != "0" {
+		t.Errorf("grpc-status = %q, want 0\ntrailers = %q", got, payload)
 	}
 }
 
-// TestProxyForwardsAUnaryCall locks in that one lane serves both: a unary method is a
+// TestForwardsAUnaryCall locks in that one lane serves both: a unary method is a
 // stream of one, and its request reaches the server as it was framed.
-func TestProxyForwardsAUnaryCall(t *testing.T) {
-	target := upstream(t, func(request []byte, stream googlegrpc.ServerStream) error {
+func TestForwardsAUnaryCall(t *testing.T) {
+	url := upstream(t, func(request []byte, stream googlegrpc.ServerStream) error {
 		return stream.SendMsg(append([]byte("echo:"), request...))
 	})
 
-	body, err := io.ReadAll(call(t, target, []byte{7, 8, 9}))
+	body, err := io.ReadAll(call(t, url, []byte{7, 8, 9}))
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
@@ -187,12 +164,12 @@ func TestProxyForwardsAUnaryCall(t *testing.T) {
 	}
 }
 
-// TestProxyKeepsWhatAFailedStreamSent locks in that a stream that fails partway keeps
-// the messages it already sent, and that the status the browser is shown is the one
-// the server answered with rather than a failure of the proxy's own. The metadata
-// rides back under its own names, which is what the Headers view reads as the API's.
-func TestProxyKeepsWhatAFailedStreamSent(t *testing.T) {
-	target := upstream(t, func(_ []byte, stream googlegrpc.ServerStream) error {
+// TestForwardKeepsWhatAFailedStreamSent locks in that a stream that fails partway keeps
+// the messages it already sent, and that the status the browser is shown is the one the
+// server answered with rather than a failure of Kaja's own. The metadata rides back
+// under its own names, which is what the Headers view reads as the API's.
+func TestForwardKeepsWhatAFailedStreamSent(t *testing.T) {
+	url := upstream(t, func(_ []byte, stream googlegrpc.ServerStream) error {
 		stream.SetTrailer(metadata.Pairs("x-ratelimit-remaining", "0"))
 		if err := stream.SendMsg([]byte("partial")); err != nil {
 			return err
@@ -200,7 +177,7 @@ func TestProxyKeepsWhatAFailedStreamSent(t *testing.T) {
 		return status.Error(codes.ResourceExhausted, "slow down")
 	})
 
-	body, err := io.ReadAll(call(t, target, []byte{1}))
+	body, err := io.ReadAll(call(t, url, []byte{1}))
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}

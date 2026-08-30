@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -48,7 +49,7 @@ func encodeRequest(t *testing.T, in *instance, requestJSON string) []byte {
 }
 
 // decodeResponse turns the protobuf response bytes back into JSON.
-func decodeResponse(t *testing.T, in *instance, result *apps.InvokeResult) map[string]any {
+func decodeResponse(t *testing.T, in *instance, result *invoked) map[string]any {
 	t.Helper()
 	msg := dynamicpb.NewMessage(in.output)
 	if err := proto.Unmarshal(result.Body, msg); err != nil {
@@ -106,7 +107,7 @@ func TestChatCompletion(t *testing.T) {
 		"temperature": 0.5,
 		"max_tokens": 64
 	}`)
-	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	resp, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -163,7 +164,7 @@ func TestChatCompletionOmitsSystemPromptWhenEmpty(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/chat/completions", "")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil); err != nil {
+	if _, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 
@@ -186,7 +187,7 @@ func TestChatCompletionUpstreamError(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/chat/completions", "nope")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	_, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil)
 
 	upstream := asUpstreamError(t, err)
 	if upstream.Status != http.StatusUnauthorized {
@@ -223,7 +224,7 @@ func TestChatCompletionUpstreamErrorPlainBody(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/chat/completions", "x")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	_, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil)
 
 	upstream := asUpstreamError(t, err)
 	if upstream.Status != http.StatusBadGateway {
@@ -251,7 +252,7 @@ func TestChatCompletionUnreadableResponse(t *testing.T) {
 
 	in := openTestApp(t, server.URL+"/messages", "x")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	_, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	_, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil)
 
 	upstream := asUpstreamError(t, err)
 	if !upstream.Unreadable {
@@ -284,7 +285,7 @@ func TestChatCompletionTransportError(t *testing.T) {
 	// call surfaces as a transport error rather than a structured response.
 	in := openTestApp(t, "http://127.0.0.1:1", "x")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
-	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil); err == nil {
+	if _, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil); err == nil {
 		t.Fatal("expected a transport error when the upstream is unreachable")
 	}
 }
@@ -357,7 +358,7 @@ func TestAnthropicChatCompletion(t *testing.T) {
 		"user_prompt": "Hi",
 		"temperature": 0.5
 	}`)
-	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	resp, err := invoke(in, "openai.OpenAI/ChatCompletion", req, nil)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -421,7 +422,7 @@ func TestAnthropicUpstreamError(t *testing.T) {
 	defer server.Close()
 
 	in := openTestAppWith(t, map[string]string{"api": apiAnthropic, "endpoint": server.URL, "token": "nope"})
-	_, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
+	_, err := invoke(in, "openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
 
 	upstream := asUpstreamError(t, err)
 	if upstream.Status != http.StatusUnauthorized {
@@ -455,7 +456,7 @@ func TestResponseFromTheOtherApi(t *testing.T) {
 	// A chat completion read as a Claude message: content is an array there, so the
 	// decode fails rather than quietly handing back an empty reply.
 	in := openTestAppWith(t, map[string]string{"api": apiAnthropic, "endpoint": server.URL, "token": "x"})
-	_, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
+	_, err := invoke(in, "openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil)
 
 	upstream := asUpstreamError(t, err)
 	if !upstream.Unreadable {
@@ -484,7 +485,7 @@ func TestApiKeyCredentialAndHeaderPrecedence(t *testing.T) {
 		"api_key_name": "api-key",
 		"token":        "secret",
 	})
-	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), map[string]string{
+	if _, err := invoke(in, "openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), map[string]string{
 		"Api-Key":  "written by hand",
 		"X-Tenant": "acme",
 	}); err != nil {
@@ -514,7 +515,7 @@ func TestNoCredentialIsSent(t *testing.T) {
 	defer server.Close()
 
 	in := openTestAppWith(t, map[string]string{"endpoint": server.URL, "auth": authNone, "token": "secret"})
-	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil); err != nil {
+	if _, err := invoke(in, "openai.OpenAI/ChatCompletion", encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`), nil); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if got := gotHeaders.Get("Authorization"); got != "" {
@@ -523,4 +524,29 @@ func TestNoCredentialIsSent(t *testing.T) {
 	if got := gotHeaders.Get(defaultAPIKeyName); got != "" {
 		t.Errorf("%s = %q, want nothing sent", defaultAPIKeyName, got)
 	}
+}
+
+// invoked is one call as these tests read it. Every app here answers with one message,
+// so the stream a call hands back is collapsed to that message and the report beside it.
+type invoked struct {
+	Body            []byte
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+}
+
+func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
+	stream, err := in.Invoke(context.Background(), &apps.Call{Method: method, Request: request, Headers: headers})
+	if err != nil {
+		return nil, err
+	}
+	body, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	result := &invoked{Body: body}
+	if report := stream.Report(); report != nil {
+		result.RequestHeaders = report.RequestHeaders
+		result.ResponseHeaders = report.ResponseHeaders
+	}
+	return result, nil
 }

@@ -13,7 +13,7 @@ import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
-import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
+import { unwrapFailure, upstreamRequestLine } from "./upstream";
 
 // A fixed height is what lets the log virtualise and lets the tail bar say how many
 // rows are below without measuring any of them.

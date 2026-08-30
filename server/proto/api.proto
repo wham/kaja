@@ -44,13 +44,11 @@ message OpenAppResponse {
   // temp directory (generated/reflected protos) or a workspace-relative path (static
   // protos), which Compile resolves against the workspace.
   string proto_dir = 3;
-  // Invocation target: the upstream URL for a grpc app, or "kaja-app://<id>" for an
-  // app invoked in the server's own process (only set on success).
-  string target = 4;
-  // 5 was "protocol", the transport the client used to reach the target. The client
-  // speaks gRPC-Web to everything now; which protocol reaches the API is the
-  // server's business.
-  reserved 5;
+  // 4 was "target", where the client sent the app's calls. An app is invoked under
+  // the name every call already carries, so there is no address to hand out. 5 was
+  // "protocol", the transport the client used to reach that target; the client speaks
+  // gRPC-Web to everything now.
+  reserved 4, 5;
 }
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -

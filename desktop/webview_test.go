@@ -41,16 +41,16 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 		t.Fatalf("no OK trailer in %q", response.Body.String())
 	}
 
-	// No app named "nothing", so the target lane refuses the call rather than
-	// falling through to the UI and answering a protobuf with HTML.
-	request = httptest.NewRequest("POST", "/target/seating.Seating/GetSeatMap", strings.NewReader("AAAAAAA="))
+	// No app named "nothing", so the app lane refuses the call rather than falling
+	// through to the UI and answering a protobuf with HTML.
+	request = httptest.NewRequest("POST", "/app/seating.Seating/GetSeatMap", strings.NewReader("AAAAAAA="))
 	request.Header.Set("Content-Type", "application/grpc-web-text")
-	request.Header.Set("X-Target", "kaja-app://nothing")
+	request.Header.Set("X-Header-X-Kaja-App", "nothing")
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
 	if body := response.Body.String(); strings.Contains(body, "the UI") {
-		t.Fatalf("POST /target/… reached the assets: %q", body)
+		t.Fatalf("POST /app/… reached the assets: %q", body)
 	}
 
 	// Everything else is the UI's. The Api lane is POST-only, so a GET under it is

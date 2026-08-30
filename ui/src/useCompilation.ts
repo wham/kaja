@@ -61,22 +61,20 @@ export function useCompilation(
         return updatedApps;
       });
 
-      // Opening an app yields the proto surface to compile and the invocation target.
+      // Opening an app yields the proto surface to compile. Where the app is invoked
+      // is not part of the answer: the server holds it under the app's own name.
       const { response: openResponse } = await client.openApp({
         app: app.configuration,
       });
-
-      const target = openResponse.target;
 
       onUpdate((prevApps) => {
         const index = prevApps.findIndex((p) => p.configuration.name === appName);
         if (index === -1) return prevApps;
 
         const updatedApps = [...prevApps];
-        updateAppRef(prevApps[index].appRef, prevApps[index].configuration, target);
+        updateAppRef(prevApps[index].appRef, prevApps[index].configuration);
         updatedApps[index] = {
           ...prevApps[index],
-          target,
           compilation: {
             ...prevApps[index].compilation,
             logs: openResponse.logs,
@@ -107,7 +105,7 @@ export function useCompilation(
 
       if (signal.aborted) return;
 
-      await pollCompilation(appName, compilationId, openResponse.protoDir, target, signal);
+      await pollCompilation(appName, compilationId, openResponse.protoDir, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -115,7 +113,7 @@ export function useCompilation(
     }
   };
 
-  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, target: string, signal: AbortSignal) => {
+  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, signal: AbortSignal) => {
     while (!signal.aborted) {
       const appIndex = appsRef.current.findIndex((p) => p.configuration.name === appName);
       const app = appsRef.current[appIndex];
@@ -162,7 +160,7 @@ export function useCompilation(
         const duration = formatDuration(Date.now() - (finalApp.compilation.startTime || 0));
 
         if (isReady) {
-          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration, target);
+          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration);
 
           onUpdate((prevApps) => {
             const index = prevApps.findIndex((p) => p.configuration.name === appName);
@@ -232,7 +230,6 @@ export function useCompilation(
           clients: {},
           sources: [],
           stub: { serviceInfos: {} },
-          target: "",
         }));
 
         onUpdate(initialApps);

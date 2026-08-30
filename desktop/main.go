@@ -359,7 +359,7 @@ func appSupportDir() (string, error) {
 
 // webviewHandler is everything the window fetches: the UI, and the two call lanes
 // the web server answers on. The webview asks for a call over HTTP the way a browser
-// does — same request, same gRPC-Web framing, same X-Target and kaja-upstream-*
+// does — same request, same gRPC-Web framing, same X-Kaja-App and kaja-upstream
 // channels — so the desktop has no transport of its own and nothing to keep in step.
 func webviewHandler(apiService *api.ApiService, assets http.Handler) http.Handler {
 	mux := http.NewServeMux()

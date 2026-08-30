@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
+import { UPSTREAM_TRAILER } from "./upstream";
 import { createAppRef, Service } from "./apps";
 import { Kaja, KajaHost, MethodCall } from "./kaja";
 import { LogLevel } from "./server/api";
@@ -39,8 +40,9 @@ class FakeShowsClient {
       response: Promise.resolve({ shows: [] }),
       headers: Promise.resolve({ "content-type": "application/grpc-web+proto" }),
       trailers: Promise.resolve({
-        // What the app exchanged with the API it carried the call to.
-        "kaja-upstream-response-headers": JSON.stringify({ "X-RateLimit-Remaining": "42" }),
+        // What the app exchanged with the API it carried the call to, in the one
+        // envelope everything Kaja has to say about a call travels in.
+        [UPSTREAM_TRAILER]: JSON.stringify({ responseHeaders: { "X-RateLimit-Remaining": "42" }, durationMs: 12 }),
       }),
     };
   }
@@ -74,7 +76,7 @@ function client() {
     onLog: (_level: LogLevel, _message: string) => {},
   });
   const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
-  const appRef = createAppRef(app as never, "https://theatre.example");
+  const appRef = createAppRef(app as never);
   return { methods: createClient(service, stub, appRef).methodsFor(kaja), calls };
 }
 
@@ -97,11 +99,10 @@ describe("a call's headers", () => {
     expect(meta()["X-Header-X-Tenant"]).toBe("acme");
   });
 
-  it("names the app the call belongs to, and where it is going", async () => {
+  it("names the app the call belongs to, which is the whole of where it is going", async () => {
     const { methods } = client();
     await methods.ListShows({});
     expect(meta()["X-Header-X-Kaja-App"]).toBe("theatre");
-    expect(meta()["X-Target"]).toBe("https://theatre.example");
   });
 
   it("shows the call's whole set as written, references intact", async () => {
@@ -156,7 +157,7 @@ describe("a method that streams from the client", () => {
       onLog: (_level: LogLevel, _message: string) => {},
     });
     const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
-    const appRef = createAppRef(app as never, "https://theatre.example");
+    const appRef = createAppRef(app as never);
     return { methods: createClient(streaming, stub, appRef).methodsFor(kaja), calls };
   }
 

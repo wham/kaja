@@ -3,26 +3,23 @@ import { APP_OF } from "./rateLimit";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
-// Mutable reference clients read at request time, so an app's target URL and headers
-// are picked up without rebuilding the client. There is no transport beside it: every
-// app is called as gRPC, and which protocol reaches the API is the server's business.
+// Mutable reference clients read at request time, so an app's name and headers are
+// picked up without rebuilding the client. There is no transport beside it and no
+// address: every app is called as gRPC, at the one door, under the name the call
+// already carries — which protocol reaches the API, and whether the server transcodes
+// the call or forwards it, is the server's business.
 export interface AppRef {
   configuration: ConfigurationApp;
-  // Filled in once the app is opened: the upstream URL of a gRPC app, or
-  // "kaja-app://<id>" for one the server invokes in its own process.
-  target: string;
 }
 
-export function createAppRef(configuration: ConfigurationApp, target = ""): AppRef {
+export function createAppRef(configuration: ConfigurationApp): AppRef {
   return {
     configuration: { ...configuration },
-    target,
   };
 }
 
-export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp, target?: string): void {
+export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp): void {
   appRef.configuration = { ...configuration };
-  if (target !== undefined) appRef.target = target;
 }
 
 // A file has a name and a place; that is the whole of what makes it one rather than a
@@ -51,9 +48,6 @@ export interface App {
   clients: Clients;
   sources: Sources;
   stub: Stub;
-  // Filled in once the app is opened during compilation. Mirrors appRef.target for
-  // convenient display.
-  target: string;
 }
 
 export function createPendingApp(configuration: ConfigurationApp): App {
@@ -65,7 +59,6 @@ export function createPendingApp(configuration: ConfigurationApp): App {
     clients: {},
     sources: [],
     stub: { serviceInfos: {} },
-    target: "",
   };
 }
 

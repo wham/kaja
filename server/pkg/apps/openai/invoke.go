@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,28 +31,28 @@ type instance struct {
 	client   *http.Client
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
-	if lastSegment(methodPath) != "ChatCompletion" {
-		return nil, fmt.Errorf("unknown method %q", methodPath)
+func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
+	if lastSegment(call.Method) != "ChatCompletion" {
+		return nil, fmt.Errorf("unknown method %q", call.Method)
 	}
 
 	reqMsg := dynamicpb.NewMessage(in.input)
-	if len(request) > 0 {
-		if err := proto.Unmarshal(request, reqMsg); err != nil {
+	if len(call.Request) > 0 {
+		if err := proto.Unmarshal(call.Request, reqMsg); err != nil {
 			return nil, fmt.Errorf("decoding request: %w", err)
 		}
 	}
 
-	call, err := in.readChat(reqMsg)
+	chatCall, err := in.readChat(reqMsg)
 	if err != nil {
 		return nil, err
 	}
-	body, err := in.wire.request(call)
+	body, err := in.wire.request(chatCall)
 	if err != nil {
 		return nil, err
 	}
 
-	respBody, status, reqHeaders, respHeaders, err := in.call(body, headers)
+	respBody, status, reqHeaders, respHeaders, err := in.call(body, call.Headers)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err != nil {
 		return nil, err
 	}
-	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
+	return apps.OneMessage(out, &apps.Report{RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}), nil
 }
 
 // The optional sampling fields come back as pointers because an unset one is

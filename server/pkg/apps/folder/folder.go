@@ -10,6 +10,7 @@
 package folder
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -164,16 +165,16 @@ type instance struct {
 	limit   int
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
-	name := lastSegment(methodPath)
+func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
+	name := lastSegment(call.Method)
 	m, ok := in.methods[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown method %q", name)
 	}
 
 	req := dynamicpb.NewMessage(m.input)
-	if len(request) > 0 {
-		if err := proto.Unmarshal(request, req); err != nil {
+	if len(call.Request) > 0 {
+		if err := proto.Unmarshal(call.Request, req); err != nil {
 			return nil, fmt.Errorf("decoding request: %w", err)
 		}
 	}
@@ -188,7 +189,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err != nil {
 		return nil, err
 	}
-	return &apps.InvokeResult{Body: body}, nil
+	return apps.OneMessage(body, nil), nil
 }
 
 func (in *instance) dispatch(name string, req, resp *dynamicpb.Message) error {

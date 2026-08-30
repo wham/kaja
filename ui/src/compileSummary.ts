@@ -1,3 +1,4 @@
+import { appParameters } from "./appTypes";
 import { App } from "./apps";
 import { Log, LogLevel } from "./server/api";
 
@@ -34,10 +35,12 @@ export function firstErrorMessage(app: App): string | undefined {
   return (error ?? logs[logs.length - 1])?.message;
 }
 
-// Where the app's calls go, when that is worth stating. An in-process app is
-// reached through a generated kaja-app:// id, which says nothing to the reader.
-export function visibleTarget(app: App): string {
-  return app.target.startsWith("kaja-app://") ? "" : app.target;
+// Where the app's calls go, when the app names somewhere for them to go. Read off the
+// configuration, because there is no address to read anywhere else: an app is invoked
+// under the name every call already carries. "url" is what the app types that name a
+// server call it; the ones that don't name one report nothing here.
+export function appAddress(app: App): string {
+  return appParameters(app.configuration).url ?? "";
 }
 
 export function countMethods(app: App): number {
