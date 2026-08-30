@@ -154,13 +154,23 @@ pictures — one client, one framing, one door, one `kaja-upstream` — with
 ```
    wails://localhost/…  ──►  WKURLSchemeHandler  ──►  webviewHandler
                                                         ├─ router.Mount  (/Api, /app)
+                                                        ├─ agent.Mount   (/agent-session, /mcp)
+                                                        ├─ mountFetch    (/fetch)
                                                         └─ assetHandler  (the UI)
 ```
 
+The agent switchboard is mounted the same way and for the same reason: a window
+offers itself to an agent over an NDJSON stream it holds open, and a stream is a
+response the scheme handler writes in pieces exactly as it writes a server
+stream's frames. So the desktop is one browser with one window permanently
+attached, and `pkg/agent` is the whole of the bridge on both builds — the
+loopback listener on `127.0.0.1:41521` is only `ServeMCP` in front of it, there
+because an agent lives in another process and cannot fetch a `wails://` URL.
+
 What crosses a Wails binding instead is what only the desktop can do at all:
-the files under the scripts root, the native dialogs, `kaja://` links, the
-resolved variables a script may read because the UI is inside this process,
-and the MCP bridge. None of it is a call.
+the files under the scripts root, the native dialogs, `kaja://` links, and the
+resolved variables a script may read because the UI is inside this process.
+None of it is a call.
 
 ## What never crosses which line
 

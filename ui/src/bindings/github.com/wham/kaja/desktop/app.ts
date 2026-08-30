@@ -76,28 +76,12 @@ export function LogFromUI(level: string, message: string): $CancellablePromise<v
 }
 
 /**
- * MCPScriptResult is called by the UI to deliver the outcome of a run started by
- * the run_script tool. id correlates with the pending RunScript call.
- */
-export function MCPScriptResult(id: string, resultJSON: string): $CancellablePromise<void> {
-    return $Call.ByID(3417708965, id, resultJSON);
-}
-
-/**
  * MCPServerInfo returns the current connection details for the UI footer.
  */
 export function MCPServerInfo(): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(222308020).then(($result: any) => {
         return $$createType4($result);
     });
-}
-
-/**
- * MCPSetCatalog receives the live services/methods picture from the UI, so
- * list_services and the stub resources reflect what is actually callable.
- */
-export function MCPSetCatalog(catalogJSON: string): $CancellablePromise<void> {
-    return $Call.ByID(1324975476, catalogJSON);
 }
 
 /**

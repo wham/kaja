@@ -19,6 +19,21 @@ const (
 	maxBody    = 1 << 16
 )
 
+// Mount registers the doors a window offers itself at and the one an agent is pointed
+// at. Both builds mount the same set on the mux their UI is served from: the desktop's
+// window attaches over the mux its webview already fetches its calls on, and its
+// loopback listener puts ServeMCP in front of this same switchboard because an agent
+// is a different process.
+func Mount(mux *http.ServeMux, registry *Registry) {
+	mux.HandleFunc("GET /agent-session", registry.ServeInfo)
+	mux.HandleFunc("POST /agent-session/attach", registry.ServeAttach)
+	mux.HandleFunc("POST /agent-session/detach", registry.ServeDetach)
+	mux.HandleFunc("POST /agent-session/focus", registry.ServeFocus)
+	mux.HandleFunc("POST /agent-session/catalog", registry.ServeCatalog)
+	mux.HandleFunc("POST /agent-session/result", registry.ServeResult)
+	mux.HandleFunc("POST /mcp", registry.ServeMCP)
+}
+
 // ServeInfo says that this server opens the door at all, which is what decides
 // whether the footer offers to connect an agent. It is deliberately the only one
 // of these endpoints that answers without a token: there is nothing behind it.
@@ -99,7 +114,7 @@ func (r *Registry) ServeFocus(w http.ResponseWriter, req *http.Request) {
 }
 
 // ServeCatalog takes the services picture from the window. The body is the
-// catalog itself, the same JSON the desktop hands over through MCPSetCatalog.
+// catalog itself.
 func (r *Registry) ServeCatalog(w http.ResponseWriter, req *http.Request) {
 	session, ok := r.authorize(w, req)
 	if !ok {

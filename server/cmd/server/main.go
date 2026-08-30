@@ -47,14 +47,7 @@ func main() {
 	// The agent session. A script runs in a browser, so a deployed kaja can only answer
 	// an agent by forwarding the run to a window that has offered itself. The window makes
 	// up the token and holds the stream; this server holds nothing at rest.
-	agentSessions := agent.NewRegistry(agent.NewWorkspaceScripts(apiService))
-	mux.HandleFunc("GET /agent-session", agentSessions.ServeInfo)
-	mux.HandleFunc("POST /agent-session/attach", agentSessions.ServeAttach)
-	mux.HandleFunc("POST /agent-session/detach", agentSessions.ServeDetach)
-	mux.HandleFunc("POST /agent-session/focus", agentSessions.ServeFocus)
-	mux.HandleFunc("POST /agent-session/catalog", agentSessions.ServeCatalog)
-	mux.HandleFunc("POST /agent-session/result", agentSessions.ServeResult)
-	mux.HandleFunc("POST /mcp", agentSessions.ServeMCP)
+	agent.Mount(mux, agent.NewRegistry(agent.NewWorkspaceScripts(apiService), agent.Streamed))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

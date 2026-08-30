@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,9 +12,9 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 )
 
-// The window fetches its calls the way a browser does, so the handler it is given
-// has to answer the same two lanes the web server does and leave everything else
-// to the UI.
+// The window fetches everything the way a browser does, so the handler it is given
+// has to answer the same lanes the web server does — the two call lanes and the agent
+// switchboard it offers itself to — and leave everything else to the UI.
 func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 	configurationPath := filepath.Join(t.TempDir(), "kaja.json")
 	if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
@@ -22,12 +23,14 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("the UI"))
 	})
-	handler := webviewHandler(api.NewApiService(configurationPath, true, "", "", nil), assets)
+	kaja := NewApp(api.NewApiService(configurationPath, true, "", "", nil), nil, t.TempDir())
+	handler := webviewHandler(kaja.api, kaja.agents, assets)
 
-	// A gRPC-Web-text request body is one base64 blob: the five-byte frame header of
-	// an empty message, which is what GetConfiguration takes.
-	request := httptest.NewRequest("POST", "/Api/GetConfiguration", strings.NewReader("AAAAAAA="))
-	request.Header.Set("Content-Type", "application/grpc-web-text")
+	// A gRPC-Web request body is binary frames: five zero bytes are the header of an
+	// empty message, which is what GetConfiguration takes.
+	emptyMessage := func() *bytes.Reader { return bytes.NewReader(make([]byte, 5)) }
+	request := httptest.NewRequest("POST", "/Api/GetConfiguration", emptyMessage())
+	request.Header.Set("Content-Type", "application/grpc-web+proto")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
@@ -43,8 +46,8 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 
 	// No app named "nothing", so the app lane refuses the call rather than falling
 	// through to the UI and answering a protobuf with HTML.
-	request = httptest.NewRequest("POST", "/app/seating.Seating/GetSeatMap", strings.NewReader("AAAAAAA="))
-	request.Header.Set("Content-Type", "application/grpc-web-text")
+	request = httptest.NewRequest("POST", "/app/seating.Seating/GetSeatMap", emptyMessage())
+	request.Header.Set("Content-Type", "application/grpc-web+proto")
 	request.Header.Set("X-Header-X-Kaja-App", "nothing")
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -63,6 +66,15 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 	}
 	if response.Header().Get(fetchErrorHeader) == "" {
 		t.Fatalf("POST %s was refused without saying why", fetchPath)
+	}
+
+	// The switchboard the window offers itself over. Nameless, it is refused rather
+	// than falling through to the UI and answering the stream with HTML.
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest("POST", "/agent-session/attach", nil))
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("POST /agent-session/attach = %d, want 400", response.Code)
 	}
 
 	// Everything else is the UI's. The Api lane is POST-only, so a GET under it is

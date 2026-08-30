@@ -1,18 +1,26 @@
 /**
- * The agent session: how a Kaja served over the web answers an agent.
+ * The agent session: the window's end of the switchboard an agent reaches Kaja through,
+ * on both builds.
  *
- * A server has no window — a script runs in the browser, where the `kaja` object and
- * the service clients live — so it can only answer `run_script` by forwarding it to a
- * window that has offered itself. This module is that offer.
+ * Nothing behind it can run a script — the `kaja` object and the service clients are
+ * JavaScript in here — so `run_script` is forwarded to a window that has offered itself
+ * and its answer forwarded back. This module is that offer, and everything else that
+ * cannot be answered without a window: what is callable, which window is being looked
+ * at, and what an agent did to a file on disk.
  *
- * The token is the address of this browser, not a key to the server: it is made up
- * here, never anywhere but this browser's storage, and opens nothing while no window
- * is listening. Until Connect is pressed there is no token, no stream and no session.
+ * On the **web** the token is the address of this browser, not a key to the server: it
+ * is made up here, never anywhere but this browser's storage, and opens nothing while
+ * no window is listening. Until Connect is pressed there is no token, no stream and no
+ * session. It is the one thing kept in `localStorage` rather than in `storage.ts`,
+ * because localStorage is shared between an origin's tabs *and* says when it changes —
+ * so connecting in one window attaches the others as they are. The IndexedDB store
+ * reads itself once at startup, which would make a second window find out on its next
+ * reload.
  *
- * It is the one thing kept in `localStorage` rather than in `storage.ts`, because
- * localStorage is shared between an origin's tabs *and* says when it changes — so
- * connecting in one window attaches the others as they are. The IndexedDB store reads
- * itself once at startup, which would make a second window find out on its next reload.
+ * On the **desktop** the process persists the token so the connection command stays
+ * valid across restarts, and hands it over (`adopt`). That is the whole of the
+ * difference: one window, permanently attached, on the mux the webview already fetches
+ * its calls on. There is nothing to connect and nothing to disconnect.
  */
 
 import { isWailsEnvironment } from "./wails";
@@ -27,7 +35,7 @@ const RECONNECT_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 
 export interface AgentSessionState {
-  /** Whether this server opens the door at all. False on the desktop, which has its own. */
+  /** Whether this server opens the door at all. The desktop's is opened by its process. */
   available: boolean;
   /** Whether this browser has connected an agent. Shared by every tab. */
   connected: boolean;
@@ -51,6 +59,16 @@ export interface AgentRun {
   client?: string;
 }
 
+/** What an agent did to a file on disk, so the sidebar and an open editor keep up. */
+export interface AgentScriptChange {
+  action: "write" | "create" | "rename" | "delete";
+  path: string;
+  oldPath?: string;
+  name?: string;
+  folder?: string;
+  content?: string;
+}
+
 interface Message {
   type: string;
   streamId?: string;
@@ -60,6 +78,7 @@ interface Message {
   client?: string;
   inFlight?: number;
   onDuty?: boolean;
+  change?: AgentScriptChange;
 }
 
 interface Stored {
@@ -90,7 +109,11 @@ class AgentSession {
   private listeners = new Set<() => void>();
   private runner?: (run: AgentRun) => Promise<unknown>;
   private onActivity?: (active: boolean) => void;
+  private onScripts?: (change: AgentScriptChange) => void;
   private catalog?: string;
+  // The desktop's token, handed over by the process that persists it. Where there is
+  // one it is the session, and this browser's own storage is not consulted.
+  private hostToken?: string;
   private streamId?: string;
   private abort?: AbortController;
   private activityTimer?: number;
@@ -108,17 +131,33 @@ class AgentSession {
    * Wires the session to the window and, if this browser is already connected,
    * attaches. Safe to call more than once.
    */
-  start(runner: (run: AgentRun) => Promise<unknown>, onActivity: (active: boolean) => void): void {
+  start(runner: (run: AgentRun) => Promise<unknown>, onActivity: (active: boolean) => void, onScripts: (change: AgentScriptChange) => void): void {
     this.runner = runner;
     this.onActivity = onActivity;
-    if (this.started || isWailsEnvironment()) return;
+    this.onScripts = onScripts;
+    if (this.started) return;
     this.started = true;
+
+    window.addEventListener("focus", this.reportFocus);
+    document.addEventListener("visibilitychange", this.reportFocus);
+    // The desktop has no token of its own to find: it waits to be handed one.
+    if (isWailsEnvironment()) return;
 
     void this.readAvailability();
     window.addEventListener("storage", this.onStorage);
-    window.addEventListener("focus", this.reportFocus);
-    document.addEventListener("visibilitychange", this.reportFocus);
     if (readStored()) this.attach();
+  }
+
+  /**
+   * Attaches with the token the host process issued rather than one this browser made
+   * up. Nothing else about the session differs, which is what makes the desktop the
+   * degenerate case of it: one window, permanently attached.
+   */
+  adopt(token: string): void {
+    if (this.hostToken === token) return;
+    this.hostToken = token;
+    this.update({ available: true });
+    this.attach();
   }
 
   /** Connects this browser: a token, and a stream in every window that has one. */
@@ -168,15 +207,21 @@ class AgentSession {
     }
   }
 
+  // The token this window attaches under: the desktop's, else this browser's own.
+  private currentToken(): string | undefined {
+    return this.hostToken ?? readStored()?.token;
+  }
+
   private attach(): void {
-    const stored = readStored();
-    if (!stored || this.abort) {
-      this.update({ connected: !!stored });
+    const token = this.currentToken();
+    if (!token || this.abort) {
+      this.update({ connected: !!token });
       return;
     }
-    this.update({ connected: true, token: stored.token, url: `${window.location.origin}/mcp` });
+    // The desktop's endpoint is the loopback listener the process reports, not this page.
+    this.update({ connected: true, token, url: this.hostToken ? undefined : `${window.location.origin}/mcp` });
     this.abort = new AbortController();
-    void this.hold(stored.token, this.abort);
+    void this.hold(token, this.abort);
   }
 
   private detach(): void {
@@ -255,6 +300,9 @@ class AgentSession {
       case "run":
         void this.run(message);
         break;
+      case "scripts":
+        if (message.change) this.onScripts?.(message.change);
+        break;
     }
   }
 
@@ -288,7 +336,7 @@ class AgentSession {
   };
 
   private async post(path: string, body: string): Promise<void> {
-    const token = readStored()?.token;
+    const token = this.currentToken();
     if (!token || !this.state.attached) return;
     try {
       await fetch(path, {
