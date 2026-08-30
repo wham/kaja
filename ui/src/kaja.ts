@@ -37,6 +37,7 @@ import { RunMetrics } from "./runStats";
 import { LogSink } from "./scriptConsole";
 import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
+import { uuidV4 } from "./uuid";
 
 // Swallowed by the script runner: a cancelled prompt quietly stops the script.
 export class AskCancelledError extends Error {
@@ -563,7 +564,7 @@ export class Kaja {
       await this._internal.acquireRateLimit(host);
 
       const call: MethodCall = {
-        id: crypto.randomUUID(),
+        id: uuidV4(),
         appName: host,
         // A fetch has neither, so they are what it has: who answered, and how it was
         // asked. `http` is what tells everything reading a call back that they are that
@@ -1108,16 +1109,7 @@ export class Kaja {
 
   /** A random version 4 UUID. */
   uuidV4(): string {
-    if (typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    // crypto.randomUUID is only available in secure contexts; fall back to
-    // building a v4 UUID from random bytes.
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    return uuidV4();
   }
 }
 

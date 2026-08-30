@@ -149,6 +149,23 @@ describe("kaja.fetch", () => {
     expect(limit.remaining).toBe(99);
   });
 
+  // Where the id was minted with crypto.randomUUID the call threw before it was ever a
+  // row, so the run failed with nothing in the log saying what it had tried to do.
+  it("is a call in a context that has no crypto.randomUUID", async () => {
+    answering(() => new Response('{"id":1}', { headers: { "content-type": "application/json" } }));
+    const { kaja, settled } = run();
+    const realCrypto = globalThis.crypto;
+    globalThis.crypto = { getRandomValues: (array: Uint8Array) => realCrypto.getRandomValues(array) } as Crypto;
+
+    try {
+      const response = await kaja.fetch("https://api.example.com/orders/1");
+      expect(response.ok).toBe(true);
+      expect(settled().http).toEqual({ method: "GET", url: "https://api.example.com/orders/1" });
+    } finally {
+      globalThis.crypto = realCrypto;
+    }
+  });
+
   it("goes out with the run's abort signal, so Stop reaches it", async () => {
     const asked = answering(() => new Response("{}"));
     const { kaja } = run();
