@@ -21,8 +21,7 @@ func TestCompileWorkspaceProto(t *testing.T) {
 
 	sourcesDir := t.TempDir()
 
-	compiler := NewCompiler()
-	compiler.logger = NewLogger()
+	compiler := NewCompiler(NewLogger())
 
 	err = compiler.compile(sourcesDir, protoDir)
 	if err != nil {

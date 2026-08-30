@@ -4,6 +4,7 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { ReadScriptResponse } from "./api";
 import type { ReadScriptRequest } from "./api";
 import type { ListScriptsResponse } from "./api";
@@ -26,16 +27,20 @@ import type { OpenAppRequest } from "./api";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
 import type { CompileResponse } from "./api";
 import type { CompileRequest } from "./api";
-import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 /**
  * @generated from protobuf service Api
  */
 export interface IApiClient {
     /**
+     * Compile streams the compilation of an app's proto surface: each log line as it
+     * is written, then one last message carrying the terminal status and, on success,
+     * the generated sources and the stub.
+     *
      * @generated from protobuf rpc: Compile
      */
-    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
+    compile(input: CompileRequest, options?: RpcOptions): ServerStreamingCall<CompileRequest, CompileResponse>;
     /**
      * @generated from protobuf rpc: OpenApp
      */
@@ -87,11 +92,15 @@ export class ApiClient implements IApiClient, ServiceInfo {
     constructor(private readonly _transport: RpcTransport) {
     }
     /**
+     * Compile streams the compilation of an app's proto surface: each log line as it
+     * is written, then one last message carrying the terminal status and, on success,
+     * the generated sources and the stub.
+     *
      * @generated from protobuf rpc: Compile
      */
-    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse> {
+    compile(input: CompileRequest, options?: RpcOptions): ServerStreamingCall<CompileRequest, CompileResponse> {
         const method = this.methods[0], opt = this._transport.mergeOptions(options);
-        return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<CompileRequest, CompileResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: OpenApp

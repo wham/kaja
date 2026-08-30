@@ -3,7 +3,10 @@ syntax = "proto3";
 option go_package = "pkg/api";
 
 service Api {
-  rpc Compile(CompileRequest) returns (CompileResponse);
+  // Compile streams the compilation of an app's proto surface: each log line as it
+  // is written, then one last message carrying the terminal status and, on success,
+  // the generated sources and the stub.
+  rpc Compile(CompileRequest) returns (stream CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
@@ -17,9 +20,7 @@ service Api {
 }
 
 message CompileRequest {
-  string id = 1;
-  int32 log_offset = 2;
-  string proto_dir = 3;
+  string proto_dir = 1;
 }
 
 enum OpenStatus {
@@ -44,11 +45,6 @@ message OpenAppResponse {
   // temp directory (generated/reflected protos) or a workspace-relative path (static
   // protos), which Compile resolves against the workspace.
   string proto_dir = 3;
-  // 4 was "target", where the client sent the app's calls. An app is invoked under
-  // the name every call already carries, so there is no address to hand out. 5 was
-  // "protocol", the transport the client used to reach that target; the client speaks
-  // gRPC-Web to everything now.
-  reserved 4, 5;
 }
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -
@@ -314,6 +310,10 @@ enum McpProblemKind {
   MCP_PROBLEM_EMPTY = 8;
 }
 
+// CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
+// message carries the log lines written since the last one and nothing else; the
+// last message of a stream is the terminal status, with the sources and the stub
+// on a STATUS_READY.
 message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;

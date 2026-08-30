@@ -65,12 +65,10 @@ export function createPendingApp(configuration: ConfigurationApp): App {
 export type CompilationStatus = "pending" | "running" | "success" | "error";
 
 export interface Compilation {
-  id?: string;
   status: CompilationStatus;
   logs: Log[];
   duration?: string;
   startTime?: number;
-  logOffset?: number;
 }
 
 export interface Service {

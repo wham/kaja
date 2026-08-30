@@ -460,9 +460,7 @@ func (VariableSource) EnumDescriptor() ([]byte, []int) {
 
 type CompileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	LogOffset     int32                  `protobuf:"varint,2,opt,name=log_offset,json=logOffset,proto3" json:"log_offset,omitempty"`
-	ProtoDir      string                 `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
+	ProtoDir      string                 `protobuf:"bytes,1,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -495,20 +493,6 @@ func (x *CompileRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CompileRequest.ProtoReflect.Descriptor instead.
 func (*CompileRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *CompileRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *CompileRequest) GetLogOffset() int32 {
-	if x != nil {
-		return x.LogOffset
-	}
-	return 0
 }
 
 func (x *CompileRequest) GetProtoDir() string {
@@ -1890,6 +1874,10 @@ func (x *McpProblem) GetDetail() string {
 	return ""
 }
 
+// CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
+// message carries the log lines written since the last one and nothing else; the
+// last message of a stream is the terminal status, with the sources and the stub
+// on a STATUS_READY.
 type CompileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
@@ -3630,18 +3618,15 @@ var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/api.proto\"\\\n" +
-	"\x0eCompileRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
-	"\n" +
-	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"5\n" +
+	"\x0fproto/api.proto\"-\n" +
+	"\x0eCompileRequest\x12\x1b\n" +
+	"\tproto_dir\x18\x01 \x01(\tR\bprotoDir\"5\n" +
 	"\x0eOpenAppRequest\x12#\n" +
-	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"y\n" +
+	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"m\n" +
 	"\x0fOpenAppResponse\x12#\n" +
 	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDirJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"2\n" +
+	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"2\n" +
 	"\x12InspectGrpcRequest\x12\x1c\n" +
 	"\x04grpc\x18\x01 \x01(\v2\b.GrpcAppR\x04grpc\"b\n" +
 	"\x13InspectGrpcResponse\x12#\n" +
@@ -3928,9 +3913,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xa5\x05\n" +
-	"\x03Api\x12,\n" +
-	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xa7\x05\n" +
+	"\x03Api\x12.\n" +
+	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
 	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x128\n" +
 	"\vInspectGrpc\x12\x13.InspectGrpcRequest\x1a\x14.InspectGrpcResponse\x125\n" +

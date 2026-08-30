@@ -5,7 +5,6 @@ import (
 	"errors"
 	fmt "fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
@@ -16,11 +15,11 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
 	"github.com/wham/kaja/v2/pkg/apps/twirp"
-	"github.com/wham/kaja/v2/pkg/grpc"
+	pkggrpc "github.com/wham/kaja/v2/pkg/grpc"
+	"google.golang.org/grpc"
 )
 
 type ApiService struct {
-	compilers              sync.Map // map[string]*Compiler - keyed by ID
 	configurationPath      string
 	canUpdateConfiguration bool
 	gitRef                 string
@@ -134,48 +133,31 @@ func (s *timedStream) Report() *apps.Report {
 	return report
 }
 
-func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
-	compiler, _ := s.compilers.LoadOrStore(id, NewCompiler())
-	return compiler.(*Compiler)
-}
-
-func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
-	if req.Id == "" {
-		return nil, fmt.Errorf("id is required")
+// Compile compiles the proto surface an app was opened with and streams the result:
+// every log line as it is written, then one last message carrying the terminal status
+// and, on a success, the generated sources and the stub.
+func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingServer[CompileResponse]) error {
+	var sendErr error
+	send := func(response *CompileResponse) {
+		if sendErr == nil {
+			sendErr = stream.Send(response)
+		}
 	}
 
-	compiler := s.getOrCreateCompiler(req.Id)
-	compiler.mu.Lock()
-	defer compiler.mu.Unlock()
+	compiler := NewCompiler(NewStreamingLogger(func(log *Log) {
+		send(&CompileResponse{Status: CompileStatus_STATUS_RUNNING, Logs: []*Log{log}})
+	}))
 
-	if compiler.logger == nil {
-		compiler.logger = NewLogger()
+	sources, stub, err := compiler.run(req.ProtoDir)
+	if err != nil {
+		// The failure was logged as it happened, so the last message is the verdict
+		// and nothing else.
+		send(&CompileResponse{Status: CompileStatus_STATUS_ERROR})
+	} else {
+		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Sources: sources, Stub: stub})
 	}
 
-	if compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
-		compiler.status = CompileStatus_STATUS_RUNNING
-		compiler.logger = NewLogger()
-		compiler.sources = []*Source{}
-		compiler.logger.info("Starting compilation")
-		go compiler.start(req.Id, req.ProtoDir)
-	}
-
-	logOffset := int(req.LogOffset)
-	if logOffset > len(compiler.logger.logs)-1 {
-		logOffset = len(compiler.logger.logs) - 1
-	}
-
-	logs := []*Log{}
-	if int(req.LogOffset) < len(compiler.logger.logs) {
-		logs = compiler.logger.logs[logOffset:]
-	}
-
-	return &CompileResponse{
-		Status:  compiler.status,
-		Logs:    logs,
-		Sources: compiler.sources,
-		Stub:    compiler.stub,
-	}, nil
+	return sendErr
 }
 
 func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenAppResponse, error) {
@@ -222,7 +204,7 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 // token takes effect on the next call instead of the next compile.
 type AppConnection struct {
 	Metadata map[string]string
-	TLS      grpc.TLSOptions
+	TLS      pkggrpc.TLSOptions
 }
 
 // appConnection resolves how the named app connects. The name arrives on the

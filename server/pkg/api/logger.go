@@ -6,11 +6,21 @@ import (
 
 type Logger struct {
 	logs []*Log
+	sink func(*Log)
 }
 
 func NewLogger() *Logger {
 	return &Logger{
 		logs: []*Log{},
+	}
+}
+
+// NewStreamingLogger writes each line on to sink as it is logged, so a call
+// reporting its log over a stream says each line where it happens.
+func NewStreamingLogger(sink func(*Log)) *Logger {
+	return &Logger{
+		logs: []*Log{},
+		sink: sink,
 	}
 }
 
@@ -35,8 +45,12 @@ func (l *Logger) error(message string, err error) {
 }
 
 func (l *Logger) log(level LogLevel, message string) {
-	l.logs = append(l.logs, &Log{
+	entry := &Log{
 		Message: message,
 		Level:   level,
-	})
+	}
+	l.logs = append(l.logs, entry)
+	if l.sink != nil {
+		l.sink(entry)
+	}
 }
