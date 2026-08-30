@@ -62,12 +62,21 @@ func (a *App) MCPServerInfo() MCPInfo {
 func mcpClientConfigurationPaths() map[string]string {
 	paths := map[string]string{}
 	// The three places os.UserConfigDir reports are the three Claude Desktop looks in:
-	// Application Support, %AppData%, and ~/.config.
+	// Application Support, %AppData%, and ~/.config. Cline files itself under the same
+	// root, inside the VS Code extension that hosts it.
 	if dir, err := os.UserConfigDir(); err == nil {
 		paths["claudeDesktop"] = filepath.Join(dir, "Claude", "claude_desktop_config.json")
+		paths["cline"] = filepath.Join(dir, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		paths["cursor"] = filepath.Join(home, ".cursor", "mcp.json")
+		paths["windsurf"] = filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
+		paths["codex"] = filepath.Join(home, ".codex", "config.toml")
+		paths["gemini"] = filepath.Join(home, ".gemini", "settings.json")
+		// Zed and Goose read ~/.config on every platform, macOS included, so these two
+		// don't go through os.UserConfigDir.
+		paths["zed"] = filepath.Join(home, ".config", "zed", "settings.json")
+		paths["goose"] = filepath.Join(home, ".config", "goose", "config.yaml")
 	}
 	return paths
 }
