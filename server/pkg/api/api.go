@@ -5,6 +5,7 @@ import (
 	"errors"
 	fmt "fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
@@ -26,6 +27,11 @@ type ApiService struct {
 	buildNumber            string
 	variableStore          VariableStore
 	apps                   *apps.Manager
+
+	// The configuration file's watcher, started by the first call that watches it.
+	// Guarded by watcherMu.
+	watcherMu sync.Mutex
+	watcher   *ConfigurationWatcher
 }
 
 // NewApiService builds the service. variableStore is where a "${secret}"
@@ -446,6 +452,43 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
+	return s.configurationResponse(), nil
+}
+
+// WatchConfiguration streams the configuration file as it is edited, one message per
+// change carrying the whole of what GetConfiguration answers with. The file is read
+// where the change is noticed, so a client is never told that something changed and
+// left to ask what.
+//
+// The current configuration is not sent when the stream opens: whoever is watching has
+// just loaded it, and a second reading of the same file would be a change nothing made.
+func (s *ApiService) WatchConfiguration(req *WatchConfigurationRequest, stream grpc.ServerStreamingServer[GetConfigurationResponse]) error {
+	// Buffered by one and dropped when full: a burst of writes is one change to report,
+	// and the report is the file as it stands by the time it is read.
+	changed := make(chan struct{}, 1)
+	unsubscribe := s.watchConfigurationFile(func() {
+		select {
+		case changed <- struct{}{}:
+		default:
+		}
+	})
+	defer unsubscribe()
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-changed:
+			if err := stream.Send(s.configurationResponse()); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// configurationResponse is the file plus the runtime it is being served by, which is
+// what both doors to the configuration answer with.
+func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 	response := LoadGetConfigurationResponse(s.configurationPath)
 
 	response.Runtime = &Runtime{
@@ -460,7 +503,41 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	// resolved from a source is never part of the response.
 	response.VariableStatus = NewResolver(response.Configuration.Variables, s.variableStore).Statuses()
 
-	return response, nil
+	return response
+}
+
+// watchConfigurationFile subscribes to the configuration file and hands back the way to
+// stop. The watcher is started by the first subscriber rather than by the process, so a
+// kaja nobody is watching polls nothing. A file that cannot be watched leaves the
+// caller subscribed to nothing: a workspace with no configuration file has no change to
+// report, which is not a reason to refuse the call.
+func (s *ApiService) watchConfigurationFile(onChange func()) func() {
+	s.watcherMu.Lock()
+	defer s.watcherMu.Unlock()
+
+	if s.watcher == nil {
+		watcher, err := NewConfigurationWatcher(s.configurationPath)
+		if err != nil {
+			slog.Warn("Failed to start configuration watcher", "path", s.configurationPath, "error", err)
+			return func() {}
+		}
+		s.watcher = watcher
+	}
+
+	return s.watcher.Subscribe(onChange)
+}
+
+// Close stops watching the configuration file.
+func (s *ApiService) Close() error {
+	s.watcherMu.Lock()
+	defer s.watcherMu.Unlock()
+
+	if s.watcher == nil {
+		return nil
+	}
+	err := s.watcher.Close()
+	s.watcher = nil
+	return err
 }
 
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {

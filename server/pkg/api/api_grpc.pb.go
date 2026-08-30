@@ -25,6 +25,7 @@ const (
 	Api_InspectGrpc_FullMethodName         = "/Api/InspectGrpc"
 	Api_InspectMcp_FullMethodName          = "/Api/InspectMcp"
 	Api_GetConfiguration_FullMethodName    = "/Api/GetConfiguration"
+	Api_WatchConfiguration_FullMethodName  = "/Api/WatchConfiguration"
 	Api_UpdateConfiguration_FullMethodName = "/Api/UpdateConfiguration"
 	Api_SetStoredValue_FullMethodName      = "/Api/SetStoredValue"
 	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
@@ -45,6 +46,10 @@ type ApiClient interface {
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
 	InspectMcp(ctx context.Context, in *InspectMcpRequest, opts ...grpc.CallOption) (*InspectMcpResponse, error)
 	GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*GetConfigurationResponse, error)
+	// WatchConfiguration streams the configuration file as it is edited: one message
+	// carrying the whole configuration each time the file changes. What changed is
+	// never asked for afterwards, because the message is the new configuration.
+	WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error)
 	UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error)
 	SetStoredValue(ctx context.Context, in *SetStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
@@ -129,6 +134,25 @@ func (c *apiClient) GetConfiguration(ctx context.Context, in *GetConfigurationRe
 	return out, nil
 }
 
+func (c *apiClient) WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[1], Api_WatchConfiguration_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchConfigurationRequest, GetConfigurationResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_WatchConfigurationClient = grpc.ServerStreamingClient[GetConfigurationResponse]
+
 func (c *apiClient) UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateConfigurationResponse)
@@ -192,6 +216,10 @@ type ApiServer interface {
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
 	InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error)
 	GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error)
+	// WatchConfiguration streams the configuration file as it is edited: one message
+	// carrying the whole configuration each time the file changes. What changed is
+	// never asked for afterwards, because the message is the new configuration.
+	WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error
 	UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error)
 	SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error)
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
@@ -223,6 +251,9 @@ func (UnimplementedApiServer) InspectMcp(context.Context, *InspectMcpRequest) (*
 }
 func (UnimplementedApiServer) GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetConfiguration not implemented")
+}
+func (UnimplementedApiServer) WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error {
+	return status.Error(codes.Unimplemented, "method WatchConfiguration not implemented")
 }
 func (UnimplementedApiServer) UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateConfiguration not implemented")
@@ -359,6 +390,17 @@ func _Api_GetConfiguration_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	return interceptor(ctx, in, info, handler)
 }
+
+func _Api_WatchConfiguration_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchConfigurationRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ApiServer).WatchConfiguration(m, &grpc.GenericServerStream[WatchConfigurationRequest, GetConfigurationResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_WatchConfigurationServer = grpc.ServerStreamingServer[GetConfigurationResponse]
 
 func _Api_UpdateConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateConfigurationRequest)
@@ -502,6 +544,11 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Compile",
 			Handler:       _Api_Compile_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WatchConfiguration",
+			Handler:       _Api_WatchConfiguration_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -282,10 +282,13 @@ the door to look up, no upstream.
    was forwarded, so there is no `kaja-upstream` to say. A failed call is
    `status.Convert`'s `UNKNOWN`, carrying the service's own message.
 
-`Compile` is the one method here that streams — the log as it is written,
-then the verdict. Nothing in the request says which kind of call this is, so
-the door is the same `grpc.Serve`, writing more data frames before the same
-trailer.
+Two methods here stream, and nothing in a request says which kind of call it
+is: the door is the same `grpc.Serve`, writing more data frames before the same
+trailer. `Compile` streams the log as it is written, then the verdict.
+`WatchConfiguration` stays open for the life of the window and sends the whole
+configuration each time `kaja.json` changes on disk — the file being watched is
+read where the change is noticed, so nothing is fetched after being told, and
+neither build has a notification transport of its own.
 
 ### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
 
