@@ -11,14 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 const token = "0123456789abcdef0123456789abcdef"
 
 // fakeScripts is a scripts folder held in memory, keyed by name. It stands in for
-// both halves of the one difference between the builds: writable is the desktop, and
-// the zero value is the workspace a server does not own.
+// both answers a workspace gives: writable is one this kaja owns, and the zero value
+// is one it only serves.
 type fakeScripts struct {
 	files    map[string]string
 	writable bool
@@ -45,7 +46,7 @@ func (f *fakeScripts) Read(path string) (mcp.ScriptInfo, error) {
 
 func (f *fakeScripts) Write(path, content string) (ScriptChange, error) {
 	if !f.writable {
-		return ScriptChange{}, ErrReadOnly
+		return ScriptChange{}, api.ErrScriptsReadOnly
 	}
 	name := strings.TrimPrefix(path, scriptsRoot)
 	f.files[name] = content
@@ -54,7 +55,7 @@ func (f *fakeScripts) Write(path, content string) (ScriptChange, error) {
 
 func (f *fakeScripts) Create(name, content string) (ScriptChange, error) {
 	if !f.writable {
-		return ScriptChange{}, ErrReadOnly
+		return ScriptChange{}, api.ErrScriptsReadOnly
 	}
 	f.files[name] = content
 	return ScriptChange{Action: "create", Path: scriptsRoot + name, Name: name, Content: content}, nil
@@ -62,7 +63,7 @@ func (f *fakeScripts) Create(name, content string) (ScriptChange, error) {
 
 func (f *fakeScripts) Rename(path, newName string) (ScriptChange, error) {
 	if !f.writable {
-		return ScriptChange{}, ErrReadOnly
+		return ScriptChange{}, api.ErrScriptsReadOnly
 	}
 	name := strings.TrimPrefix(path, scriptsRoot)
 	f.files[newName] = f.files[name]
@@ -72,7 +73,7 @@ func (f *fakeScripts) Rename(path, newName string) (ScriptChange, error) {
 
 func (f *fakeScripts) Delete(path string) (ScriptChange, error) {
 	if !f.writable {
-		return ScriptChange{}, ErrReadOnly
+		return ScriptChange{}, api.ErrScriptsReadOnly
 	}
 	name := strings.TrimPrefix(path, scriptsRoot)
 	delete(f.files, name)

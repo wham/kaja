@@ -31,6 +31,14 @@ const (
 	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
 	Api_ListScripts_FullMethodName         = "/Api/ListScripts"
 	Api_ReadScript_FullMethodName          = "/Api/ReadScript"
+	Api_WriteScript_FullMethodName         = "/Api/WriteScript"
+	Api_CreateScript_FullMethodName        = "/Api/CreateScript"
+	Api_RenameScript_FullMethodName        = "/Api/RenameScript"
+	Api_DeleteScript_FullMethodName        = "/Api/DeleteScript"
+	Api_ListScriptFolders_FullMethodName   = "/Api/ListScriptFolders"
+	Api_CreateScriptFolder_FullMethodName  = "/Api/CreateScriptFolder"
+	Api_RenameScriptFolder_FullMethodName  = "/Api/RenameScriptFolder"
+	Api_DeleteScriptFolder_FullMethodName  = "/Api/DeleteScriptFolder"
 )
 
 // ApiClient is the client API for Api service.
@@ -55,6 +63,14 @@ type ApiClient interface {
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
 	ReadScript(ctx context.Context, in *ReadScriptRequest, opts ...grpc.CallOption) (*ReadScriptResponse, error)
+	WriteScript(ctx context.Context, in *WriteScriptRequest, opts ...grpc.CallOption) (*WriteScriptResponse, error)
+	CreateScript(ctx context.Context, in *CreateScriptRequest, opts ...grpc.CallOption) (*CreateScriptResponse, error)
+	RenameScript(ctx context.Context, in *RenameScriptRequest, opts ...grpc.CallOption) (*RenameScriptResponse, error)
+	DeleteScript(ctx context.Context, in *DeleteScriptRequest, opts ...grpc.CallOption) (*DeleteScriptResponse, error)
+	ListScriptFolders(ctx context.Context, in *ListScriptFoldersRequest, opts ...grpc.CallOption) (*ListScriptFoldersResponse, error)
+	CreateScriptFolder(ctx context.Context, in *CreateScriptFolderRequest, opts ...grpc.CallOption) (*CreateScriptFolderResponse, error)
+	RenameScriptFolder(ctx context.Context, in *RenameScriptFolderRequest, opts ...grpc.CallOption) (*RenameScriptFolderResponse, error)
+	DeleteScriptFolder(ctx context.Context, in *DeleteScriptFolderRequest, opts ...grpc.CallOption) (*DeleteScriptFolderResponse, error)
 }
 
 type apiClient struct {
@@ -203,6 +219,86 @@ func (c *apiClient) ReadScript(ctx context.Context, in *ReadScriptRequest, opts 
 	return out, nil
 }
 
+func (c *apiClient) WriteScript(ctx context.Context, in *WriteScriptRequest, opts ...grpc.CallOption) (*WriteScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WriteScriptResponse)
+	err := c.cc.Invoke(ctx, Api_WriteScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) CreateScript(ctx context.Context, in *CreateScriptRequest, opts ...grpc.CallOption) (*CreateScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateScriptResponse)
+	err := c.cc.Invoke(ctx, Api_CreateScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) RenameScript(ctx context.Context, in *RenameScriptRequest, opts ...grpc.CallOption) (*RenameScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenameScriptResponse)
+	err := c.cc.Invoke(ctx, Api_RenameScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) DeleteScript(ctx context.Context, in *DeleteScriptRequest, opts ...grpc.CallOption) (*DeleteScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteScriptResponse)
+	err := c.cc.Invoke(ctx, Api_DeleteScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) ListScriptFolders(ctx context.Context, in *ListScriptFoldersRequest, opts ...grpc.CallOption) (*ListScriptFoldersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListScriptFoldersResponse)
+	err := c.cc.Invoke(ctx, Api_ListScriptFolders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) CreateScriptFolder(ctx context.Context, in *CreateScriptFolderRequest, opts ...grpc.CallOption) (*CreateScriptFolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateScriptFolderResponse)
+	err := c.cc.Invoke(ctx, Api_CreateScriptFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) RenameScriptFolder(ctx context.Context, in *RenameScriptFolderRequest, opts ...grpc.CallOption) (*RenameScriptFolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenameScriptFolderResponse)
+	err := c.cc.Invoke(ctx, Api_RenameScriptFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) DeleteScriptFolder(ctx context.Context, in *DeleteScriptFolderRequest, opts ...grpc.CallOption) (*DeleteScriptFolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteScriptFolderResponse)
+	err := c.cc.Invoke(ctx, Api_DeleteScriptFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ApiServer is the server API for Api service.
 // All implementations should embed UnimplementedApiServer
 // for forward compatibility.
@@ -225,6 +321,14 @@ type ApiServer interface {
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
 	ReadScript(context.Context, *ReadScriptRequest) (*ReadScriptResponse, error)
+	WriteScript(context.Context, *WriteScriptRequest) (*WriteScriptResponse, error)
+	CreateScript(context.Context, *CreateScriptRequest) (*CreateScriptResponse, error)
+	RenameScript(context.Context, *RenameScriptRequest) (*RenameScriptResponse, error)
+	DeleteScript(context.Context, *DeleteScriptRequest) (*DeleteScriptResponse, error)
+	ListScriptFolders(context.Context, *ListScriptFoldersRequest) (*ListScriptFoldersResponse, error)
+	CreateScriptFolder(context.Context, *CreateScriptFolderRequest) (*CreateScriptFolderResponse, error)
+	RenameScriptFolder(context.Context, *RenameScriptFolderRequest) (*RenameScriptFolderResponse, error)
+	DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error)
 }
 
 // UnimplementedApiServer should be embedded to have
@@ -269,6 +373,30 @@ func (UnimplementedApiServer) ListScripts(context.Context, *ListScriptsRequest) 
 }
 func (UnimplementedApiServer) ReadScript(context.Context, *ReadScriptRequest) (*ReadScriptResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReadScript not implemented")
+}
+func (UnimplementedApiServer) WriteScript(context.Context, *WriteScriptRequest) (*WriteScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method WriteScript not implemented")
+}
+func (UnimplementedApiServer) CreateScript(context.Context, *CreateScriptRequest) (*CreateScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateScript not implemented")
+}
+func (UnimplementedApiServer) RenameScript(context.Context, *RenameScriptRequest) (*RenameScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameScript not implemented")
+}
+func (UnimplementedApiServer) DeleteScript(context.Context, *DeleteScriptRequest) (*DeleteScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteScript not implemented")
+}
+func (UnimplementedApiServer) ListScriptFolders(context.Context, *ListScriptFoldersRequest) (*ListScriptFoldersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListScriptFolders not implemented")
+}
+func (UnimplementedApiServer) CreateScriptFolder(context.Context, *CreateScriptFolderRequest) (*CreateScriptFolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateScriptFolder not implemented")
+}
+func (UnimplementedApiServer) RenameScriptFolder(context.Context, *RenameScriptFolderRequest) (*RenameScriptFolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameScriptFolder not implemented")
+}
+func (UnimplementedApiServer) DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteScriptFolder not implemented")
 }
 func (UnimplementedApiServer) testEmbeddedByValue() {}
 
@@ -492,6 +620,150 @@ func _Api_ReadScript_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_WriteScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WriteScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).WriteScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_WriteScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).WriteScript(ctx, req.(*WriteScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_CreateScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).CreateScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_CreateScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).CreateScript(ctx, req.(*CreateScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_RenameScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).RenameScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_RenameScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).RenameScript(ctx, req.(*RenameScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_DeleteScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).DeleteScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_DeleteScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).DeleteScript(ctx, req.(*DeleteScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_ListScriptFolders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListScriptFoldersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).ListScriptFolders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_ListScriptFolders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).ListScriptFolders(ctx, req.(*ListScriptFoldersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_CreateScriptFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateScriptFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).CreateScriptFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_CreateScriptFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).CreateScriptFolder(ctx, req.(*CreateScriptFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_RenameScriptFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameScriptFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).RenameScriptFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_RenameScriptFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).RenameScriptFolder(ctx, req.(*RenameScriptFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_DeleteScriptFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteScriptFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).DeleteScriptFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_DeleteScriptFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).DeleteScriptFolder(ctx, req.(*DeleteScriptFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Api_ServiceDesc is the grpc.ServiceDesc for Api service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -538,6 +810,38 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReadScript",
 			Handler:    _Api_ReadScript_Handler,
+		},
+		{
+			MethodName: "WriteScript",
+			Handler:    _Api_WriteScript_Handler,
+		},
+		{
+			MethodName: "CreateScript",
+			Handler:    _Api_CreateScript_Handler,
+		},
+		{
+			MethodName: "RenameScript",
+			Handler:    _Api_RenameScript_Handler,
+		},
+		{
+			MethodName: "DeleteScript",
+			Handler:    _Api_DeleteScript_Handler,
+		},
+		{
+			MethodName: "ListScriptFolders",
+			Handler:    _Api_ListScriptFolders_Handler,
+		},
+		{
+			MethodName: "CreateScriptFolder",
+			Handler:    _Api_CreateScriptFolder_Handler,
+		},
+		{
+			MethodName: "RenameScriptFolder",
+			Handler:    _Api_RenameScriptFolder_Handler,
+		},
+		{
+			MethodName: "DeleteScriptFolder",
+			Handler:    _Api_DeleteScriptFolder_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

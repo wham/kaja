@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -181,5 +183,229 @@ func TestReadScriptRefusesASymlinkOutOfTheFolder(t *testing.T) {
 	service := NewApiService(configurationPath, false, "", "", nil)
 	if _, err := service.ReadScript(context.Background(), &ReadScriptRequest{Name: "escape.ts"}); err == nil {
 		t.Error("expected a symlink out of the scripts folder to be refused")
+	}
+}
+
+// writableWorkspace is a kaja that owns the workspace it opened, which is what every
+// write below needs and what the served build refuses.
+func writableWorkspace(t *testing.T) *ApiService {
+	t.Helper()
+	return NewApiService(workspaceWithScripts(t, nil), true, "", "", nil)
+}
+
+func createScript(t *testing.T, service *ApiService, name string, content string) *Script {
+	t.Helper()
+	response, err := service.CreateScript(context.Background(), &CreateScriptRequest{Name: name, Content: content})
+	if err != nil {
+		t.Fatalf("failed to create %s: %v", name, err)
+	}
+	return response.Script
+}
+
+// The folder is the whole access boundary: a name is resolved inside it, never
+// followed out of it.
+func TestScriptPathsStayInsideTheFolder(t *testing.T) {
+	root := t.TempDir()
+
+	// A name, a name with a folder, and the absolute path a listing hands back all
+	// name the same kind of thing.
+	for _, name := range []string{"hello.ts", "reports/weekly.ts", filepath.Join(root, "hello.ts")} {
+		relative, err := relativeScriptPath(root, name)
+		if err != nil {
+			t.Fatalf("relativeScriptPath(%q): %v", name, err)
+		}
+		if strings.HasPrefix(relative, "/") || strings.Contains(relative, "..") {
+			t.Fatalf("relativeScriptPath(%q) = %q", name, relative)
+		}
+	}
+
+	// Anything that would leave the folder is refused rather than clamped, so a
+	// caller hears about it instead of silently writing somewhere else.
+	for _, name := range []string{"../../etc/passwd", "/etc/passwd", "../secret.ts", "  ", ".hidden.ts", ".config/x.ts"} {
+		if _, err := relativeScriptPath(root, name); err == nil {
+			t.Fatalf("relativeScriptPath(%q) was accepted", name)
+		}
+	}
+
+	// Only scripts.
+	if _, err := relativeScriptPath(root, "notes.md"); err == nil {
+		t.Fatalf("a non-script was accepted")
+	}
+}
+
+// Naming a draft asks for a name and a folder; they arrive here as one path, and
+// the folder is created because a folder in the naming sheet may be a new one.
+func TestCreateScriptFilesItInAFolder(t *testing.T) {
+	service := writableWorkspace(t)
+
+	file := createScript(t, service, "reports/weekly-usage", "// hi")
+	if file.Name != "weekly-usage.ts" || file.Folder != "reports" {
+		t.Fatalf("created %+v", file)
+	}
+	if data, err := os.ReadFile(filepath.Join(service.scriptsDir(), "reports", "weekly-usage.ts")); err != nil || string(data) != "// hi" {
+		t.Fatalf("read back: %v %q", err, data)
+	}
+
+	// A name that is taken is a failure, not an overwrite.
+	if _, err := service.CreateScript(context.Background(), &CreateScriptRequest{Name: "reports/weekly-usage.ts", Content: "// other"}); err == nil {
+		t.Fatalf("expected a collision")
+	}
+}
+
+// An empty folder persists: it is a directory, not a UI grouping.
+func TestFoldersAreDirectories(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+
+	if _, err := service.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "billing"}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := service.ListScriptFolders(ctx, &ListScriptFoldersRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Folders) != 1 || listed.Folders[0] != "billing" {
+		t.Fatalf("folders = %q", listed.Folders)
+	}
+	if _, err := service.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "billing"}); err == nil {
+		t.Fatalf("a duplicate folder was accepted")
+	}
+
+	// Renaming is a name, not a path: the folder is renamed where it is.
+	if _, err := service.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "billing/monthly"}); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "billing/monthly", NewName: "quarterly"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved.Folder != "billing/quarterly" {
+		t.Fatalf("renamed to %q", moved.Folder)
+	}
+	if _, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "billing", NewName: "a/b"}); err == nil {
+		t.Fatalf("a path was accepted as a folder name")
+	}
+
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "billing/quarterly"}); err != nil {
+		t.Fatalf("an empty folder was not removed: %v", err)
+	}
+
+	// A folder is a place, so deleting one takes what is filed there with it.
+	createScript(t, service, "billing/invoices.ts", "")
+	createScript(t, service, "billing/2024/january.ts", "")
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "billing"}); err != nil {
+		t.Fatalf("a folder holding scripts was not removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(service.scriptsDir(), "billing")); !os.IsNotExist(err) {
+		t.Fatalf("the folder is still there")
+	}
+	scripts, err := service.ListScripts(ctx, &ListScriptsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scripts.Scripts) != 0 {
+		t.Fatalf("scripts = %+v", scripts.Scripts)
+	}
+
+	// Deleting one that is already gone is the act asked for, not a failure.
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "billing"}); err != nil {
+		t.Fatalf("a folder that was already gone reported %v", err)
+	}
+	// The scripts root itself is not a folder anything may delete.
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "."}); err == nil {
+		t.Fatalf("the scripts root was accepted")
+	}
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "../scripts"}); err == nil {
+		t.Fatalf("a path leaving the scripts root was accepted")
+	}
+}
+
+// Renaming and moving are one operation, because a file's path is its name.
+func TestRenameScriptMoves(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "draft.ts", "// body")
+
+	moved, err := service.RenameScript(ctx, &RenameScriptRequest{Name: "draft.ts", NewName: "reports/churn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved.Script.Folder != "reports" || moved.Script.Name != "churn.ts" || moved.Script.Content != "// body" {
+		t.Fatalf("moved %+v", moved.Script)
+	}
+	if _, err := os.Stat(filepath.Join(service.scriptsDir(), "draft.ts")); !os.IsNotExist(err) {
+		t.Fatalf("the original is still there")
+	}
+
+	// Onto a name that is taken, nothing moves.
+	createScript(t, service, "other.ts", "")
+	if _, err := service.RenameScript(ctx, &RenameScriptRequest{Name: "other.ts", NewName: "reports/churn.ts"}); err == nil {
+		t.Fatalf("a move onto an existing file was accepted")
+	}
+	if _, err := service.ReadScript(ctx, &ReadScriptRequest{Name: "other.ts"}); err != nil {
+		t.Fatalf("the source was moved anyway: %v", err)
+	}
+}
+
+// A write is to a script that exists; creating one is the other verb. Reading takes
+// the absolute path a listing reported as readily as the name inside the folder.
+func TestWriteScript(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "reports/churn.ts", "old")
+
+	if _, err := service.WriteScript(ctx, &WriteScriptRequest{Name: "reports/churn.ts", Content: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	read, err := service.ReadScript(ctx, &ReadScriptRequest{Name: filepath.Join(service.scriptsDir(), "reports", "churn.ts")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Script.Content != "new" || read.Script.Folder != "reports" {
+		t.Fatalf("read back %+v", read.Script)
+	}
+	if _, err := service.WriteScript(ctx, &WriteScriptRequest{Name: "reports/nothing.ts", Content: "x"}); err == nil {
+		t.Fatalf("wrote a file that doesn't exist")
+	}
+
+	if _, err := service.DeleteScript(ctx, &DeleteScriptRequest{Name: "reports/churn.ts"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReadScript(ctx, &ReadScriptRequest{Name: "reports/churn.ts"}); err == nil {
+		t.Fatalf("the deleted script is still readable")
+	}
+}
+
+// A kaja serving a workspace it does not own reads and runs, and refuses every verb
+// that would write - before anything reaches disk.
+func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
+	writable := writableWorkspace(t)
+	createScript(t, writable, "reports/churn.ts", "// body")
+	served := NewApiService(filepath.Join(filepath.Dir(writable.scriptsDir()), "kaja.json"), false, "", "", nil)
+	ctx := context.Background()
+
+	writes := map[string]error{}
+	_, writes["WriteScript"] = served.WriteScript(ctx, &WriteScriptRequest{Name: "reports/churn.ts", Content: "changed"})
+	_, writes["CreateScript"] = served.CreateScript(ctx, &CreateScriptRequest{Name: "new.ts", Content: ""})
+	_, writes["RenameScript"] = served.RenameScript(ctx, &RenameScriptRequest{Name: "reports/churn.ts", NewName: "moved.ts"})
+	_, writes["DeleteScript"] = served.DeleteScript(ctx, &DeleteScriptRequest{Name: "reports/churn.ts"})
+	_, writes["CreateScriptFolder"] = served.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "billing"})
+	_, writes["RenameScriptFolder"] = served.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "reports", NewName: "billing"})
+	_, writes["DeleteScriptFolder"] = served.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "reports"})
+	for verb, err := range writes {
+		if !errors.Is(err, ErrScriptsReadOnly) {
+			t.Errorf("%s answered %v, want the read-only refusal", verb, err)
+		}
+	}
+
+	if served.CanWriteWorkspace() {
+		t.Error("a served workspace reported itself writable")
+	}
+	read, err := served.ReadScript(ctx, &ReadScriptRequest{Name: "reports/churn.ts"})
+	if err != nil {
+		t.Fatalf("reading is still offered: %v", err)
+	}
+	if read.Script.Content != "// body" {
+		t.Errorf("a refused write landed anyway: %q", read.Script.Content)
 	}
 }

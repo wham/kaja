@@ -10,63 +10,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * CreateScript writes a new script and returns it. The name may name a folder
- * ("reports/weekly-usage.ts"). A .ts extension is added if the name doesn't carry one,
- * and the folder is created if it doesn't exist yet.
- */
-export function CreateScript(name: string, content: string): $CancellablePromise<$models.ScriptFile | null> {
-    return $Call.ByID(2633019146, name, content).then(($result: any) => {
-        return $$createType1($result);
-    });
-}
-
-/**
- * CreateScriptFolder makes a directory under the scripts root and returns its
- * relative path.
- */
-export function CreateScriptFolder(name: string): $CancellablePromise<string> {
-    return $Call.ByID(1713609522, name);
-}
-
-/**
- * DeleteScript removes a script.
- */
-export function DeleteScript(name: string): $CancellablePromise<void> {
-    return $Call.ByID(2965526601, name);
-}
-
-/**
- * DeleteScriptFolder removes a folder and everything under it. A folder is a
- * place rather than a container of its own, so deleting one is deleting the
- * files filed there; what that costs is named in the confirmation, not refused
- * here. A folder that is already gone is not an error — the act asked for is done.
- */
-export function DeleteScriptFolder(name: string): $CancellablePromise<void> {
-    return $Call.ByID(3301377993, name);
-}
-
-/**
- * ListScriptFolders returns every directory under the scripts root, relative,
- * slash-separated and sorted. An empty directory is in the list: it is a directory,
- * not a UI grouping.
- */
-export function ListScriptFolders(): $CancellablePromise<string[]> {
-    return $Call.ByID(3455881151).then(($result: any) => {
-        return $$createType2($result);
-    });
-}
-
-/**
- * ListScripts returns every *.ts file under the scripts directory, at any depth. A
- * missing folder is not a failure: most workspaces ship no scripts.
- */
-export function ListScripts(): $CancellablePromise<$models.ScriptFile[]> {
-    return $Call.ByID(3467580111).then(($result: any) => {
-        return $$createType3($result);
-    });
-}
-
-/**
  * LogFromUI appends a log line from the frontend to <kajaHome>/logs/kaja.log, tagged
  * "[ui]". The webview console is otherwise only reachable through Web Inspector, so
  * this is how a TestFlight user captures frontend errors.
@@ -80,7 +23,7 @@ export function LogFromUI(level: string, message: string): $CancellablePromise<v
  */
 export function MCPServerInfo(): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(222308020).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType0($result);
     });
 }
 
@@ -102,34 +45,6 @@ export function OpenFileDialog(): $CancellablePromise<string> {
 }
 
 /**
- * ReadScriptFile reads one script. The name is relative to the scripts root.
- */
-export function ReadScriptFile(name: string): $CancellablePromise<$models.ScriptFile | null> {
-    return $Call.ByID(4063682884, name).then(($result: any) => {
-        return $$createType1($result);
-    });
-}
-
-/**
- * RenameScript renames a script and, when the new name carries a folder, moves it
- * there. Renaming and moving are one operation because on disk they are one: the
- * file's path is its name.
- */
-export function RenameScript(name: string, newName: string): $CancellablePromise<$models.ScriptFile | null> {
-    return $Call.ByID(942206828, name, newName).then(($result: any) => {
-        return $$createType1($result);
-    });
-}
-
-/**
- * RenameScriptFolder renames a directory. newName is a folder name, not a path: a
- * folder is renamed where it is, and moving one is not offered.
- */
-export function RenameScriptFolder(name: string, newName: string): $CancellablePromise<string> {
-    return $Call.ByID(1396557144, name, newName);
-}
-
-/**
  * ResolvedVariables returns every configured variable's value, including the ones
  * kaja.json only names. Scripts read them as kaja.variables.<name>. Desktop only: its
  * UI runs inside this process, so there is no remote browser being handed a value it
@@ -137,16 +52,8 @@ export function RenameScriptFolder(name: string, newName: string): $CancellableP
  */
 export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(1757369242).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType1($result);
     });
-}
-
-/**
- * ScriptsFolder is where the workspace's scripts live, for the one thing the UI
- * needs the folder itself for: revealing it in the system file browser.
- */
-export function ScriptsFolder(): $CancellablePromise<string> {
-    return $Call.ByID(1401158823);
 }
 
 /**
@@ -158,17 +65,6 @@ export function ShowFileInFinder(path: string): $CancellablePromise<void> {
     return $Call.ByID(1900569253, path);
 }
 
-/**
- * WriteScriptFile writes content back to a script that already exists.
- */
-export function WriteScriptFile(name: string, content: string): $CancellablePromise<void> {
-    return $Call.ByID(3014594961, name, content);
-}
-
 // Private type creation functions
-const $$createType0 = $models.ScriptFile.createFrom;
-const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = $Create.Array($$createType0);
-const $$createType4 = $models.MCPInfo.createFrom;
-const $$createType5 = $Create.Map($Create.Any, $Create.Any);
+const $$createType0 = $models.MCPInfo.createFrom;
+const $$createType1 = $Create.Map($Create.Any, $Create.Any);

@@ -2,17 +2,16 @@ package agent
 
 import (
 	"context"
-	"errors"
 
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 // Scripts is the workspace's scripts folder as the process holding it reads and
-// writes it, and the one thing the two builds genuinely differ by: the desktop owns
-// the workspace it opened, a deployed kaja serves one it does not. Where the writes
-// are refused, mcp.Bridge.CanWriteScripts reports it and the tools that write a file
-// are absent from tools/list rather than offered and then refused.
+// writes it. Whether the writes are refused is settled at startup — the desktop owns
+// the workspace it opened, a deployed kaja serves one it does not — and where they
+// are, mcp.Bridge.CanWriteScripts reports it and the tools that write a file are
+// absent from tools/list rather than offered and then refused.
 type Scripts interface {
 	List() ([]mcp.ScriptInfo, error)
 	// Read resolves whatever the agent has — a path out of a listing, or a bare name —
@@ -48,16 +47,17 @@ func (c ScriptChange) Script() mcp.ScriptInfo {
 	return mcp.ScriptInfo{Path: c.Path, Name: c.Name, Folder: c.Folder, Content: c.Content}
 }
 
-// ErrReadOnly is every write a served workspace refuses.
-var ErrReadOnly = errors.New("this Kaja serves a workspace it does not own, so scripts here can be read and run, not written")
-
-// workspaceScripts reads the scripts folder through the same Api service the
-// browser's own sidebar goes through, so an agent and the window it is driving
-// are looking at one list, resolved by one rule — a name is validated and opened
-// inside the folder through an os.Root, never joined onto anything.
+// workspaceScripts reads and writes the scripts folder through the same Api service
+// the window's own sidebar goes through, so an agent and the window it is driving are
+// looking at one list, resolved by one rule — a name is reduced to a relative path and
+// opened inside the folder through an os.Root, never joined onto anything. Whether the
+// writes are refused is the service's answer, not this type's, which is why both
+// builds are this one implementation.
 type workspaceScripts struct{ service *api.ApiService }
 
-// NewWorkspaceScripts is the Scripts a deployed kaja serves.
+// NewWorkspaceScripts is the Scripts both builds serve: the desktop owns the workspace
+// it opened, a deployed kaja serves one it does not, and the service settles which at
+// startup.
 func NewWorkspaceScripts(service *api.ApiService) Scripts {
 	return &workspaceScripts{service: service}
 }
@@ -75,53 +75,58 @@ func (w *workspaceScripts) List() ([]mcp.ScriptInfo, error) {
 }
 
 func (w *workspaceScripts) Read(path string) (mcp.ScriptInfo, error) {
-	response, err := w.service.ReadScript(context.Background(), &api.ReadScriptRequest{Name: w.name(path)})
+	response, err := w.service.ReadScript(context.Background(), &api.ReadScriptRequest{Name: path})
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
-	if response.Script == nil {
-		return mcp.ScriptInfo{}, nil
-	}
-	script := response.Script
-	return mcp.ScriptInfo{Path: script.Path, Name: script.Name, Folder: script.Folder, Content: script.Content}, nil
-}
-
-// name reduces a path to the name inside the scripts folder that ReadScript takes.
-// The listing is what says which one: an agent is handed absolute paths and hands them
-// back, and a file in a folder is not its own base name. Anything the listing doesn't
-// claim is passed on as it arrived, so a name typed by hand still resolves and a path
-// that names nothing fails saying so.
-func (w *workspaceScripts) name(path string) string {
-	scripts, err := w.List()
-	if err != nil {
-		return path
-	}
-	for _, script := range scripts {
-		if script.Path != path {
-			continue
-		}
-		if script.Folder == "" {
-			return script.Name
-		}
-		return script.Folder + "/" + script.Name
-	}
-	return path
+	return scriptInfo(response.Script), nil
 }
 
 func (w *workspaceScripts) Write(path, content string) (ScriptChange, error) {
-	return ScriptChange{}, ErrReadOnly
+	response, err := w.service.WriteScript(context.Background(), &api.WriteScriptRequest{Name: path, Content: content})
+	if err != nil {
+		return ScriptChange{}, err
+	}
+	return change("write", "", response.Script), nil
 }
 
 func (w *workspaceScripts) Create(name, content string) (ScriptChange, error) {
-	return ScriptChange{}, ErrReadOnly
+	response, err := w.service.CreateScript(context.Background(), &api.CreateScriptRequest{Name: name, Content: content})
+	if err != nil {
+		return ScriptChange{}, err
+	}
+	return change("create", "", response.Script), nil
 }
 
 func (w *workspaceScripts) Rename(path, newName string) (ScriptChange, error) {
-	return ScriptChange{}, ErrReadOnly
+	// Read where the file was before it moves: the window keys a console and an open
+	// view on that path, and after the rename nothing can say what it used to be.
+	from := w.service.ScriptPath(path)
+	response, err := w.service.RenameScript(context.Background(), &api.RenameScriptRequest{Name: path, NewName: newName})
+	if err != nil {
+		return ScriptChange{}, err
+	}
+	return change("rename", from, response.Script), nil
 }
 
 func (w *workspaceScripts) Delete(path string) (ScriptChange, error) {
-	return ScriptChange{}, ErrReadOnly
+	resolved := w.service.ScriptPath(path)
+	if _, err := w.service.DeleteScript(context.Background(), &api.DeleteScriptRequest{Name: path}); err != nil {
+		return ScriptChange{}, err
+	}
+	return ScriptChange{Action: "delete", Path: resolved}, nil
 }
 
-func (w *workspaceScripts) CanWrite() bool { return false }
+func (w *workspaceScripts) CanWrite() bool { return w.service.CanWriteWorkspace() }
+
+func scriptInfo(script *api.Script) mcp.ScriptInfo {
+	if script == nil {
+		return mcp.ScriptInfo{}
+	}
+	return mcp.ScriptInfo{Path: script.Path, Name: script.Name, Folder: script.Folder, Content: script.Content}
+}
+
+func change(action string, oldPath string, script *api.Script) ScriptChange {
+	info := scriptInfo(script)
+	return ScriptChange{Action: action, OldPath: oldPath, Path: info.Path, Name: info.Name, Folder: info.Folder, Content: info.Content}
+}

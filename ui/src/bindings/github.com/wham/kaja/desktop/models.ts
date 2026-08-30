@@ -56,47 +56,5 @@ export class MCPInfo {
     }
 }
 
-/**
- * ScriptFile is the on-disk representation of a Kaja script.
- * For ListScripts only Path, Name and Folder are populated; Content is fetched
- * on demand via ReadScriptFile.
- */
-export class ScriptFile {
-    "path": string;
-    "name": string;
-
-    /**
-     * Relative to the scripts root, forward-slashed. Empty for a file at the root.
-     */
-    "folder": string;
-    "content": string;
-
-    /** Creates a new ScriptFile instance. */
-    constructor($$source: Partial<ScriptFile> = {}) {
-        if (!("path" in $$source)) {
-            this["path"] = "";
-        }
-        if (!("name" in $$source)) {
-            this["name"] = "";
-        }
-        if (!("folder" in $$source)) {
-            this["folder"] = "";
-        }
-        if (!("content" in $$source)) {
-            this["content"] = "";
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new ScriptFile instance from a string or object.
-     */
-    static createFrom($$source: any = {}): ScriptFile {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new ScriptFile($$parsedSource as Partial<ScriptFile>);
-    }
-}
-
 // Private type creation functions
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);

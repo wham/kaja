@@ -565,6 +565,7 @@ func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 		GitRef:                 s.gitRef,
 		BuildNumber:            s.buildNumber,
 		VariableStoreAvailable: s.variableStoreAvailable(),
+		ScriptsFolder:          s.scriptsDir(),
 	}
 
 	// The variables travel as kaja.json writes them - a literal value, or the

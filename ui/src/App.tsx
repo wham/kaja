@@ -229,6 +229,9 @@ function writeSourceModel(path: string, content: string): boolean {
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
+  // Whether the workspace on the other end of the Api service may be written, which
+  // is what the verbs that write a file are offered on.
+  const canWriteFiles = canWriteScripts(runtime);
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
@@ -381,14 +384,14 @@ export function App() {
   // Flush a script view's pending debounced write (e.g. before its model is disposed).
   const flushScriptWrite = useCallback(
     (view: View) => {
-      if (view.type !== "script" || !canWriteScripts()) return;
+      if (view.type !== "script" || !canWriteFiles) return;
       const timer = scriptSaveTimers.current.get(view.id);
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
       writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
     },
-    [showFileError],
+    [canWriteFiles, showFileError],
   );
 
   const disposeView = useCallback(
@@ -1213,7 +1216,7 @@ export function App() {
   }, [scripts, takeLinkFromLocation]);
 
   useEffect(() => {
-    if (!canWriteScripts()) return;
+    if (!canWriteFiles) return;
     const disposables: monaco.IDisposable[] = [];
     for (const view of views) {
       if (view.type !== "script") continue;
@@ -1234,7 +1237,7 @@ export function App() {
       );
     }
     return () => disposables.forEach((disposable) => disposable.dispose());
-  }, [views, showFileError]);
+  }, [canWriteFiles, views, showFileError]);
 
   // Disk is a script view's source of truth, and the persisted view-state cache can
   // go stale while the app is closed (an MCP write, an external editor, another
@@ -1275,7 +1278,7 @@ export function App() {
   const takenNames = useCallback((folder: string) => (scriptsRef.current ?? []).filter((script) => script.folder === folder).map((script) => script.name), []);
 
   const onRequestSave = useCallback(() => {
-    if (!canWriteScripts()) return;
+    if (!canWriteFiles) return;
     const view = viewsRef.current[0];
     if (view?.type !== "draft") return;
     const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
@@ -1286,7 +1289,7 @@ export function App() {
       draftId: view.draftId,
       title: draft && isAgentDraft(draft) ? `Name what ${draft.agentClient} wrote` : "Name this draft",
     });
-  }, [openNameSheet, takenNames]);
+  }, [canWriteFiles, openNameSheet, takenNames]);
 
   const onNameDraft = useCallback(
     (draft: Draft) =>
@@ -1570,10 +1573,12 @@ export function App() {
   );
 
   const onRevealScripts = useCallback(() => {
+    const folder = runtime.scriptsFolder;
+    if (!folder) return;
     desktop()
-      .then((app) => app.ScriptsFolder().then((folder) => app.ShowFileInFinder(folder)))
+      .then((app) => app.ShowFileInFinder(folder))
       .catch(() => {});
-  }, []);
+  }, [runtime.scriptsFolder]);
 
   // A file an agent wrote is a file nobody in this window wrote, so it arrives down the
   // same stream a run does and the sidebar and any open editor are brought into step.
@@ -1805,10 +1810,10 @@ export function App() {
   // exists, so a script written but not yet flushed still lands somewhere useful.
   const onRevealCurrentScript = useMemo(() => {
     if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
-    const script = currentView.script;
+    const path = currentView.script.path;
     return () => {
       desktop()
-        .then((app) => app.ScriptsFolder().then((folder) => app.ShowFileInFinder(`${folder}/${scriptName(script)}`)))
+        .then((app) => app.ShowFileInFinder(path))
         .catch(() => {});
     };
   }, [currentView]);
@@ -2108,7 +2113,7 @@ export function App() {
 
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
   const fileActions =
-    currentDraft && canWriteScripts() ? (
+    currentDraft && canWriteFiles ? (
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
@@ -2145,9 +2150,9 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
-      onNameDraft={currentDraft && canWriteScripts() ? onRequestSave : undefined}
+      onNameDraft={currentDraft && canWriteFiles ? onRequestSave : undefined}
       onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
-      onDuplicateAsDraft={currentView?.type === "script" && !canWriteScripts() ? onDuplicateAsDraft : undefined}
+      onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
   ) : undefined;
   const action =
@@ -2214,7 +2219,7 @@ export function App() {
                     runningFileIds={runningFiles}
                     agentFileIds={agentFiles}
                     waitingFileIds={waitingFiles}
-                    canWrite={canWriteScripts()}
+                    canWrite={canWriteFiles}
                     onDraftSelect={onDraftSelect}
                     onNameDraft={onNameDraft}
                     onDiscardDraft={onDiscardDraft}
@@ -2223,13 +2228,13 @@ export function App() {
                     sweepDrafts={sweepDrafts}
                     onToggleSweepDrafts={() => setSweepDrafts((on) => !on)}
                     onScriptSelect={onScriptSelect}
-                    onRenameScript={canWriteScripts() ? onRenameScript : undefined}
-                    onMoveScript={canWriteScripts() ? (script, folder) => void onMoveScript(script, folder) : undefined}
-                    onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
+                    onRenameScript={canWriteFiles ? onRenameScript : undefined}
+                    onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
+                    onDeleteScript={canWriteFiles ? (script) => setDeleteScript(script) : undefined}
                     onCopyScriptLink={(script) => void onCopyScriptLink(script)}
-                    onCreateFolder={canWriteScripts() ? onCreateFolder : undefined}
-                    onRenameFolder={canWriteScripts() ? onRenameFolder : undefined}
-                    onDeleteFolder={canWriteScripts() ? (path) => setDeleteFolder(path) : undefined}
+                    onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
+                    onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
+                    onDeleteFolder={canWriteFiles ? (path) => setDeleteFolder(path) : undefined}
                     onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
                   />
                 }
@@ -2319,7 +2324,7 @@ export function App() {
                             onMount={(editor) => onEditorReady(view.id, editor)}
                             onGoToDefinition={onGoToDefinition}
                             viewState={view.viewState}
-                            readOnly={(view.type === "script" && !canWriteScripts()) || (view.type === "draft" && agentViewClient(view.draftId) !== undefined)}
+                            readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewClient(view.draftId) !== undefined)}
                           />
                         </div>
                       )}
