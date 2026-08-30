@@ -5,6 +5,7 @@ import (
 	"errors"
 	fmt "fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -95,25 +96,80 @@ func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byt
 	name := apps.TakeAppName(headers)
 	resolver := s.Variables()
 	connection := s.appConnection(name)
+	expanded := resolver.ExpandAll(headers)
+	entry := callLog{method: method, app: name, expanded: expandedNames(headers, expanded)}
 
 	call := &apps.Call{
 		Method:  method,
 		Request: message,
-		Headers: apps.MergeMetadata(resolver.ExpandAll(headers), connection.Metadata),
+		Headers: apps.MergeMetadata(expanded, connection.Metadata),
 		TLS:     connection.TLS,
 	}
 
 	started := time.Now()
 	stream, err := s.apps.Invoke(ctx, name, call)
 	if err != nil {
+		duration := time.Since(started).Milliseconds()
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
-			upstream.DurationMs = time.Since(started).Milliseconds()
+			upstream.DurationMs = duration
 			upstream.RequestHeaders = resolver.Redact(upstream.RequestHeaders, headers)
 		}
+		entry.write(duration, err)
 		return nil, err
 	}
-	return &timedStream{stream: stream, started: started, resolver: resolver, sent: headers}, nil
+	return &timedStream{stream: stream, started: started, resolver: resolver, sent: headers, log: entry}, nil
+}
+
+// callLog is the one line the door writes about a call it carried. Everything else
+// that says what a call did is in the browser - the Headers view, the payload pane,
+// the duration on the row - so a headless deployment has nothing to grep without it,
+// and since every call passes through here one line covers the whole stack.
+//
+// Header names, never header values: expanding a ${NAME} in Go is what keeps a value
+// out of the browser, and a log file is no better a place for it.
+type callLog struct {
+	method   string
+	app      string
+	expanded []string
+}
+
+// callLogging reports whether the line would be written at all, which is what keeps
+// the bookkeeping off a call nobody is debugging.
+func callLogging() bool {
+	return slog.Default().Enabled(context.Background(), slog.LevelDebug)
+}
+
+// expandedNames is the headers a ${NAME} reference resolved in, which is the question
+// a call carrying the wrong credential is debugged by: whether the reference resolved
+// at all, and never what it resolved to.
+func expandedNames(sent map[string]string, expanded map[string]string) []string {
+	if !callLogging() {
+		return nil
+	}
+	var names []string
+	for name, value := range expanded {
+		if value != sent[name] {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// write is the line, written once where the call's outcome is settled. An upstream
+// failure is the one outcome carrying a status of its own: a call that answered has
+// been turned into the method's response by the time it is back here.
+func (l callLog) write(durationMs int64, err error) {
+	if !callLogging() {
+		return
+	}
+	attributes := []any{"method", l.method, "app", l.app, "durationMs", durationMs, "expandedHeaders", l.expanded}
+	var upstream *apps.UpstreamError
+	if errors.As(err, &upstream) {
+		attributes = append(attributes, "upstreamStatus", upstream.Status)
+	}
+	slog.Debug("App call", attributes...)
 }
 
 // timedStream is the call as InvokeApp hands it on: the app's own stream, with the
@@ -125,6 +181,7 @@ type timedStream struct {
 	started  time.Time
 	resolver *Resolver
 	sent     map[string]string
+	log      callLog
 }
 
 func (s *timedStream) Recv() ([]byte, error) { return s.stream.Recv() }
@@ -136,6 +193,7 @@ func (s *timedStream) Report() *apps.Report {
 	}
 	report.DurationMs = time.Since(s.started).Milliseconds()
 	report.RequestHeaders = s.resolver.Redact(report.RequestHeaders, s.sent)
+	s.log.write(report.DurationMs, nil)
 	return report
 }
 
