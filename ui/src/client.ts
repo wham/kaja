@@ -4,6 +4,7 @@ import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { APP_HEADER, appHeaders, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
+import { rpcErrorMessage } from "./rpcMessage";
 import {
   UPSTREAM_DURATION_TRAILER,
   UPSTREAM_ERROR_TRAILER,
@@ -298,7 +299,7 @@ function serializeError(error: any): any {
   if (!(error instanceof Error)) {
     return error;
   }
-  const obj: any = { message: errorMessage(error) };
+  const obj: any = { message: rpcErrorMessage(error) };
   for (const key of Object.keys(error)) {
     // Response metadata is not the error: what it carries is already routed to the
     // Headers view, and the rest is the transport talking about itself.
@@ -306,16 +307,4 @@ function serializeError(error: any): any {
     obj[key] = (error as any)[key];
   }
   return obj;
-}
-
-// errorMessage undoes the percent-encoding a gRPC status message travels under.
-// grpc-message is percent-encoded UTF-8 by spec, but the gRPC-Web client reads
-// trailers byte by byte and hands the value through as it found it.
-function errorMessage(error: Error): string {
-  if (typeof (error as { code?: unknown }).code !== "string") return error.message;
-  try {
-    return decodeURIComponent(error.message);
-  } catch {
-    return error.message;
-  }
 }

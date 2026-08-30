@@ -47,6 +47,7 @@ import {
 } from "./openApiDocument";
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { rpcErrorMessage } from "./rpcMessage";
 
 // The value itself lives in specUrl (URL) or specContent (file, paste); switching
 // mode clears it but keeps everything the document filled in, since people often
@@ -192,7 +193,7 @@ export function OpenApiForm({
         problem: {
           kind: OpenApiProblemKind.OPEN_API_PROBLEM_UNKNOWN,
           message: "Couldn't read the document",
-          detail: error instanceof Error ? error.message : String(error),
+          detail: rpcErrorMessage(error),
         },
       });
     }

@@ -47,11 +47,11 @@ export PATH=$GOBIN:$PATH
 # server/go.mod, so each is installed once and then found, rather than resolved
 # against the module proxy on every start.
 PROTOC_GEN_GO_VERSION=$(module_version google.golang.org/protobuf)
-PROTOC_GEN_TWIRP_VERSION=$(module_version github.com/twitchtv/twirp)
+PROTOC_GEN_GO_GRPC_VERSION=$(module_version google.golang.org/grpc/cmd/protoc-gen-go-grpc)
 
 install_protoc
 install_go_tool google.golang.org/protobuf/cmd/protoc-gen-go "$PROTOC_GEN_GO_VERSION"
-install_go_tool github.com/twitchtv/twirp/protoc-gen-twirp "$PROTOC_GEN_TWIRP_VERSION"
+install_go_tool google.golang.org/grpc/cmd/protoc-gen-go-grpc "$PROTOC_GEN_GO_GRPC_VERSION"
 
 # Build protoc-gen-kaja
 go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
@@ -64,7 +64,7 @@ CODEGEN_STAMP=server/build/.codegen.stamp
 CODEGEN=$(fingerprint \
     "$(module_version github.com/wham/protoc-go)" \
     "$PROTOC_GEN_GO_VERSION" \
-    "$PROTOC_GEN_TWIRP_VERSION" \
+    "$PROTOC_GEN_GO_GRPC_VERSION" \
     server/build/protoc-gen-kaja \
     $(find server/proto -iname "*.proto" | sort))
 
@@ -72,7 +72,9 @@ if ! stamp_matches "$CODEGEN_STAMP" "$CODEGEN" || [ ! -f ui/src/server/api.ts ] 
     echo "Generating proto client code..."
     # UI proto client code, using protoc-gen-kaja
     protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --proto_path=server/proto api.proto
-    (cd server && protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find proto -iname "*.proto"))
+    # require_unimplemented_servers=false so ApiServer is the methods and nothing else:
+    # an embedded Unimplemented struct would let a method missing from ApiService compile.
+    (cd server && protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-go-grpc=./build/protoc-gen-go-grpc --go-grpc_out=. --go-grpc_opt=require_unimplemented_servers=false -Iproto/ $(find proto -iname "*.proto"))
     stamp_write "$CODEGEN_STAMP" "$CODEGEN"
 fi
 

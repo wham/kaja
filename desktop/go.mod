@@ -24,7 +24,6 @@ require (
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
 	github.com/wham/protoc-go v0.3.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect

@@ -53,6 +53,18 @@ export function DeleteScriptFolder(name: string): $CancellablePromise<void> {
 }
 
 /**
+ * Invoke calls the internal Api service (the desktop's counterpart to /Api/{method}).
+ * The webview and the service are one process, so the call is a dispatch rather than a
+ * wire: the request and the response are the encoded protobuf, and a failed call is the
+ * service's own error.
+ */
+export function Invoke(method: string, request: string): $CancellablePromise<string> {
+    return $Call.ByID(2779721077, method, request).then(($result: any) => {
+        return $Create.ByteSlice($result);
+    });
+}
+
+/**
  * ListScriptFolders returns every directory under the scripts root, relative,
  * slash-separated and sorted. An empty directory is in the list: it is a directory,
  * not a UI grouping.
@@ -200,12 +212,6 @@ export function Target(target: string, method: string, req: string, protocol: nu
  */
 export function TargetServerStream(target: string, method: string, req: string, headersJson: string, streamID: string): $CancellablePromise<void> {
     return $Call.ByID(3754236371, target, method, req, headersJson, streamID);
-}
-
-export function Twirp(method: string, req: string): $CancellablePromise<string> {
-    return $Call.ByID(1589187293, method, req).then(($result: any) => {
-        return $Create.ByteSlice($result);
-    });
 }
 
 /**

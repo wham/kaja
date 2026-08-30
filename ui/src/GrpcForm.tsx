@@ -54,6 +54,7 @@ import {
 import { GrpcApp, GrpcProblem, GrpcProblemKind, GrpcServer, InspectGrpcResponse } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { desktop, isWailsEnvironment } from "./wails";
+import { rpcErrorMessage } from "./rpcMessage";
 
 // The only structural choice in the form; every other question is the same either way.
 type SurfaceMode = "reflection" | "protoDir";
@@ -188,7 +189,7 @@ export function GrpcForm({
         problem: {
           kind: GrpcProblemKind.GRPC_PROBLEM_UNKNOWN,
           message: "Couldn't read the server",
-          detail: error instanceof Error ? error.message : String(error),
+          detail: rpcErrorMessage(error),
         },
       });
     }

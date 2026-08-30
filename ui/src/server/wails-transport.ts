@@ -9,8 +9,6 @@ import type {
   UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
 import { Deferred, RpcError, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
-import { parseTwirpErrorResponse } from "@protobuf-ts/twirp-transport";
-import { isJsonObject, type JsonValue } from "@protobuf-ts/runtime";
 import { desktop, onWailsEvent } from "../wails";
 import { HEADER_META_PREFIX } from "../appTypes";
 import { UPSTREAM_DURATION_TRAILER, UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
@@ -30,24 +28,6 @@ function wailsErrorMessage(error: unknown): string {
     if (typeof message === "string" && message) return message;
   }
   return "Unknown error";
-}
-
-// apiError recovers the error a failed API call carries. The desktop side hands
-// the Twirp error JSON back as the rejection - the same body the browser's fetch
-// transport reads - so a server's own message ("variable name ... must start
-// with a letter") reaches the UI as itself, instead of as whatever decoding that
-// JSON as protobuf happens to fail with.
-export function apiError(error: unknown): RpcError | undefined {
-  const message = wailsErrorMessage(error);
-  if (!message.startsWith("{")) return undefined;
-  let failure: JsonValue;
-  try {
-    failure = JSON.parse(message);
-  } catch {
-    return undefined;
-  }
-  if (!isJsonObject(failure) || typeof failure.code !== "string" || typeof failure.msg !== "string") return undefined;
-  return parseTwirpErrorResponse(failure);
 }
 
 // A []byte crosses in either direction as base64.
@@ -318,14 +298,14 @@ export class WailsTransport implements RpcTransport {
       let responseBody: unknown;
       const trailers: RpcMetadata = {};
       const app = await desktop();
+      const fullMethodPath = `${method.service.typeName}/${method.name}`;
 
       if (this.mode === "api") {
-        responseBody = await app.Twirp(method.name, request);
+        responseBody = await app.Invoke(fullMethodPath, request);
       } else {
         // mode === "target" - the URL is read dynamically from appRef, the headers off the
         // call: they are the app's own with this call's laid over them, merged once in the
         // client so both builds send the same set.
-        const fullMethodPath = `${method.service.typeName}/${method.name}`;
         const headersJson = JSON.stringify(headersFromMeta(options.meta));
         const result = (await app.Target(this.appRef!.target, fullMethodPath, request, this.protocol, headersJson))!;
 
@@ -367,9 +347,12 @@ export class WailsTransport implements RpcTransport {
       if (error instanceof UpstreamError) {
         throw error;
       }
-      const failure = this.mode === "api" ? apiError(error) : undefined;
-      if (failure) {
-        throw failure;
+      // The internal service is a dispatch in this process rather than a wire, so a
+      // rejection is the service's own error and carries its message. It arrives as the
+      // RpcError the web build reads out of a gRPC-Web trailer, where a plain Go error is
+      // status UNKNOWN too.
+      if (this.mode === "api") {
+        throw new RpcError(wailsErrorMessage(error), "UNKNOWN");
       }
       throw new Error(`Wails ${this.mode} transport error: ${wailsErrorMessage(error)}`);
     }
