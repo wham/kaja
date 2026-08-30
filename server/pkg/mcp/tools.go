@@ -34,11 +34,15 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"A request is an `Input<T>` - every field optional - and a field you leave out is sent as its zero value, so write the fields you mean and no others: " +
 	"spelling out the whole shape as `\"\"` and `0` sends those values and buries the ones that carry meaning. " +
 	"describe_method prints the declarations, so the request shape is never something a call has to restate. " +
-	"An API that is not one of the apps is reached with `fetch(url, init)` - the standard API, bound to Kaja's own inside a script, " +
-	"so it is a call in the run's log like any other and works with `kaja.approve` and `kaja.rateLimit(\"api.example.com\")`. " +
+	"An API that is not one of the apps is reached with `fetch(url, init)` - the standard global, and the only spelling of it: " +
+	"inside a script the bare name is bound to Kaja's own, and there is no `kaja.fetch` beside it. " +
+	"So it is a call in the run's log like any other and works with `kaja.approve` and `kaja.rateLimit(\"api.example.com\")`. " +
 	"It is made by the browser, so an API that sends no CORS headers needs an app instead; it throws what fetch throws, " +
 	"and an HTTP status is a response rather than a throw. Prefer an app's method where there is one - it is typed and its credential is already configured. " +
-	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. " +
+	"Globals a script cannot use are refused with a sentence naming what to reach for instead, rather than failing where they are written: " +
+	"`prompt`/`alert`/`confirm` (nobody may be watching the window), `XMLHttpRequest`/`WebSocket`/`EventSource`, " +
+	"`localStorage`/`sessionStorage`/`indexedDB` and `document`/`window` (they are Kaja's own), and `require`/`process` (a script is not Node). " +
+	"`crypto.randomUUID()` works, which it does not in every page Kaja runs in. " +
 	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, options)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
 	"until it is approved, all park the run on a human, so use them only when a person is at the app."
 

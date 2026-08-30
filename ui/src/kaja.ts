@@ -545,84 +545,6 @@ export class Kaja {
   }
 
   /**
-   * Make an HTTP request. The signature and the `Response` are `fetch`'s own, and
-   * inside a script body the bare name is bound to this — so there is one way to reach
-   * an API kaja has no app for, and it is a call like any other: a row in the log with
-   * its request and response, a share of the stats, and something `kaja.approve` and
-   * `kaja.rateLimit` can be written around.
-   *
-   * The budget it is paced against is the host's, because that is what a fetch has
-   * instead of an app.
-   */
-  fetch(input: RequestInfo | URL, init?: RequestInit): Call<Response> {
-    const { request, headers } = describeRequest(input, init);
-    const host = fetchHost(request.url);
-    let methodCall: MethodCall | undefined;
-
-    const send = async (): Promise<Response> => {
-      // Before the call exists, on the same rule a service method is held under: a call
-      // waiting for a budget writes no row and starts no clock.
-      await this._internal.acquireRateLimit(host);
-
-      const call: MethodCall = {
-        id: uuidV4(),
-        appName: host,
-        // A fetch has neither, so they are what it has: who answered, and how it was
-        // asked. `http` is what tells everything reading a call back that they are that
-        // rather than an app's.
-        service: { name: host } as Service,
-        method: { name: request.method } as Method,
-        http: { method: request.method, url: request.url },
-        input: request,
-        requestHeaders: headers,
-        timestamp: Date.now(),
-      };
-      methodCall = call;
-      this._internal.methodCallUpdate(call);
-
-      const startedAt = performance.now();
-      const { signal, release } = combineSignals([this._internal.abortSignal, init?.signal ?? undefined, input instanceof Request ? input.signal : undefined]);
-      try {
-        const response = await sendFetch(request, input as RequestInfo, signal ? { ...init, signal } : init);
-        const held = await holdResponse(response);
-        call.durationMs = Math.round(performance.now() - startedAt);
-        call.responseHeaders = readResponseHeaders(response);
-        if (response.ok) {
-          // Never undefined: a call whose output is missing is a call still in flight to
-          // everything that reads one, and a 200 with an empty body is neither.
-          call.output = held.body ?? null;
-        } else {
-          // The shape an app's upstream failure arrives in, because that is what this is:
-          // the row is labelled by the status, the response tab shows the body the API
-          // sent, and the Headers view states the request line above the headers.
-          call.error = {
-            message: `${response.status} ${response.statusText}`.trim(),
-            status: response.status,
-            statusText: response.statusText,
-            request: fetchRequestLine(request.method, request.url),
-            body: held.body,
-          };
-        }
-        return held.response;
-      } catch (error) {
-        call.durationMs = Math.round(performance.now() - startedAt);
-        // No status and no code, which is what classifyFailure reads as the exchange
-        // itself having broken — which for a fetch is what a thrown error means.
-        call.error = { message: error instanceof Error ? error.message : String(error), request: fetchRequestLine(request.method, request.url) };
-        // Rethrown, unlike a service method's failure: this is fetch, and a script that
-        // wrapped it in a try/catch is written against fetch's own contract. An HTTP
-        // status is not this case — that is a response, and it is handed back.
-        throw error;
-      } finally {
-        release();
-        this._internal.methodCallUpdate(call);
-      }
-    };
-
-    return new Call(fetchLabel(request.method, request.url), request, send, () => callResponseHeaders(methodCall));
-  }
-
-  /**
    * Run a body over and over on a schedule. The body is one iteration: `concurrency`
    * virtual users each run it in a loop, and every call inside it is sampled.
    *
@@ -1114,6 +1036,89 @@ export class Kaja {
   }
 }
 
+/**
+ * The HTTP request a script makes with the bare `fetch`, which inside a script body is
+ * bound to this (`scriptGlobals.ts`). The signature and the `Response` are `fetch`'s
+ * own — there is nothing here a script's author has to learn — and what it adds is that
+ * the request is a call like any other: a row in the log with its request and response,
+ * a share of the stats, and something `kaja.approve` and `kaja.rateLimit` can be
+ * written around.
+ *
+ * It is a function rather than a method on `kaja` because `fetch` is the one spelling
+ * of it. A `kaja.fetch` beside it would be a second name for one function — the same
+ * reason there is no `kaja.log`.
+ *
+ * The budget it is paced against is the host's, because that is what a fetch has
+ * instead of an app.
+ */
+export function runFetch(kaja: Kaja, input: RequestInfo | URL, init?: RequestInit): Call<Response> {
+  const { request, headers } = describeRequest(input, init);
+  const host = fetchHost(request.url);
+  let methodCall: MethodCall | undefined;
+
+  const send = async (): Promise<Response> => {
+    // Before the call exists, on the same rule a service method is held under: a call
+    // waiting for a budget writes no row and starts no clock.
+    await kaja._internal.acquireRateLimit(host);
+
+    const call: MethodCall = {
+      id: uuidV4(),
+      appName: host,
+      // A fetch has neither, so they are what it has: who answered, and how it was
+      // asked. `http` is what tells everything reading a call back that they are that
+      // rather than an app's.
+      service: { name: host } as Service,
+      method: { name: request.method } as Method,
+      http: { method: request.method, url: request.url },
+      input: request,
+      requestHeaders: headers,
+      timestamp: Date.now(),
+    };
+    methodCall = call;
+    kaja._internal.methodCallUpdate(call);
+
+    const startedAt = performance.now();
+    const { signal, release } = combineSignals([kaja._internal.abortSignal, init?.signal ?? undefined, input instanceof Request ? input.signal : undefined]);
+    try {
+      const response = await sendFetch(request, input as RequestInfo, signal ? { ...init, signal } : init);
+      const held = await holdResponse(response);
+      call.durationMs = Math.round(performance.now() - startedAt);
+      call.responseHeaders = readResponseHeaders(response);
+      if (response.ok) {
+        // Never undefined: a call whose output is missing is a call still in flight to
+        // everything that reads one, and a 200 with an empty body is neither.
+        call.output = held.body ?? null;
+      } else {
+        // The shape an app's upstream failure arrives in, because that is what this is:
+        // the row is labelled by the status, the response tab shows the body the API
+        // sent, and the Headers view states the request line above the headers.
+        call.error = {
+          message: `${response.status} ${response.statusText}`.trim(),
+          status: response.status,
+          statusText: response.statusText,
+          request: fetchRequestLine(request.method, request.url),
+          body: held.body,
+        };
+      }
+      return held.response;
+    } catch (error) {
+      call.durationMs = Math.round(performance.now() - startedAt);
+      // No status and no code, which is what classifyFailure reads as the exchange
+      // itself having broken — which for a fetch is what a thrown error means.
+      call.error = { message: error instanceof Error ? error.message : String(error), request: fetchRequestLine(request.method, request.url) };
+      // Rethrown, unlike a service method's failure: this is fetch, and a script that
+      // wrapped it in a try/catch is written against fetch's own contract. An HTTP
+      // status is not this case — that is a response, and it is handed back.
+      throw error;
+    } finally {
+      release();
+      kaja._internal.methodCallUpdate(call);
+    }
+  };
+
+  return new Call(fetchLabel(request.method, request.url), request, send, () => callResponseHeaders(methodCall));
+}
+
 export interface MethodCallHeaders {
   [key: string]: string;
 }
@@ -1167,7 +1172,7 @@ export interface MethodCall {
   // headers above.
   upstreamRequestHeaders?: MethodCallHeaders;
   upstreamResponseHeaders?: MethodCallHeaders;
-  // The HTTP call a script made itself, with kaja.fetch. It has no app and no
+  // The HTTP call a script made itself, with the bare `fetch`. It has no app and no
   // generated request, so this is what says it was one — and its request line is what
   // identifies it, the way a service and a method identify every other call.
   http?: { method: string; url: string };

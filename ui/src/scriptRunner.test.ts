@@ -337,6 +337,56 @@ describe("the fetch a script sees", () => {
   });
 });
 
+describe("the globals a script cannot use", () => {
+  it("names what to reach for instead, where the script reached", async () => {
+    const kaja = makeKaja();
+
+    const run = await runScriptCaptured(`const name = prompt("Which show?");`, kaja, []);
+
+    expect(run.error).toContain("kaja.askStr");
+  });
+
+  it("answers a property and a construction as well as a call", async () => {
+    const kaja = makeKaja();
+
+    expect((await runScriptCaptured(`const token = process.env.TOKEN;`, kaja, [])).error).toContain("kaja.variables");
+    expect((await runScriptCaptured(`const request = new XMLHttpRequest();`, kaja, [])).error).toContain("Use fetch");
+  });
+
+  // A binding of the script's own wins: the name is the author's, not kaja's.
+  it("leaves a name the script imported alone", async () => {
+    const kaja = makeKaja();
+    const app = teamsApp();
+    app.services[0].name = "document";
+    app.sources[0].serviceNames = ["document"];
+    app.clients["teams.document"] = { methodsFor: () => ({ Ping: () => "pong" }) } as any;
+
+    const run = await runScriptCaptured(`import { document } from "teams";\nreturn document.Ping();`, kaja, [app]);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("pong");
+  });
+});
+
+describe("the crypto a script sees", () => {
+  // The page kaja runs in is not always a secure context, and there the global carries
+  // no randomUUID at all — a script that wrote the standard call used to throw.
+  it("mints a uuid where the page's own crypto has none", async () => {
+    const kaja = makeKaja();
+    const real = globalThis.crypto;
+    globalThis.crypto = { getRandomValues: (array: Uint8Array) => real.getRandomValues(array) } as Crypto;
+
+    try {
+      const run = await runScriptCaptured(`return crypto.randomUUID();`, kaja, []);
+
+      expect(run.error).toBeUndefined();
+      expect(run.result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    } finally {
+      globalThis.crypto = real;
+    }
+  });
+});
+
 describe("the console a script sees", () => {
   function withSink(): { kaja: Kaja; lines: { level: LogLevel; message: string }[] } {
     const lines: { level: LogLevel; message: string }[] = [];

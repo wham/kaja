@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { cloneConsole, formatLine, logFileLevel, scriptConsole } from "./scriptConsole";
+import { bindMembers } from "./bindMembers";
+import { formatLine, logFileLevel, scriptConsole } from "./scriptConsole";
 import { LogLevel } from "./server/api";
 
 function recorder() {
@@ -93,7 +94,7 @@ describe("scriptConsole", () => {
 
   it("clones a console without carrying its later patches", () => {
     const real = fakeConsole();
-    const clone = cloneConsole(real.console);
+    const clone = bindMembers(real.console);
     (real.console as { log: unknown }).log = () => real.calls.push("patched");
 
     clone.log("original");

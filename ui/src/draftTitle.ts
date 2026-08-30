@@ -27,7 +27,7 @@ export function readCalls(code: string): DraftCall[] {
 
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
-      const fetched = fetchCall(node, runtime);
+      const fetched = fetchCall(node);
       if (fetched) {
         calls.push(fetched);
         ts.forEachChild(node, visit);
@@ -57,21 +57,15 @@ export function readCalls(code: string): DraftCall[] {
 }
 
 /**
- * An HTTP call the script makes itself. `fetch(...)` and `kaja.fetch(...)` are one
- * function, so a draft that only fetches is named the way its row in the log is: the
- * verb and the host, with the path as the qualifier.
+ * An HTTP call the script makes itself. `fetch` is the one spelling of it — the bare
+ * global inside a script body is Kaja's own — so a draft that only fetches is named the
+ * way its row in the log is: the verb and the host, with the path as the qualifier.
  *
  * A URL this cannot read — built out of variables, or not a URL at all — names
  * nothing rather than being guessed at, on the same rule a request's subject is.
  */
-function fetchCall(node: ts.CallExpression, runtime: Set<string>): DraftCall | undefined {
-  const bare = ts.isIdentifier(node.expression) && node.expression.text === "fetch";
-  const verb =
-    ts.isPropertyAccessExpression(node.expression) &&
-    ts.isIdentifier(node.expression.expression) &&
-    runtime.has(node.expression.expression.text) &&
-    node.expression.name.text === "fetch";
-  if (!bare && !verb) return undefined;
+function fetchCall(node: ts.CallExpression): DraftCall | undefined {
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== "fetch") return undefined;
 
   const url = urlText(node.arguments[0]);
   if (url === undefined) return undefined;

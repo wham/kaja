@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { ApproveBlock, Block } from "./blocks";
-import { callKey, callLabel, callResponseHeaders, Kaja, MethodCall } from "./kaja";
+import { callKey, callLabel, callResponseHeaders, Kaja, MethodCall, runFetch } from "./kaja";
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -35,12 +35,12 @@ function run() {
   return { kaja, calls, settled, blocks };
 }
 
-describe("kaja.fetch", () => {
+describe("the run's fetch", () => {
   it("hands back the response fetch would have", async () => {
     answering(() => new Response('{"id":1}', { headers: { "content-type": "application/json" } }));
     const { kaja } = run();
 
-    const response = await kaja.fetch("https://api.example.com/orders/1");
+    const response = await runFetch(kaja, "https://api.example.com/orders/1");
 
     expect(response.ok).toBe(true);
     expect(response.status).toBe(200);
@@ -51,7 +51,7 @@ describe("kaja.fetch", () => {
     answering(() => new Response('{"id":1}', { headers: { "content-type": "application/json", "x-request-id": "r1" } }));
     const { kaja, settled } = run();
 
-    await kaja.fetch("https://api.example.com/orders/1");
+    await runFetch(kaja, "https://api.example.com/orders/1");
 
     const call = settled();
     expect(callLabel(call)).toBe("GET api.example.com");
@@ -68,7 +68,7 @@ describe("kaja.fetch", () => {
     answering(() => new Response("{}"));
     const { kaja, calls } = run();
 
-    await kaja.fetch("https://api.example.com/orders");
+    await runFetch(kaja, "https://api.example.com/orders");
 
     // Twice: once as it goes out and once as it settles, and the same object both
     // times — the console holds it and reads it again rather than being handed a copy.
@@ -80,7 +80,7 @@ describe("kaja.fetch", () => {
     answering(() => new Response('{"error":"gone"}', { status: 404, statusText: "Not Found", headers: { "content-type": "application/json" } }));
     const { kaja, settled } = run();
 
-    const response = await kaja.fetch("https://api.example.com/orders/9");
+    const response = await runFetch(kaja, "https://api.example.com/orders/9");
 
     // fetch's own contract: a status is a response, not a throw.
     expect(response.ok).toBe(false);
@@ -100,7 +100,7 @@ describe("kaja.fetch", () => {
     answering(() => Promise.reject(new TypeError("Failed to fetch")));
     const { kaja, settled } = run();
 
-    await expect(Promise.resolve(kaja.fetch("https://api.example.com/orders"))).rejects.toThrow("Failed to fetch");
+    await expect(Promise.resolve(runFetch(kaja, "https://api.example.com/orders"))).rejects.toThrow("Failed to fetch");
 
     expect(settled().error).toEqual({ message: "Failed to fetch", request: "GET https://api.example.com/orders" });
     expect(settled().output).toBeUndefined();
@@ -110,7 +110,7 @@ describe("kaja.fetch", () => {
     const asked = answering(() => new Response("{}"));
     const { kaja, blocks } = run();
 
-    await kaja.approve(kaja.fetch("https://api.example.com/orders", { method: "POST", body: '{"title":"Vera Lune"}' }));
+    await kaja.approve(runFetch(kaja, "https://api.example.com/orders", { method: "POST", body: '{"title":"Vera Lune"}' }));
 
     const approve = [...blocks.values()].find((block): block is ApproveBlock => block.kind === "approve");
     expect(approve?.method).toBe("POST api.example.com");
@@ -129,7 +129,7 @@ describe("kaja.fetch", () => {
       onLog: () => {},
     });
 
-    await expect(kaja.approve(kaja.fetch("https://api.example.com/orders", { method: "DELETE" }))).rejects.toThrow();
+    await expect(kaja.approve(runFetch(kaja, "https://api.example.com/orders", { method: "DELETE" }))).rejects.toThrow();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // A held call writes no row, because it never happened.
@@ -142,7 +142,7 @@ describe("kaja.fetch", () => {
     const { kaja } = run();
 
     const limit = kaja.rateLimit("api.example.com");
-    await kaja.fetch("https://api.example.com/orders");
+    await runFetch(kaja, "https://api.example.com/orders");
 
     expect(limit.calls).toBe(1);
     expect(limit.limit).toBe(100);
@@ -158,7 +158,7 @@ describe("kaja.fetch", () => {
     globalThis.crypto = { getRandomValues: (array: Uint8Array) => realCrypto.getRandomValues(array) } as Crypto;
 
     try {
-      const response = await kaja.fetch("https://api.example.com/orders/1");
+      const response = await runFetch(kaja, "https://api.example.com/orders/1");
       expect(response.ok).toBe(true);
       expect(settled().http).toEqual({ method: "GET", url: "https://api.example.com/orders/1" });
     } finally {
@@ -172,7 +172,7 @@ describe("kaja.fetch", () => {
     const controller = new AbortController();
     kaja._internal.abortSignal = controller.signal;
 
-    await kaja.fetch("https://api.example.com/orders");
+    await runFetch(kaja, "https://api.example.com/orders");
 
     const signal = asked[0].init?.signal;
     expect(signal).toBeDefined();

@@ -1,4 +1,4 @@
-import { cloneConsole } from "./scriptConsole";
+import { bindMembers } from "./bindMembers";
 import { desktop, isWailsEnvironment } from "./wails";
 
 function formatArg(arg: unknown): string {
@@ -42,7 +42,7 @@ function write(level: string, message: string): void {
  * there by `logScriptLine` with their origin attached — so forwarding to the
  * patch would put every script error in the file twice, once anonymously.
  */
-export const deviceConsole: Console = cloneConsole(console);
+export const deviceConsole: Console = bindMembers(console);
 
 /**
  * A line a script printed, in kaja.log. The level column stays a level so the

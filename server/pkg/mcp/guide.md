@@ -269,8 +269,8 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
 
 ## The script runtime
 
-- **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
-  immediately. `kaja.askStr/askInt/askSelect` are how a script asks, and
+- **No interactive input.** `prompt`, `alert` and `confirm` are refused (see the
+  globals below). `kaja.askStr/askInt/askSelect` are how a script asks, and
   `kaja.approve()` how it holds a call back until someone says yes; all park the
   run on a human — only reach for one when a person is at the app.
 - **A method hands back a `Call`, not a promise.** It is sent when you await it,
@@ -298,8 +298,38 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
 - **`fetch` is how a script reaches an API that isn't an app** — see below.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services` and through `fetch`.
-- `crypto.randomUUID()` is available, as is `kaja.uuidV4()`.
 - The `kaja` object is imported with `import { kaja } from "kaja";`.
+
+## The globals
+
+A script has the globals it would have anywhere, and the two it uses most are the
+run's: **`console`**, whose lines come back to you in the run report, and
+**`fetch`**, whose requests are rows in the run's log like an app's calls. Both
+are the standard API under the standard name, and Kaja has no second spelling of
+either — there is no `kaja.log` and no `kaja.fetch`. Write them as you would
+anywhere; being the run's is what Kaja adds, and it changes nothing you write.
+
+`crypto.randomUUID()` works here too, which it does not in every page Kaja runs
+in — the desktop's webview and a kaja served over plain http are not secure
+contexts, so the page's own `crypto` carries no `randomUUID`. `kaja.uuidV4()` is
+the same function under Kaja's own name.
+
+A handful of globals cannot work where a script runs, and each is bound to
+something that throws a sentence naming what to reach for instead — so a script
+that reaches for one is told at the line that reached, rather than failing
+somewhere further on:
+
+| Refused | Why, and what instead |
+| --- | --- |
+| `prompt`, `alert`, `confirm` | They do nothing, and nobody may be watching the window. Ask with `kaja.askStr`/`askInt`/`askSelect`, draw with `kaja.text`. |
+| `XMLHttpRequest` | A request made with it goes unrecorded. Use `fetch`. |
+| `WebSocket`, `EventSource` | Not supported: a run is a script that ends, and there is nowhere to draw a connection that outlives it. |
+| `localStorage`, `sessionStorage`, `indexedDB` | They are Kaja's own, and the desktop's page has none. A run keeps nothing of its own. |
+| `document`, `window` | The page is Kaja's own window. A script draws with `kaja.text`, `kaja.code` and `kaja.table`. |
+| `require`, `process` | A script runs in a browser, not in Node. An import names an app; the variables are `kaja.variables`. |
+
+This is a signpost rather than a fence — it is there so a script that reached for
+the wrong thing is told which thing to reach for.
 
 ## The `kaja` object
 
@@ -329,15 +359,14 @@ What each member is for:
   they can press **Approve all**, which settles every later call to the same
   method in that run without asking again. So wrapping each call of a loop is
   right: the reader decides where to stop reading, not the script.
-- `kaja.fetch(input, init?)` — an HTTP request to something that isn't an app.
-  See below.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input` — what a `kaja://run/<script>?url=…&note=…` link handed this run,
   read by name (`kaja.input.url`). Every value is text, and the whole query
   belongs to the script. Empty when the script is run any other way, so guard a
   parameter (`kaja.input.url ?? ""`) or ask for it with `kaja.askStr` and the
   script works from a link and from the editor alike.
-- `kaja.uuidV4(): string` — a random version 4 UUID.
+- `kaja.uuidV4(): string` — a random version 4 UUID. `crypto.randomUUID()` is the
+  same function.
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
   typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire
   shape is a `kind` oneof you must never write by hand and never re-implement as
@@ -359,8 +388,8 @@ await Seating.Annotate({
 
 Not everything worth calling is configured. A webhook, a health check, an API
 nobody has added — those are reached with **`fetch`**, which is the standard one:
-inside a script the bare name is bound to Kaja's own, so `fetch(url)` and
-`kaja.fetch(url)` are one function and there is nothing new to learn.
+inside a script the bare name is bound to Kaja's own, so there is nothing new to
+learn and nothing else to write.
 
 ```ts
 const response = await fetch("https://api.example.com/status", {
@@ -374,7 +403,7 @@ Being Kaja's makes it a call like any other: a row in the run's log named
 share of the run's stats, and something the runtime's verbs work on.
 
 ```ts
-await kaja.approve(kaja.fetch(url, { method: "DELETE" }));
+await kaja.approve(fetch(url, { method: "DELETE" }));
 kaja.rateLimit("api.example.com", { perSecond: 5 });
 ```
 

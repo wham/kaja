@@ -26,7 +26,7 @@ function lane(answer: (request: Request) => Response) {
   return asked;
 }
 
-// The transport takes what kaja.fetch already read off the call's arguments.
+// The transport takes what runFetch already read off the call's arguments.
 function send(input: RequestInfo | URL, init?: RequestInit) {
   return sendThroughDesktop(describeRequest(input, init).request, input, init);
 }

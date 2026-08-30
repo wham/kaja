@@ -1,3 +1,5 @@
+import { REFUSED_GLOBALS } from "./scriptGlobals";
+
 // The declaration of the `kaja` module — what a script gets from
 // `import { kaja } from "kaja"`.
 //
@@ -17,8 +19,11 @@ function kajaVariablesType(variableNames: string[]): string {
 }
 
 // The header states what the type system can't: a script is a body of statements
-// rather than a function, so it has no return value.
-const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
+// rather than a function, so it has no return value — and what it has beyond this
+// module, which is the globals, printed from the one table that binds them
+// (scriptGlobals.ts) so the list an agent reads is the list the runtime enforces.
+function header(): string {
+  return `// The Kaja runtime, imported as: import { kaja } from "kaja";
 //
 // A script is a body of statements, not a function: top-level \`await\` works and
 // a top-level \`return\` is an error, so a script never returns anything. What it
@@ -30,10 +35,47 @@ const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
 // mix those lines in among the calls, which is where a line is worth reading
 // against the call before it. It is somewhere to probe rather than somewhere to
 // put a script's output — the canvas is the output. There is no kaja.log; the
-// standard console is the logging API, at every level.`;
+// standard console is the logging API, at every level.
+//
+// Beyond this module a script has the globals it would have anywhere. Two of
+// them are the run's, under their own standard names and with no kaja spelling
+// beside either: \`console\`, whose lines land in the run's log, and \`fetch\`,
+// whose requests are rows in that log like an app's calls — so kaja.approve and
+// kaja.rateLimit work on one, and nothing else about writing fetch changes.
+// \`crypto.randomUUID()\` works here too, which it does not in every page Kaja
+// runs in.
+//
+// These do not work where a script runs, and say so rather than failing at the
+// line that uses them:
+//
+${refusedGlobals()}`;
+}
+
+// The refusals as the header states them. Each sentence opens with the global's
+// own name, which is what makes the list read as one — and is also what a script
+// that reached for it is thrown.
+function refusedGlobals(): string {
+  return Object.entries(REFUSED_GLOBALS)
+    .map(([, sentence]) => wrapComment(sentence, "//   ", "//     "))
+    .join("\n");
+}
+
+function wrapComment(text: string, first: string, rest: string): string {
+  const lines: string[] = [];
+  let line = first;
+  for (const word of text.split(" ")) {
+    if (line.length > first.length && line.length + 1 + word.length > 78) {
+      lines.push(line);
+      line = rest;
+    }
+    line += line.endsWith(" ") ? word : ` ${word}`;
+  }
+  lines.push(line);
+  return lines.join("\n");
+}
 
 export function kajaModuleDeclaration(variableNames: string[]): string {
-  return `${header}
+  return `${header()}
 
 /**
  * A call that hasn't been made yet, which is what every service method hands
@@ -288,34 +330,6 @@ export declare const kaja: {
    */
   approve<T>(call: Call<T>): Promise<T>;
   /**
-   * Make an HTTP request to something that isn't an app — a webhook, a health check,
-   * an API nobody has configured. The signature and the Response are \`fetch\`'s own,
-   * and inside a script the bare name is bound to this, so \`fetch(url)\` and
-   * \`kaja.fetch(url)\` are one function.
-   *
-   *   const response = await fetch("https://api.example.com/status");
-   *   const status = await response.json();
-   *
-   * It is a call like any other: a row in the run's log with its request, its
-   * response and its headers, a share of the run's stats, and something the verbs
-   * around it can be written around.
-   *
-   *   await kaja.approve(kaja.fetch(url, { method: "DELETE" }));
-   *   kaja.rateLimit("api.example.com", { perSecond: 5 });
-   *
-   * A budget is named by the host, because that is what a fetch has instead of an
-   * app. A \`\${NAME}\` in a header is not resolved for you, so read the value out
-   * of kaja.variables and pass it. In the browser the call is the page's own, so an
-   * API that sends no CORS headers cannot be reached this way — that is what an app
-   * is for; the desktop makes it from its own process, where CORS does not apply.
-   *
-   * Unlike a service method, this throws what fetch throws: a request that never
-   * completed is an error, and an HTTP status is not — a 404 is a response, handed
-   * back with \`ok\` false and reported in the log as the failure it is. The whole
-   * body is read before you see it, so it does not carry a stream.
-   */
-  fetch(input: RequestInfo | URL, init?: RequestInit): Call<Response>;
-  /**
    * Write a line onto the run's canvas.
    *
    *   kaja.text(\`Reconciling \${accounts.length} accounts\`);
@@ -462,6 +476,9 @@ export declare const kaja: {
    * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
    *
    *   const id = kaja.uuidV4();
+   *
+   * \`crypto.randomUUID()\` is this same function inside a script — the page Kaja
+   * runs in is not always a secure context, so the global on its own would throw.
    */
   uuidV4(): string;
   /**

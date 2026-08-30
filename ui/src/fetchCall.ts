@@ -223,7 +223,7 @@ const NULL_BODY_STATUS = new Set([101, 103, 204, 205, 304]);
  * bytes — `.ok`, `.status`, `.headers`, `.json()` and `.text()` all as they were.
  *
  * The whole body is read before the script sees any of it, which is what makes a
- * streamed response the one thing kaja.fetch does not carry.
+ * streamed response the one thing a script's fetch does not carry.
  */
 export async function holdResponse(response: Response): Promise<{ response: Response; body: unknown }> {
   // An opaque response (a no-cors request) has nothing to read and no status to
