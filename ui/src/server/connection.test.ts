@@ -40,3 +40,16 @@ test("ignores a fragment and a query the page happens to carry", () => {
   expect(getBaseUrlForApi()).toBe("http://example.com/path");
   expect(getBaseUrlForTarget()).toBe("http://example.com/path/target");
 });
+
+// The desktop is a page like any other now: the webview is served from its own
+// scheme and fetches the mux mounted behind it.
+test("reads the desktop's own origin", () => {
+  globalThis.window = {
+    location: {
+      href: "wails://localhost/",
+    },
+  } as any;
+
+  expect(getBaseUrlForApi()).toBe("wails://localhost");
+  expect(getBaseUrlForTarget()).toBe("wails://localhost/target");
+});

@@ -10,13 +10,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * CancelStream cancels an active streaming call.
- */
-export function CancelStream(streamID: string): $CancellablePromise<void> {
-    return $Call.ByID(2132153547, streamID);
-}
-
-/**
  * CreateScript writes a new script and returns it. The name may name a folder
  * ("reports/weekly-usage.ts"). A .ts extension is added if the name doesn't carry one,
  * and the folder is created if it doesn't exist yet.
@@ -50,18 +43,6 @@ export function DeleteScript(name: string): $CancellablePromise<void> {
  */
 export function DeleteScriptFolder(name: string): $CancellablePromise<void> {
     return $Call.ByID(3301377993, name);
-}
-
-/**
- * Invoke calls the internal Api service (the desktop's counterpart to /Api/{method}).
- * The webview and the service are one process, so the call is a dispatch rather than a
- * wire: the request and the response are the encoded protobuf, and a failed call is the
- * service's own error.
- */
-export function Invoke(method: string, request: string): $CancellablePromise<string> {
-    return $Call.ByID(2779721077, method, request).then(($result: any) => {
-        return $Create.ByteSlice($result);
-    });
 }
 
 /**
@@ -194,28 +175,6 @@ export function ShowFileInFinder(path: string): $CancellablePromise<void> {
 }
 
 /**
- * Target makes one call on the webview's behalf (the desktop's counterpart to
- * /target/{method...}). headersJson is a JSON-encoded map of headers to forward. What
- * the target names decides the rest: an app invoked in this process, or the gRPC
- * server to dial.
- */
-export function Target(target: string, method: string, req: string, headersJson: string): $CancellablePromise<$models.TargetResult | null> {
-    return $Call.ByID(1492274224, target, method, req, headersJson).then(($result: any) => {
-        return $$createType7($result);
-    });
-}
-
-/**
- * TargetServerStream starts a server-streaming gRPC call.
- * Each response message is emitted as a Wails event "stream:<streamID>" with base64-encoded body.
- * When the stream ends, "stream:<streamID>:end" is emitted.
- * On error, "stream:<streamID>:error" is emitted with the error message.
- */
-export function TargetServerStream(target: string, method: string, req: string, headersJson: string, streamID: string): $CancellablePromise<void> {
-    return $Call.ByID(3754236371, target, method, req, headersJson, streamID);
-}
-
-/**
  * WriteScriptFile writes content back to a script that already exists.
  */
 export function WriteScriptFile(name: string, content: string): $CancellablePromise<void> {
@@ -229,5 +188,3 @@ const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = $Create.Array($$createType0);
 const $$createType4 = $models.MCPInfo.createFrom;
 const $$createType5 = $Create.Map($Create.Any, $Create.Any);
-const $$createType6 = $models.TargetResult.createFrom;
-const $$createType7 = $Create.Nullable($$createType6);

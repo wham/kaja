@@ -8,6 +8,5 @@ export {
 
 export {
     MCPInfo,
-    ScriptFile,
-    TargetResult
+    ScriptFile
 } from "./models.js";

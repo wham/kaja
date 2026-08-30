@@ -2,13 +2,14 @@
 
 Every call a script makes through an app starts as JavaScript and crosses a Go
 process before it reaches an API. [AGENTS.md](../AGENTS.md) records the rules;
-this is the picture: what carries a call on each build, what each hop adds and
-removes, and what comes back out of band. [Seven traces](#seven-traces) below
-walks one real call through each lane, hop by hop, on both builds.
+this is the picture: what carries a call, what each hop adds and removes, and
+what comes back out of band. [Seven traces](#seven-traces) below walks one real
+call through each lane, hop by hop.
 
 **The client speaks gRPC-Web and nothing else.** Which protocol reaches an API is
 this process's business, so there is one browser transport, one framing and one
-out-of-band channel however an app talks upstream.
+out-of-band channel however an app talks upstream — and one set of doors, which
+[the desktop mounts](#the-desktop-mounts-the-same-mux) rather than reimplements.
 
 The whole stack rests on two reserved channels, one in each direction:
 
@@ -21,14 +22,16 @@ The whole stack rests on two reserved channels, one in each direction:
   the gRPC status it was tunnelled through. The client routes the whole prefix
   onto the call (`absorbReserved`) and never shows it as a response header.
 
-## Web
+## The one lane
 
-The UI runs in a browser; the kaja server on `:41520` is the one Go process in
-every call's path. Every call goes through `POST /target/…` as gRPC-Web, and
-`X-Target` decides which of the two things this process does with it.
+The UI runs in a page — a browser tab against the kaja server on `:41520`, or
+the desktop's webview against `wails://localhost`. Either way one Go process is
+in every call's path, the page fetches `POST /target/…` on its own origin as
+gRPC-Web, and `X-Target` decides which of the two things that process does with
+it.
 
 ```
-┌────────────────────────────── browser tab ──────────────────────────────┐
+┌─────────────── browser tab · desktop webview ───────────────────────────┐
 │  script ── Shows.ListShows({ pageSize: 25 })                            │
 │    └─► protobuf-ts client   (gRPC-Web fetch)                            │
 │          X-Target:            dns:host:443 · kaja-app://id              │
@@ -36,7 +39,7 @@ every call's path. Every call goes through `POST /target/…` as gRPC-Web, and
 │          X-Header-<name>:     <value — ${NAME} travels unexpanded>      │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │  POST /target/{pkg.Service/Method}
-┌────────────────────────── kaja server :41520 ───────────────────────────┐
+┌──────────────────────────── kaja (Go) ──────────────────────────────────┐
 │  take X-Kaja-App ── read the app out of kaja.json at call time          │
 │  expand ${NAME} ── merge the app's credential and TLS options           │
 │                                                                         │
@@ -95,36 +98,25 @@ one; the names carrying the frame (`content-type`, `grpc-status`, anything
 `-bin` or under `kaja-upstream-`) are dropped, so an upstream cannot write
 into Kaja's own channel.
 
-## Desktop
+## The desktop mounts the same mux
 
-Same app, no HTTP tunnel: the webview and Go are one process, so the "wire" is
-a Wails binding and the response is a `TargetResult` value.
+Nothing about a call is different there. `webviewHandler` in `desktop/main.go`
+registers the two lanes with the same `router.Mount` the server calls and hands
+the mux to Wails, which serves it to the webview through its own scheme handler
+— so the picture above *is* the desktop's picture: one client, one framing, one
+set of four doors, one `kaja-upstream-*` channel, and a server stream that is
+the same forwarded stream rather than an event topic mirroring one.
 
 ```
-┌──────────────────────────────── webview ────────────────────────────────┐
-│  script ── Shows.ListShows({ pageSize: 25 })                            │
-│    └─► WailsTransport ── Target(target, method, bytes, headersJson)     │
-│          headersJson: the app's headers + X-Kaja-App,                   │
-│                       ${NAME} still unexpanded                          │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │  Wails binding — same process
-┌────────────────────────────── kaja (Go) ────────────────────────────────┐
-│  TakeAppName · ExpandAll · MergeMetadata — the same doors as the web    │
-│                                                                         │
-│  kaja-app://…                        │  anything else (grpc)            │
-│  InvokeApp → the same app instance   │  pkg/grpc client,                │
-│  the web invokes (duration,          │  shared connection               │
-│  redaction)                          │                                  │
-└──────────────────┬───────────────────┴───────────────┬──────────────────┘
-                   │ HTTPS / HTTP POST                 │ gRPC (HTTP/2)
-                   ▼                                   ▼
-              upstream API                       upstream gRPC
-
-  back:  TargetResult { body, statusCode, requestHeaders,
-                        responseHeaders, trailers, durationMs }
-         — the transport mirrors it into the same kaja-upstream-* shape
-  server streams:  Wails events  stream:<id> · :end(durationMs) · :error
+   wails://localhost/…  ──►  WKURLSchemeHandler  ──►  webviewHandler
+                                                        ├─ router.Mount  (/Api, /target)
+                                                        └─ assetHandler  (the UI)
 ```
+
+What crosses a Wails binding is what only the desktop can do at all: the files
+under the scripts root, the native dialogs, `kaja://` links, the resolved
+variables a script may read because the UI is inside this process, and the MCP
+bridge. None of it is a call.
 
 ## What never crosses which line
 
@@ -145,7 +137,7 @@ a Wails binding and the response is a `TargetResult` value.
 
 ## Seven traces
 
-One real call per lane, hop by hop, on each build. Five are calls against the
+One real call per lane, hop by hop. Five are calls against the
 demo workspace ([`workspace/kaja.json`](../workspace/kaja.json)); the workspace
 has no folder app, and `kaja.fetch` belongs to no app.
 
@@ -157,7 +149,7 @@ What decides a path is who talks to the API:
 | in-process | `openapi` · `twirp` · `mcp` · `openai` · `folder` | Go, from the request it built |
 | neither | the Api service · `kaja.fetch` | nobody, or the browser itself |
 
-**Four doors** is the header work both builds share, in this order:
+**Four doors** is the header work every call goes through, in this order:
 `TakeAppName` (pull `X-Kaja-App` out) · `ExpandAll` (`${NAME}`) ·
 `AppConnection` (read the app out of `kaja.json` now, for its credential and TLS)
 · `MergeMetadata` (apply it without displacing a header of the same name).
@@ -174,17 +166,11 @@ Web
 6. back — binary `grpc-web+proto` frames as they arrive, then a trailer frame: `grpc-status`, the server's own metadata, `kaja-upstream-duration-ms`
 7. `absorbReserved` eats the `kaja-upstream-` prefix; the rest is the call's response headers
 
-Desktop
-
-1. same merge; no `X-Target` — `WailsTransport` reads it off the `appRef`
-2. `app.Target(target, method, <base64>, headersJson)` — a Wails binding, same process
-3. `desktop/main.go Target` — the four doors
-4. `targetGRPC` → `InvokeWithTimeout(…, 30s, …)` — the one lane with a deadline
-5. **same wire**
-6. back as `TargetResult{ body, trailers, durationMs }`; the transport mirrors it into the same trailers, so hop 7 above is the same code
-
-A server stream takes `TargetServerStream` and returns as the Wails events
-`stream:<id>` · `:end(durationMs)` · `:error` — a duration and no headers.
+Desktop — every hop above, unchanged. Hop 2 is
+`POST wails://localhost/target/seating.Seating/GetSeatMap` rather than
+`localhost:41520`, and the mux behind that scheme is the one hop 3 names. A
+server stream is the same forwarded stream, frame by frame, and there is no
+deadline of Kaja's own on either build.
 
 ### 2. OpenAPI — `Theatre.ListShows({ city: "Chicago", limit: 25, … })`
 
@@ -207,14 +193,9 @@ Web
 An upstream `>= 400` is an `apps.UpstreamError`: the whole failure rides in
 `kaja-upstream-error` and the frame's `grpc-status` is only the closest mapping.
 
-Desktop — hops 4–8 are the same code. `app.Target("kaja-app://9f3c1d…", …)` →
-`a.api.InvokeApp` → `TargetResult{ body, requestHeaders,
-responseHeaders, durationMs }`, mirrored into the same trailers. A failure comes
-back as `Body: upstream.JSON()`, `StatusCode: 502` — Kaja failing as the gateway
-it is here, the upstream's own status inside the JSON.
-
-So on **both** builds Go talks to theatre.kaja.tools and the browser never
-connects. That is the whole difference from trace 1.
+Desktop — every hop, the same code reached the same way. So on **both** builds
+Go talks to theatre.kaja.tools and the page never connects, which is the whole
+difference from trace 1.
 
 ### 3. Twirp — `Quirks.Sum({ a: "2", b: "3" })`
 
@@ -274,10 +255,10 @@ Web
 
 Desktop
 
-1. `app.Invoke("Api/GetConfiguration", <base64>)` — a Wails binding, same process
-2. `ApiService.Invoke`, with no HTTP in front of it
+1. `POST wails://localhost/Api/GetConfiguration`, the webview's own origin
+2. the same `ServeGRPCWeb` → `ApiService.Invoke`
 3. same service, but **with** a `VariableStore`, so a value can resolve `KEYCHAIN`
-4. a failed call is the service's own error as the binding's rejection, read as the `RpcError` the browser reads out of the trailer — a plain Go error is `UNKNOWN` either way
+4. a failed call is `status.Convert`'s `UNKNOWN` in the trailer either way, carrying the service's own message
 
 ### 7. `kaja.fetch` — `await fetch("https://api.example.com/v1/things")`
 

@@ -219,16 +219,15 @@ export function appHeaders(app: ConfigurationApp): Record<string, string> {
   return (appVariant(app)?.headers as Record<string, string>) ?? {};
 }
 
-// APP_HEADER names the app a call belongs to. Both transports send it alongside the
-// app's own headers and neither lets it reach the wire: it is what the credential and
-// transport security kaja holds for the app are looked up by, so a "${secret}" token
-// is applied where it lives rather than handed to the browser to send.
+// APP_HEADER names the app a call belongs to. It is sent alongside the app's own
+// headers and never reaches the wire: it is what the credential and transport security
+// kaja holds for the app are looked up by, so a "${secret}" token is applied where it
+// lives rather than handed to the browser to send.
 export const APP_HEADER = "X-Kaja-App";
 
-// HEADER_META_PREFIX is how a call's headers reach the Go side of either build: the
-// web door reads them off the request under this prefix, and the Wails transport
-// unprefixes them back into the map its binding takes. One prefix, so the merge that
-// produced them happens once, per call, in the client.
+// HEADER_META_PREFIX is how a call's headers reach the Go side: the door reads them
+// off the request under this prefix. The merge that produced them happens once, per
+// call, in the client.
 export const HEADER_META_PREFIX = "X-Header-";
 
 // mergeHeaders lays one set of headers over another, matching names without regard to
