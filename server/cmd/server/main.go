@@ -52,8 +52,13 @@ func main() {
 	// No variable store on the web server: a "${secret}" variable's value comes from the
 	// environment.
 	apiService := api.NewApiService(configurationPath, *editable, GitRef, "", nil)
-	twirpHandler := api.NewApiServer(apiService)
-	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
+
+	// api.proto declares no package, so the gRPC path of the internal service is
+	// /Api/<Method>. It is answered as gRPC-Web, the same framing the app lane answers
+	// in, rather than as a protocol of its own.
+	mux.HandleFunc("POST /Api/{method}", func(w http.ResponseWriter, r *http.Request) {
+		grpc.ServeGRPCWeb(w, r, r.PathValue("method"), apiService.Invoke)
+	})
 
 	// The agent session. A script runs in a browser, so a deployed kaja can only answer
 	// an agent by forwarding the run to a window that has offered itself. The window makes

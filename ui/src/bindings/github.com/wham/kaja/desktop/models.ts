@@ -110,6 +110,13 @@ export class TargetResult {
     "status": string;
     "requestHeaders"?: { [_ in string]?: string };
     "responseHeaders"?: { [_ in string]?: string };
+
+    /**
+     * What a gRPC server answered with. That lane is a bridge rather than a hop —
+     * the same call is forwarded — so the metadata is the response's own, the way
+     * the web proxy hands it back as gRPC-Web trailers.
+     */
+    "trailers"?: { [_ in string]?: string };
     "durationMs": number;
 
     /** Creates a new TargetResult instance. */
@@ -137,6 +144,7 @@ export class TargetResult {
         const $$createField0_0 = $Create.ByteSlice;
         const $$createField3_0 = $$createType0;
         const $$createField4_0 = $$createType0;
+        const $$createField5_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("body" in $$parsedSource) {
             $$parsedSource["body"] = $$createField0_0($$parsedSource["body"]);
@@ -146,6 +154,9 @@ export class TargetResult {
         }
         if ("responseHeaders" in $$parsedSource) {
             $$parsedSource["responseHeaders"] = $$createField4_0($$parsedSource["responseHeaders"]);
+        }
+        if ("trailers" in $$parsedSource) {
+            $$parsedSource["trailers"] = $$createField5_0($$parsedSource["trailers"]);
         }
         return new TargetResult($$parsedSource as Partial<TargetResult>);
     }

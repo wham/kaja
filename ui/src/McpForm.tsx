@@ -23,6 +23,7 @@ import {
 } from "./mcpServer";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { rpcErrorMessage } from "./rpcMessage";
 
 type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; server: McpServer } | { status: "problem"; problem: McpProblem };
 
@@ -147,7 +148,7 @@ export function McpForm({
         problem: {
           kind: McpProblemKind.MCP_PROBLEM_UNKNOWN,
           message: "Couldn't read the server",
-          detail: error instanceof Error ? error.message : String(error),
+          detail: rpcErrorMessage(error),
         },
       });
     }

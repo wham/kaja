@@ -80,13 +80,15 @@ docs/
 
 ```
 server/proto/api.proto
-  ├─ protoc-go + protoc-gen-go/twirp  → server/pkg/api/*.go
+  ├─ protoc-go + protoc-gen-go/go-grpc → server/pkg/api/*.go
   └─ protoc-go + protoc-gen-kaja      → ui/src/server/*.ts
                                           └─ esbuild (cmd/build-ui) → server/build/
                                                → embedded in server / copied to desktop / embedded in docker
 ```
 
 `protoc-gen-kaja` is a Go protoc plugin generating TypeScript, currently a drop-in replacement for `@protobuf-ts/plugin` producing identical output (it will diverge). Codegen lives in `kaja/` (`NewPlugin()`, `Generate()`); `main.go` is a CLI wrapper. At runtime both protoc-go and protoc-gen-kaja are **embedded as Go libraries** — no subprocesses; the binaries are only used by development scripts.
+
+**The internal `Api` service is spoken as gRPC**, like everything else kaja calls. `protoc-gen-go-grpc` is generated for one thing — `Api_ServiceDesc`, the dispatch table `ApiService.Invoke` looks a method up in — and no `grpc.Server` runs: the web answers `POST /Api/<Method>` with `internal/grpc.ServeGRPCWeb`, the same framing the app lane answers in, and the desktop's `Invoke` binding calls that dispatch with no HTTP in front of it. It is generated with `require_unimplemented_servers=false`, so a method missing from `ApiService` fails the `var _ ApiServer` assertion rather than compiling.
 
 - Tests in `protoc-gen-kaja/tests/` compare output against `protoc-gen-ts`; run with `protoc-gen-kaja/scripts/test`.
 - `tests/000_big` is the multi-file integration test (8 protos, 6 directories) covering scalars, WKTs, map key types, all four streaming kinds, custom options, `import public`, proto3 optional, `allow_alias`, reserved fields, deprecation, `jstype`, `json_name`, TypeScript keyword and `__proto__` field names, deep nesting, self-reference, name collisions, empty services, idempotency levels and comment edge cases. **Extend it when adding codegen features.**

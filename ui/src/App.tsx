@@ -68,6 +68,7 @@ import { logFileLevel } from "./scriptConsole";
 import { logScriptLine } from "./uiLog";
 import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { rpcErrorMessage } from "./rpcMessage";
 import {
   dropView,
   persistedDraftId,
@@ -203,12 +204,6 @@ interface NameSheet {
  * string from the Wails bridge, or as neither, and interpolating one straight
  * into a sentence prints `Error: …` inside it or, worse, `[object Object]`.
  */
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return String(error);
-}
-
 function sortScripts(scripts: Script[]): Script[] {
   return [...scripts].sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
 }
@@ -395,7 +390,7 @@ export function App() {
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
-      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${errorText(err)}`));
+      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
     },
     [showFileError],
   );
@@ -1125,7 +1120,7 @@ export function App() {
         if (!file) return;
         applyViews((views) => showScript(views, file.script, file.content));
       } catch (err) {
-        showFileError(`Open failed: ${errorText(err)}`);
+        showFileError(`Open failed: ${rpcErrorMessage(err)}`);
       }
     },
     [applyViews, showFileError],
@@ -1138,7 +1133,7 @@ export function App() {
         const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
         setLinkSheet({ script, parameters: content ? readInputKeys(content) : [] });
       } catch (err) {
-        showFileError(`Copy deeplink failed: ${errorText(err)}`);
+        showFileError(`Copy deeplink failed: ${rpcErrorMessage(err)}`);
       }
     },
     [showFileError],
@@ -1181,7 +1176,7 @@ export function App() {
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
       } catch (err) {
-        showFileError(`Run failed: ${errorText(err)}`);
+        showFileError(`Run failed: ${rpcErrorMessage(err)}`);
       }
     },
     [apps, showFileError, reportScriptError, beginRun, markSettled],
@@ -1235,7 +1230,7 @@ export function App() {
             id,
             setTimeout(() => {
               scriptSaveTimers.current.delete(id);
-              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${errorText(err)}`));
+              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
             }, 500),
           );
         }),
@@ -1338,7 +1333,7 @@ export function App() {
     desktop()
       .then((app) => app.MCPServerInfo())
       .then((info) => setMcpInfo(info))
-      .catch((err) => showFileError(`MCP server: ${errorText(err)}`));
+      .catch((err) => showFileError(`MCP server: ${rpcErrorMessage(err)}`));
   }, [showFileError]);
 
   // The catalog follows the apps, not the compiler: a change that compiles nothing —
@@ -1382,7 +1377,7 @@ export function App() {
         source = file ? file.content : "";
         if (!file) throw new Error(`No script at ${path}`);
       } catch (err) {
-        return { console: [], error: errorText(err), methodCalls: [] };
+        return { console: [], error: rpcErrorMessage(err), methodCalls: [] };
       }
     }
 
@@ -1406,7 +1401,7 @@ export function App() {
       await kaja.settleTables();
       result = { ...captured, ...report() };
     } catch (err) {
-      result = { console: [], error: errorText(err), ...report() };
+      result = { console: [], error: rpcErrorMessage(err), ...report() };
     } finally {
       markSettledRef.current(run.id);
     }
@@ -1485,7 +1480,7 @@ export function App() {
       setNameSheet(null);
       setNameSheetError(undefined);
     } catch (err) {
-      setNameSheetError(errorText(err));
+      setNameSheetError(rpcErrorMessage(err));
     }
   }, [nameSheet, applyDrafts, applyViews]);
 
@@ -1503,7 +1498,7 @@ export function App() {
         applyScriptRename(script.path, await renameScriptFile(script, name, folder));
         if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
       } catch (err) {
-        showFileError(`Rename failed: ${errorText(err)}`);
+        showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
     [applyScriptRename, flushScriptWrite, showFileError],
@@ -1520,7 +1515,7 @@ export function App() {
         if (open) flushScriptWrite(open);
         applyScriptRename(script.path, await renameScriptFile(script, script.name, folder));
       } catch (err) {
-        showFileError(`Move failed: ${errorText(err)}`);
+        showFileError(`Move failed: ${rpcErrorMessage(err)}`);
       }
     },
     [applyScriptRename, flushScriptWrite, showFileError],
@@ -1552,7 +1547,7 @@ export function App() {
       try {
         await deleteScriptFile(script);
       } catch (err) {
-        showFileError(`Delete failed: ${errorText(err)}`);
+        showFileError(`Delete failed: ${rpcErrorMessage(err)}`);
         return;
       }
       removeScriptFromUI(script.path);
@@ -1566,7 +1561,7 @@ export function App() {
         const created = await createScriptFolder(path);
         setScriptFolders((prev) => (prev.includes(created) ? prev : [...prev, created].sort()));
       } catch (err) {
-        showFileError(`New folder failed: ${errorText(err)}`);
+        showFileError(`New folder failed: ${rpcErrorMessage(err)}`);
       }
     },
     [showFileError],
@@ -1589,7 +1584,7 @@ export function App() {
           });
         }
       } catch (err) {
-        showFileError(`Rename failed: ${errorText(err)}`);
+        showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
     [applyScriptRename, showFileError],
@@ -1604,7 +1599,7 @@ export function App() {
       try {
         await deleteScriptFolder(path);
       } catch (err) {
-        showFileError(`Delete failed: ${errorText(err)}`);
+        showFileError(`Delete failed: ${rpcErrorMessage(err)}`);
         return;
       }
       setScriptFolders((prev) => prev.filter((folder) => !isWithinFolder(path, folder)));

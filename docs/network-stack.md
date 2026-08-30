@@ -194,20 +194,24 @@ Desktop
 ### 3. Internal API — `GetConfiguration`
 
 No app, so none of the four doors and no upstream. `api.proto` declares no
-package, so the Twirp path is `/twirp/Api/GetConfiguration` on both.
+package, so the gRPC path is `/Api/GetConfiguration`. Both builds reach the
+service through `ApiService.Invoke`, which dispatches off the generated
+`Api_ServiceDesc` and takes and returns encoded protobuf, so neither door needs
+generated code of its own.
 
 Web
 
-1. `POST localhost:41520/twirp/Api/GetConfiguration`
-2. `ApiService.GetConfiguration` — read `kaja.json`, migrate, resolve variables against the **environment alone** (no `VariableStore` on the web), build `Runtime`
-3. protobuf back. It never left the server's machine.
+1. `POST localhost:41520/Api/GetConfiguration`, `application/grpc-web-text`
+2. `ServeGRPCWeb` de-frames the message → `ApiService.Invoke`
+3. `GetConfiguration` — read `kaja.json`, migrate, resolve variables against the **environment alone** (no `VariableStore` on the web), build `Runtime`
+4. back — one data frame and a trailer frame carrying `grpc-status` alone: nothing was forwarded, so there is no `kaja-upstream-*` to say. It never left the server's machine.
 
 Desktop
 
-1. `app.Twirp("GetConfiguration", <base64>)`
-2. served into an `httptest.NewRecorder()` against the same handler — HTTP with no socket
-3. same `ApiService`, but **with** a `VariableStore`, so a value can resolve `KEYCHAIN`
-4. non-200 → the Twirp error JSON as the binding's error; `apiError` parses it into the same `RpcError` the browser gets
+1. `app.Invoke("Api/GetConfiguration", <base64>)` — a Wails binding, same process
+2. `ApiService.Invoke`, with no HTTP in front of it
+3. same service, but **with** a `VariableStore`, so a value can resolve `KEYCHAIN`
+4. a failed call is the service's own error as the binding's rejection, read as the `RpcError` the browser reads out of the trailer — a plain Go error is `UNKNOWN` either way
 
 ### 4. OpenAPI — `Theatre.ListShows({ city: "Chicago", limit: 25, … })`
 

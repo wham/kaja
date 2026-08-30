@@ -15,7 +15,7 @@ test("getBaseUrlForApi", () => {
   } as any;
   const baseUrl = getBaseUrlForApi();
 
-  expect(baseUrl).toBe("http://example.com/path/twirp");
+  expect(baseUrl).toBe("http://example.com/path");
 });
 
 test("getBaseUrlForTarget", () => {
@@ -48,7 +48,7 @@ test("ignores a fragment and a query the page happens to carry", () => {
     },
   } as any;
 
-  expect(getBaseUrlForApi()).toBe("http://example.com/path/twirp");
+  expect(getBaseUrlForApi()).toBe("http://example.com/path");
   expect(getBaseUrlForTarget()).toBe("http://example.com/path/target");
   expect(getBaseUrlForAi()).toBe("http://example.com/path/ai");
 });

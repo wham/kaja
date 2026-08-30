@@ -18,6 +18,7 @@ import { VARIABLES_JSON_URI } from "./jsonSchemas";
 import { VariableSource, VariableStatus } from "./server/api";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
 import { describeJsonMarker, parseVariablesJson } from "./variablesJson";
+import { rpcErrorMessage } from "./rpcMessage";
 
 export type VariablesEditMode = "table" | "json";
 
@@ -324,7 +325,7 @@ export function Variables({
       clearTimeout(savedTimer.current);
       savedTimer.current = setTimeout(() => setSaved(false), 3000);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : String(error));
+      setSaveError(rpcErrorMessage(error));
     }
   };
 
@@ -373,7 +374,7 @@ export function Variables({
       await onStoreValue(name, value);
       setJustStored((prev) => new Set(prev).add(name));
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : String(error));
+      setSaveError(rpcErrorMessage(error));
     }
   };
 

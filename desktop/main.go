@@ -11,7 +11,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -96,7 +95,6 @@ type App struct {
 	// method on one of these two.
 	app                  *application.App
 	window               *application.WebviewWindow
-	twirpHandler         api.TwirpServer
 	api                  *api.ApiService
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
@@ -119,9 +117,8 @@ type App struct {
 	mcpPending map[string]chan mcp.RunResult
 }
 
-func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(apiService *api.ApiService, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
-		twirpHandler:         twirpHandler,
 		api:                  apiService,
 		configurationWatcher: configurationWatcher,
 		bookmarkStore:        bookmarkStore,
@@ -335,49 +332,12 @@ func (a *App) OpenFileDialog() (string, error) {
 	return path, nil
 }
 
-func (a *App) Twirp(method string, req []byte) ([]byte, error) {
-	slog.Info("Twirp called", "method", method, "req_length", len(req))
-
-	if req == nil {
-		slog.Error("Received nil request")
-		return nil, fmt.Errorf("nil request")
-	}
-
-	// Empty requests are valid for methods with no parameters (like GetConfiguration)
-	if len(req) == 0 {
-		slog.Info("Received empty request - this is valid for methods with no parameters")
-	} else {
-		slog.Info("Request details", "req_first_10_bytes", req[:min(len(req), 10)])
-	}
-
-	url := "/twirp/Api/" + method
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
-	if err != nil {
-		slog.Error("Failed to create HTTP request", "error", err)
-		return nil, err
-	}
-
-	slog.Info("Twirp request created successfully")
-
-	httpReq.Header.Set("Content-Type", "application/protobuf")
-
-	recorder := httptest.NewRecorder()
-	a.twirpHandler.ServeHTTP(recorder, httpReq)
-
-	response := recorder.Body.Bytes()
-	slog.Info("Twirp response", "status", recorder.Code, "response_length", len(response))
-
-	// A failed call answers with a Twirp error — JSON, not the protobuf the caller is
-	// about to decode — so it travels as an error instead of a body. It is the same JSON
-	// the browser's fetch transport reads, so both transports arrive at the same RpcError.
-	if recorder.Code != http.StatusOK {
-		if len(response) == 0 {
-			return nil, errors.New(http.StatusText(recorder.Code))
-		}
-		return nil, errors.New(string(response))
-	}
-
-	return response, nil
+// Invoke calls the internal Api service (the desktop's counterpart to /Api/{method}).
+// The webview and the service are one process, so the call is a dispatch rather than a
+// wire: the request and the response are the encoded protobuf, and a failed call is the
+// service's own error.
+func (a *App) Invoke(method string, request []byte) ([]byte, error) {
+	return a.api.Invoke(context.Background(), method, request)
 }
 
 // TargetResult holds the response from a Target call, including HTTP status for
@@ -688,14 +648,13 @@ func main() {
 	// Create API service. Variable values that kaja.json only names live in the
 	// OS keychain, filed under this configuration.
 	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
-	twirpHandler := api.NewApiServer(apiService)
 
 	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
 	if err != nil {
 		slog.Warn("Failed to start configuration watcher", "error", err)
 	}
 
-	kaja := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
+	kaja := NewApp(apiService, configurationWatcher, bookmarkStore, kajaDir)
 
 	// Creating the application, creating the window and running are three steps in v3.
 	// The About box is the application's Name and Description rather than a Mac option:
