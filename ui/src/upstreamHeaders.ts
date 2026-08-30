@@ -1,8 +1,7 @@
 import { MethodCallHeaders } from "./kaja";
 
 // Trailers carrying what happened upstream of Kaja, out of band from the response
-// message. The server emits them as gRPC-Web trailers and the Wails transport mirrors
-// them, so the client reads every transport the same way.
+// message, emitted as gRPC-Web trailers.
 //
 // The prefix is the response side of the reserved X-Kaja-App request header: anything
 // under it is Kaja's own channel, never a header the server sent, and the client

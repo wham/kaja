@@ -272,8 +272,8 @@ func TestChatCompletionUnreadableResponse(t *testing.T) {
 	if upstream.ResponseHeaders["Content-Type"] == "" {
 		t.Errorf("expected the exchanged response headers, got %v", upstream.ResponseHeaders)
 	}
-	// The desktop's TargetResult has one field for "this is a failure" and "this is
-	// the status", so an unreadable response has to read as a failure there.
+	// The gRPC-Web lane maps this to a status code, so an unreadable response that
+	// arrived with a success status still has to read as a failure.
 	if upstream.TransportStatus() < 400 {
 		t.Errorf("TransportStatus() = %d, want a failure status", upstream.TransportStatus())
 	}

@@ -39,7 +39,7 @@ describe("classifyFailure", () => {
   // The failure the audit stalled on: no status and no code, so retrying with a
   // different request shape is wasted work.
   it("calls a broken exchange a transport failure", () => {
-    const failure = classifyFailure(new Error("Wails target transport error: decoding response JSON: proto: syntax error"));
+    const failure = classifyFailure(new Error("premature EOF: proto: syntax error"));
     expect(failure.kind).toBe("TRANSPORT");
     expect(failure.message).toContain("proto: syntax error");
     expect(failure.status).toBeUndefined();

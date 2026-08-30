@@ -74,11 +74,11 @@ func NewUnreadableResponse(method, url string, status int, body []byte, reason s
 	return e
 }
 
-// TransportStatus is the status the transports gate on to tell a structured failure
-// from a response: the desktop's TargetResult carries one field for both, and a
-// success status there would be read as a call that worked. An unreadable response is
-// kaja failing as the gateway it is here, which is what 502 means. The status the user
-// is shown is the one in JSON, which is always the one the upstream sent.
+// TransportStatus is the status the gRPC-Web lane maps to a status code, which needs
+// a failure to map: an unreadable response arrived with a success status, and mapping
+// that would answer a broken exchange with OK. It is kaja failing as the gateway it is
+// here, which is what 502 means. The status the user is shown is the one in JSON,
+// which is always the one the upstream sent.
 func (e *UpstreamError) TransportStatus() int {
 	if e.Status >= 400 {
 		return e.Status

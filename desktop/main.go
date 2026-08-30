@@ -3,11 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,9 +18,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/wham/kaja/v2/pkg/api"
-	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/pkg/mcp"
+	"github.com/wham/kaja/v2/pkg/router"
 )
 
 // GitRef is the git commit hash or tag, set at build time via ldflags
@@ -97,8 +92,7 @@ type App struct {
 	api                  *api.ApiService
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
-	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
-	activeStreams        sync.Map // streamID -> context.CancelFunc
+	workspaceDir         string // base for resolving relative protoDir; also holds the global scripts dir
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
 	// Guarded by linkMu.
@@ -331,124 +325,6 @@ func (a *App) OpenFileDialog() (string, error) {
 	return path, nil
 }
 
-// Invoke calls the internal Api service (the desktop's counterpart to /Api/{method}).
-// The webview and the service are one process, so the call is a dispatch rather than a
-// wire: the request and the response are the encoded protobuf, and a failed call is the
-// service's own error.
-func (a *App) Invoke(method string, request []byte) ([]byte, error) {
-	return a.api.Invoke(context.Background(), method, request)
-}
-
-// TargetResult holds the response from a Target call. StatusCode marks a body that
-// is a structured upstream failure rather than the method's response.
-// RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
-// upstream, surfaced in the Headers view. DurationMs is the upstream exchange as this
-// process measured it — the call without the webview round trip — which the UI shows
-// in place of its own timing.
-type TargetResult struct {
-	Body            []byte            `json:"body"`
-	StatusCode      int               `json:"statusCode"`
-	Status          string            `json:"status"`
-	RequestHeaders  map[string]string `json:"requestHeaders,omitempty"`
-	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
-	// What a gRPC server answered with. That lane is a bridge rather than a hop —
-	// the same call is forwarded — so the metadata is the response's own, the way
-	// the web proxy hands it back as gRPC-Web trailers.
-	Trailers   map[string]string `json:"trailers,omitempty"`
-	DurationMs int64             `json:"durationMs"`
-}
-
-// Target makes one call on the webview's behalf (the desktop's counterpart to
-// /target/{method...}). headersJson is a JSON-encoded map of headers to forward. What
-// the target names decides the rest: an app invoked in this process, or the gRPC
-// server to dial.
-func (a *App) Target(target string, method string, req []byte, headersJson string) (*TargetResult, error) {
-	slog.Info("Target called", "target", target, "method", method, "req_length", len(req), "headers", headersJson)
-
-	if req == nil {
-		slog.Error("Received nil request")
-		return nil, fmt.Errorf("nil request")
-	}
-
-	headers := make(map[string]string)
-	if headersJson != "" && headersJson != "{}" {
-		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
-			slog.Error("Failed to parse headers JSON", "error", err)
-			return nil, fmt.Errorf("failed to parse headers: %w", err)
-		}
-	}
-
-	// The reserved header names the app the call belongs to, and goes no further:
-	// it is what the credential and the transport are looked up by.
-	appName := apps.TakeAppName(headers)
-
-	// App targets (kaja-app://<id>) are invoked in-process by the app manager. InvokeApp
-	// expands the ${NAME} references the headers still carry and masks the resolved
-	// values back out of what it reports exchanging.
-	if apps.IsAppTarget(target) {
-		result, err := a.api.InvokeApp(target, method, req, headers)
-		var upstream *apps.UpstreamError
-		if errors.As(err, &upstream) {
-			// Hand the structured upstream failure to the transport instead of rejecting the
-			// promise with a flat string. The exchanged headers ride along so the Headers view is
-			// populated even on a failure. StatusCode is the transport's, not the report's: it is
-			// the one field saying the body is a failure, and the upstream's own status travels
-			// inside the JSON.
-			return &TargetResult{
-				Body:            upstream.JSON(),
-				StatusCode:      upstream.TransportStatus(),
-				Status:          http.StatusText(upstream.TransportStatus()),
-				RequestHeaders:  upstream.RequestHeaders,
-				ResponseHeaders: upstream.ResponseHeaders,
-				DurationMs:      upstream.DurationMs,
-			}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		return &TargetResult{
-			Body:            result.Body,
-			RequestHeaders:  result.RequestHeaders,
-			ResponseHeaders: result.ResponseHeaders,
-			DurationMs:      result.DurationMs,
-		}, nil
-	}
-
-	headers = a.api.Variables().ExpandAll(headers)
-	// The app's own credential is applied here rather than sent from the webview,
-	// so a "${secret}" token stays where kaja keeps it.
-	connection := a.api.AppConnection(appName)
-	headers = apps.MergeMetadata(headers, connection.Metadata)
-
-	started := time.Now()
-	resp, responseMetadata, err := a.targetGRPC(target, method, req, headers, connection.TLS)
-	if err != nil {
-		return nil, err
-	}
-	return &TargetResult{Body: resp, Trailers: responseMetadata, DurationMs: time.Since(started).Milliseconds()}, nil
-}
-
-func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, map[string]string, error) {
-	slog.Info("Invoking gRPC target", "target", target, "method", method, "headers", len(headers))
-
-	client, err := grpc.NewClientFromString(target, options)
-	if err != nil {
-		slog.Error("Failed to create gRPC client", "target", target, "error", err)
-		return nil, nil, err
-	}
-
-	slog.Info("gRPC client created", "target", target, "tls", client.UseTLS())
-
-	response, responseMetadata, err := client.InvokeWithTimeout(method, req, 30*time.Second, headers)
-	if err != nil {
-		slog.Error("gRPC invocation failed", "target", target, "method", method, "error", err)
-		return nil, nil, err
-	}
-
-	slog.Info("gRPC response received", "target", target, "method", method, "response_length", len(response))
-	return response, responseMetadata, nil
-}
-
 // restoreBookmarks resolves saved security-scoped bookmarks for all directories
 // referenced in the configuration, re-granting sandbox access on app restart.
 func restoreBookmarks(store *BookmarkStore, configurationPath string) {
@@ -481,85 +357,15 @@ func appSupportDir() (string, error) {
 	return dir, nil
 }
 
-// TargetServerStream starts a server-streaming gRPC call.
-// Each response message is emitted as a Wails event "stream:<streamID>" with base64-encoded body.
-// When the stream ends, "stream:<streamID>:end" is emitted.
-// On error, "stream:<streamID>:error" is emitted with the error message.
-func (a *App) TargetServerStream(target string, method string, req []byte, headersJson string, streamID string) error {
-	slog.Info("TargetServerStream called", "target", target, "method", method, "streamID", streamID)
-
-	if req == nil {
-		return fmt.Errorf("nil request")
-	}
-
-	headers := make(map[string]string)
-	if headersJson != "" && headersJson != "{}" {
-		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
-			return fmt.Errorf("failed to parse headers: %w", err)
-		}
-	}
-
-	appName := apps.TakeAppName(headers)
-	headers = a.api.Variables().ExpandAll(headers)
-	connection := a.api.AppConnection(appName)
-	headers = apps.MergeMetadata(headers, connection.Metadata)
-
-	client, err := grpc.NewClientFromString(target, connection.TLS)
-	if err != nil {
-		return fmt.Errorf("failed to create gRPC client: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	a.activeStreams.Store(streamID, cancel)
-
-	started := time.Now()
-
-	go func() {
-		defer cancel()
-		defer a.activeStreams.Delete(streamID)
-
-		fail := func(err error) {
-			slog.Error("Server stream error", "streamID", streamID, "error", err)
-			a.app.Event.Emit("stream:"+streamID+":error", err.Error())
-		}
-		// The stream's upstream duration rides the end event, mirroring the
-		// kaja-upstream-duration-ms trailer of a unary call.
-		end := func() {
-			a.app.Event.Emit("stream:"+streamID+":end", time.Since(started).Milliseconds())
-		}
-
-		stream, err := client.OpenServerStream(ctx, method, req, headers)
-		if err != nil {
-			fail(err)
-			return
-		}
-
-		for {
-			message, err := stream.Recv()
-			if err != nil {
-				// A cancelled stream ended because it was asked to, which is not a
-				// failure to report.
-				if errors.Is(err, io.EOF) || ctx.Err() != nil {
-					end()
-				} else {
-					fail(err)
-				}
-				return
-			}
-			a.app.Event.Emit("stream:"+streamID, base64.StdEncoding.EncodeToString(message))
-		}
-	}()
-
-	return nil
-}
-
-// CancelStream cancels an active streaming call.
-func (a *App) CancelStream(streamID string) error {
-	if cancel, ok := a.activeStreams.LoadAndDelete(streamID); ok {
-		cancel.(context.CancelFunc)()
-		return nil
-	}
-	return fmt.Errorf("stream not found: %s", streamID)
+// webviewHandler is everything the window fetches: the UI, and the two call lanes
+// the web server answers on. The webview asks for a call over HTTP the way a browser
+// does — same request, same gRPC-Web framing, same X-Target and kaja-upstream-*
+// channels — so the desktop has no transport of its own and nothing to keep in step.
+func webviewHandler(apiService *api.ApiService, assets http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	router.Mount(mux, apiService)
+	mux.Handle("/", assets)
+	return mux
 }
 
 func main() {
@@ -611,7 +417,7 @@ func main() {
 			application.NewService(kaja),
 		},
 		Assets: application.AssetOptions{
-			Handler: assetHandler(),
+			Handler: webviewHandler(apiService, assetHandler()),
 		},
 		LogLevel: slog.LevelError,
 		Mac: application.MacOptions{

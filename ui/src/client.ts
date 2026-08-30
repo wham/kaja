@@ -17,10 +17,8 @@ import {
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
 import { getBaseUrlForTarget } from "./server/connection";
-import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
-import { isWailsEnvironment } from "./wails";
 
 // absorbReserved routes one kaja-upstream-* entry onto the call. The prefix is
 // Kaja's own out-of-band channel — what Kaja measured or exchanged upstream, never a
@@ -56,7 +54,7 @@ function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, t
 // applyErrorMetadata routes a failed call's response metadata to the Headers view,
 // where headers belong whether or not the call succeeded — a 401 is exactly when they
 // matter. The kaja trailers become the upstream hop; what a server sent of its own
-// becomes the response headers. Web errors carry it on the RpcError; Wails mirrors it.
+// becomes the response headers, carried on the RpcError.
 function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
   const metaRecord = errorMeta(error);
   if (!metaRecord) return;
@@ -73,26 +71,23 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
 }
 
 export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
-  // One transport per build and no choice inside it: whatever an app talks to
-  // upstream, the call kaja is handed is gRPC. appRef is passed to the Wails one so
-  // the target is read at request time.
-  const transport = isWailsEnvironment() ? new WailsTransport({ mode: "target", appRef }) : new GrpcWebFetchTransport({ baseUrl: getBaseUrlForTarget() });
+  // One transport, and no choice inside it: whatever an app talks to upstream, the
+  // call kaja is handed is gRPC-Web over the page's own origin — which on the desktop
+  // is the mux the app mounts behind its webview's scheme.
+  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForTarget() });
 
   const stubModule = stub[service.clientStubModuleId];
   const ClientClass = stubModule[service.name + "Client"];
   const clientStub = new ClientClass(transport);
 
-  // The headers of one call, on their way to whichever door this build has. They carry
-  // the X-Header- prefix in both: their ${NAME} references travel unexpanded, since the
-  // value behind one may be kaja's to hold and the browser's never to read, and the Go
-  // side resolves them where it applies the app's own credential.
+  // The headers of one call, on their way to the door. They carry the X-Header-
+  // prefix: their ${NAME} references travel unexpanded, since the value behind one may
+  // be kaja's to hold and the browser's never to read, and the Go side resolves them
+  // where it applies the app's own credential.
   const requestMeta = (requestHeaders: MethodCallHeaders): RpcMetadata => {
-    const meta: RpcMetadata = {};
+    const meta: RpcMetadata = { "X-Target": appRef.target };
     for (const [name, value] of Object.entries(transportHeaders(appRef.configuration, requestHeaders))) {
       meta[HEADER_META_PREFIX + name] = value;
-    }
-    if (!isWailsEnvironment()) {
-      meta["X-Target"] = appRef.target;
     }
     return meta;
   };
@@ -130,9 +125,8 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         // the values behind them stay outside the browser.
         const requestHeaders = mergeHeaders(appHeaders(appRef.configuration), callOptions?.headers);
 
-        // Refused here rather than by the transport: each build has one of its own, each
-        // with its own wording, and both of them describe themselves where the limit is
-        // Kaja's. It is still a row, because the script did make the call.
+        // Refused here rather than by the transport, which would describe itself where
+        // the limit is Kaja's. It is still a row, because the script did make the call.
         if (unsupported) {
           const refused = newMethodCall(input, requestHeaders);
           hold(refused);
