@@ -420,7 +420,7 @@ The experimental built-ins (mcp/openai/folder) appear in the sidebar's **New** d
 
 ### Architecture
 
-- **The map** — [docs/network-stack.md](docs/network-stack.md) draws every hop and how headers flow, per protocol, web and desktop.
+- **The map** — [docs/network-stack.md](docs/network-stack.md) draws every hop and how headers flow, per protocol, web and desktop, then traces one real call through each lane on both builds.
 - **Contract** — `server/pkg/apps` defines `App` (factory), `Instance` (live, invocable) and a `Manager` (type registry + live instances). `App.Open` returns an `*Opened` describing the proto surface (`ProtoDir`) and either an in-process `Instance` or a `Target`+`Protocol` the client invokes directly. `Manager.Open` registers an `Instance` under a `kaja-app://<id>` target; otherwise it passes the upstream URL and transport through.
 - **grpc/twirp** — `server/pkg/apps/rpc`. The proto surface is a workspace-relative `proto_dir` or, for gRPC, server reflection (the `reflection` field, reusing `server/pkg/grpc`). They have **no** in-process `Instance`: `Open` returns the upstream `url` and `"grpc"`/`"twirp"`, so the browser invokes them directly and gRPC-Web streaming is preserved.
 - **Open + compile** — the `OpenApp` RPC opens **every** app and returns the `proto_dir` to feed into `Compile`, the invocation `target`, and the `protocol`. `InspectOpenApi`, `InspectGrpc` and `InspectMcp` are the only app-type-specific RPCs, and none of them creates anything.
