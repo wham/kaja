@@ -648,9 +648,10 @@ export interface GetConfigurationResponse {
  */
 export interface Runtime {
     /**
-     * Whether the UI can write to the configuration file. True in the desktop app,
-     * which owns its workspace; false in the server, which serves a workspace
-     * managed outside kaja - unless it was started with --editable.
+     * Whether this kaja may write the workspace it opened - kaja.json and the
+     * scripts folder beside it alike. True in the desktop app, which owns its
+     * workspace; false in the server, which serves a workspace managed outside
+     * kaja - unless it was started with --editable.
      *
      * @generated from protobuf field: bool can_update_configuration = 1
      */
@@ -676,6 +677,13 @@ export interface Runtime {
      * @generated from protobuf field: bool variable_store_available = 4
      */
     variableStoreAvailable: boolean;
+    /**
+     * The scripts folder on the machine serving the workspace, for the one thing
+     * the UI needs the folder itself for: revealing it in the system file browser.
+     *
+     * @generated from protobuf field: string scripts_folder = 5
+     */
+    scriptsFolder: string;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -738,12 +746,11 @@ export interface StoredValueResponse {
 }
 /**
  * A script the workspace ships: a .ts file anywhere under the `scripts` folder
- * beside kaja.json. The desktop app reads that folder off disk directly; these
- * two RPCs are how a browser reaches the same folder, which is what puts a
- * script mounted into a container in the sidebar. The server never writes one -
- * saving is the verb a workspace it does not own doesn't offer - so there is no
- * counterpart to the desktop's write, create, rename and delete, and no way for
- * a browser to make a folder either.
+ * beside kaja.json. Both builds reach it here - the desktop's window fetches
+ * these RPCs over the mux its webview already speaks, a browser fetches them
+ * over the wire - which is what puts a script mounted into a container in the
+ * sidebar. Writing is the verb a kaja that does not own its workspace refuses,
+ * on the one answer `can_update_configuration` reports.
  *
  * @generated from protobuf message Script
  */
@@ -789,9 +796,11 @@ export interface ListScriptsResponse {
     scripts: Script[];
 }
 /**
- * ReadScript reads one script by its name within the scripts folder, which may
- * name a folder ("reports/churn.ts"). It is never joined onto anything: it is
- * resolved inside the scripts folder, which is the whole access boundary.
+ * A name is a path within the scripts folder ("reports/churn.ts"), or the
+ * absolute path a listing reported, which is the same name said in full. Either
+ * way it is never joined onto anything: it is reduced to a relative path and
+ * opened through an os.Root over the scripts folder, which is the whole access
+ * boundary.
  *
  * @generated from protobuf message ReadScriptRequest
  */
@@ -809,6 +818,176 @@ export interface ReadScriptResponse {
      * @generated from protobuf field: Script script = 1
      */
     script?: Script;
+}
+/**
+ * WriteScript writes content back to a script that already exists. Creating one
+ * is the other verb.
+ *
+ * @generated from protobuf message WriteScriptRequest
+ */
+export interface WriteScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string content = 2
+     */
+    content: string;
+}
+/**
+ * @generated from protobuf message WriteScriptResponse
+ */
+export interface WriteScriptResponse {
+    /**
+     * @generated from protobuf field: Script script = 1
+     */
+    script?: Script;
+}
+/**
+ * CreateScript writes a new script. The name may name a folder, which is created
+ * if it isn't there, and a `.ts` extension is added if the name doesn't carry
+ * one - naming a draft asks for a name, not for a filename.
+ *
+ * @generated from protobuf message CreateScriptRequest
+ */
+export interface CreateScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string content = 2
+     */
+    content: string;
+}
+/**
+ * @generated from protobuf message CreateScriptResponse
+ */
+export interface CreateScriptResponse {
+    /**
+     * @generated from protobuf field: Script script = 1
+     */
+    script?: Script;
+}
+/**
+ * RenameScript renames a script and, when the new name carries a folder, moves
+ * it there. Renaming and moving are one operation because on disk they are one:
+ * the file's path is its name.
+ *
+ * @generated from protobuf message RenameScriptRequest
+ */
+export interface RenameScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message RenameScriptResponse
+ */
+export interface RenameScriptResponse {
+    /**
+     * @generated from protobuf field: Script script = 1
+     */
+    script?: Script;
+}
+/**
+ * @generated from protobuf message DeleteScriptRequest
+ */
+export interface DeleteScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * @generated from protobuf message DeleteScriptResponse
+ */
+export interface DeleteScriptResponse {
+}
+/**
+ * ListScriptFolders returns every directory under the scripts root, relative and
+ * slash-separated. An empty one is in the list: it is a directory, not a UI
+ * grouping, so it has no file to be inferred from.
+ *
+ * @generated from protobuf message ListScriptFoldersRequest
+ */
+export interface ListScriptFoldersRequest {
+}
+/**
+ * @generated from protobuf message ListScriptFoldersResponse
+ */
+export interface ListScriptFoldersResponse {
+    /**
+     * @generated from protobuf field: repeated string folders = 1
+     */
+    folders: string[];
+}
+/**
+ * @generated from protobuf message CreateScriptFolderRequest
+ */
+export interface CreateScriptFolderRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * @generated from protobuf message CreateScriptFolderResponse
+ */
+export interface CreateScriptFolderResponse {
+    /**
+     * @generated from protobuf field: string folder = 1
+     */
+    folder: string;
+}
+/**
+ * RenameScriptFolder takes a folder name, not a path: a folder is renamed where
+ * it is, and moving one is not offered.
+ *
+ * @generated from protobuf message RenameScriptFolderRequest
+ */
+export interface RenameScriptFolderRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message RenameScriptFolderResponse
+ */
+export interface RenameScriptFolderResponse {
+    /**
+     * @generated from protobuf field: string folder = 1
+     */
+    folder: string;
+}
+/**
+ * DeleteScriptFolder removes a folder and everything filed there. What that costs
+ * is named in the confirmation rather than refused here, and a folder that is
+ * already gone is not a failure - the act asked for is done.
+ *
+ * @generated from protobuf message DeleteScriptFolderRequest
+ */
+export interface DeleteScriptFolderRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * @generated from protobuf message DeleteScriptFolderResponse
+ */
+export interface DeleteScriptFolderResponse {
 }
 /**
  * @generated from protobuf message Configuration
@@ -3176,7 +3355,8 @@ class Runtime$Type extends MessageType<Runtime> {
             { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Runtime>): Runtime {
@@ -3185,6 +3365,7 @@ class Runtime$Type extends MessageType<Runtime> {
         message.gitRef = "";
         message.buildNumber = "";
         message.variableStoreAvailable = false;
+        message.scriptsFolder = "";
         if (value !== undefined)
             reflectionMergePartial<Runtime>(this, message, value);
         return message;
@@ -3205,6 +3386,9 @@ class Runtime$Type extends MessageType<Runtime> {
                     break;
                 case /* bool variable_store_available */ 4:
                     message.variableStoreAvailable = reader.bool();
+                    break;
+                case /* string scripts_folder */ 5:
+                    message.scriptsFolder = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3230,6 +3414,9 @@ class Runtime$Type extends MessageType<Runtime> {
         /* bool variable_store_available = 4; */
         if (message.variableStoreAvailable !== false)
             writer.tag(4, WireType.Varint).bool(message.variableStoreAvailable);
+        /* string scripts_folder = 5; */
+        if (message.scriptsFolder !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.scriptsFolder);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3701,6 +3888,760 @@ class ReadScriptResponse$Type extends MessageType<ReadScriptResponse> {
  * @generated MessageType for protobuf message ReadScriptResponse
  */
 export const ReadScriptResponse = new ReadScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class WriteScriptRequest$Type extends MessageType<WriteScriptRequest> {
+    constructor() {
+        super("WriteScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<WriteScriptRequest>): WriteScriptRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.content = "";
+        if (value !== undefined)
+            reflectionMergePartial<WriteScriptRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: WriteScriptRequest): WriteScriptRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string content */ 2:
+                    message.content = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: WriteScriptRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string content = 2; */
+        if (message.content !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.content);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message WriteScriptRequest
+ */
+export const WriteScriptRequest = new WriteScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class WriteScriptResponse$Type extends MessageType<WriteScriptResponse> {
+    constructor() {
+        super("WriteScriptResponse", [
+            { no: 1, name: "script", kind: "message", T: () => Script }
+        ]);
+    }
+    create(value?: PartialMessage<WriteScriptResponse>): WriteScriptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<WriteScriptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: WriteScriptResponse): WriteScriptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Script script */ 1:
+                    message.script = Script.internalBinaryRead(reader, reader.uint32(), options, message.script);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: WriteScriptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Script script = 1; */
+        if (message.script)
+            Script.internalBinaryWrite(message.script, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message WriteScriptResponse
+ */
+export const WriteScriptResponse = new WriteScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateScriptRequest$Type extends MessageType<CreateScriptRequest> {
+    constructor() {
+        super("CreateScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreateScriptRequest>): CreateScriptRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.content = "";
+        if (value !== undefined)
+            reflectionMergePartial<CreateScriptRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateScriptRequest): CreateScriptRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string content */ 2:
+                    message.content = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateScriptRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string content = 2; */
+        if (message.content !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.content);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CreateScriptRequest
+ */
+export const CreateScriptRequest = new CreateScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateScriptResponse$Type extends MessageType<CreateScriptResponse> {
+    constructor() {
+        super("CreateScriptResponse", [
+            { no: 1, name: "script", kind: "message", T: () => Script }
+        ]);
+    }
+    create(value?: PartialMessage<CreateScriptResponse>): CreateScriptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<CreateScriptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateScriptResponse): CreateScriptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Script script */ 1:
+                    message.script = Script.internalBinaryRead(reader, reader.uint32(), options, message.script);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateScriptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Script script = 1; */
+        if (message.script)
+            Script.internalBinaryWrite(message.script, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CreateScriptResponse
+ */
+export const CreateScriptResponse = new CreateScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameScriptRequest$Type extends MessageType<RenameScriptRequest> {
+    constructor() {
+        super("RenameScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RenameScriptRequest>): RenameScriptRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.newName = "";
+        if (value !== undefined)
+            reflectionMergePartial<RenameScriptRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RenameScriptRequest): RenameScriptRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string new_name */ 2:
+                    message.newName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RenameScriptRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string new_name = 2; */
+        if (message.newName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.newName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameScriptRequest
+ */
+export const RenameScriptRequest = new RenameScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameScriptResponse$Type extends MessageType<RenameScriptResponse> {
+    constructor() {
+        super("RenameScriptResponse", [
+            { no: 1, name: "script", kind: "message", T: () => Script }
+        ]);
+    }
+    create(value?: PartialMessage<RenameScriptResponse>): RenameScriptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RenameScriptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RenameScriptResponse): RenameScriptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Script script */ 1:
+                    message.script = Script.internalBinaryRead(reader, reader.uint32(), options, message.script);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RenameScriptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Script script = 1; */
+        if (message.script)
+            Script.internalBinaryWrite(message.script, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameScriptResponse
+ */
+export const RenameScriptResponse = new RenameScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteScriptRequest$Type extends MessageType<DeleteScriptRequest> {
+    constructor() {
+        super("DeleteScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DeleteScriptRequest>): DeleteScriptRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<DeleteScriptRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteScriptRequest): DeleteScriptRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteScriptRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message DeleteScriptRequest
+ */
+export const DeleteScriptRequest = new DeleteScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteScriptResponse$Type extends MessageType<DeleteScriptResponse> {
+    constructor() {
+        super("DeleteScriptResponse", []);
+    }
+    create(value?: PartialMessage<DeleteScriptResponse>): DeleteScriptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DeleteScriptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteScriptResponse): DeleteScriptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteScriptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message DeleteScriptResponse
+ */
+export const DeleteScriptResponse = new DeleteScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListScriptFoldersRequest$Type extends MessageType<ListScriptFoldersRequest> {
+    constructor() {
+        super("ListScriptFoldersRequest", []);
+    }
+    create(value?: PartialMessage<ListScriptFoldersRequest>): ListScriptFoldersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ListScriptFoldersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListScriptFoldersRequest): ListScriptFoldersRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListScriptFoldersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ListScriptFoldersRequest
+ */
+export const ListScriptFoldersRequest = new ListScriptFoldersRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListScriptFoldersResponse$Type extends MessageType<ListScriptFoldersResponse> {
+    constructor() {
+        super("ListScriptFoldersResponse", [
+            { no: 1, name: "folders", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListScriptFoldersResponse>): ListScriptFoldersResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.folders = [];
+        if (value !== undefined)
+            reflectionMergePartial<ListScriptFoldersResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListScriptFoldersResponse): ListScriptFoldersResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string folders */ 1:
+                    message.folders.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListScriptFoldersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string folders = 1; */
+        for (let i = 0; i < message.folders.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.folders[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ListScriptFoldersResponse
+ */
+export const ListScriptFoldersResponse = new ListScriptFoldersResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateScriptFolderRequest$Type extends MessageType<CreateScriptFolderRequest> {
+    constructor() {
+        super("CreateScriptFolderRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreateScriptFolderRequest>): CreateScriptFolderRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<CreateScriptFolderRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateScriptFolderRequest): CreateScriptFolderRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateScriptFolderRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CreateScriptFolderRequest
+ */
+export const CreateScriptFolderRequest = new CreateScriptFolderRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateScriptFolderResponse$Type extends MessageType<CreateScriptFolderResponse> {
+    constructor() {
+        super("CreateScriptFolderResponse", [
+            { no: 1, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreateScriptFolderResponse>): CreateScriptFolderResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.folder = "";
+        if (value !== undefined)
+            reflectionMergePartial<CreateScriptFolderResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateScriptFolderResponse): CreateScriptFolderResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string folder */ 1:
+                    message.folder = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateScriptFolderResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string folder = 1; */
+        if (message.folder !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.folder);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CreateScriptFolderResponse
+ */
+export const CreateScriptFolderResponse = new CreateScriptFolderResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameScriptFolderRequest$Type extends MessageType<RenameScriptFolderRequest> {
+    constructor() {
+        super("RenameScriptFolderRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RenameScriptFolderRequest>): RenameScriptFolderRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.newName = "";
+        if (value !== undefined)
+            reflectionMergePartial<RenameScriptFolderRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RenameScriptFolderRequest): RenameScriptFolderRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string new_name */ 2:
+                    message.newName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RenameScriptFolderRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string new_name = 2; */
+        if (message.newName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.newName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameScriptFolderRequest
+ */
+export const RenameScriptFolderRequest = new RenameScriptFolderRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameScriptFolderResponse$Type extends MessageType<RenameScriptFolderResponse> {
+    constructor() {
+        super("RenameScriptFolderResponse", [
+            { no: 1, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RenameScriptFolderResponse>): RenameScriptFolderResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.folder = "";
+        if (value !== undefined)
+            reflectionMergePartial<RenameScriptFolderResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RenameScriptFolderResponse): RenameScriptFolderResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string folder */ 1:
+                    message.folder = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RenameScriptFolderResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string folder = 1; */
+        if (message.folder !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.folder);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameScriptFolderResponse
+ */
+export const RenameScriptFolderResponse = new RenameScriptFolderResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteScriptFolderRequest$Type extends MessageType<DeleteScriptFolderRequest> {
+    constructor() {
+        super("DeleteScriptFolderRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DeleteScriptFolderRequest>): DeleteScriptFolderRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<DeleteScriptFolderRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteScriptFolderRequest): DeleteScriptFolderRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteScriptFolderRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message DeleteScriptFolderRequest
+ */
+export const DeleteScriptFolderRequest = new DeleteScriptFolderRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteScriptFolderResponse$Type extends MessageType<DeleteScriptFolderResponse> {
+    constructor() {
+        super("DeleteScriptFolderResponse", []);
+    }
+    create(value?: PartialMessage<DeleteScriptFolderResponse>): DeleteScriptFolderResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DeleteScriptFolderResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteScriptFolderResponse): DeleteScriptFolderResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteScriptFolderResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message DeleteScriptFolderResponse
+ */
+export const DeleteScriptFolderResponse = new DeleteScriptFolderResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
     constructor() {
@@ -4629,5 +5570,13 @@ export const Api = new ServiceType("Api", [
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },
-    { name: "ReadScript", options: {}, I: ReadScriptRequest, O: ReadScriptResponse }
+    { name: "ReadScript", options: {}, I: ReadScriptRequest, O: ReadScriptResponse },
+    { name: "WriteScript", options: {}, I: WriteScriptRequest, O: WriteScriptResponse },
+    { name: "CreateScript", options: {}, I: CreateScriptRequest, O: CreateScriptResponse },
+    { name: "RenameScript", options: {}, I: RenameScriptRequest, O: RenameScriptResponse },
+    { name: "DeleteScript", options: {}, I: DeleteScriptRequest, O: DeleteScriptResponse },
+    { name: "ListScriptFolders", options: {}, I: ListScriptFoldersRequest, O: ListScriptFoldersResponse },
+    { name: "CreateScriptFolder", options: {}, I: CreateScriptFolderRequest, O: CreateScriptFolderResponse },
+    { name: "RenameScriptFolder", options: {}, I: RenameScriptFolderRequest, O: RenameScriptFolderResponse },
+    { name: "DeleteScriptFolder", options: {}, I: DeleteScriptFolderRequest, O: DeleteScriptFolderResponse }
 ]);

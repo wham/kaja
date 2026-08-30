@@ -168,9 +168,12 @@ loopback listener on `127.0.0.1:41521` is only `ServeMCP` in front of it, there
 because an agent lives in another process and cannot fetch a `wails://` URL.
 
 What crosses a Wails binding instead is what only the desktop can do at all:
-the files under the scripts root, the native dialogs, `kaja://` links, and the
+the native dialogs, revealing a file in Finder, `kaja://` links, and the
 resolved variables a script may read because the UI is inside this process.
-None of it is a call.
+None of it is a call. The scripts folder is not among them — it is the Api
+service's, on the lane above, so the window's sidebar and a browser's reach it
+by the same call and the writes are refused by the one process that owns the
+workspace rather than by the platform the UI happens to be on.
 
 ## What never crosses which line
 

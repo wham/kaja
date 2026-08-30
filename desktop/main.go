@@ -116,8 +116,9 @@ func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, workspaceD
 		workspaceDir:  workspaceDir,
 	}
 	// One session, one window, and no proxy between an agent and this process: the same
-	// switchboard the web runs, with the two answers only the desktop can give.
-	app.agents = agent.NewRegistry(desktopScripts{app}, agent.Direct)
+	// switchboard the web runs, over the same scripts folder the window's own sidebar
+	// reads, and answering at once because nothing sits in front of it.
+	app.agents = agent.NewRegistry(agent.NewWorkspaceScripts(apiService), agent.Direct)
 	return app
 }
 

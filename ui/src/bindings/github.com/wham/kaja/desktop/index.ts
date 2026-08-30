@@ -7,6 +7,5 @@ export {
 };
 
 export {
-    MCPInfo,
-    ScriptFile
+    MCPInfo
 } from "./models.js";

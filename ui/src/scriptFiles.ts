@@ -1,65 +1,59 @@
 import { Script, scriptName } from "./apps";
 import { getApiClient } from "./server/connection";
-import { desktop, isWailsEnvironment } from "./wails";
+import { Runtime, Script as WireScript } from "./server/api";
 
 /**
- * The workspace's `scripts` folder, whichever process is holding the disk. The
- * desktop app opens the files itself; a browser goes through the server, which
- * is what puts a script mounted into a container in the sidebar
- * (`docker run -v .../workspace:/workspace`).
+ * The workspace's `scripts` folder, whichever process is holding the disk. Both
+ * builds reach it the same way: the desktop's window fetches these calls over
+ * the mux its webview already speaks, a browser fetches them over the wire, and
+ * whichever process opened the workspace is the one that reads and writes it.
  *
- * Only the reads are on both. Saving, renaming, moving, deleting and making a
- * folder stay Wails-only, on the rule the configuration already follows: a
- * server serving a workspace it does not own doesn't offer the verbs that write
- * it. So a script on the web is a file you can read and run, and
- * `canWriteScripts` is what the rest of the UI asks rather than asking which
- * platform it is on.
+ * The reads are always offered. The writes are refused where this kaja does not
+ * own the workspace it serves — the rule the configuration already follows — so
+ * a script on a deployed kaja is a file you can read and run.
  */
-export function canWriteScripts(): boolean {
-  return isWailsEnvironment();
+
+/**
+ * Whether this kaja may write the workspace it opened. It is the one question
+ * the process answers at startup and the configuration already reports: the
+ * scripts folder and kaja.json are both in that workspace, so a kaja that may
+ * not write one may not write the other.
+ */
+export function canWriteScripts(runtime: Runtime): boolean {
+  return runtime.canUpdateConfiguration;
+}
+
+function toScript(script: WireScript): Script {
+  return { path: script.path, name: script.name, folder: script.folder };
 }
 
 export async function listScriptFiles(): Promise<Script[]> {
-  if (isWailsEnvironment()) {
-    const list = await (await desktop()).ListScripts();
-    return (list ?? []).map((script) => ({ path: script.path, name: script.name, folder: script.folder ?? "" }));
-  }
   const { response } = await getApiClient().listScripts({});
-  return response.scripts.map((script) => ({ path: script.path, name: script.name, folder: script.folder }));
+  return response.scripts.map(toScript);
 }
 
 /**
  * Every directory under the scripts root. A folder holding nothing has no file
- * to be inferred from, so it has to be listed of its own — and only the desktop
- * can make one, so only the desktop asks.
+ * to be inferred from, so it has to be listed of its own.
  */
 export async function listScriptFolders(): Promise<string[]> {
-  if (!isWailsEnvironment()) return [];
-  return (await (await desktop()).ListScriptFolders()) ?? [];
+  const { response } = await getApiClient().listScriptFolders({});
+  return response.folders;
 }
 
 /**
- * Reads one script. Both sides take the script's name within the folder — the
- * desktop resolves it inside the folder just as the server does, because a path
- * is a name to resolve rather than a handle to follow.
+ * Reads one script by its name within the folder — a path is a name to resolve
+ * rather than a handle to follow.
  */
 export async function readScriptFile(script: Script): Promise<{ script: Script; content: string } | undefined> {
-  if (isWailsEnvironment()) {
-    const file = await (await desktop()).ReadScriptFile(scriptName(script));
-    if (!file) return undefined;
-    return { script: { path: file.path, name: file.name, folder: file.folder ?? "" }, content: file.content };
-  }
   const { response } = await getApiClient().readScript({ name: scriptName(script) });
   if (!response.script) return undefined;
-  return {
-    script: { path: response.script.path, name: response.script.name, folder: response.script.folder },
-    content: response.script.content,
-  };
+  return { script: toScript(response.script), content: response.script.content };
 }
 
 /** Writes a file that already exists. Creating one is the other verb. */
 export async function writeScriptFile(script: Script, content: string): Promise<void> {
-  await (await desktop()).WriteScriptFile(scriptName(script), content);
+  await getApiClient().writeScript({ name: scriptName(script), content });
 }
 
 /**
@@ -68,28 +62,30 @@ export async function writeScriptFile(script: Script, content: string): Promise<
  * somewhere new needs no trip to the sidebar first.
  */
 export async function createScriptFile(name: string, folder: string, content: string): Promise<Script> {
-  const file = await (await desktop()).CreateScript(folder ? `${folder}/${name}` : name, content);
-  return { path: file!.path, name: file!.name, folder: file!.folder ?? "" };
+  const { response } = await getApiClient().createScript({ name: folder ? `${folder}/${name}` : name, content });
+  return toScript(response.script!);
 }
 
 /** Renames a file, and moves it when the new name carries a different folder. */
 export async function renameScriptFile(script: Script, name: string, folder: string): Promise<Script> {
-  const file = await (await desktop()).RenameScript(scriptName(script), folder ? `${folder}/${name}` : name);
-  return { path: file!.path, name: file!.name, folder: file!.folder ?? "" };
+  const { response } = await getApiClient().renameScript({ name: scriptName(script), newName: folder ? `${folder}/${name}` : name });
+  return toScript(response.script!);
 }
 
 export async function deleteScriptFile(script: Script): Promise<void> {
-  await (await desktop()).DeleteScript(scriptName(script));
+  await getApiClient().deleteScript({ name: scriptName(script) });
 }
 
 export async function createScriptFolder(path: string): Promise<string> {
-  return await (await desktop()).CreateScriptFolder(path);
+  const { response } = await getApiClient().createScriptFolder({ name: path });
+  return response.folder;
 }
 
 export async function renameScriptFolder(path: string, name: string): Promise<string> {
-  return await (await desktop()).RenameScriptFolder(path, name);
+  const { response } = await getApiClient().renameScriptFolder({ name: path, newName: name });
+  return response.folder;
 }
 
 export async function deleteScriptFolder(path: string): Promise<void> {
-  await (await desktop()).DeleteScriptFolder(path);
+  await getApiClient().deleteScriptFolder({ name: path });
 }

@@ -2199,9 +2199,10 @@ func (x *GetConfigurationResponse) GetRuntime() *Runtime {
 // kaja.json, and never accepted as input.
 type Runtime struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the UI can write to the configuration file. True in the desktop app,
-	// which owns its workspace; false in the server, which serves a workspace
-	// managed outside kaja - unless it was started with --editable.
+	// Whether this kaja may write the workspace it opened - kaja.json and the
+	// scripts folder beside it alike. True in the desktop app, which owns its
+	// workspace; false in the server, which serves a workspace managed outside
+	// kaja - unless it was started with --editable.
 	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
 	// Git commit hash or tag for the currently running version
 	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
@@ -2212,8 +2213,11 @@ type Runtime struct {
 	// usable keyring, where "${secret}" variables can only come from the
 	// environment.
 	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// The scripts folder on the machine serving the workspace, for the one thing
+	// the UI needs the folder itself for: revealing it in the system file browser.
+	ScriptsFolder string `protobuf:"bytes,5,opt,name=scripts_folder,json=scriptsFolder,proto3" json:"scripts_folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Runtime) Reset() {
@@ -2272,6 +2276,13 @@ func (x *Runtime) GetVariableStoreAvailable() bool {
 		return x.VariableStoreAvailable
 	}
 	return false
+}
+
+func (x *Runtime) GetScriptsFolder() string {
+	if x != nil {
+		return x.ScriptsFolder
+	}
+	return ""
 }
 
 // VariableStatus reports where a variable's value came from. A variable whose
@@ -2483,12 +2494,11 @@ func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
 }
 
 // A script the workspace ships: a .ts file anywhere under the `scripts` folder
-// beside kaja.json. The desktop app reads that folder off disk directly; these
-// two RPCs are how a browser reaches the same folder, which is what puts a
-// script mounted into a container in the sidebar. The server never writes one -
-// saving is the verb a workspace it does not own doesn't offer - so there is no
-// counterpart to the desktop's write, create, rename and delete, and no way for
-// a browser to make a folder either.
+// beside kaja.json. Both builds reach it here - the desktop's window fetches
+// these RPCs over the mux its webview already speaks, a browser fetches them
+// over the wire - which is what puts a script mounted into a container in the
+// sidebar. Writing is the verb a kaja that does not own its workspace refuses,
+// on the one answer `can_update_configuration` reports.
 type Script struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Absolute path on the machine serving the workspace. It identifies the script
@@ -2643,9 +2653,11 @@ func (x *ListScriptsResponse) GetScripts() []*Script {
 	return nil
 }
 
-// ReadScript reads one script by its name within the scripts folder, which may
-// name a folder ("reports/churn.ts"). It is never joined onto anything: it is
-// resolved inside the scripts folder, which is the whole access boundary.
+// A name is a path within the scripts folder ("reports/churn.ts"), or the
+// absolute path a listing reported, which is the same name said in full. Either
+// way it is never joined onto anything: it is reduced to a relative path and
+// opened through an os.Root over the scripts folder, which is the whole access
+// boundary.
 type ReadScriptRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -2734,6 +2746,734 @@ func (x *ReadScriptResponse) GetScript() *Script {
 	return nil
 }
 
+// WriteScript writes content back to a script that already exists. Creating one
+// is the other verb.
+type WriteScriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteScriptRequest) Reset() {
+	*x = WriteScriptRequest{}
+	mi := &file_proto_api_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteScriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteScriptRequest) ProtoMessage() {}
+
+func (x *WriteScriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteScriptRequest.ProtoReflect.Descriptor instead.
+func (*WriteScriptRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *WriteScriptRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *WriteScriptRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type WriteScriptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Script        *Script                `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteScriptResponse) Reset() {
+	*x = WriteScriptResponse{}
+	mi := &file_proto_api_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteScriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteScriptResponse) ProtoMessage() {}
+
+func (x *WriteScriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteScriptResponse.ProtoReflect.Descriptor instead.
+func (*WriteScriptResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *WriteScriptResponse) GetScript() *Script {
+	if x != nil {
+		return x.Script
+	}
+	return nil
+}
+
+// CreateScript writes a new script. The name may name a folder, which is created
+// if it isn't there, and a `.ts` extension is added if the name doesn't carry
+// one - naming a draft asks for a name, not for a filename.
+type CreateScriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScriptRequest) Reset() {
+	*x = CreateScriptRequest{}
+	mi := &file_proto_api_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScriptRequest) ProtoMessage() {}
+
+func (x *CreateScriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScriptRequest.ProtoReflect.Descriptor instead.
+func (*CreateScriptRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CreateScriptRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateScriptRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type CreateScriptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Script        *Script                `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScriptResponse) Reset() {
+	*x = CreateScriptResponse{}
+	mi := &file_proto_api_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScriptResponse) ProtoMessage() {}
+
+func (x *CreateScriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScriptResponse.ProtoReflect.Descriptor instead.
+func (*CreateScriptResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *CreateScriptResponse) GetScript() *Script {
+	if x != nil {
+		return x.Script
+	}
+	return nil
+}
+
+// RenameScript renames a script and, when the new name carries a folder, moves
+// it there. Renaming and moving are one operation because on disk they are one:
+// the file's path is its name.
+type RenameScriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	NewName       string                 `protobuf:"bytes,2,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameScriptRequest) Reset() {
+	*x = RenameScriptRequest{}
+	mi := &file_proto_api_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameScriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameScriptRequest) ProtoMessage() {}
+
+func (x *RenameScriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameScriptRequest.ProtoReflect.Descriptor instead.
+func (*RenameScriptRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *RenameScriptRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RenameScriptRequest) GetNewName() string {
+	if x != nil {
+		return x.NewName
+	}
+	return ""
+}
+
+type RenameScriptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Script        *Script                `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameScriptResponse) Reset() {
+	*x = RenameScriptResponse{}
+	mi := &file_proto_api_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameScriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameScriptResponse) ProtoMessage() {}
+
+func (x *RenameScriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameScriptResponse.ProtoReflect.Descriptor instead.
+func (*RenameScriptResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *RenameScriptResponse) GetScript() *Script {
+	if x != nil {
+		return x.Script
+	}
+	return nil
+}
+
+type DeleteScriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScriptRequest) Reset() {
+	*x = DeleteScriptRequest{}
+	mi := &file_proto_api_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScriptRequest) ProtoMessage() {}
+
+func (x *DeleteScriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScriptRequest.ProtoReflect.Descriptor instead.
+func (*DeleteScriptRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *DeleteScriptRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type DeleteScriptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScriptResponse) Reset() {
+	*x = DeleteScriptResponse{}
+	mi := &file_proto_api_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScriptResponse) ProtoMessage() {}
+
+func (x *DeleteScriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScriptResponse.ProtoReflect.Descriptor instead.
+func (*DeleteScriptResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{43}
+}
+
+// ListScriptFolders returns every directory under the scripts root, relative and
+// slash-separated. An empty one is in the list: it is a directory, not a UI
+// grouping, so it has no file to be inferred from.
+type ListScriptFoldersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScriptFoldersRequest) Reset() {
+	*x = ListScriptFoldersRequest{}
+	mi := &file_proto_api_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScriptFoldersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScriptFoldersRequest) ProtoMessage() {}
+
+func (x *ListScriptFoldersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScriptFoldersRequest.ProtoReflect.Descriptor instead.
+func (*ListScriptFoldersRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{44}
+}
+
+type ListScriptFoldersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Folders       []string               `protobuf:"bytes,1,rep,name=folders,proto3" json:"folders,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScriptFoldersResponse) Reset() {
+	*x = ListScriptFoldersResponse{}
+	mi := &file_proto_api_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScriptFoldersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScriptFoldersResponse) ProtoMessage() {}
+
+func (x *ListScriptFoldersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScriptFoldersResponse.ProtoReflect.Descriptor instead.
+func (*ListScriptFoldersResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ListScriptFoldersResponse) GetFolders() []string {
+	if x != nil {
+		return x.Folders
+	}
+	return nil
+}
+
+type CreateScriptFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScriptFolderRequest) Reset() {
+	*x = CreateScriptFolderRequest{}
+	mi := &file_proto_api_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScriptFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScriptFolderRequest) ProtoMessage() {}
+
+func (x *CreateScriptFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScriptFolderRequest.ProtoReflect.Descriptor instead.
+func (*CreateScriptFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *CreateScriptFolderRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateScriptFolderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Folder        string                 `protobuf:"bytes,1,opt,name=folder,proto3" json:"folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScriptFolderResponse) Reset() {
+	*x = CreateScriptFolderResponse{}
+	mi := &file_proto_api_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScriptFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScriptFolderResponse) ProtoMessage() {}
+
+func (x *CreateScriptFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScriptFolderResponse.ProtoReflect.Descriptor instead.
+func (*CreateScriptFolderResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *CreateScriptFolderResponse) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+// RenameScriptFolder takes a folder name, not a path: a folder is renamed where
+// it is, and moving one is not offered.
+type RenameScriptFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	NewName       string                 `protobuf:"bytes,2,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameScriptFolderRequest) Reset() {
+	*x = RenameScriptFolderRequest{}
+	mi := &file_proto_api_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameScriptFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameScriptFolderRequest) ProtoMessage() {}
+
+func (x *RenameScriptFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameScriptFolderRequest.ProtoReflect.Descriptor instead.
+func (*RenameScriptFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RenameScriptFolderRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RenameScriptFolderRequest) GetNewName() string {
+	if x != nil {
+		return x.NewName
+	}
+	return ""
+}
+
+type RenameScriptFolderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Folder        string                 `protobuf:"bytes,1,opt,name=folder,proto3" json:"folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameScriptFolderResponse) Reset() {
+	*x = RenameScriptFolderResponse{}
+	mi := &file_proto_api_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameScriptFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameScriptFolderResponse) ProtoMessage() {}
+
+func (x *RenameScriptFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameScriptFolderResponse.ProtoReflect.Descriptor instead.
+func (*RenameScriptFolderResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *RenameScriptFolderResponse) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+// DeleteScriptFolder removes a folder and everything filed there. What that costs
+// is named in the confirmation rather than refused here, and a folder that is
+// already gone is not a failure - the act asked for is done.
+type DeleteScriptFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScriptFolderRequest) Reset() {
+	*x = DeleteScriptFolderRequest{}
+	mi := &file_proto_api_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScriptFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScriptFolderRequest) ProtoMessage() {}
+
+func (x *DeleteScriptFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScriptFolderRequest.ProtoReflect.Descriptor instead.
+func (*DeleteScriptFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *DeleteScriptFolderRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type DeleteScriptFolderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScriptFolderResponse) Reset() {
+	*x = DeleteScriptFolderResponse{}
+	mi := &file_proto_api_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScriptFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScriptFolderResponse) ProtoMessage() {}
+
+func (x *DeleteScriptFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScriptFolderResponse.ProtoReflect.Descriptor instead.
+func (*DeleteScriptFolderResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{51}
+}
+
 type Configuration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
@@ -2758,7 +3498,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[36]
+	mi := &file_proto_api_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2770,7 +3510,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[36]
+	mi := &file_proto_api_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2783,7 +3523,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{36}
+	return file_proto_api_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -2829,7 +3569,7 @@ type ConfigurationApp struct {
 
 func (x *ConfigurationApp) Reset() {
 	*x = ConfigurationApp{}
-	mi := &file_proto_api_proto_msgTypes[37]
+	mi := &file_proto_api_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2841,7 +3581,7 @@ func (x *ConfigurationApp) String() string {
 func (*ConfigurationApp) ProtoMessage() {}
 
 func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[37]
+	mi := &file_proto_api_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2854,7 +3594,7 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
 func (*ConfigurationApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{37}
+	return file_proto_api_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ConfigurationApp) GetName() string {
@@ -3008,7 +3748,7 @@ type GrpcApp struct {
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[38]
+	mi := &file_proto_api_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3020,7 +3760,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[38]
+	mi := &file_proto_api_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3033,7 +3773,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{38}
+	return file_proto_api_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -3146,7 +3886,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[39]
+	mi := &file_proto_api_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3158,7 +3898,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[39]
+	mi := &file_proto_api_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3171,7 +3911,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{39}
+	return file_proto_api_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -3223,7 +3963,7 @@ type OpenApiApp struct {
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[40]
+	mi := &file_proto_api_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3235,7 +3975,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[40]
+	mi := &file_proto_api_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3248,7 +3988,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{40}
+	return file_proto_api_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -3348,7 +4088,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[41]
+	mi := &file_proto_api_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3360,7 +4100,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[41]
+	mi := &file_proto_api_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3373,7 +4113,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{41}
+	return file_proto_api_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -3429,7 +4169,7 @@ type FolderApp struct {
 
 func (x *FolderApp) Reset() {
 	*x = FolderApp{}
-	mi := &file_proto_api_proto_msgTypes[42]
+	mi := &file_proto_api_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3441,7 +4181,7 @@ func (x *FolderApp) String() string {
 func (*FolderApp) ProtoMessage() {}
 
 func (x *FolderApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[42]
+	mi := &file_proto_api_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3454,7 +4194,7 @@ func (x *FolderApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FolderApp.ProtoReflect.Descriptor instead.
 func (*FolderApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{42}
+	return file_proto_api_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *FolderApp) GetPath() string {
@@ -3490,7 +4230,7 @@ type McpApp struct {
 
 func (x *McpApp) Reset() {
 	*x = McpApp{}
-	mi := &file_proto_api_proto_msgTypes[43]
+	mi := &file_proto_api_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3502,7 +4242,7 @@ func (x *McpApp) String() string {
 func (*McpApp) ProtoMessage() {}
 
 func (x *McpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[43]
+	mi := &file_proto_api_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3515,7 +4255,7 @@ func (x *McpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpApp.ProtoReflect.Descriptor instead.
 func (*McpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{43}
+	return file_proto_api_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *McpApp) GetUrl() string {
@@ -3562,7 +4302,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[44]
+	mi := &file_proto_api_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3574,7 +4314,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[44]
+	mi := &file_proto_api_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3587,7 +4327,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{44}
+	return file_proto_api_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -3608,7 +4348,7 @@ type UpdateConfigurationResponse struct {
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[45]
+	mi := &file_proto_api_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3620,7 +4360,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[45]
+	mi := &file_proto_api_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3633,7 +4373,7 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{45}
+	return file_proto_api_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
@@ -3776,12 +4516,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
 	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
-	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xb9\x01\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xe0\x01\n" +
 	"\aRuntime\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
 	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
-	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\"h\n" +
+	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12%\n" +
+	"\x0escripts_folder\x18\x05 \x01(\tR\rscriptsFolder\"h\n" +
 	"\x0eVariableStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
 	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
@@ -3804,7 +4545,40 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x11ReadScriptRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"5\n" +
 	"\x12ReadScriptResponse\x12\x1f\n" +
-	"\x06script\x18\x01 \x01(\v2\a.ScriptR\x06script\"\xf0\x01\n" +
+	"\x06script\x18\x01 \x01(\v2\a.ScriptR\x06script\"B\n" +
+	"\x12WriteScriptRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"6\n" +
+	"\x13WriteScriptResponse\x12\x1f\n" +
+	"\x06script\x18\x01 \x01(\v2\a.ScriptR\x06script\"C\n" +
+	"\x13CreateScriptRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"7\n" +
+	"\x14CreateScriptResponse\x12\x1f\n" +
+	"\x06script\x18\x01 \x01(\v2\a.ScriptR\x06script\"D\n" +
+	"\x13RenameScriptRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
+	"\bnew_name\x18\x02 \x01(\tR\anewName\"7\n" +
+	"\x14RenameScriptResponse\x12\x1f\n" +
+	"\x06script\x18\x01 \x01(\v2\a.ScriptR\x06script\")\n" +
+	"\x13DeleteScriptRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x16\n" +
+	"\x14DeleteScriptResponse\"\x1a\n" +
+	"\x18ListScriptFoldersRequest\"5\n" +
+	"\x19ListScriptFoldersResponse\x12\x18\n" +
+	"\afolders\x18\x01 \x03(\tR\afolders\"/\n" +
+	"\x19CreateScriptFolderRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"4\n" +
+	"\x1aCreateScriptFolderResponse\x12\x16\n" +
+	"\x06folder\x18\x01 \x01(\tR\x06folder\"J\n" +
+	"\x19RenameScriptFolderRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
+	"\bnew_name\x18\x02 \x01(\tR\anewName\"4\n" +
+	"\x1aRenameScriptFolderResponse\x12\x16\n" +
+	"\x06folder\x18\x01 \x01(\tR\x06folder\"/\n" +
+	"\x19DeleteScriptFolderRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x1c\n" +
+	"\x1aDeleteScriptFolderResponse\"\xf0\x01\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
@@ -3950,7 +4724,8 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xf6\x05\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xa0\n" +
+	"\n" +
 	"\x03Api\x12.\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
@@ -3965,7 +4740,15 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x10ClearStoredValue\x12\x18.ClearStoredValueRequest\x1a\x14.StoredValueResponse\x128\n" +
 	"\vListScripts\x12\x13.ListScriptsRequest\x1a\x14.ListScriptsResponse\x125\n" +
 	"\n" +
-	"ReadScript\x12\x12.ReadScriptRequest\x1a\x13.ReadScriptResponseB\tZ\apkg/apib\x06proto3"
+	"ReadScript\x12\x12.ReadScriptRequest\x1a\x13.ReadScriptResponse\x128\n" +
+	"\vWriteScript\x12\x13.WriteScriptRequest\x1a\x14.WriteScriptResponse\x12;\n" +
+	"\fCreateScript\x12\x14.CreateScriptRequest\x1a\x15.CreateScriptResponse\x12;\n" +
+	"\fRenameScript\x12\x14.RenameScriptRequest\x1a\x15.RenameScriptResponse\x12;\n" +
+	"\fDeleteScript\x12\x14.DeleteScriptRequest\x1a\x15.DeleteScriptResponse\x12J\n" +
+	"\x11ListScriptFolders\x12\x19.ListScriptFoldersRequest\x1a\x1a.ListScriptFoldersResponse\x12M\n" +
+	"\x12CreateScriptFolder\x12\x1a.CreateScriptFolderRequest\x1a\x1b.CreateScriptFolderResponse\x12M\n" +
+	"\x12RenameScriptFolder\x12\x1a.RenameScriptFolderRequest\x1a\x1b.RenameScriptFolderResponse\x12M\n" +
+	"\x12DeleteScriptFolder\x12\x1a.DeleteScriptFolderRequest\x1a\x1b.DeleteScriptFolderResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -3980,7 +4763,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
 	(GrpcProblemKind)(0),                // 1: GrpcProblemKind
@@ -4025,40 +4808,56 @@ var file_proto_api_proto_goTypes = []any{
 	(*ListScriptsResponse)(nil),         // 40: ListScriptsResponse
 	(*ReadScriptRequest)(nil),           // 41: ReadScriptRequest
 	(*ReadScriptResponse)(nil),          // 42: ReadScriptResponse
-	(*Configuration)(nil),               // 43: Configuration
-	(*ConfigurationApp)(nil),            // 44: ConfigurationApp
-	(*GrpcApp)(nil),                     // 45: GrpcApp
-	(*TwirpApp)(nil),                    // 46: TwirpApp
-	(*OpenApiApp)(nil),                  // 47: OpenApiApp
-	(*OpenAiApp)(nil),                   // 48: OpenAiApp
-	(*FolderApp)(nil),                   // 49: FolderApp
-	(*McpApp)(nil),                      // 50: McpApp
-	(*UpdateConfigurationRequest)(nil),  // 51: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 52: UpdateConfigurationResponse
-	nil,                                 // 53: Configuration.VariablesEntry
-	nil,                                 // 54: GrpcApp.HeadersEntry
-	nil,                                 // 55: TwirpApp.HeadersEntry
-	nil,                                 // 56: OpenApiApp.HeadersEntry
-	nil,                                 // 57: OpenAiApp.HeadersEntry
-	nil,                                 // 58: McpApp.HeadersEntry
+	(*WriteScriptRequest)(nil),          // 43: WriteScriptRequest
+	(*WriteScriptResponse)(nil),         // 44: WriteScriptResponse
+	(*CreateScriptRequest)(nil),         // 45: CreateScriptRequest
+	(*CreateScriptResponse)(nil),        // 46: CreateScriptResponse
+	(*RenameScriptRequest)(nil),         // 47: RenameScriptRequest
+	(*RenameScriptResponse)(nil),        // 48: RenameScriptResponse
+	(*DeleteScriptRequest)(nil),         // 49: DeleteScriptRequest
+	(*DeleteScriptResponse)(nil),        // 50: DeleteScriptResponse
+	(*ListScriptFoldersRequest)(nil),    // 51: ListScriptFoldersRequest
+	(*ListScriptFoldersResponse)(nil),   // 52: ListScriptFoldersResponse
+	(*CreateScriptFolderRequest)(nil),   // 53: CreateScriptFolderRequest
+	(*CreateScriptFolderResponse)(nil),  // 54: CreateScriptFolderResponse
+	(*RenameScriptFolderRequest)(nil),   // 55: RenameScriptFolderRequest
+	(*RenameScriptFolderResponse)(nil),  // 56: RenameScriptFolderResponse
+	(*DeleteScriptFolderRequest)(nil),   // 57: DeleteScriptFolderRequest
+	(*DeleteScriptFolderResponse)(nil),  // 58: DeleteScriptFolderResponse
+	(*Configuration)(nil),               // 59: Configuration
+	(*ConfigurationApp)(nil),            // 60: ConfigurationApp
+	(*GrpcApp)(nil),                     // 61: GrpcApp
+	(*TwirpApp)(nil),                    // 62: TwirpApp
+	(*OpenApiApp)(nil),                  // 63: OpenApiApp
+	(*OpenAiApp)(nil),                   // 64: OpenAiApp
+	(*FolderApp)(nil),                   // 65: FolderApp
+	(*McpApp)(nil),                      // 66: McpApp
+	(*UpdateConfigurationRequest)(nil),  // 67: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 68: UpdateConfigurationResponse
+	nil,                                 // 69: Configuration.VariablesEntry
+	nil,                                 // 70: GrpcApp.HeadersEntry
+	nil,                                 // 71: TwirpApp.HeadersEntry
+	nil,                                 // 72: OpenApiApp.HeadersEntry
+	nil,                                 // 73: OpenAiApp.HeadersEntry
+	nil,                                 // 74: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	44, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	60, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
 	28, // 2: OpenAppResponse.logs:type_name -> Log
-	45, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
+	61, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
 	12, // 4: InspectGrpcResponse.server:type_name -> GrpcServer
 	14, // 5: InspectGrpcResponse.problem:type_name -> GrpcProblem
 	13, // 6: GrpcServer.services:type_name -> GrpcService
 	1,  // 7: GrpcProblem.kind:type_name -> GrpcProblemKind
-	47, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	63, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
 	17, // 9: InspectOpenApiResponse.document:type_name -> OpenApiDocument
 	21, // 10: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
 	18, // 11: OpenApiDocument.servers:type_name -> OpenApiServer
 	20, // 12: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
 	19, // 13: OpenApiServer.variables:type_name -> OpenApiServerVariable
 	2,  // 14: OpenApiProblem.kind:type_name -> OpenApiProblemKind
-	50, // 15: InspectMcpRequest.mcp:type_name -> McpApp
+	66, // 15: InspectMcpRequest.mcp:type_name -> McpApp
 	24, // 16: InspectMcpResponse.server:type_name -> McpServer
 	26, // 17: InspectMcpResponse.problem:type_name -> McpProblem
 	25, // 18: McpServer.tools:type_name -> McpTool
@@ -4067,7 +4866,7 @@ var file_proto_api_proto_depIdxs = []int32{
 	28, // 21: CompileResponse.logs:type_name -> Log
 	29, // 22: CompileResponse.sources:type_name -> Source
 	5,  // 23: Log.level:type_name -> LogLevel
-	43, // 24: GetConfigurationResponse.configuration:type_name -> Configuration
+	59, // 24: GetConfigurationResponse.configuration:type_name -> Configuration
 	28, // 25: GetConfigurationResponse.logs:type_name -> Log
 	34, // 26: GetConfigurationResponse.variable_status:type_name -> VariableStatus
 	33, // 27: GetConfigurationResponse.runtime:type_name -> Runtime
@@ -4075,51 +4874,70 @@ var file_proto_api_proto_depIdxs = []int32{
 	34, // 29: StoredValueResponse.variable_status:type_name -> VariableStatus
 	38, // 30: ListScriptsResponse.scripts:type_name -> Script
 	38, // 31: ReadScriptResponse.script:type_name -> Script
-	44, // 32: Configuration.apps:type_name -> ConfigurationApp
-	53, // 33: Configuration.variables:type_name -> Configuration.VariablesEntry
-	45, // 34: ConfigurationApp.grpc:type_name -> GrpcApp
-	46, // 35: ConfigurationApp.twirp:type_name -> TwirpApp
-	47, // 36: ConfigurationApp.openapi:type_name -> OpenApiApp
-	48, // 37: ConfigurationApp.openai:type_name -> OpenAiApp
-	49, // 38: ConfigurationApp.folder:type_name -> FolderApp
-	50, // 39: ConfigurationApp.mcp:type_name -> McpApp
-	54, // 40: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	55, // 41: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	56, // 42: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	57, // 43: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	58, // 44: McpApp.headers:type_name -> McpApp.HeadersEntry
-	43, // 45: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	43, // 46: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	34, // 47: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
-	7,  // 48: Api.Compile:input_type -> CompileRequest
-	8,  // 49: Api.OpenApp:input_type -> OpenAppRequest
-	15, // 50: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	10, // 51: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	22, // 52: Api.InspectMcp:input_type -> InspectMcpRequest
-	30, // 53: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	31, // 54: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
-	51, // 55: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	35, // 56: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	36, // 57: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	39, // 58: Api.ListScripts:input_type -> ListScriptsRequest
-	41, // 59: Api.ReadScript:input_type -> ReadScriptRequest
-	27, // 60: Api.Compile:output_type -> CompileResponse
-	9,  // 61: Api.OpenApp:output_type -> OpenAppResponse
-	16, // 62: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	11, // 63: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	23, // 64: Api.InspectMcp:output_type -> InspectMcpResponse
-	32, // 65: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	32, // 66: Api.WatchConfiguration:output_type -> GetConfigurationResponse
-	52, // 67: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	37, // 68: Api.SetStoredValue:output_type -> StoredValueResponse
-	37, // 69: Api.ClearStoredValue:output_type -> StoredValueResponse
-	40, // 70: Api.ListScripts:output_type -> ListScriptsResponse
-	42, // 71: Api.ReadScript:output_type -> ReadScriptResponse
-	60, // [60:72] is the sub-list for method output_type
-	48, // [48:60] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	38, // 32: WriteScriptResponse.script:type_name -> Script
+	38, // 33: CreateScriptResponse.script:type_name -> Script
+	38, // 34: RenameScriptResponse.script:type_name -> Script
+	60, // 35: Configuration.apps:type_name -> ConfigurationApp
+	69, // 36: Configuration.variables:type_name -> Configuration.VariablesEntry
+	61, // 37: ConfigurationApp.grpc:type_name -> GrpcApp
+	62, // 38: ConfigurationApp.twirp:type_name -> TwirpApp
+	63, // 39: ConfigurationApp.openapi:type_name -> OpenApiApp
+	64, // 40: ConfigurationApp.openai:type_name -> OpenAiApp
+	65, // 41: ConfigurationApp.folder:type_name -> FolderApp
+	66, // 42: ConfigurationApp.mcp:type_name -> McpApp
+	70, // 43: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	71, // 44: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	72, // 45: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	73, // 46: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	74, // 47: McpApp.headers:type_name -> McpApp.HeadersEntry
+	59, // 48: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	59, // 49: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	34, // 50: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	7,  // 51: Api.Compile:input_type -> CompileRequest
+	8,  // 52: Api.OpenApp:input_type -> OpenAppRequest
+	15, // 53: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	10, // 54: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	22, // 55: Api.InspectMcp:input_type -> InspectMcpRequest
+	30, // 56: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	31, // 57: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
+	67, // 58: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	35, // 59: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	36, // 60: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	39, // 61: Api.ListScripts:input_type -> ListScriptsRequest
+	41, // 62: Api.ReadScript:input_type -> ReadScriptRequest
+	43, // 63: Api.WriteScript:input_type -> WriteScriptRequest
+	45, // 64: Api.CreateScript:input_type -> CreateScriptRequest
+	47, // 65: Api.RenameScript:input_type -> RenameScriptRequest
+	49, // 66: Api.DeleteScript:input_type -> DeleteScriptRequest
+	51, // 67: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	53, // 68: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	55, // 69: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	57, // 70: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	27, // 71: Api.Compile:output_type -> CompileResponse
+	9,  // 72: Api.OpenApp:output_type -> OpenAppResponse
+	16, // 73: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	11, // 74: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	23, // 75: Api.InspectMcp:output_type -> InspectMcpResponse
+	32, // 76: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	32, // 77: Api.WatchConfiguration:output_type -> GetConfigurationResponse
+	68, // 78: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	37, // 79: Api.SetStoredValue:output_type -> StoredValueResponse
+	37, // 80: Api.ClearStoredValue:output_type -> StoredValueResponse
+	40, // 81: Api.ListScripts:output_type -> ListScriptsResponse
+	42, // 82: Api.ReadScript:output_type -> ReadScriptResponse
+	44, // 83: Api.WriteScript:output_type -> WriteScriptResponse
+	46, // 84: Api.CreateScript:output_type -> CreateScriptResponse
+	48, // 85: Api.RenameScript:output_type -> RenameScriptResponse
+	50, // 86: Api.DeleteScript:output_type -> DeleteScriptResponse
+	52, // 87: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	54, // 88: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	56, // 89: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	58, // 90: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	71, // [71:91] is the sub-list for method output_type
+	51, // [51:71] is the sub-list for method input_type
+	51, // [51:51] is the sub-list for extension type_name
+	51, // [51:51] is the sub-list for extension extendee
+	0,  // [0:51] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -4127,7 +4945,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[37].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[53].OneofWrappers = []any{
 		(*ConfigurationApp_Grpc)(nil),
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
@@ -4141,7 +4959,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   52,
+			NumMessages:   68,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

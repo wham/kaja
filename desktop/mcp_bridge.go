@@ -12,17 +12,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/wham/kaja/v2/pkg/agent"
-	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 // MCP wiring. The switchboard is pkg/agent's, the same one a deployed kaja answers an
 // agent with, and the desktop is its degenerate case: one session on the token this
 // process persists, with one window permanently attached over the mux the webview
-// already fetches its calls on. What is left here is what only this process can do —
-// the disk under the scripts folder, and a loopback listener, because an agent lives
-// in another process and cannot reach a wails:// URL.
+// already fetches its calls on. What is left here is the one thing only this process
+// can do: a loopback listener, because an agent lives in another process and cannot
+// reach a wails:// URL.
 
 // mcpPort is the fixed loopback port the MCP server binds to. Fixed rather than
 // OS-assigned so the connection command shown to the user stays valid across restarts.
@@ -153,67 +150,3 @@ func randomToken(n int) string {
 	}
 	return hex.EncodeToString(b)
 }
-
-// desktopScripts is the scripts folder as the process that owns it reads and writes
-// it, which is the whole of what the desktop's half of the switchboard is.
-//
-// Nothing guards paths here: every one of the App's methods resolves the name it is
-// given inside the scripts folder through an os.Root, which is the whole access
-// boundary and the same one the browser goes through.
-type desktopScripts struct{ app *App }
-
-func (s desktopScripts) List() ([]mcp.ScriptInfo, error) {
-	files, err := s.app.ListScripts()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]mcp.ScriptInfo, 0, len(files))
-	for _, f := range files {
-		out = append(out, mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder})
-	}
-	return out, nil
-}
-
-func (s desktopScripts) Read(path string) (mcp.ScriptInfo, error) {
-	f, err := s.app.ReadScriptFile(path)
-	if err != nil {
-		return mcp.ScriptInfo{}, err
-	}
-	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
-}
-
-func (s desktopScripts) Write(path, content string) (agent.ScriptChange, error) {
-	if err := s.app.WriteScriptFile(path, content); err != nil {
-		return agent.ScriptChange{}, err
-	}
-	return agent.ScriptChange{Action: "write", Path: s.app.scriptPath(path), Content: content}, nil
-}
-
-func (s desktopScripts) Create(name, content string) (agent.ScriptChange, error) {
-	f, err := s.app.CreateScript(name, content)
-	if err != nil {
-		return agent.ScriptChange{}, err
-	}
-	return agent.ScriptChange{Action: "create", Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
-}
-
-func (s desktopScripts) Rename(path, newName string) (agent.ScriptChange, error) {
-	from := s.app.scriptPath(path)
-	f, err := s.app.RenameScript(path, newName)
-	if err != nil {
-		return agent.ScriptChange{}, err
-	}
-	return agent.ScriptChange{Action: "rename", OldPath: from, Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
-}
-
-func (s desktopScripts) Delete(path string) (agent.ScriptChange, error) {
-	resolved := s.app.scriptPath(path)
-	if err := s.app.DeleteScript(path); err != nil {
-		return agent.ScriptChange{}, err
-	}
-	return agent.ScriptChange{Action: "delete", Path: resolved}, nil
-}
-
-// CanWrite is the desktop's answer to the question a deployed kaja answers the other
-// way: this process owns the workspace it opened.
-func (s desktopScripts) CanWrite() bool { return true }
