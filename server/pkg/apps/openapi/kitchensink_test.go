@@ -85,6 +85,9 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`string if_match = 3 [json_name = "If-Match", (kaja.http_in) = "header"];`,
 		// An array body has no message to be, so its envelope stays too.
 		`repeated Report body = 1 [json_name = "body", (kaja.http_payload) = HTTP_PAYLOAD_BODY];`,
+		// A deprecated operation is generated like any other; the mark is what
+		// the tree, the generated call and the agent read it off.
+		"rpc SearchReports(SearchReportsRequest) returns (SearchReportsResponse) {\n    option (kaja.http_request) = \"GET /reports/search\";\n    option deprecated = true;",
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)

@@ -24,6 +24,7 @@ import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
+import { DEPRECATION_NOTE } from "./deprecation";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { useMediaQuery } from "./useMediaQuery";
@@ -348,7 +349,7 @@ export function Sidebar({
                                       }}
                                       onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
                                     >
-                                      <span className={cn(unsupported && "text-muted-foreground")}>{method.name}</span>
+                                      <MethodName name={method.name} unsupported={!!unsupported} deprecated={!!method.deprecated} />
                                       <TreeView.TrailingVisual>
                                         {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
@@ -540,6 +541,15 @@ function UnsupportedMarker({ reason }: { reason: string }) {
       </span>
     </SimpleTooltip>
   );
+}
+
+// A method Kaja won't call is dimmed; one the API deprecated is struck through, the
+// mark the editor already puts on the call it writes. A strikethrough says nothing
+// about who decided it or whether the call still goes out, so the name carries the
+// sentence that does.
+function MethodName({ name, unsupported, deprecated }: { name: string; unsupported: boolean; deprecated: boolean }) {
+  const label = <span className={cn(unsupported && "text-muted-foreground", deprecated && "line-through decoration-muted-foreground")}>{name}</span>;
+  return deprecated ? <SimpleTooltip text={DEPRECATION_NOTE}>{label}</SimpleTooltip> : label;
 }
 
 function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appName: string) => void }) {

@@ -52,6 +52,9 @@ export interface McpMethod {
   // Which way the method streams. Two of the three are directions Kaja does not
   // carry, which is what the note beside the signature says.
   streaming?: StreamingKind;
+  // The API asking callers off this method. It is still callable, so it is a mark
+  // beside the signature rather than something left out of the index.
+  deprecated?: boolean;
   // The generated call, which is the same code clicking the method in the tree
   // writes into a draft — minus the fields the API doesn't insist on, since the
   // declarations are printed above it here and a page of `""` and `0` reads as
@@ -106,6 +109,7 @@ function describeMethod(app: App, service: Service, method: Method): McpMethod {
   if (method.http) described.http = method.http;
   const streaming = streamingKind(method);
   if (streaming) described.streaming = streaming;
+  if (method.deprecated) described.deprecated = true;
   return described;
 }
 

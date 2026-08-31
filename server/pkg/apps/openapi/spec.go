@@ -89,6 +89,10 @@ type operation struct {
 	// Security overrides the document-level requirements for this operation. An
 	// empty (but present) list means the operation needs no credentials.
 	Security []map[string][]string `json:"security"`
+	// Deprecated is the document asking callers to move off the operation. It
+	// still works, so it becomes `option deprecated = true` on the rpc rather
+	// than a reason to leave the operation out.
+	Deprecated bool `json:"deprecated"`
 }
 
 type parameter struct {

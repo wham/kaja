@@ -2084,6 +2084,7 @@ export function App() {
             origin: app.configuration.name,
             icon: FileCode,
             uncallable: unsupportedReason(method, appType(app.configuration)) !== undefined,
+            deprecated: method.deprecated,
             go: () => void onMethodSelect(method, service, app),
           });
         }

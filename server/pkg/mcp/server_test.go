@@ -684,6 +684,45 @@ func TestStreamingIsMarkedByWhatItCosts(t *testing.T) {
 		"streaming: server streaming; the call hands back the last message, and all of them are in the run's log")
 }
 
+// A deprecated method is listed and described like any other - Kaja still calls it -
+// with the API's own note on it, so an agent about to write a script sees it before
+// the call rather than after.
+func TestDeprecatedMethodIsMarkedAndStillDescribed(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.catalog = Catalog{Apps: []CatalogApp{{
+		Name: "pets",
+		Type: "openapi",
+		Services: []CatalogService{{
+			Name:       "Pet",
+			ImportPath: "pets",
+			Methods: []CatalogMethod{
+				{Name: "FindByTags", Signature: "FindByTags(input: Input<FindByTagsRequest>): Call<FindByTagsResponse>", Input: "FindByTagsRequest", Output: "FindByTagsResponse", HTTP: "GET /pet/findByTags", Deprecated: true},
+				{Name: "FindByStatus", Signature: "FindByStatus(input: Input<FindByStatusRequest>): Call<FindByStatusResponse>", Input: "FindByStatusRequest", Output: "FindByStatusResponse", HTTP: "GET /pet/findByStatus"},
+			},
+		}},
+		Declarations: map[string]Declaration{
+			"FindByTagsRequest":    {Name: "FindByTagsRequest", Text: "export interface FindByTagsRequest {\n    tags: string[];\n}"},
+			"FindByTagsResponse":   {Name: "FindByTagsResponse", Text: "export interface FindByTagsResponse {\n    items: string[];\n}"},
+			"FindByStatusRequest":  {Name: "FindByStatusRequest", Text: "export interface FindByStatusRequest {\n    status: string;\n}"},
+			"FindByStatusResponse": {Name: "FindByStatusResponse", Text: "export interface FindByStatusResponse {\n    items: string[];\n}"},
+		},
+	}}}
+	srv := NewServer(bridge, token)
+
+	index := tool(t, srv, "list_services", nil)
+	contains(t, index, "GET /pet/findByTags, deprecated", "FindByStatus")
+	if strings.Count(index, "deprecated") != 1 {
+		t.Errorf("only the deprecated method should be marked:\n%s", index)
+	}
+
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Pet.FindByTags"}),
+		"deprecated: the API asks callers to move off this method",
+		"FindByTags(input: Input<FindByTagsRequest>)")
+	if described := tool(t, srv, "describe_method", map[string]string{"method": "Pet.FindByStatus"}); strings.Contains(described, "deprecated") {
+		t.Errorf("a method the API says nothing about should carry no note:\n%s", described)
+	}
+}
+
 func TestEmptyCatalog(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.catalog = Catalog{}

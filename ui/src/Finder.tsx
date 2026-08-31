@@ -31,6 +31,9 @@ export interface Destination {
   // A call Kaja won't make. Dimmed and marked with the glyph the tree row carries,
   // since the finder is the other list every method is in.
   uncallable?: boolean;
+  // A call the API deprecated. Struck through, as it is in the tree and in the
+  // editor; it is still a call, so nothing else about the row changes.
+  deprecated?: boolean;
   go: () => void;
 }
 
@@ -217,7 +220,11 @@ function DestinationRow({
     >
       <Icon size={13} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
-        className={cn("shrink-0 truncate text-sm", recent && !destination.provisional && !destination.uncallable ? "text-foreground" : "text-muted-foreground")}
+        className={cn(
+          "shrink-0 truncate text-sm",
+          recent && !destination.provisional && !destination.uncallable ? "text-foreground" : "text-muted-foreground",
+          destination.deprecated && "line-through decoration-muted-foreground",
+        )}
       >
         {destination.file ? <FileName name={destination.name} /> : destination.name}
       </span>
