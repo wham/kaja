@@ -94,6 +94,7 @@ type rpcDef struct {
 	// httpRequest is the "<VERB> <path>" the method transcodes to, emitted as
 	// (kaja.http_request).
 	httpRequest string
+	deprecated  bool
 	binding     *methodBinding
 }
 
@@ -278,6 +279,7 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 		output:      output,
 		summary:     op.Summary,
 		httpRequest: strings.ToUpper(vo.verb) + " " + path,
+		deprecated:  op.Deprecated,
 		binding:     binding,
 	})
 }
@@ -989,6 +991,9 @@ func (g *generator) render() string {
 			}
 			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s) {\n", r.name, r.input, r.output)
 			fmt.Fprintf(&b, "    option (kaja.http_request) = %q;\n", r.httpRequest)
+			if r.deprecated {
+				b.WriteString("    option deprecated = true;\n")
+			}
 			b.WriteString("  }\n")
 		}
 		b.WriteString("}\n")

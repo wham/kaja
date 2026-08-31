@@ -66,6 +66,9 @@ type CatalogMethod struct {
 	// The only thing that states whether calling it reads or writes.
 	HTTP      string `json:"http,omitempty"`
 	Streaming string `json:"streaming,omitempty"`
+	// The API asking callers off this method. It is still callable, so it is a mark
+	// on the listing rather than a reason to leave the method out of it.
+	Deprecated bool `json:"deprecated,omitempty"`
 	// The call Kaja writes for this method — the same code clicking it in the tree puts
 	// in a draft.
 	Example string `json:"example"`

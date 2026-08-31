@@ -18,6 +18,7 @@
 # - header parameters, inline and $ref'd, with hyphenated names
 # - an operation whose only input is an object body (no envelope), one whose
 #   body sits beside parameters, and one whose body is an array (envelope kept)
+# - a deprecated operation, which is generated like any other and marked
 # - structured "+json" request content types
 # - a $ref response resolving to an array (mixed-shape union), a text/plain
 #   response, and a 204 empty response
@@ -170,6 +171,26 @@ paths:
       responses:
         "204":
           description: created
+  /reports/search:
+    get:
+      operationId: searchReports
+      tags: [Reports]
+      summary: Search reports by tag
+      deprecated: true
+      parameters:
+        - name: tags
+          in: query
+          required: true
+          schema:
+            type: array
+            items: { type: string }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListReportsResult"
   /status:
     get:
       operationId: getStatus

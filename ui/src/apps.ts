@@ -90,6 +90,9 @@ export interface Method {
   // The HTTP request the method stands for, e.g. "GET /shows", when the app said so.
   // The only thing that states whether calling it reads or writes.
   http?: string;
+  // The API asking callers to move off this method. It is still called, so it is a
+  // mark on the name rather than anything that stands in the way of one.
+  deprecated?: boolean;
 }
 
 export interface Clients {

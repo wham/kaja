@@ -47,6 +47,9 @@ func (c Catalog) describeMethod(resolved resolvedMethod) string {
 	if note := streamingNote(method.Streaming); note != "" {
 		fmt.Fprintf(&b, "streaming: %s\n", note)
 	}
+	if method.Deprecated {
+		b.WriteString("deprecated: the API asks callers to move off this method - Kaja still calls it, so it is worth checking what the API replaced it with before writing a script against it\n")
+	}
 
 	fmt.Fprintf(&b, "\nimport { %s } from %q;\n", resolved.service.Name, resolved.service.ImportPath)
 	fmt.Fprintf(&b, "%s.%s\n", resolved.service.Name, method.Signature)

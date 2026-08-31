@@ -78,6 +78,9 @@ func methodLine(resolved resolvedMethod) string {
 	case "client", "bidirectional":
 		marks = append(marks, "not supported yet")
 	}
+	if method.Deprecated {
+		marks = append(marks, "deprecated")
+	}
 	if len(marks) > 0 {
 		line += "  [" + strings.Join(marks, ", ") + "]"
 	}

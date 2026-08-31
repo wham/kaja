@@ -473,6 +473,15 @@ Server streaming works; client and bidirectional streaming don't, and the senten
 - **Server streaming is called like any other method** and hands back the last message, with all of them in the log. `getOutputType` reads a `ServerStreamingCall`'s message type as well as a `UnaryCall`'s, so the supported kind is typed rather than `Call<unknown>`.
 - **Go says it in its own words** — `list.go`'s `server stream` / `not supported yet` mark, `describe.go`'s note, `run.go`'s advice — on the same split as everything else the MCP server shows. `GrpcForm` says it once with a count when the server is first read.
 
+### A deprecated method is marked, not withheld
+
+The API asking callers off a method says nothing about whether Kaja can make the call, so it is called like any other and the whole of the treatment is a mark on the name. It is the opposite half of the streaming refusal above, and reads as one because of it: dimmed and marked means Kaja won't; struck through means the API would rather you didn't.
+
+- **One channel, whatever the app.** `@deprecated` on the generated client interface's method is where every app says it: protoc-gen-kaja writes it for `option deprecated = true` on an rpc, and an OpenAPI operation's `deprecated: true` becomes that option (`protogen.go`). `isDeprecated` (`ui/src/deprecation.ts`) reads the tag off the JSDoc, so nothing downstream asks which kind of app the method came from. A **method** is the only thing carrying it — a deprecated service or field is left to whatever the API's own description says.
+- **Struck through at full weight, and nothing else changes.** The tree row and the finder row draw the name with a line through it — the mark Monaco already puts on the call it writes — and the row keeps its `+`, its ⌥click and its run.
+- **One sentence, wherever the method is met** (`DEPRECATION_NOTE`): the tree row's tooltip, and a comment over the generated call. It names the API as the one deprecating and says the call still goes out, which is exactly what a strikethrough leaves open.
+- **Go says it in its own words** — a `deprecated` mark in `list.go` and a line in `describe.go` — on the same split as everything else the MCP server shows.
+
 ### OpenAPI apps
 
 `server/pkg/apps/openapi` reads the spec (`sigs.k8s.io/yaml`, JSON or YAML) from `spec_url` or inline `spec_content`, generates one `.proto` plus a per-method HTTP binding manifest, and compiles it with the embedded protoc-go. The upstream base URL comes from the spec's `servers` (relative URLs resolved against the document URL) unless `base_url` overrides it; an **uploaded spec has no document URL**, so it must declare an absolute server or supply `base_url`. Every generated field carries `[json_name = "<openApiName>"]` so proto3-JSON keys match the REST shape. `Invoke` decodes with `dynamicpb`+`protojson`, transcodes to and from REST, then re-encodes.

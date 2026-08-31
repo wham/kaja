@@ -8,6 +8,7 @@ import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
 import { appType } from "./appTypes";
+import { DEPRECATION_NOTE, isDeprecated } from "./deprecation";
 import { unsupportedReason } from "./streaming";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
@@ -29,7 +30,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
     return `// Error: Could not find method info for ${method.name}`;
   }
 
-  return methodEditorCode(methodInfo, service.name, source, app, fields);
+  return methodEditorCode(methodInfo, service.name, source, app, fields, method.deprecated === true);
 }
 
 export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp): Promise<App> {
@@ -68,6 +69,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
         output: signatures[methodInfo.name]?.output,
         doc: signatures[methodInfo.name]?.doc,
         http: httpRequest(methodInfo),
+        deprecated: signatures[methodInfo.name]?.deprecated,
       }));
 
       services.push({
@@ -187,7 +189,7 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
   return undefined;
 }
 
-function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet): string {
+function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet, deprecated: boolean): string {
   const imports = addImport({}, serviceName, source);
   const input = defaultMessage(methodInfo.I, app.sources, imports, new Set(), fields);
 
@@ -238,10 +240,12 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   // The call is written out even where Kaja won't make it, because the request is
   // still what the method takes and reading it is why you clicked. What the editor
   // says about it — the method is not on the service — reads as Kaja having lost the
-  // method, so the line above says whose decision it was.
+  // method, so the line above says whose decision it was. A deprecated method is the
+  // other way round: the editor strikes the call through and says nothing about who
+  // did it, which is what the line above answers.
   const unsupported = unsupportedReason(methodInfo, appType(app.configuration));
-  if (unsupported) {
-    call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + unsupported, true);
+  for (const note of [deprecated ? DEPRECATION_NOTE : undefined, unsupported]) {
+    if (note) call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + note, true);
   }
 
   statements = [
@@ -270,6 +274,7 @@ export interface MethodSignature {
   input: string;
   output: string;
   doc?: string;
+  deprecated?: boolean;
 }
 
 // The client interface names its members in lowerCamelCase, so they are matched back
@@ -296,6 +301,7 @@ function readSignatures(
       input: inputParameter.type.getText(sourceFile),
       output: output ? output.getText(sourceFile) : "unknown",
       doc: docText(member, sourceFile) || undefined,
+      deprecated: isDeprecated(member, sourceFile) || undefined,
     };
   });
 

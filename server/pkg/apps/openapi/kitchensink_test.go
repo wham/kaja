@@ -91,6 +91,9 @@ func TestKitchenSinkSpec(t *testing.T) {
 		// Both Gauge variants declare "kind" as an enum of one, so the merged
 		// field takes both. Nothing about the union is open-ended.
 		`(kaja.enum_values) = "flat", (kaja.enum_values) = "tiered"];`,
+		// A deprecated operation is generated like any other; the mark is what
+		// the tree, the generated call and the agent read it off.
+		"rpc SearchReports(SearchReportsRequest) returns (SearchReportsResponse) {\n    option (kaja.http_request) = \"GET /reports/search\";\n    option deprecated = true;",
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
