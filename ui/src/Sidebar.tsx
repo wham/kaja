@@ -300,7 +300,7 @@ export function Sidebar({
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
-                  <span className="ml-auto flex w-6 shrink-0 items-center justify-center">
+                  <span className="ml-auto -mr-[5px] flex w-6 shrink-0 items-center justify-center">
                     {(touch || active) && (
                       <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
                     )}
