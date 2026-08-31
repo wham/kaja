@@ -10,17 +10,16 @@
  *
  * On the **web** the token is the address of this browser, not a key to the server: it
  * is made up here, never anywhere but this browser's storage, and opens nothing while
- * no window is listening. Until Connect is pressed there is no token, no stream and no
+ * no window is listening. Until the server switch is turned on there is no stream or
  * session. It is the one thing kept in `localStorage` rather than in `storage.ts`,
  * because localStorage is shared between an origin's tabs *and* says when it changes —
  * so connecting in one window attaches the others as they are. The IndexedDB store
  * reads itself once at startup, which would make a second window find out on its next
  * reload.
  *
- * On the **desktop** the process persists the token so the connection command stays
- * valid across restarts, and hands it over (`adopt`). That is the whole of the
- * difference: one window, permanently attached, on the mux the webview already fetches
- * its calls on. There is nothing to connect and nothing to disconnect.
+ * On the **desktop** the process persists the token so installed clients keep working,
+ * and hands it over (`adopt`) while its server is on. That is the whole of the
+ * difference: one window attached on the mux the webview already fetches its calls on.
  */
 
 import { isWailsEnvironment } from "./wails";
@@ -35,7 +34,7 @@ const RECONNECT_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 
 export interface AgentSessionState {
-  /** Whether this server opens the door at all. The desktop's is opened by its process. */
+  /** Whether this build can open an MCP server. */
   available: boolean;
   /** Whether this browser has connected an agent. Shared by every tab. */
   connected: boolean;
@@ -140,7 +139,7 @@ class AgentSession {
 
     window.addEventListener("focus", this.reportFocus);
     document.addEventListener("visibilitychange", this.reportFocus);
-    // The desktop has no token of its own to find: it waits to be handed one.
+    // The desktop waits for the switch to start its server and hand over the token.
     if (isWailsEnvironment()) return;
 
     void this.readAvailability();
@@ -151,7 +150,7 @@ class AgentSession {
   /**
    * Attaches with the token the host process issued rather than one this browser made
    * up. Nothing else about the session differs, which is what makes the desktop the
-   * degenerate case of it: one window, permanently attached.
+   * degenerate case of it: one window attached while the loopback server is on.
    */
   adopt(token: string): void {
     if (this.hostToken === token) return;
@@ -160,7 +159,7 @@ class AgentSession {
     this.attach();
   }
 
-  /** Connects this browser: a token, and a stream in every window that has one. */
+  /** Turns the web server on with a fresh token and a stream in every window. */
   connect(): void {
     const token = readStored()?.token ?? newToken();
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ token } satisfies Stored));
@@ -168,9 +167,9 @@ class AgentSession {
   }
 
   /**
-   * Disconnects and rolls the token, which is the answer to having pasted it somewhere
-   * it should not have gone. The server is told rather than left to time the session
-   * out: until it forgets the token, discovery would go on answering under it.
+   * Turns the web server off and rolls the token. The server is told rather than left
+   * to time the session out: until it forgets the token, discovery would go on
+   * answering under it.
    */
   disconnect(): void {
     const token = readStored()?.token;
@@ -179,6 +178,12 @@ class AgentSession {
     if (token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     }
+  }
+
+  /** Detaches the desktop window when its loopback server is turned off. */
+  releaseHost(): void {
+    this.hostToken = undefined;
+    this.detach();
   }
 
   /** Hands the server what this window says is callable. */

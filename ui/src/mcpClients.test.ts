@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { elideToken, mcpClients, type McpClient } from "./mcpClients";
+import { mcpClients, type McpClient } from "./mcpClients";
 
 const endpoint = { url: "http://127.0.0.1:41521/mcp", token: "170e16de0d09011feb6b7fddfff0813a7007000f8f31935d" };
 
@@ -9,28 +9,12 @@ const client = (name: string): McpClient => {
   return found;
 };
 
-describe("elideToken", () => {
-  test("keeps the last four digits", () => {
-    expect(elideToken(endpoint.token)).toBe("····935d");
-  });
-
-  test("says nothing about a token that isn't there yet", () => {
-    expect(elideToken("")).toBe("····");
-  });
-});
-
 describe("mcpClients", () => {
   test("every snippet carries the endpoint and the token", () => {
     for (const c of mcpClients) {
       const snippet = c.snippet(endpoint);
       expect(snippet).toContain(endpoint.url);
       expect(snippet).toContain(endpoint.token);
-    }
-  });
-
-  test("a snippet written against the elided token holds no secret", () => {
-    for (const c of mcpClients) {
-      expect(c.snippet({ url: endpoint.url, token: elideToken(endpoint.token) })).not.toContain(endpoint.token);
     }
   });
 

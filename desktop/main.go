@@ -99,8 +99,8 @@ type App struct {
 	linksReady   bool
 	pendingLinks []string
 
-	// The switchboard an agent reaches this window through, and the loopback listener
-	// that puts it in front of a process that is not this one. Guarded by mcpMu.
+	// The switchboard an agent reaches this window through, and the optional loopback
+	// listener that puts it in front of a process that is not this one. Guarded by mcpMu.
 	agents    *agent.Registry
 	mcpMu     sync.Mutex
 	mcpServer *http.Server
@@ -135,9 +135,6 @@ func (a *App) attach(app *application.App, window *application.WebviewWindow) {
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
-
-	// The MCP server's lifetime is the process's: the UI only reports it.
-	a.startMCPServer()
 
 	return nil
 }

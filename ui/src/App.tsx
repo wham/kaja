@@ -280,6 +280,7 @@ export function App() {
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
   const [mcpInfo, setMcpInfo] = useState<MCPInfo | undefined>();
+  const mcpRequestRef = useRef(0);
   const [mcpActive, setMcpActive] = useState(false);
   const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
   const mcpConnection = useMemo(() => {
@@ -287,19 +288,54 @@ export function App() {
     if (!agentState.connected || !agentState.url || !agentState.token) return undefined;
     return { enabled: true, url: agentState.url, token: agentState.token, error: "" };
   }, [mcpInfo, agentState.connected, agentState.url, agentState.token]);
-  const agentFooter = useMemo(
+  const setMCPEnabled = useCallback((enabled: boolean) => {
+    if (!isWailsEnvironment()) {
+      if (enabled) agentSession.connect();
+      else agentSession.disconnect();
+      return;
+    }
+    const request = ++mcpRequestRef.current;
+    if (!enabled) agentSession.releaseHost();
+    void desktop()
+      .then((app) => app.SetMCPServerEnabled(enabled))
+      .then((info) => {
+        if (mcpRequestRef.current !== request) return;
+        setMcpInfo(info);
+        if (info.enabled && info.token) agentSession.adopt(info.token);
+        else agentSession.releaseHost();
+      })
+      .catch((err) => {
+        if (mcpRequestRef.current !== request) return;
+        setMcpInfo((current) => ({
+          enabled: false,
+          url: "",
+          token: "",
+          error: rpcErrorMessage(err),
+          configurationPaths: current?.configurationPaths ?? {},
+        }));
+        agentSession.releaseHost();
+      });
+  }, []);
+  const mcpControl = useMemo(
     () =>
-      isWailsEnvironment() || !agentState.available
-        ? undefined
-        : {
-            connected: agentState.connected,
+      isWailsEnvironment()
+        ? {
+            enabled: mcpInfo?.enabled === true,
             attached: agentState.attached,
             onDuty: agentState.onDuty,
-            error: agentState.error,
-            connect: () => agentSession.connect(),
-            disconnect: () => agentSession.disconnect(),
-          },
-    [agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error],
+            error: mcpInfo?.error || agentState.error,
+            setEnabled: setMCPEnabled,
+          }
+        : !agentState.available
+          ? undefined
+          : {
+              enabled: agentState.connected,
+              attached: agentState.attached,
+              onDuty: agentState.onDuty,
+              error: agentState.error,
+              setEnabled: setMCPEnabled,
+            },
+    [mcpInfo, agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled],
   );
   const appsRef = useRef(apps);
   appsRef.current = apps;
@@ -1332,13 +1368,18 @@ export function App() {
   // valid; taking it is how this window attaches to the session that command reaches.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
+    const request = ++mcpRequestRef.current;
     desktop()
       .then((app) => app.MCPServerInfo())
       .then((info) => {
+        if (mcpRequestRef.current !== request) return;
         setMcpInfo(info);
         if (info.enabled && info.token) agentSession.adopt(info.token);
+        else agentSession.releaseHost();
       })
-      .catch((err) => showFileError(`MCP server: ${rpcErrorMessage(err)}`));
+      .catch((err) => {
+        if (mcpRequestRef.current === request) showFileError(`MCP server: ${rpcErrorMessage(err)}`);
+      });
   }, [showFileError]);
 
   // The catalog follows the apps, not the compiler: a change that compiles nothing —
@@ -2414,7 +2455,7 @@ export function App() {
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={mcpConnection}
           mcpActive={mcpActive}
-          agent={agentFooter}
+          mcpControl={mcpControl}
           apps={apps}
           configurationLoaded={configurationLoaded}
           onShowCompileLog={onShowCompileLog}
