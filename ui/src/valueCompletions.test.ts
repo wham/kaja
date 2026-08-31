@@ -23,6 +23,12 @@ const movie = messageType("movies.v1.Movie", [
 
 const getMovieRequest = messageType("movies.v1.GetMovieRequest", [{ name: "id", kind: "scalar", T: ScalarType.STRING }]);
 
+// The app said this field takes one of three words, the way an OpenAPI app carries
+// a document's enum.
+const findMoviesRequest = messageType("movies.v1.FindMoviesRequest", [
+  { name: "status", kind: "scalar", T: ScalarType.STRING, options: { "kaja.enum_values": ["available", "pending", "sold"] } },
+]);
+
 const saveMovieRequest = messageType("movies.v1.SaveMovieRequest", [{ name: "movie", kind: "message", T: () => movie }]);
 
 // An app exposing MoviesService.GetMovie and MoviesService.SaveMovie, shaped
@@ -37,6 +43,7 @@ function moviesApp(): App {
           methods: [
             { name: "GetMovie", I: getMovieRequest, O: movie },
             { name: "SaveMovie", I: saveMovieRequest, O: movie },
+            { name: "FindMovies", I: findMoviesRequest, O: movie },
           ],
         },
       },
@@ -102,6 +109,16 @@ describe("resolveValuePosition", () => {
     expect(position?.scalarType).toBe(ScalarType.STRING);
   });
 
+  it("reads the values the app declared for the field", () => {
+    const position = resolveAt(`${imports}MoviesService.FindMovies({ status: "|" });`);
+
+    expect(position?.declared).toEqual(["available", "pending", "sold"]);
+  });
+
+  it("declares nothing for a field the app said nothing about", () => {
+    expect(resolveAt(`${imports}MoviesService.GetMovie({ id: "|" });`)?.declared).toEqual([]);
+  });
+
   it("ignores the property name side", () => {
     expect(resolveAt(`${imports}MoviesService.GetMovie({ i|d: "" });`)).toBeUndefined();
   });
@@ -147,6 +164,22 @@ describe("suggestValues", () => {
     expect(suggested?.values.map((value) => value.value)).toEqual(["movie-7"]);
     expect(suggested?.values[0].origin).toBe("response");
     expect(suggested?.values[0].typeName).toBe("movies.v1.Movie");
+  });
+
+  it("offers the values the API declares before anything has been called", () => {
+    const suggested = suggestAt(`${imports}MoviesService.FindMovies({ status: "|" });`);
+
+    expect(suggested?.position.declared).toEqual(["available", "pending", "sold"]);
+    expect(suggested?.values).toEqual([]);
+  });
+
+  it("leaves a declared value to the API rather than offering it twice", () => {
+    rememberValues("movies.v1.FindMoviesRequest", { status: "pending" }, findMoviesRequest, { method: "MoviesService.FindMovies", origin: "request" });
+
+    const suggested = suggestAt(`${imports}MoviesService.FindMovies({ status: "|" });`);
+
+    expect(suggested?.position.declared).toEqual(["available", "pending", "sold"]);
+    expect(suggested?.values).toEqual([]);
   });
 
   it("puts what was sent to this exact field first", () => {

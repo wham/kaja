@@ -6,6 +6,7 @@ import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timesta
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
 import { codeFontSize } from "./monacoTheme";
+import { ScalarValue } from "./typeMemory";
 import { suggestValues } from "./valueCompletions";
 
 self.MonacoEnvironment = {
@@ -153,8 +154,10 @@ function escapeForStringLiteral(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
 }
 
-// Values from earlier calls are offered here rather than written into the
-// generated request, so filling a field in stays a deliberate keystroke.
+// The values a field takes are offered here rather than written into the
+// generated request, so filling a field in stays a deliberate keystroke. An API
+// that declares a closed set is where this earns its keep: the one string out of
+// three it accepts is otherwise only in its documentation.
 monaco.languages.registerCompletionItemProvider("typescript", {
   triggerCharacters: ['"', "'", ":", " "],
   provideCompletionItems(model, position) {
@@ -178,15 +181,27 @@ monaco.languages.registerCompletionItemProvider("typescript", {
       range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
     }
 
+    const { typeName, fieldName } = suggested.position;
+    const shortTypeName = typeName.slice(typeName.lastIndexOf(".") + 1);
+
+    // The API's own values first: a document is a better answer than a guess read
+    // off what happened to be sent before.
+    const offered: { value: ScalarValue; detail: string }[] = [
+      ...suggested.position.declared.map((value) => ({ value, detail: `${shortTypeName}.${fieldName} · declared by the API` })),
+      ...suggested.values.map((remembered) => ({
+        value: remembered.value,
+        detail: `${remembered.typeName.slice(remembered.typeName.lastIndexOf(".") + 1)}.${remembered.fieldName} · ${remembered.origin === "request" ? "sent to" : "returned by"} ${remembered.method}`,
+      })),
+    ];
+
     return {
-      suggestions: suggested.values.map((remembered, index) => {
-        const text = String(remembered.value);
-        const typeName = remembered.typeName.slice(remembered.typeName.lastIndexOf(".") + 1);
+      suggestions: offered.map(({ value, detail }, index) => {
+        const text = String(value);
         return {
           label: truncate(text),
           kind: monaco.languages.CompletionItemKind.Value,
-          detail: `${typeName}.${remembered.fieldName} · ${remembered.origin === "request" ? "sent to" : "returned by"} ${remembered.method}`,
-          insertText: stringRange ? escapeForStringLiteral(text) : JSON.stringify(remembered.value),
+          detail,
+          insertText: stringRange ? escapeForStringLiteral(text) : JSON.stringify(value),
           filterText: text,
           sortText: String(index).padStart(3, "0"),
           range,

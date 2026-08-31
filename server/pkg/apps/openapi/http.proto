@@ -11,10 +11,11 @@ syntax = "proto3";
 // from a name the API is free to use itself.
 //
 // The rest of what protobuf has no shape for is the same problem one step out:
-// which HTTP request a method stands for, where a field travels in it, and
-// whether the API insists on it. proto3 makes every field optional and every
-// method look alike, so without these a caller can only guess whether a method
-// reads or writes, and fills in fields it never needed to send.
+// which HTTP request a method stands for, where a field travels in it, whether
+// the API insists on it, and which values it takes. proto3 makes every field
+// optional and every method look alike, so without these a caller can only guess
+// whether a method reads or writes, fills in fields it never needed to send, and
+// has nowhere to read the one string out of three the API accepts.
 package kaja;
 
 import "google/protobuf/descriptor.proto";
@@ -43,6 +44,11 @@ extend google.protobuf.FieldOptions {
   // The API declares this field required. proto3 has no required, so without
   // this every field looks equally optional and a caller sends all of them.
   bool http_required = 79003;
+  // The values the document declares for this field, where it declares a closed
+  // set of them. A proto enum carries identifiers rather than the strings an API
+  // sends, so modeling one as an enum would rename what goes on the wire; the
+  // values are carried beside the field instead, leaving it the string it is.
+  repeated string enum_values = 79004;
 }
 
 extend google.protobuf.MethodOptions {

@@ -366,9 +366,9 @@ func TestParameterRefsAndMaps(t *testing.T) {
 
 	for _, frag := range []string{
 		`int32 page = 1 [json_name = "page", (kaja.http_in) = "query"];`,
-		`string order = 2 [json_name = "order", (kaja.http_in) = "query"];`,
+		`string order = 2 [json_name = "order", (kaja.http_in) = "query", (kaja.enum_values) = "ASC", (kaja.enum_values) = "DESC"];`,
 		`bool include_deleted = 3 [json_name = "includeDeleted", (kaja.http_in) = "query"];`,
-		`string aggregation = 1 [json_name = "aggregation"];`,
+		`string aggregation = 1 [json_name = "aggregation", (kaja.enum_values) = "ASC", (kaja.enum_values) = "DESC"];`,
 		`map<string, string> group_by = 2 [json_name = "groupBy"];`,
 		`map<string, string> metadata = 3 [json_name = "metadata"];`,
 	} {
@@ -937,7 +937,7 @@ func TestUnionSchemas(t *testing.T) {
 		`string amount = 1 [json_name = "amount"];`,
 		`string name = 2 [json_name = "name"];`,
 		`repeated string tiers = 3 [json_name = "tiers"];`,
-		`string type = 4 [json_name = "type"];`,
+		`string type = 4 [json_name = "type", (kaja.enum_values) = "flat", (kaja.enum_values) = "tiered"];`,
 		// text/plain response becomes a string value.
 		`rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse) {`,
 	} {
@@ -1697,6 +1697,9 @@ components:
         slug:
           type: string
           description: Unique identifier of the meter.
+        state:
+          type: string
+          enum: [active, paused]
 `
 	s, err := parseSpec([]byte(spec))
 	if err != nil {
@@ -1730,10 +1733,17 @@ components:
 		t.Fatalf("no service.ts generated from %v", files)
 	}
 
+	// A field carrying values is still the string it was: the set is read beside
+	// the field, never in place of its type.
+	if !strings.Contains(ts, "state: string;") {
+		t.Errorf("declared values must leave the field a string\n---\n%s", ts)
+	}
+
 	for _, frag := range []string{
 		`"kaja.http_request": "GET /meters/{slug}"`,
 		`"kaja.http_in": "path"`,
 		`"kaja.http_required": true`,
+		`"kaja.enum_values": ["active", "paused"]`,
 		// The API's description reaches the generated interface as JSDoc, which is
 		// what the MCP catalog reads a field's doc from.
 		"Unique identifier of the meter.",
@@ -1741,6 +1751,115 @@ components:
 		if !strings.Contains(ts, frag) {
 			t.Errorf("generated TypeScript missing %q\n---\n%s", frag, ts)
 		}
+	}
+}
+
+// enumValuesSpec declares a closed set of values in each of the ways a document
+// spells one, beside the shapes that only look like one.
+const enumValuesSpec = `
+openapi: 3.0.0
+info:
+  title: Pets
+  version: 1.0.0
+paths:
+  /pets:
+    get:
+      operationId: findPets
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [available, pending, sold] }
+        - name: kinds
+          in: query
+          schema:
+            type: array
+            items: { type: string, enum: [cat, dog] }
+        - name: size
+          in: query
+          schema: { type: integer, enum: [1, 2, 3] }
+        - name: mood
+          in: query
+          schema: { type: string, enum: [calm, null] }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        state:
+          allOf:
+            - $ref: "#/components/schemas/State"
+          default: available
+        origin:
+          anyOf:
+            - $ref: "#/components/schemas/State"
+            - type: string
+        habitat:
+          oneOf:
+            - { type: string, enum: [indoor] }
+            - { type: string, enum: [outdoor] }
+        tally:
+          type: string
+          enum: [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y]
+    State:
+      type: string
+      enum: [available, sold]
+`
+
+// TestDeclaredEnumValues locks in what reaches (kaja.enum_values): the values a
+// document declares for a field, wherever it declares them, and nothing where
+// the field takes more than a list.
+func TestDeclaredEnumValues(t *testing.T) {
+	s, err := parseSpec([]byte(enumValuesSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		// The values a parameter declares outright.
+		`string status = 1 [json_name = "status", (kaja.http_in) = "query", (kaja.enum_values) = "available", (kaja.enum_values) = "pending", (kaja.enum_values) = "sold"];`,
+		// An array declares them on the items it repeats.
+		`repeated string kinds = 2 [json_name = "kinds", (kaja.http_in) = "query", (kaja.enum_values) = "cat", (kaja.enum_values) = "dog"];`,
+		// A nullable enum lists a null proto3 has no need of; the rest still
+		// stands.
+		`string mood = 4 [json_name = "mood", (kaja.http_in) = "query", (kaja.enum_values) = "calm"];`,
+		// An "allOf: [$ref]" wrapper attaching a default is read through to the
+		// component holding the values.
+		`string state = 3 [json_name = "state", (kaja.enum_values) = "available", (kaja.enum_values) = "sold"];`,
+		// Every variant of the union declares values, so the field takes their
+		// union and no more.
+		`string habitat = 1 [json_name = "habitat", (kaja.enum_values) = "indoor", (kaja.enum_values) = "outdoor"];`,
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	// An integer enum carries nothing: the values would be read back as the
+	// strings they are not. A number is written the same way in every document
+	// anyway.
+	if !strings.Contains(gen.proto, `int32 size = 3 [json_name = "size", (kaja.http_in) = "query"];`) {
+		t.Errorf("a non-string enum must carry no values\n---\n%s", gen.proto)
+	}
+	// One variant of the union takes any string, so the field takes more than
+	// the other variant lists and carries none of it.
+	if !strings.Contains(gen.proto, `string origin = 2 [json_name = "origin"];`) {
+		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.proto)
+	}
+	// Past the cap the set is dropped whole rather than cut short, which would
+	// claim the API takes less than it does.
+	if !strings.Contains(gen.proto, `string tally = 4 [json_name = "tally"];`) {
+		t.Errorf("a set past the cap must be dropped whole\n---\n%s", gen.proto)
 	}
 }
 

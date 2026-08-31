@@ -3,6 +3,7 @@ package openapi
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -72,6 +73,9 @@ type fieldDef struct {
 	// required is emitted as (kaja.http_required) when the API insists on the
 	// field.
 	required bool
+	// enumValues are the values the document allows, emitted as
+	// (kaja.enum_values). Empty for a field the document leaves open.
+	enumValues []string
 	// doc is the API's description of the field, emitted as a leading comment so
 	// it survives into the generated TypeScript as JSDoc.
 	doc string
@@ -397,8 +401,9 @@ func (g *generator) paramField(param *parameter, number int) fieldDef {
 		in:       param.In,
 		// A path parameter is part of the URL, so it is required whatever the
 		// document says.
-		required: param.Required || param.In == "path",
-		doc:      docComment(doc),
+		required:   param.Required || param.In == "path",
+		doc:        docComment(doc),
+		enumValues: g.fieldValues(typ, s),
 	}
 }
 
@@ -582,13 +587,14 @@ func (g *generator) fieldsFromSchema(parent string, s *schema) []fieldDef {
 		}
 		used[name] = true
 		fields = append(fields, fieldDef{
-			typ:      typ,
-			name:     name,
-			number:   num,
-			jsonName: propName,
-			repeated: repeated,
-			required: required[propName],
-			doc:      docComment(g.description(ps)),
+			typ:        typ,
+			name:       name,
+			number:     num,
+			jsonName:   propName,
+			repeated:   repeated,
+			required:   required[propName],
+			doc:        docComment(g.description(ps)),
+			enumValues: g.fieldValues(typ, ps),
 		})
 		num++
 	}
@@ -666,6 +672,94 @@ func (g *generator) description(s *schema) string {
 		}
 	}
 	return ""
+}
+
+// fieldValues reads what a field allows, for a field that ends up a string. The
+// proto type is the guard rather than the schema: whatever a document composed
+// its way to, a set of strings only belongs on a field the strings fit in.
+func (g *generator) fieldValues(typ string, s *schema) []string {
+	if typ != "string" {
+		return nil
+	}
+	return g.declaredValues(s, 0)
+}
+
+// maxDeclaredValues bounds the values carried onto a field. Past a couple of
+// dozen the set is a document of its own rather than something to pick from, and
+// a list cut short would claim the API takes less than it does — so a longer one
+// is dropped whole.
+const maxDeclaredValues = 24
+
+// declaredValues reads the string values a schema allows: its own enum, or the
+// enum of the items it is an array of. A $ref is followed and an "allOf: [X]"
+// wrapper unwrapped, which is how a document attaches a default or nullable to a
+// shared enum. A union contributes only when every variant declares values of
+// its own — one open-ended variant means the field takes more than the union
+// lists, and a set that is not the whole truth is worse than none.
+//
+// Only strings are read. A number is written the same way in every document, so
+// what a caller cannot guess is which of three words an API spells its states
+// with.
+func (g *generator) declaredValues(s *schema, depth int) []string {
+	s = unwrapAllOf(s)
+	if s == nil || depth > 16 {
+		return nil
+	}
+	if s.Ref != "" {
+		if target := g.lookupRef(s.Ref); target != nil && target != s {
+			return g.declaredValues(target, depth+1)
+		}
+		return nil
+	}
+	if len(s.Enum) > 0 {
+		return stringEnum(s.Enum)
+	}
+	if s.Items != nil {
+		return g.declaredValues(s.Items, depth+1)
+	}
+	var values []string
+	for _, variant := range unionOf(s) {
+		vs := g.declaredValues(variant, depth+1)
+		if len(vs) == 0 {
+			return nil
+		}
+		values = appendNew(values, vs)
+	}
+	if len(values) > maxDeclaredValues {
+		return nil
+	}
+	return values
+}
+
+// stringEnum reads an enum's entries as the strings they are, dropping the null
+// a nullable enum lists (proto3 models an absent value without help). An entry
+// of any other type takes the whole set with it: a field carrying half of what
+// the document allows would refuse the rest.
+func stringEnum(entries []interface{}) []string {
+	values := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		value, ok := entry.(string)
+		if !ok {
+			return nil
+		}
+		values = append(values, value)
+	}
+	if len(values) == 0 || len(values) > maxDeclaredValues {
+		return nil
+	}
+	return values
+}
+
+func appendNew(values, more []string) []string {
+	for _, value := range more {
+		if !slices.Contains(values, value) {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 // addProperty records a schema for a property, dropping duplicates so that a
@@ -875,6 +969,9 @@ func (g *generator) render() string {
 			}
 			if f.required {
 				options += ", (kaja.http_required) = true"
+			}
+			for _, v := range f.enumValues {
+				options += fmt.Sprintf(", (kaja.enum_values) = %q", v)
 			}
 			fmt.Fprintf(&b, "  %s%s %s = %d [%s];\n", prefix, f.typ, f.name, f.number, options)
 		}
