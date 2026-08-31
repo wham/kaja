@@ -16,10 +16,10 @@ import (
 
 // MCP wiring. The switchboard is pkg/agent's, the same one a deployed kaja answers an
 // agent with, and the desktop is its degenerate case: one session on the token this
-// process persists, with one window permanently attached over the mux the webview
-// already fetches its calls on. What is left here is the one thing only this process
-// can do: a loopback listener, because an agent lives in another process and cannot
-// reach a wails:// URL.
+// process persists, with one window attached while the server is on over the mux the
+// webview already fetches its calls on. What is left here is the one thing only this
+// process can do: a loopback listener, because an agent lives in another process and
+// cannot reach a wails:// URL.
 
 // mcpPort is the fixed loopback port the MCP server binds to. Fixed rather than
 // OS-assigned so the connection command shown to the user stays valid across restarts.
@@ -27,8 +27,8 @@ import (
 // hand it out as an ephemeral port.
 const mcpPort = 41521
 
-// MCPInfo is reported to the UI so it can show the connection command and attach its
-// window to the session that command reaches. Error is set when the server couldn't
+// MCPInfo is reported to the UI so it can show and control the MCP server and attach
+// its window to the session that server reaches. Error is set when the server couldn't
 // start (e.g. the fixed port was already in use).
 type MCPInfo struct {
 	Enabled bool   `json:"enabled"`
@@ -44,13 +44,27 @@ type MCPInfo struct {
 func (a *App) MCPServerInfo() MCPInfo {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
+	token := ""
+	if a.mcpServer != nil {
+		token = a.mcpToken
+	}
 	return MCPInfo{
 		Enabled:            a.mcpServer != nil,
 		URL:                a.mcpURL,
-		Token:              a.mcpToken,
+		Token:              token,
 		Error:              a.mcpError,
 		ConfigurationPaths: mcpClientConfigurationPaths(),
 	}
+}
+
+// SetMCPServerEnabled starts or stops the loopback server and returns its new state.
+func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
+	if enabled {
+		a.startMCPServer()
+	} else {
+		a.stopMCPServer()
+	}
+	return a.MCPServerInfo()
 }
 
 // mcpClientConfigurationPaths is the file each client keeps its MCP servers in, so
@@ -119,23 +133,27 @@ func (a *App) startMCPServer() {
 
 func (a *App) stopMCPServer() {
 	a.mcpMu.Lock()
+	defer a.mcpMu.Unlock()
 	srv := a.mcpServer
-	a.mcpServer = nil
-	a.mcpURL = ""
 	a.mcpError = ""
-	a.mcpMu.Unlock()
 	if srv == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		_ = srv.Close()
+	}
+	a.agents.Drop(a.mcpToken)
+	a.mcpServer = nil
+	a.mcpURL = ""
 	slog.Info("MCP server stopped")
 }
 
 // loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
 // generating one the first time (or if the stored file is missing, empty or
-// unreadable). Persisting it keeps the connection command stable across restarts.
+// unreadable). Persisting it keeps an installed client working when the server is
+// turned on again.
 // Must be called with mcpMu held.
 func (a *App) loadOrCreateMCPToken() string {
 	path := filepath.Join(a.workspaceDir, "mcp-token")

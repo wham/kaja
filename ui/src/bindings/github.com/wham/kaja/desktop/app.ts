@@ -57,6 +57,15 @@ export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: strin
 }
 
 /**
+ * SetMCPServerEnabled starts or stops the loopback server and returns its new state.
+ */
+export function SetMCPServerEnabled(enabled: boolean): $CancellablePromise<$models.MCPInfo> {
+    return $Call.ByID(2384720219, enabled).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ShowFileInFinder reveals a file in the system file browser with the file selected.
  * A path that isn't there yet opens the nearest directory that is, so the link always
  * lands somewhere.

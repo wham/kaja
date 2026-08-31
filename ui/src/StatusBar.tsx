@@ -7,7 +7,7 @@ import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
 import { summarizeCompilation } from "./compileSummary";
-import { McpPopover, type AgentFooter, type McpConnection } from "./McpPopover";
+import { McpPopover, type McpConnection, type McpControl } from "./McpPopover";
 import { App } from "./apps";
 
 export type ColorMode = "day" | "night";
@@ -24,7 +24,7 @@ interface StatusBarProps {
   onToggleFeaturePreview: (key: string) => void;
   mcpInfo?: McpConnection;
   mcpActive?: boolean;
-  agent?: AgentFooter;
+  mcpControl?: McpControl;
   apps: App[];
   configurationLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
@@ -36,15 +36,9 @@ interface StatusBarProps {
 // agent talking to it this second — and the panel says what to do about it.
 //
 // `active` is an agent talking to the server right now.
-function MCPStatus({ info, active, agent }: { info?: McpConnection; active: boolean; agent?: AgentFooter }) {
+function MCPStatus({ info, active, control }: { info?: McpConnection; active: boolean; control: McpControl }) {
   const [open, setOpen] = useState(false);
-  const label = info?.error
-    ? `MCP server · ${info.error}`
-    : active
-      ? "MCP server · in use"
-      : agent && !agent.connected
-        ? "MCP server · connect an agent"
-        : "MCP server";
+  const label = info?.error ? `MCP server · ${info.error}` : active ? "MCP server · in use" : !control.enabled ? "MCP server · connect an agent" : "MCP server";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,7 +61,7 @@ function MCPStatus({ info, active, agent }: { info?: McpConnection; active: bool
         </PopoverTrigger>
       </span>
       <PopoverContent align="end" side="top" className="p-0">
-        <McpPopover info={info} agent={agent} />
+        <McpPopover info={info} control={control} />
       </PopoverContent>
     </Popover>
   );
@@ -91,7 +85,7 @@ export function StatusBar({
   onToggleFeaturePreview,
   mcpInfo,
   mcpActive = false,
-  agent,
+  mcpControl,
   apps,
   configurationLoaded,
   onShowCompileLog,
@@ -155,7 +149,7 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
-        {(agent || mcpInfo?.enabled || mcpInfo?.error) && <MCPStatus info={mcpInfo} active={mcpActive} agent={agent} />}
+        {mcpControl && <MCPStatus info={mcpInfo} active={mcpActive} control={mcpControl} />}
         <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
         <IconButton

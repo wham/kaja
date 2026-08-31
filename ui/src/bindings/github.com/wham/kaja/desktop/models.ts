@@ -6,8 +6,8 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * MCPInfo is reported to the UI so it can show the connection command and attach its
- * window to the session that command reaches. Error is set when the server couldn't
+ * MCPInfo is reported to the UI so it can show and control the MCP server and attach
+ * its window to the session that server reaches. Error is set when the server couldn't
  * start (e.g. the fixed port was already in use).
  */
 export class MCPInfo {

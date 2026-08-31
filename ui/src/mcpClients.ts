@@ -28,16 +28,6 @@ export interface McpClient {
   snippet: (endpoint: McpEndpoint) => string;
 }
 
-/**
- * The token as the snippet shows it. A 48-character token pushes the worst JSON line
- * past what a popover can hold, so the body carries the last four digits — enough to
- * check against a configuration you are debugging — and the clipboard carries the
- * whole thing.
- */
-export function elideToken(token: string): string {
-  return `····${token.slice(-4)}`;
-}
-
 // Cursor and VS Code both register a URL scheme, so Kaja can hand the server straight
 // over: the client opens, and writes its own configuration once you accept.
 function cursorLink({ url, token }: McpEndpoint): string {
