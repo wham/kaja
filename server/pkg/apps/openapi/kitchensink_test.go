@@ -85,10 +85,22 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`string if_match = 3 [json_name = "If-Match", (kaja.http_in) = "header"];`,
 		// An array body has no message to be, so its envelope stays too.
 		`repeated Report body = 1 [json_name = "body", (kaja.http_payload) = HTTP_PAYLOAD_BODY];`,
+		// The order parameter is "allOf: [$ref SortOrder]" carrying a default;
+		// the values are read through the wrapper and the reference.
+		`(kaja.enum_values) = "ASC", (kaja.enum_values) = "DESC"];`,
+		// Both Gauge variants declare "kind" as an enum of one, so the merged
+		// field takes both. Nothing about the union is open-ended.
+		`(kaja.enum_values) = "flat", (kaja.enum_values) = "tiered"];`,
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
 		}
+	}
+	// Interval is "anyOf: [string, IntervalEnum]": one variant declares values
+	// and the other takes any string, so the field takes more than the enum
+	// lists and carries none of it.
+	if strings.Contains(gen.proto, `(kaja.enum_values) = "MINUTE"`) {
+		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.proto)
 	}
 	if strings.Contains(gen.proto, "message IngestSignalsBody") {
 		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.proto)

@@ -55,6 +55,12 @@ export interface GetShowRequest {
      */
     showId: string;
     fields: string[];
+    /**
+     * Which run of the show.
+     *
+     * @generated from protobuf field: string status = 3
+     */
+    status: string;
 }
 export enum Sort { UNSPECIFIED = 0, NEWEST = 1 }
 export const Shows = new ServiceType("Shows", []);
@@ -97,7 +103,8 @@ const ListShowsResponse = { typeName: "theatre.ListShowsResponse", fields: [
 ] };
 const GetShowRequest = { typeName: "theatre.GetShowRequest", fields: [
   { no: 1, name: "show_id", localName: "showId", jsonName: "showId", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
-  { no: 2, name: "fields", localName: "fields", jsonName: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } }
+  { no: 2, name: "fields", localName: "fields", jsonName: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } },
+  { no: 3, name: "status", localName: "status", jsonName: "status", kind: "scalar", T: 9, options: { "kaja.enum_values": ["onSale", "cancelled"] } }
 ] };
 export const proto$theatre = {
   Show, Venue, ListShowsRequest, ListShowsResponse, GetShowRequest, Sort,
@@ -178,6 +185,9 @@ describe("buildMcpCatalog", () => {
 
     expect(declarations["ListShowsRequest"].text).toContain("/** How many shows to return. Defaults to 25 when omitted. [query parameter] */");
     expect(declarations["ListShowsResponse"].text).toContain("[carries the HTTP payload]");
+    // A document's closed set of values is carried beside the field, since the field
+    // is the string the API takes rather than a proto enum.
+    expect(declarations["GetShowRequest"].text).toContain("/** Which run of the show. [one of: onSale, cancelled] */");
     // An enum field is unwritable without its values.
     expect(declarations["Sort"].text).toBe(["export enum Sort {", "    UNSPECIFIED = 0,", "    NEWEST = 1,", "}"].join("\n"));
   });

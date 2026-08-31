@@ -29,6 +29,7 @@ const maxDoc = 200;
 const HTTP_IN_OPTION = "kaja.http_in";
 export const HTTP_REQUIRED_OPTION = "kaja.http_required";
 const HTTP_PAYLOAD_OPTION = "kaja.http_payload";
+const ENUM_VALUES_OPTION = "kaja.enum_values";
 
 // declareInterface re-emits a generated interface as a script would read it.
 // messageType, when the stub has one, supplies the marks TypeScript can't carry.
@@ -79,7 +80,21 @@ function fieldMarks(messageType: IMessageType<any> | undefined, propertyName: st
   if (options[HTTP_REQUIRED_OPTION] === true) marks.push("required");
   if (typeof options[HTTP_IN_OPTION] === "string" && options[HTTP_IN_OPTION]) marks.push(`${options[HTTP_IN_OPTION]} parameter`);
   if (options[HTTP_PAYLOAD_OPTION]) marks.push("carries the HTTP payload");
+  const values = declaredValues(field);
+  if (values.length > 0) marks.push(`one of: ${values.join(", ")}`);
   return marks;
+}
+
+/**
+ * The values the app said a field takes, or an empty list where it said nothing.
+ * A document's closed set is carried beside the field rather than modeled as a proto
+ * enum, which would rename what goes on the wire, so the field stays the string it is
+ * and the values are read from here.
+ */
+export function declaredValues(field: FieldInfo | undefined): string[] {
+  const values = field?.options?.[ENUM_VALUES_OPTION];
+  if (!Array.isArray(values)) return [];
+  return values.filter((value): value is string => typeof value === "string");
 }
 
 function withDoc(node: ts.Node, file: ts.SourceFile, body: string): string {
