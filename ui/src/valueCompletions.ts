@@ -2,6 +2,7 @@ import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { App } from "./apps";
+import { declaredValues } from "./declarations";
 import { findInStub, Source } from "./sources";
 import { recallValues, RememberedValue } from "./typeMemory";
 
@@ -12,6 +13,10 @@ export interface ValuePosition {
   typeName: string;
   fieldName: string;
   scalarType: ScalarType;
+  // The values the API's own document declares for the field, empty where it
+  // declares no closed set. Read from the field rather than remembered, so they
+  // are offered on a field nobody has filled in yet.
+  declared: string[];
   // Set when the cursor sits inside a string literal: the offsets of its
   // contents, so a suggestion replaces what is between the quotes.
   stringRange?: { start: number; end: number };
@@ -23,8 +28,8 @@ export interface ValueSuggestions {
 }
 
 /**
- * Values seen in earlier calls that fit the field under the cursor, or
- * undefined when the cursor isn't in a field's value.
+ * What fits the field under the cursor — the values its API declares, and the values
+ * seen in earlier calls — or undefined when the cursor isn't in a field's value.
  */
 export function suggestValues(code: string, offset: number, apps: App[]): ValueSuggestions | undefined {
   const position = resolveValuePosition(code, offset, apps);
@@ -32,8 +37,12 @@ export function suggestValues(code: string, offset: number, apps: App[]): ValueS
     return undefined;
   }
 
-  const values = recallValues(position.typeName, position.fieldName, position.scalarType);
-  if (values.length === 0) {
+  // A declared value seen in an earlier call is the same value; the API saying so
+  // is the better reason to offer it.
+  const values = recallValues(position.typeName, position.fieldName, position.scalarType).filter(
+    (remembered) => !position.declared.includes(String(remembered.value)),
+  );
+  if (values.length === 0 && position.declared.length === 0) {
     return undefined;
   }
 
@@ -196,7 +205,10 @@ function findServiceInfo(apps: App[], serviceName: string, importPath: string | 
   return undefined;
 }
 
-function fieldAtPath(messageType: IMessageType<any>, path: string[]): { typeName: string; fieldName: string; scalarType: ScalarType } | undefined {
+function fieldAtPath(
+  messageType: IMessageType<any>,
+  path: string[],
+): { typeName: string; fieldName: string; scalarType: ScalarType; declared: string[] } | undefined {
   let current = messageType;
 
   for (let index = 0; index < path.length; index++) {
@@ -214,13 +226,13 @@ function fieldAtPath(messageType: IMessageType<any>, path: string[]): { typeName
     }
 
     if (field.kind === "scalar" && last) {
-      return { typeName: current.typeName, fieldName: field.localName, scalarType: field.T };
+      return { typeName: current.typeName, fieldName: field.localName, scalarType: field.T, declared: declaredValues(field) };
     }
 
     // A map's entries are keyed by the map key, so the field is one level above
     // the value the cursor is in.
     if (field.kind === "map" && field.V.kind === "scalar" && index === path.length - 2) {
-      return { typeName: current.typeName, fieldName: field.localName, scalarType: field.V.T };
+      return { typeName: current.typeName, fieldName: field.localName, scalarType: field.V.T, declared: [] };
     }
 
     if (field.kind !== "message") {

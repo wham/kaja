@@ -10,6 +10,8 @@
 #   free-form property, both mapping to google.protobuf.Value
 # - multi-entry allOf composition with sibling properties
 # - "allOf: [$ref]" wrappers carrying only annotations (nullable, default)
+# - enums reached through a $ref and an allOf wrapper, an enum per union
+#   variant, and a union whose other variant takes any string
 # - a component schema named exactly like an operation's request wrapper
 # - $ref'd parameters, explode:false arrays, deepObject objects, and a
 #   parameter declared via "content" instead of "schema"
