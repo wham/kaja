@@ -156,10 +156,20 @@ func (s *ApiService) CreateScript(ctx context.Context, req *CreateScriptRequest)
 			return nil, err
 		}
 	}
-	if _, err := root.Stat(relative); err == nil {
-		return nil, fmt.Errorf("a script named %q already exists", relative)
+	// O_EXCL is the collision check as well as the create, so there is no window
+	// between asking whether the name is taken and taking it.
+	file, err := root.OpenFile(relative, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return nil, fmt.Errorf("a script named %q already exists", relative)
+		}
+		return nil, err
 	}
-	if err := root.WriteFile(relative, []byte(req.Content), 0644); err != nil {
+	if _, err := file.WriteString(req.Content); err != nil {
+		file.Close()
+		return nil, err
+	}
+	if err := file.Close(); err != nil {
 		return nil, err
 	}
 	return &CreateScriptResponse{Script: scriptAt(dir, relative, req.Content)}, nil
@@ -188,7 +198,7 @@ func (s *ApiService) RenameScript(ctx context.Context, req *RenameScriptRequest)
 				return nil, err
 			}
 		}
-		if _, err := root.Stat(to); err == nil {
+		if takenByAnother(root, from, to) {
 			return nil, fmt.Errorf("a script named %q already exists", to)
 		}
 		if err := root.Rename(from, to); err != nil {
@@ -265,7 +275,7 @@ func (s *ApiService) RenameScriptFolder(ctx context.Context, req *RenameScriptFo
 		to = parent + "/" + base
 	}
 	if to != from {
-		if _, err := root.Stat(to); err == nil {
+		if takenByAnother(root, from, to) {
 			return nil, fmt.Errorf("a folder named %q already exists", to)
 		}
 		if err := root.Rename(from, to); err != nil {
@@ -321,6 +331,22 @@ func (s *ApiService) openScriptsForWriting() (string, *os.Root, error) {
 		return "", nil, fmt.Errorf("failed to open the scripts folder: %w", err)
 	}
 	return dir, root, nil
+}
+
+// takenByAnother reports whether the destination of a rename holds something other
+// than the source itself. A case-only rename - "foo.ts" to "Foo.ts" - is a real rename
+// with one file under both names on a case-insensitive filesystem, where a plain stat
+// of the destination finds the source and reads as a collision.
+func takenByAnother(root *os.Root, from string, to string) bool {
+	destination, err := root.Stat(to)
+	if err != nil {
+		return false
+	}
+	source, err := root.Stat(from)
+	if err != nil {
+		return true
+	}
+	return !os.SameFile(source, destination)
 }
 
 func scriptAt(dir string, relative string, content string) *Script {
