@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -344,6 +346,133 @@ func TestRenameScriptMoves(t *testing.T) {
 	}
 	if _, err := service.ReadScript(ctx, &ReadScriptRequest{Name: "other.ts"}); err != nil {
 		t.Fatalf("the source was moved anyway: %v", err)
+	}
+}
+
+// A case-only rename is a rename like any other. On a case-insensitive filesystem the
+// destination stats to the source itself, which is not a name being taken.
+func TestRenameScriptChangesOnlyCase(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "reports/churn.ts", "// body")
+
+	renamed, err := service.RenameScript(ctx, &RenameScriptRequest{Name: "reports/churn.ts", NewName: "reports/Churn.ts"})
+	if err != nil {
+		t.Fatalf("a case-only rename was refused: %v", err)
+	}
+	if renamed.Script.Name != "Churn.ts" || renamed.Script.Folder != "reports" || renamed.Script.Content != "// body" {
+		t.Fatalf("renamed %+v", renamed.Script)
+	}
+	// The listing reads the name off disk, so it says which one the file has now.
+	listed, err := service.ListScripts(ctx, &ListScriptsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Scripts) != 1 || listed.Scripts[0].Name != "Churn.ts" {
+		t.Fatalf("scripts = %+v", listed.Scripts)
+	}
+
+	// A name another file holds is still taken.
+	createScript(t, service, "reports/other.ts", "")
+	if _, err := service.RenameScript(ctx, &RenameScriptRequest{Name: "reports/other.ts", NewName: "reports/Churn.ts"}); err == nil {
+		t.Fatalf("a move onto an existing file was accepted")
+	}
+}
+
+func TestRenameScriptFolderChangesOnlyCase(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "billing/invoices.ts", "")
+
+	renamed, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "billing", NewName: "Billing"})
+	if err != nil {
+		t.Fatalf("a case-only rename was refused: %v", err)
+	}
+	if renamed.Folder != "Billing" {
+		t.Fatalf("renamed to %q", renamed.Folder)
+	}
+	folders, err := service.ListScriptFolders(ctx, &ListScriptFoldersRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(folders.Folders) != 1 || folders.Folders[0] != "Billing" {
+		t.Fatalf("folders = %q", folders.Folders)
+	}
+
+	// A folder another folder holds is still taken.
+	if _, err := service.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "archive"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "archive", NewName: "Billing"}); err == nil {
+		t.Fatalf("a rename onto an existing folder was accepted")
+	}
+}
+
+// The two names a case-insensitive filesystem gives one file are what a hardlink is
+// on any filesystem, so the rule the rename checks is testable where the case-only
+// rename above is a no-op.
+func TestTakenByAnother(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "churn.ts"), []byte("// body"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(filepath.Join(dir, "churn.ts"), filepath.Join(dir, "Churn.ts")); err != nil {
+		t.Skipf("this filesystem has no hardlinks: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "other.ts"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	if takenByAnother(root, "churn.ts", "Churn.ts") {
+		t.Errorf("the source under a second name was read as a collision")
+	}
+	if !takenByAnother(root, "churn.ts", "other.ts") {
+		t.Errorf("another file was not read as a collision")
+	}
+	if takenByAnother(root, "churn.ts", "nothing.ts") {
+		t.Errorf("a name nothing holds was read as a collision")
+	}
+}
+
+// Creating is one act, so exactly one of a crowd asking for the same name gets it.
+func TestCreateScriptIsAtomic(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+
+	const creators = 8
+	var wait sync.WaitGroup
+	created := make(chan string, creators)
+	for i := range creators {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			content := fmt.Sprintf("// %d", i)
+			if _, err := service.CreateScript(ctx, &CreateScriptRequest{Name: "churn.ts", Content: content}); err == nil {
+				created <- content
+			}
+		}()
+	}
+	wait.Wait()
+	close(created)
+
+	winners := []string{}
+	for content := range created {
+		winners = append(winners, content)
+	}
+	if len(winners) != 1 {
+		t.Fatalf("%d creators were told they had made the file: %q", len(winners), winners)
+	}
+	read, err := service.ReadScript(ctx, &ReadScriptRequest{Name: "churn.ts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Script.Content != winners[0] {
+		t.Fatalf("the file holds %q, but %q was the one that was created", read.Script.Content, winners[0])
 	}
 }
 
