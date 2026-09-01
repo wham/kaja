@@ -177,7 +177,8 @@ void kajaAlignTrafficLights(double bandHeight) {
     // The container is now the band, so the middle of the band is the middle of
     // the container — in the coordinates of whatever view holds the buttons.
     NSPoint middle = [titleBar convertPoint:NSMakePoint(0.0, _bandHeight / 2.0) fromView:container];
-    CGFloat y = floor(middle.y - buttonHeight / 2.0);
+    CGFloat opticalOffset = 1.0;
+    CGFloat y = round(middle.y - buttonHeight / 2.0) + opticalOffset;
     for (NSButton *button in @[ close, miniaturize, zoom ]) {
         if (NSMinY(button.frame) != y) {
             [button setFrameOrigin:NSMakePoint(NSMinX(button.frame), y)];
