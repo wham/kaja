@@ -76,7 +76,6 @@ import {
   restoreViews,
   serializeViews,
   setAppFormEditMode,
-  setVariablesEditMode,
   showAppForm,
   showCompiler,
   showDefinition,
@@ -87,7 +86,7 @@ import {
   viewIdentity,
   visit,
 } from "./views";
-import { Variables, VariablesSave, VariablesState } from "./Variables";
+import { Variables, VariablesSave } from "./Variables";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
@@ -235,10 +234,7 @@ export function App() {
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
-  // Reported by the Variables view. Nothing reads it since the tab strip went.
-  const [variablesState, setVariablesState] = useState<VariablesState>({ dirty: false, canSave: false, save: async () => {} });
-  const variablesStateRef = useRef(variablesState);
-  variablesStateRef.current = variablesState;
+  const variableWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const [apps, setApps] = useState<AppModel[]>([]);
   // Read before the drafts themselves: start-up is when the sweep runs.
   const [sweepDrafts, setSweepDrafts] = usePersistedState("sweepDrafts", true);
@@ -355,7 +351,7 @@ export function App() {
     reject: (reason: unknown) => void;
   } | null>(null);
   const [newAppOpen, setNewAppOpen] = useState(false);
-  // Gates switching back to the form or the table, so it lives beside the control that switches.
+  // Gates switching back to the app form, so it lives beside the control that switches.
   const [viewJsonValid, setViewJsonValid] = useState(true);
   const viewJsonValidRef = useRef(viewJsonValid);
   viewJsonValidRef.current = viewJsonValid;
@@ -1721,22 +1717,13 @@ export function App() {
   );
 
   const currentView = views[0];
-  const jsonView =
-    currentView?.type === "appForm"
-      ? { showing: currentView.editMode === "json", back: "Edit as a form (⌘J)" }
-      : currentView?.type === "variables"
-        ? { showing: currentView.editMode === "json", back: "Edit as a table (⌘J)" }
-        : undefined;
+  const jsonView = currentView?.type === "appForm" ? { showing: currentView.editMode === "json", back: "Edit as a form (⌘J)" } : undefined;
 
   const toggleJsonView = useCallback((): void => {
     const view = viewsRef.current[0];
-    if (view?.type !== "appForm" && view?.type !== "variables") return;
+    if (view?.type !== "appForm") return;
     if (view.editMode === "json" && !viewJsonValidRef.current) return;
-    applyViews((views) =>
-      view.type === "appForm"
-        ? setAppFormEditMode(views, view.id, view.editMode === "json" ? "form" : "json")
-        : setVariablesEditMode(views, view.id, view.editMode === "json" ? "table" : "json"),
-    );
+    applyViews((views) => setAppFormEditMode(views, view.id, view.editMode === "json" ? "form" : "json"));
   }, [applyViews]);
   const toggleJsonViewRef = useRef(toggleJsonView);
   toggleJsonViewRef.current = toggleJsonView;
@@ -2000,28 +1987,33 @@ export function App() {
     return usage;
   }, [configuration?.apps, configuration?.variables]);
 
-  const onVariablesStateChange = useCallback((state: VariablesState) => {
-    setVariablesState((previous) => (previous.dirty === state.dirty && previous.canSave === state.canSave && previous.save === state.save ? previous : state));
-  }, []);
-
   const onVariablesClick = useCallback(() => {
     applyViews(showVariables);
   }, [applyViews]);
 
-  // Values going the other way don't come through here: they are written the moment
-  // they are entered.
+  const queueVariableWrite = useCallback(<T,>(write: () => PromiseLike<T>): Promise<T> => {
+    const result = variableWriteChainRef.current.then(write);
+    variableWriteChainRef.current = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }, []);
+
   const onVariablesSave = async ({ variables, cleared }: VariablesSave) => {
     if (!configuration) {
       return;
     }
 
-    const client = getApiClient();
-    const { response } = await client.updateConfiguration({ configuration: { ...configuration, variables } });
-
-    let status = response.variableStatus;
-    for (const name of cleared) {
-      status = (await client.clearStoredValue({ name })).response.variableStatus;
-    }
+    const { response, status } = await queueVariableWrite(async () => {
+      const client = getApiClient();
+      const { response } = await client.updateConfiguration({ configuration: { ...configuration, variables } });
+      let status = response.variableStatus;
+      for (const name of cleared) {
+        status = (await client.clearStoredValue({ name })).response.variableStatus;
+      }
+      return { response, status };
+    });
     setVariableStatus(status);
 
     if (response.configuration) {
@@ -2031,7 +2023,7 @@ export function App() {
 
   // Machine state, not file state, so it is written when entered rather than on save.
   const onStoreVariableValue = async (name: string, value: string) => {
-    const { response } = await getApiClient().setStoredValue({ name, value });
+    const { response } = await queueVariableWrite(() => getApiClient().setStoredValue({ name, value }));
     setVariableStatus(response.variableStatus);
   };
 
@@ -2398,13 +2390,8 @@ export function App() {
                           storeAvailable={runtime.variableStoreAvailable}
                           usage={variableUsage}
                           readOnly={!runtime.canUpdateConfiguration}
-                          editMode={view.editMode}
-                          onEditModeChange={(editMode) => applyViews((views) => setVariablesEditMode(views, view.id, editMode))}
-                          onJsonValidChange={setViewJsonValid}
-                          active={view.id === currentView?.id}
                           onSave={onVariablesSave}
                           onStoreValue={onStoreVariableValue}
-                          onStateChange={onVariablesStateChange}
                         />
                       )}
                     </div>

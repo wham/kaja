@@ -59,8 +59,6 @@ export interface ScriptView extends ViewBase {
 
 export interface VariablesView extends ViewBase {
   type: "variables";
-  // Like the app form's, this lives here because the command row owns the control.
-  editMode: "table" | "json";
 }
 
 export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView;
@@ -150,7 +148,7 @@ export function showAppForm(views: View[], mode: "create" | "edit", initialData?
 export function showVariables(views: View[]): View[] {
   const existing = views.find((view) => view.type === "variables");
   if (existing) return visit(views, existing.id);
-  return show(views, { ...nextView("variables"), type: "variables", editMode: "table" });
+  return show(views, { ...nextView("variables"), type: "variables" });
 }
 
 export function showCompiler(views: View[]): View[] {
@@ -161,10 +159,6 @@ export function showCompiler(views: View[]): View[] {
 
 export function setAppFormEditMode(views: View[], id: string, editMode: "form" | "json"): View[] {
   return update<AppFormView>(views, id, "appForm", { editMode });
-}
-
-export function setVariablesEditMode(views: View[], id: string, editMode: "table" | "json"): View[] {
-  return update<VariablesView>(views, id, "variables", { editMode });
 }
 
 export interface ViewIdentity {

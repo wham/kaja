@@ -1,5 +1,4 @@
-import { Braces, Check, ChevronDown, CircleAlert, Copy, Info, Plus, Trash2 } from "lucide-react";
-import * as monaco from "monaco-editor";
+import { Braces, Check, ChevronDown, CircleAlert, Copy, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyText } from "./clipboard";
 import { Alert } from "./components/alert";
@@ -11,78 +10,46 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
+import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
-import { formatJson } from "./formatter";
-import { codeFontSize } from "./monacoTheme";
-import { VARIABLES_JSON_URI } from "./jsonSchemas";
 import { VariableSource, VariableStatus } from "./server/api";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
-import { describeJsonMarker, parseVariablesJson } from "./variablesJson";
 import { rpcErrorMessage } from "./rpcMessage";
-
-export type VariablesEditMode = "table" | "json";
 
 interface VariableRow {
   key: string;
   value: string;
 }
 
-// VariablesSave is everything one Save writes: the configuration, plus the stored
-// values a variable that stopped being stored leaves behind. Values going the other
-// way don't wait for a save — they are written to the machine's store when entered.
 export interface VariablesSave {
   variables: { [key: string]: string };
   cleared: string[];
 }
 
-// What the tab strip and the close gesture need, since both live outside the editor.
-export interface VariablesState {
-  dirty: boolean;
-  canSave: boolean;
-  save: () => Promise<void>;
-}
-
 interface VariablesProps {
   variables: { [key: string]: string };
   status: VariableStatus[];
-  // Whether this machine has anywhere to store a value outside kaja.json.
   storeAvailable: boolean;
-  // App names referencing each variable, and the references no variable defines.
   usage: { [name: string]: string[] };
   readOnly?: boolean;
-  // The control that switches it lives in the command row, so the view owns the
-  // choice; Esc hands it back.
-  editMode: VariablesEditMode;
-  onEditModeChange: (editMode: VariablesEditMode) => void;
-  // Decides whether the view can be switched back.
-  onJsonValidChange: (valid: boolean) => void;
-  // A hidden view stays mounted, so its keyboard shortcuts have to stand down.
-  active: boolean;
   onSave: (save: VariablesSave) => Promise<void>;
-  // Writing a value to the machine's store changes machine state rather than file
-  // state, so it happens at once rather than on save.
   onStoreValue: (name: string, value: string) => Promise<void>;
-  onStateChange?: (state: VariablesState) => void;
 }
 
-// The source is the one decision on every row, so it is named on the row rather than
-// inferred from what the value cell happens to render.
 const SOURCE_LABEL: Record<VariableKind, string> = {
   value: "Value",
   stored: "Keychain",
   environment: "Environment",
 };
 
-// The configuration is a JSON map, whose key order doesn't survive a round trip, so
-// sorting is what keeps a row where the user last saw it.
+const AUTOSAVE_MS = 600;
+
 function toRows(variables: { [key: string]: string }): VariableRow[] {
   return Object.entries(variables)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({ key, value }));
 }
 
-// toVariables collapses the edited rows back into the on-disk map, trimming keys and
-// dropping empty ones. Later rows win on duplicate keys.
 function toVariables(rows: VariableRow[]): { [key: string]: string } {
   const variables: { [key: string]: string } = {};
   for (const row of rows) {
@@ -92,61 +59,65 @@ function toVariables(rows: VariableRow[]): { [key: string]: string } {
   return variables;
 }
 
-// environmentName is the environment variable a row reads: the one its value
-// references, or the one it would reference if it were switched over.
 function environmentName(row: VariableRow): string {
   return environmentReferences(row.value)[0] || row.key.trim() || "NAME";
 }
 
-// Key order is an accident of how the map was built, so it can't be what says
-// something changed.
 function sameVariables(a: { [key: string]: string }, b: { [key: string]: string }): boolean {
   const names = Object.keys(a);
   return names.length === Object.keys(b).length && names.every((name) => name in b && a[name] === b[name]);
 }
 
-export function Variables({
-  variables,
-  status,
-  storeAvailable,
-  usage,
-  readOnly = false,
-  editMode,
-  onEditModeChange,
-  onJsonValidChange,
-  active,
-  onSave,
-  onStoreValue,
-  onStateChange,
-}: VariablesProps) {
+export function shouldAdoptIncomingVariables(
+  current: { [key: string]: string },
+  previous: { [key: string]: string },
+  incoming: { [key: string]: string },
+  submitted: { [key: string]: string } | undefined,
+  editedSinceSubmission: boolean,
+): boolean {
+  const acknowledgingSubmission = submitted !== undefined && sameVariables(incoming, submitted);
+  return sameVariables(current, previous) && !(editedSinceSubmission && acknowledgingSubmission);
+}
+
+export function Variables({ variables, status, storeAvailable, usage, readOnly = false, onSave, onStoreValue }: VariablesProps) {
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | undefined>();
+  const [editVersion, setEditVersion] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [pendingStoredWrites, setPendingStoredWrites] = useState(0);
+  const [configurationError, setConfigurationError] = useState<string>();
+  const [storedValueError, setStoredValueError] = useState<string>();
   const [entering, setEntering] = useState<Set<number>>(new Set());
-  // The server reports status for the variables kaja.json names, so a row that hasn't
-  // been saved yet has no status to read its own write back from.
   const [justStored, setJustStored] = useState<Set<string>>(new Set());
-  // A row being switched to the machine's store where there is no store to put it in:
-  // the value has to move to the environment, so it is shown once.
   const [movingToEnvironment, setMovingToEnvironment] = useState<{ index: number; name: string; value: string } | null>(null);
-  const [confirmRevert, setConfirmRevert] = useState(false);
-  // After adding a row or removing one with the keyboard.
   const [focusRow, setFocusRow] = useState<number | null>(null);
-  const [jsonError, setJsonError] = useState<string | null>(null);
-  // So the JSON view's edits count as unsaved the same way the table's do. Null while
-  // it doesn't parse.
-  const [jsonVariables, setJsonVariables] = useState<{ [key: string]: string } | null>(null);
-  const savedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const nameInputs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const variablesRef = useRef(variables);
+  const editVersionRef = useRef(editVersion);
+  const attemptedVersionRef = useRef(-1);
+  const submittedVersionRef = useRef<number | undefined>(undefined);
+  const submittedVariablesRef = useRef<{ [key: string]: string } | undefined>(undefined);
+  const onSaveRef = useRef(onSave);
+  const storedWriteChainRef = useRef<Promise<void>>(Promise.resolve());
+  editVersionRef.current = editVersion;
+  onSaveRef.current = onSave;
 
   const statusByName = useMemo(() => new Map(status.map((entry) => [entry.name, entry])), [status]);
 
   useEffect(() => {
-    setRows(toRows(variables));
-    setEntering(new Set());
-  }, [variables]);
-
-  useEffect(() => () => clearTimeout(savedTimer.current), []);
+    if (entering.size > 0) return;
+    const previous = variablesRef.current;
+    variablesRef.current = variables;
+    const submittedVersion = submittedVersionRef.current;
+    const editedSinceSubmission = submittedVersion !== undefined && editVersionRef.current > submittedVersion;
+    const submittedVariables = submittedVariablesRef.current;
+    setRows((current) =>
+      shouldAdoptIncomingVariables(toVariables(current), previous, variables, submittedVariables, editedSinceSubmission) ? toRows(variables) : current,
+    );
+    if (submittedVariables !== undefined && sameVariables(variables, submittedVariables)) {
+      submittedVersionRef.current = undefined;
+      submittedVariablesRef.current = undefined;
+    }
+  }, [entering.size, variables]);
 
   useEffect(() => {
     if (focusRow === null) return;
@@ -154,38 +125,42 @@ export function Variables({
     setFocusRow(null);
   }, [focusRow, rows.length]);
 
-  // Undefined when the JSON doesn't parse, which is unsaved work all the same.
-  const edited = editMode === "json" ? (jsonVariables ?? undefined) : toVariables(rows);
-  const dirty = edited === undefined || !sameVariables(edited, variables);
+  const edited = useMemo(() => toVariables(rows), [rows]);
+  const dirty = !sameVariables(edited, variables);
 
-  const update = useCallback((index: number, patch: Partial<VariableRow>) => {
-    setSaved(false);
-    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const markEdited = useCallback(() => {
+    setEditVersion((version) => {
+      editVersionRef.current = version + 1;
+      return version + 1;
+    });
   }, []);
 
+  const update = useCallback(
+    (index: number, patch: Partial<VariableRow>) => {
+      markEdited();
+      setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    },
+    [markEdited],
+  );
+
   const addRow = () => {
-    setSaved(false);
-    // Clicking add again while a blank row is open refocuses it rather than stacking a
-    // second one.
     const blank = rows.findIndex((row) => row.key.trim() === "" && row.value === "");
     if (blank !== -1) {
       setFocusRow(blank);
       return;
     }
+    markEdited();
     setRows((prev) => [...prev, { key: "", value: "" }]);
     setFocusRow(rows.length);
   };
 
   const removeRow = (index: number, focus?: number) => {
-    setSaved(false);
+    markEdited();
     setRows((prev) => prev.filter((_, i) => i !== index));
     setEntering(new Set());
     if (focus !== undefined) setFocusRow(focus);
   };
 
-  // Switching a row's source rewrites its value, because the value is what says where
-  // it comes from. Only the machine's store needs a word first: it drops the value from
-  // kaja.json, and with no store to put it in that value would just be lost.
   const setSource = (index: number, kind: VariableKind) => {
     const row = rows[index];
     if (variableKind(row.value) === kind) return;
@@ -222,145 +197,30 @@ export function Variables({
     .sort();
   const unresolved = status.filter((entry) => entry.source === VariableSource.UNSET && entry.name in variables);
 
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const modelRef = useRef<monaco.editor.ITextModel | null>(null);
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-
-  const validateJson = useCallback(() => {
-    const text = modelRef.current?.getValue() ?? "";
-    const parsed = parseVariablesJson(text);
-    if (!parsed.error) {
-      setJsonVariables(parsed.variables ?? {});
-      setJsonError(null);
-      onJsonValidChange(true);
-      return;
-    }
-    setJsonVariables(null);
-    // The editor's own diagnostic knows the line; the parser's message is the better one
-    // for text that parses but isn't a variables block.
-    const marker = parsed.syntax
-      ? monaco.editor.getModelMarkers({ resource: VARIABLES_JSON_URI }).find((m) => m.severity === monaco.MarkerSeverity.Error)
-      : undefined;
-    setJsonError(marker ? describeJsonMarker(marker.startLineNumber, marker.message) : parsed.error);
-    onJsonValidChange(false);
-  }, [onJsonValidChange]);
-
   useEffect(() => {
-    if (editMode !== "json" || !editorContainerRef.current) return;
+    if (readOnly || !dirty || invalid || saving || attemptedVersionRef.current === editVersion) return;
 
-    const text = JSON.stringify(toVariables(rowsRef.current), null, 2);
-    monaco.editor.getModel(VARIABLES_JSON_URI)?.dispose();
-    modelRef.current = monaco.editor.createModel(text, "json", VARIABLES_JSON_URI);
-    editorRef.current = monaco.editor.create(editorContainerRef.current, {
-      model: modelRef.current,
-      automaticLayout: true,
-      fontSize: codeFontSize(),
-      padding: { top: 12, bottom: 12 },
-      minimap: { enabled: false },
-      lineNumbers: "off",
-      // Gutter-less, but inset by the body's own padding so the text lines up with the
-      // table it replaced.
-      lineDecorationsWidth: 16,
-      glyphMargin: false,
-      folding: false,
-      renderLineHighlight: "none",
-      scrollBeyondLastLine: false,
-      formatOnPaste: true,
-      formatOnType: true,
-      tabSize: 2,
-      readOnly,
-    });
+    const timer = setTimeout(() => {
+      const version = editVersion;
+      const snapshot = edited;
+      attemptedVersionRef.current = version;
+      submittedVersionRef.current = version;
+      submittedVariablesRef.current = snapshot;
+      setSaving(true);
+      setConfigurationError(undefined);
 
-    const subscriptions = [modelRef.current.onDidChangeContent(validateJson), monaco.editor.onDidChangeMarkers(validateJson)];
-    validateJson();
-    formatJson(text).then((formatted) => modelRef.current?.setValue(formatted));
+      const cleared = Object.keys(variables).filter(
+        (name) => variableKind(variables[name]) === "stored" && (!(name in snapshot) || variableKind(snapshot[name]) !== "stored"),
+      );
 
-    return () => {
-      subscriptions.forEach((subscription) => subscription.dispose());
-      editorRef.current?.dispose();
-      editorRef.current = null;
-      modelRef.current?.dispose();
-      modelRef.current = null;
-      setJsonError(null);
-      setJsonVariables(null);
-      // Nothing to be invalid once the editor is gone.
-      onJsonValidChange(true);
-    };
-  }, [editMode, readOnly, validateJson, onJsonValidChange]);
+      void onSaveRef
+        .current({ variables: snapshot, cleared })
+        .catch((error) => setConfigurationError(rpcErrorMessage(error)))
+        .finally(() => setSaving(false));
+    }, AUTOSAVE_MS);
 
-  // Leaving the JSON view carries what was typed there back into the rows, in the
-  // order they were written, so the two views agree on what sits where. The control is
-  // disabled while the JSON is invalid, so only JSON that parses gets here.
-  const leavingJsonRef = useRef(false);
-  if (editMode === "table" && leavingJsonRef.current) {
-    leavingJsonRef.current = false;
-    const parsed = parseVariablesJson(editorRef.current?.getValue() ?? "");
-    if (parsed.variables) {
-      setRows(Object.entries(parsed.variables).map(([key, value]) => ({ key, value })));
-      setSaved(false);
-    }
-  }
-  if (editMode === "json") {
-    leavingJsonRef.current = true;
-  }
-
-  const canSave = !readOnly && dirty && edited !== undefined && (editMode === "json" ? !jsonError : !invalid);
-
-  const save = async () => {
-    if (!edited) return;
-
-    // A variable that stopped being stored — renamed, deleted, or switched back to a
-    // value of its own — leaves nothing behind in the store.
-    const cleared = Object.keys(variables).filter(
-      (name) => variableKind(variables[name]) === "stored" && (!(name in edited) || variableKind(edited[name]) !== "stored"),
-    );
-
-    setSaveError(undefined);
-    try {
-      await onSave({ variables: edited, cleared });
-      setEntering(new Set());
-      setSaved(true);
-      clearTimeout(savedTimer.current);
-      savedTimer.current = setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
-      setSaveError(rpcErrorMessage(error));
-    }
-  };
-
-  const revert = () => {
-    setRows(toRows(variables));
-    setEntering(new Set());
-    setSaved(false);
-    setSaveError(undefined);
-    onEditModeChange("table");
-  };
-
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  const invokeSave = useCallback(() => saveRef.current(), []);
-
-  useEffect(() => {
-    onStateChange?.({ dirty, canSave, save: invokeSave });
-  }, [dirty, canSave, invokeSave, onStateChange]);
-
-  useEffect(() => {
-    if (!active) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "s") {
-        event.preventDefault();
-        if (canSave) void saveRef.current();
-        return;
-      }
-      if (event.key === "Escape" && editMode === "json" && !jsonError) {
-        event.preventDefault();
-        onEditModeChange("table");
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [active, canSave, editMode, jsonError, onEditModeChange]);
+    return () => clearTimeout(timer);
+  }, [dirty, editVersion, edited, invalid, readOnly, saving, variables]);
 
   const storeValue = async (index: number, value: string) => {
     const name = rows[index].key.trim();
@@ -370,34 +230,26 @@ export function Variables({
       next.delete(index);
       return next;
     });
+    setPendingStoredWrites((count) => count + 1);
+    setStoredValueError(undefined);
+    const write = storedWriteChainRef.current.then(() => onStoreValue(name, value));
+    storedWriteChainRef.current = write.then(
+      () => undefined,
+      () => undefined,
+    );
     try {
-      await onStoreValue(name, value);
+      await write;
+      setStoredValueError(undefined);
       setJustStored((prev) => new Set(prev).add(name));
     } catch (error) {
-      setSaveError(rpcErrorMessage(error));
+      setStoredValueError(rpcErrorMessage(error));
+    } finally {
+      setPendingStoredWrites((count) => count - 1);
     }
   };
 
   const body =
-    editMode === "json" ? (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Which file, and which block of it: config-versus-document is the
-            confusion an editor on a tab invites. */}
-        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border px-4">
-          <Info size={12} className="shrink-0 text-muted-foreground" />
-          <span className="truncate text-xs text-muted-foreground">
-            The <code>variables</code> block of kaja.json. Keychain values appear as <code>{SECRET_SOURCE}</code> and are not editable here.
-          </span>
-        </div>
-        <div ref={editorContainerRef} className="min-h-0 flex-1 bg-background" />
-        {jsonError && (
-          <div className="flex h-[34px] shrink-0 items-center gap-2 border-t border-destructive/40 bg-destructive/10 px-4">
-            <CircleAlert size={13} className="shrink-0 text-destructive" />
-            <span className="truncate text-xs text-destructive">{jsonError}. Save is unavailable until this parses.</span>
-          </div>
-        )}
-      </div>
-    ) : rows.length === 0 ? (
+    rows.length === 0 ? (
       // Centred in the body band rather than the whole pane: the footer below it is chrome
       // the blankslate has to sit clear of.
       <div className="flex min-h-0 flex-1 items-center justify-center px-4">
@@ -448,7 +300,7 @@ export function Variables({
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      setSaved(false);
+                      markEdited();
                       setRows((prev) => [...prev, { key: name, value: "" }]);
                     }}
                   >
@@ -529,41 +381,30 @@ export function Variables({
     <div className="flex h-full flex-col bg-background">
       {body}
 
-      {saveError && (
-        <Alert variant="danger" className="mx-4 mb-3 shrink-0">
-          {saveError}
-        </Alert>
-      )}
-
       {!readOnly && (
         <div className="flex h-[52px] shrink-0 items-center justify-end gap-2 border-t border-border px-4">
-          {saved && (
-            <span className="mr-1 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-              <Check size={14} />
+          {saving || pendingStoredWrites > 0 ? (
+            <>
+              <Spinner className="size-[13px]" />
+              <span className="text-xs text-muted-foreground">Saving…</span>
+            </>
+          ) : configurationError || storedValueError ? (
+            <SimpleTooltip
+              text={storedValueError ?? configurationError ?? ""}
+              contentClassName="max-w-[300px] whitespace-normal break-words font-mono leading-5"
+            >
+              <span className="flex cursor-default items-center gap-2 text-xs text-destructive underline decoration-dotted underline-offset-4">
+                <CircleAlert size={13} />
+                Not saved
+              </span>
+            </SimpleTooltip>
+          ) : (
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Check size={13} />
               Saved
             </span>
           )}
-          <Button variant="outline" onClick={() => (dirty ? setConfirmRevert(true) : revert())} disabled={!dirty}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={!canSave}>
-            Save Changes
-          </Button>
         </div>
-      )}
-
-      {confirmRevert && (
-        <ConfirmationDialog
-          title="Discard variable changes?"
-          confirmButtonContent="Discard"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            setConfirmRevert(false);
-            if (gesture === "confirm") revert();
-          }}
-        >
-          The rows go back to what kaja.json holds. Values already written to this machine's keychain stay where they are.
-        </ConfirmationDialog>
       )}
 
       {movingToEnvironment && (
@@ -734,7 +575,7 @@ function VariableRowEditor({
       {error && <FormControl.Validation>{error}</FormControl.Validation>}
       {!error && entering && storeAvailable && (
         <FormControl.Caption>
-          {name ? "Press ⏎ to write it to this machine's keychain. Keychain values are stored at once, not on Save." : "Name the variable first."}
+          {name ? "Press ⏎ to write it to this machine's keychain. Keychain values are stored at once." : "Name the variable first."}
         </FormControl.Caption>
       )}
       {!error && needsEnvironment && (
