@@ -561,7 +561,7 @@ function VariableRowEditor({
             aria-label={`Delete ${name || "this variable"}`}
             variant="ghost"
             size="xs"
-            tooltip={false}
+            tooltip="native"
             className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
             onMouseEnter={() => setDeleteHovered(true)}
             onMouseLeave={() => setDeleteHovered(false)}
@@ -780,7 +780,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       aria-label={label}
       variant="ghost"
       size="xs"
-      tooltip={false}
+      tooltip="native"
       onClick={() => {
         void copyText(value).then((landed) => {
           if (!landed) return;

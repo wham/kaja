@@ -539,7 +539,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                                 aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
                                 variant="ghost"
                                 size="sm"
-                                tooltip={false}
+                                tooltip="native"
                                 onClick={async () => {
                                   const app = await desktop();
                                   const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();

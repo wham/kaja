@@ -75,7 +75,11 @@ export function isListening(info: McpConnection | undefined): boolean {
 export function mcpStatus({ enabled, listening, attached, onDuty, active, error }: McpConditions): McpStatus {
   if (error) return { state: "error", headline: "Failed to start", note: error, tone: "destructive" };
   if (!enabled) return { state: "off", headline: "Off", note: "turn it on to let a client connect", tone: "muted" };
-  if (!listening || !attached) return { state: "starting", headline: "Starting", note: "opening the endpoint", tone: "muted" };
+  // Two different waits, and saying so is what keeps one of them from reading as the
+  // other: an endpoint that isn't up yet is the server starting, while an endpoint
+  // already named with no stream on it is this window reaching it.
+  if (!listening) return { state: "starting", headline: "Starting", note: "opening the endpoint", tone: "muted" };
+  if (!attached) return { state: "starting", headline: "Starting", note: "connecting this window", tone: "muted" };
   // Being on duty is what a window is unless it says otherwise, and a run's console is
   // held in the window that ran it — so the only thing worth a line is not being it.
   if (active) return { state: "active", headline: "Running", tone: "emerald" };

@@ -53,6 +53,7 @@ export const mcpClients: McpClient[] = [
     kind: "terminal command",
     path: "run in your project directory",
     lead: "Scoped to the project you run it in. Use --scope user to register it for every project.",
+    foot: "/mcp inside Claude Code lists it and says whether it connected.",
     snippet: ({ url, token }) => `claude mcp add --transport http kaja \\\n  ${url} \\\n  --header "Authorization: Bearer ${token}"`,
   },
   {

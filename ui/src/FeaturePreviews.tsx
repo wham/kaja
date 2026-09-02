@@ -26,7 +26,7 @@ export function FeaturePreviews({ features, onToggle, className }: FeaturePrevie
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <IconButton size="xs" variant="ghost" tooltip={false} icon={FlaskConical} aria-label="Feature previews" className={className} />
+        <IconButton size="xs" variant="ghost" tooltip="native" icon={FlaskConical} aria-label="Feature previews" className={className} />
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="p-2">
         <div className="flex min-w-[180px] flex-col gap-2">

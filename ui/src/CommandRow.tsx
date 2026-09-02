@@ -58,7 +58,7 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
             size="sm"
             variant="ghost"
             className="size-[26px] shrink-0"
-            tooltip={false}
+            tooltip="none"
           />
         </SimpleTooltip>
         {finder}
@@ -75,7 +75,7 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
             size="sm"
             variant="ghost"
             className="size-[26px]"
-            tooltip={false}
+            tooltip="none"
           />
         </SimpleTooltip>
       </div>

@@ -574,7 +574,7 @@ function GroupHeader({
         <IconButton
           size="xs"
           variant="ghost"
-          tooltip={false}
+          tooltip="native"
           aria-label={action.label}
           icon={action.icon}
           className={cn(ROW_ACTION, "opacity-0 focus-visible:opacity-100 group-hover/header:opacity-100")}
@@ -1096,7 +1096,7 @@ function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; 
     <IconButton
       size="xs"
       variant="ghost"
-      tooltip={false}
+      tooltip="native"
       aria-label={label}
       icon={icon}
       className={ROW_ACTION}

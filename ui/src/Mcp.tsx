@@ -18,9 +18,8 @@ const COPIED_MS = 1500;
 // it acts and forgets it was asked this long after.
 const ARMED_MS = 4000;
 
-// With nothing listening there is no endpoint to name, so the snippets are written
-// against the address this build would answer on — dimmed, and there to be read rather
-// than pasted.
+// The address this build answers on, which is what the page names before a server has
+// reported one of its own.
 function idleUrl(): string {
   return isWailsEnvironment() ? "http://127.0.0.1:41521/mcp" : `${window.location.origin}/mcp`;
 }
@@ -54,9 +53,9 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   const status = mcpStatusOf(info, control, active);
 
   const client = mcpClients[selected];
-  // The desktop persists its token, so a stopped server still has one and every config
-  // below stays copyable. A browser's token is this browser's address and is rolled
-  // when the switch goes off, so there the page has nothing to write against.
+  // The token is the workspace's address on the desktop and this browser's on the web,
+  // and on neither is it the server's: a stopped server still has the one every pasted
+  // configuration names, so every snippet below stays copyable with the switch off.
   const endpoint: McpEndpoint = { url: info?.url || idleUrl(), token: info?.token ?? "" };
   const snippet = client.snippet(endpoint);
   const configurationPath = client.configurationKey ? info?.configurationPaths?.[client.configurationKey] : undefined;
@@ -114,7 +113,7 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
           <Field label="endpoint" value={endpoint.url} lit={listening} copied={copied === "url"} onCopy={() => copy("url", endpoint.url)} />
           <Field
             label="token"
-            value={written ? endpoint.token : "not running"}
+            value={written ? endpoint.token : "not set"}
             lit={listening}
             copied={copied === "token"}
             onCopy={written ? () => copy("token", endpoint.token) : undefined}
@@ -191,7 +190,7 @@ function Field({ label, value, lit, copied, onCopy }: { label: string; value: st
           <IconButton
             size="xs"
             variant="ghost"
-            tooltip={false}
+            tooltip="native"
             icon={Copy}
             aria-label={copied ? `Copied the ${label}` : `Copy the ${label}`}
             className={cn("h-5 w-5 [&_svg]:size-3", copied && "text-foreground")}

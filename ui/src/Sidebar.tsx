@@ -78,7 +78,7 @@ function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; 
     <IconButton
       size="xs"
       variant="ghost"
-      tooltip={false}
+      tooltip="native"
       aria-label={label}
       icon={icon}
       className={ROW_ACTION}
@@ -491,7 +491,7 @@ function GlobalBand({
       <div className="ml-auto flex min-w-0 items-center gap-1" style={noDrag}>
         {onVariablesClick && (
           <SimpleTooltip text="Variables" side="bottom">
-            <IconButton icon={Braces} size="sm" variant="ghost" tooltip={false} aria-label="Variables" onClick={onVariablesClick} />
+            <IconButton icon={Braces} size="sm" variant="ghost" tooltip="none" aria-label="Variables" onClick={onVariablesClick} />
           </SimpleTooltip>
         )}
         {onMcpClick && mcpState && <McpTool state={mcpState} onClick={onMcpClick} />}
@@ -516,7 +516,7 @@ function McpTool({ state, onClick }: { state: McpState; onClick: () => void }) {
             className="pointer-events-none absolute inset-0 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
           />
         )}
-        <IconButton icon={Plug} size="sm" variant="ghost" tooltip={false} aria-label="MCP server" onClick={onClick} className={mcpPlugClass(state)} />
+        <IconButton icon={Plug} size="sm" variant="ghost" tooltip="none" aria-label="MCP server" onClick={onClick} className={mcpPlugClass(state)} />
         {dot && <span aria-hidden className={cn("pointer-events-none absolute top-1 right-1 size-[5px] rounded-full", dot)} />}
       </span>
     </SimpleTooltip>
