@@ -36,25 +36,15 @@ type MCPInfo struct {
 	Token   string `json:"token"`
 	Error   string `json:"error"`
 	// ConfigurationPaths is where each client keeps the file its snippet goes
-	// into, keyed by the client the footer shows it under.
+	// into, keyed by the client the MCP page shows it under.
 	ConfigurationPaths map[string]string `json:"configurationPaths"`
 }
 
-// MCPServerInfo returns the current connection details for the UI footer.
+// MCPServerInfo returns the current connection details for the UI's MCP page.
 func (a *App) MCPServerInfo() MCPInfo {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
-	token := ""
-	if a.mcpServer != nil {
-		token = a.mcpToken
-	}
-	return MCPInfo{
-		Enabled:            a.mcpServer != nil,
-		URL:                a.mcpURL,
-		Token:              token,
-		Error:              a.mcpError,
-		ConfigurationPaths: mcpClientConfigurationPaths(),
-	}
+	return a.mcpInfoLocked()
 }
 
 // SetMCPServerEnabled starts or stops the loopback server and returns its new state.
@@ -67,8 +57,55 @@ func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
 	return a.MCPServerInfo()
 }
 
+// RegenerateMCPToken mints a new bearer token and moves a running session onto it.
+// Every configuration already pasted names the old one, which is what the page warns
+// about before it asks for this.
+func (a *App) RegenerateMCPToken() MCPInfo {
+	a.mcpMu.Lock()
+	defer a.mcpMu.Unlock()
+
+	token := randomToken(24)
+	if err := a.writeMCPToken(token); err != nil {
+		a.mcpError = fmt.Sprintf("Failed to store the new MCP token: %s", err)
+		slog.Error("Failed to persist MCP token", "error", err)
+		return a.mcpInfoLocked()
+	}
+	previous := a.mcpToken
+	a.mcpToken = token
+	if a.mcpServer == nil {
+		return a.mcpInfoLocked()
+	}
+	// Opened before the old one is dropped, so the window has somewhere to reattach.
+	if _, err := a.agents.Open(token); err != nil {
+		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Delete mcp-token and restart Kaja.", err)
+		slog.Error("Failed to open the agent session", "error", err)
+		return a.mcpInfoLocked()
+	}
+	if previous != "" {
+		a.agents.Drop(previous)
+	}
+	a.mcpError = ""
+	slog.Info("MCP token regenerated")
+	return a.mcpInfoLocked()
+}
+
+// The token is reported whether or not the server is running: it is the workspace's,
+// not the listener's, so a stopped server still has the one every pasted configuration
+// names — and the page's snippets stay copyable. A workspace that has never started one
+// has none, and there is nothing to copy anyway.
+// Must be called with mcpMu held.
+func (a *App) mcpInfoLocked() MCPInfo {
+	return MCPInfo{
+		Enabled:            a.mcpServer != nil,
+		URL:                a.mcpURL,
+		Token:              a.readMCPToken(),
+		Error:              a.mcpError,
+		ConfigurationPaths: mcpClientConfigurationPaths(),
+	}
+}
+
 // mcpClientConfigurationPaths is the file each client keeps its MCP servers in, so
-// the footer can link to the one it is telling you to edit. A client whose path this
+// the page can link to the one it is telling you to edit. A client whose path this
 // machine can't answer for is absent, and its snippet names the file without a link.
 func mcpClientConfigurationPaths() map[string]string {
 	paths := map[string]string{}
@@ -156,17 +193,38 @@ func (a *App) stopMCPServer() {
 // turned on again.
 // Must be called with mcpMu held.
 func (a *App) loadOrCreateMCPToken() string {
-	path := filepath.Join(a.workspaceDir, "mcp-token")
-	if data, err := os.ReadFile(path); err == nil {
-		if token := strings.TrimSpace(string(data)); token != "" {
-			return token
-		}
+	if token := a.readMCPToken(); token != "" {
+		return token
 	}
 	token := randomToken(24)
-	if err := os.WriteFile(path, []byte(token), 0600); err != nil {
+	if err := a.writeMCPToken(token); err != nil {
 		slog.Warn("Failed to persist MCP token", "error", err)
 	}
 	return token
+}
+
+// readMCPToken returns the token this workspace is reached under, or "" where none has
+// been written yet. It never writes one: reporting the state of the server must not be
+// what creates its credential.
+// Must be called with mcpMu held.
+func (a *App) readMCPToken() string {
+	if a.mcpToken != "" {
+		return a.mcpToken
+	}
+	data, err := os.ReadFile(a.mcpTokenPath())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// Must be called with mcpMu held.
+func (a *App) writeMCPToken(token string) error {
+	return os.WriteFile(a.mcpTokenPath(), []byte(token), 0600)
+}
+
+func (a *App) mcpTokenPath() string {
+	return filepath.Join(a.workspaceDir, "mcp-token")
 }
 
 func randomToken(n int) string {

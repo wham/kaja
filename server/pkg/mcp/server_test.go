@@ -218,7 +218,7 @@ func TestUnauthorized(t *testing.T) {
 	}
 }
 
-// The footer's activity mark is driven from here: a request lands and the count
+// The plug's activity mark is driven from here: a request lands and the count
 // goes up, and it comes back down once the request has been answered.
 func TestActivity(t *testing.T) {
 	bridge := newFakeBridge()

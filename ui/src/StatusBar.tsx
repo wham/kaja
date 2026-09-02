@@ -1,13 +1,10 @@
-import { Fragment, useState } from "react";
-import { GitBranch, MessagesSquare, Moon, Sun, Plug } from "lucide-react";
-import { cn } from "./cn";
+import { Fragment } from "react";
+import { GitBranch, MessagesSquare, Moon, Sun } from "lucide-react";
 import { IconButton } from "./components/icon-button";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
 import { summarizeCompilation } from "./compileSummary";
-import { McpPopover, type McpConnection, type McpControl } from "./McpPopover";
 import { App } from "./apps";
 
 export type ColorMode = "day" | "night";
@@ -22,49 +19,10 @@ interface StatusBarProps {
   buildNumber?: string;
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
-  mcpInfo?: McpConnection;
-  mcpActive?: boolean;
-  mcpControl?: McpControl;
   apps: App[];
   configurationLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
   onRecompile: (appName?: string) => void;
-}
-
-// MCPStatus is the footer's plug, and the popover behind it is where an agent is
-// connected. The glyph says what is true right now — a server that couldn't start, an
-// agent talking to it this second — and the panel says what to do about it.
-//
-// `active` is an agent talking to the server right now.
-function MCPStatus({ info, active, control }: { info?: McpConnection; active: boolean; control: McpControl }) {
-  const [open, setOpen] = useState(false);
-  const label = info?.error ? `MCP server · ${info.error}` : active ? "MCP server · in use" : !control.enabled ? "MCP server · connect an agent" : "MCP server";
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <span className="relative inline-flex">
-        {active && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
-          />
-        )}
-        <PopoverTrigger asChild>
-          <IconButton
-            size="xs"
-            variant="ghost"
-            tooltip={false}
-            icon={Plug}
-            aria-label={label}
-            className={cn(statusBarIconClass, info?.error && "text-destructive", active && "text-emerald-600 dark:text-emerald-400")}
-          />
-        </PopoverTrigger>
-      </span>
-      <PopoverContent align="end" side="top" className="p-0">
-        <McpPopover info={info} control={control} />
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 function openFeedback() {
@@ -83,9 +41,6 @@ export function StatusBar({
   buildNumber,
   featurePreviews,
   onToggleFeaturePreview,
-  mcpInfo,
-  mcpActive = false,
-  mcpControl,
   apps,
   configurationLoaded,
   onShowCompileLog,
@@ -149,7 +104,6 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
-        {mcpControl && <MCPStatus info={mcpInfo} active={mcpActive} control={mcpControl} />}
         <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
         <IconButton

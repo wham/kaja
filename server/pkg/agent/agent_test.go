@@ -416,7 +416,7 @@ func TestNoToolWritesAFile(t *testing.T) {
 	}
 }
 
-// The plug in the footer is the one thing that reports an agent working in a
+// The plug in the sidebar is the one thing that reports an agent working in a
 // window nobody is watching, so every window of the browser hears about it.
 func TestActivityReachesEveryWindow(t *testing.T) {
 	registry := newRegistry()

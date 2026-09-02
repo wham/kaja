@@ -121,7 +121,7 @@ type Session struct {
 }
 
 // Handler is the MCP server bound to this session. One per session, so the in-flight
-// count the footer's plug reads is this browser's own.
+// count the sidebar's plug reads is this browser's own.
 func (s *Session) Handler() *mcp.Server { return s.server }
 
 // Attached is whether any window is listening.
@@ -283,7 +283,7 @@ func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunRe
 }
 
 // Activity tells every window of this browser that an agent is being served, so
-// the plug in the footer lights wherever you are looking.
+// the plug in the sidebar lights wherever you are looking.
 func (s *Session) Activity(inFlight int) {
 	s.broadcast(Message{Type: "activity", InFlight: inFlight})
 }

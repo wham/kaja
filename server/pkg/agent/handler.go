@@ -35,7 +35,7 @@ func Mount(mux *http.ServeMux, registry *Registry) {
 }
 
 // ServeInfo says that this server opens the door at all, which is what decides
-// whether the footer offers to connect an agent. It is deliberately the only one
+// whether the sidebar offers to connect an agent. It is deliberately the only one
 // of these endpoints that answers without a token: there is nothing behind it.
 func (r *Registry) ServeInfo(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, map[string]any{"available": true})
@@ -87,7 +87,7 @@ func (r *Registry) ServeAttach(w http.ResponseWriter, req *http.Request) {
 }
 
 // ServeDetach is a browser saying it is done. The session goes at once rather
-// than on the idle timeout, which is what makes Disconnect mean what the footer
+// than on the idle timeout, which is what makes Disconnect mean what the page
 // says it means: the token names nothing from here on.
 func (r *Registry) ServeDetach(w http.ResponseWriter, req *http.Request) {
 	if _, ok := r.authorize(w, req); !ok {

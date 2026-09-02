@@ -80,6 +80,7 @@ import {
   showCompiler,
   showDefinition,
   showDraft,
+  showMcp,
   showScript,
   showVariables,
   View,
@@ -87,6 +88,8 @@ import {
   visit,
 } from "./views";
 import { Variables, VariablesSave } from "./Variables";
+import { Mcp } from "./Mcp";
+import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
@@ -312,7 +315,26 @@ export function App() {
         agentSession.releaseHost();
       });
   }, []);
-  const mcpControl = useMemo(
+  const regenerateMCPToken = useCallback(() => {
+    if (!isWailsEnvironment()) {
+      agentSession.regenerateToken();
+      return;
+    }
+    const request = ++mcpRequestRef.current;
+    void desktop()
+      .then((app) => app.RegenerateMCPToken())
+      .then((info) => {
+        if (mcpRequestRef.current !== request) return;
+        setMcpInfo(info);
+        if (info.enabled && info.token) agentSession.adopt(info.token);
+      })
+      .catch((err) => {
+        if (mcpRequestRef.current !== request) return;
+        // The server it was asked about is still whatever it was; only the ask failed.
+        setMcpInfo((current) => (current ? { ...current, error: rpcErrorMessage(err) } : current));
+      });
+  }, []);
+  const mcpControl: McpControl | undefined = useMemo(
     () =>
       isWailsEnvironment()
         ? {
@@ -321,6 +343,7 @@ export function App() {
             onDuty: agentState.onDuty,
             error: mcpInfo?.error || agentState.error,
             setEnabled: setMCPEnabled,
+            regenerateToken: regenerateMCPToken,
           }
         : !agentState.available
           ? undefined
@@ -330,9 +353,13 @@ export function App() {
               onDuty: agentState.onDuty,
               error: agentState.error,
               setEnabled: setMCPEnabled,
+              regenerateToken: regenerateMCPToken,
             },
-    [mcpInfo, agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled],
+    [mcpInfo, agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled, regenerateMCPToken],
   );
+  // The plug in the sidebar's band and the page's headline are one derivation, so the
+  // two can never say different things about the same server.
+  const mcpBandState = mcpControl ? mcpStatusOf(mcpConnection, mcpControl, mcpActive).state : undefined;
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -1991,6 +2018,10 @@ export function App() {
     applyViews(showVariables);
   }, [applyViews]);
 
+  const onMcpClick = useCallback(() => {
+    applyViews(showMcp);
+  }, [applyViews]);
+
   const queueVariableWrite = useCallback(<T,>(write: () => PromiseLike<T>): Promise<T> => {
     const result = variableWriteChainRef.current.then(write);
     variableWriteChainRef.current = result.then(
@@ -2099,6 +2130,9 @@ export function App() {
     if (!views.some((view) => view.type === "variables")) {
       destinations.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, go: onVariablesClick });
     }
+    if (mcpControl && !views.some((view) => view.type === "mcp")) {
+      destinations.push({ key: "mcp", name: "MCP server", path: "Workspace", origin: "", icon: Plug, go: onMcpClick });
+    }
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
@@ -2125,7 +2159,7 @@ export function App() {
     }
 
     return destinations;
-  }, [apps, drafts, scripts, views, onDraftSelect, onScriptSelect, onMethodSelect, onVariablesClick, onShowCompileLog]);
+  }, [apps, drafts, scripts, views, mcpControl, onDraftSelect, onScriptSelect, onMethodSelect, onVariablesClick, onMcpClick, onShowCompileLog]);
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
@@ -2239,6 +2273,8 @@ export function App() {
                 onNewAppClick={onNewAppClick}
                 onNewScript={onNewDraft}
                 onVariablesClick={onVariablesClick}
+                onMcpClick={mcpControl ? onMcpClick : undefined}
+                mcpState={mcpBandState}
                 autoExpandApp={autoExpandApp}
                 reserveTrafficLights={isDesktopMac}
                 onEditApp={onEditApp}
@@ -2383,6 +2419,7 @@ export function App() {
                           onJsonValidChange={setViewJsonValid}
                         />
                       )}
+                      {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
                       {view.type === "variables" && (
                         <Variables
                           variables={configuration?.variables ?? {}}
@@ -2441,9 +2478,6 @@ export function App() {
           buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
-          mcpInfo={mcpConnection}
-          mcpActive={mcpActive}
-          mcpControl={mcpControl}
           apps={apps}
           configurationLoaded={configurationLoaded}
           onShowCompileLog={onShowCompileLog}
