@@ -25,7 +25,7 @@
 import { isWailsEnvironment } from "./wails";
 
 const STORAGE_KEY = "kaja:agentSession";
-// How long the footer's plug stays lit after the last request is answered. An agent's
+// How long the sidebar's plug stays lit after the last request is answered. An agent's
 // calls arrive in bursts of a few milliseconds.
 const ACTIVITY_LINGER_MS = 2500;
 // A dropped stream is ordinary — a laptop sleeps, a proxy restarts — so it is
@@ -178,6 +178,21 @@ class AgentSession {
     if (token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     }
+  }
+
+  /**
+   * Rolls the token this browser is reached at, leaving the server on. Every config
+   * already pasted names the old one, which is the whole point — so the old session is
+   * dropped rather than left to time out.
+   */
+  regenerateToken(): void {
+    const previous = readStored()?.token;
+    this.detach();
+    if (previous) {
+      void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous}` } }).catch(() => {});
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: newToken() } satisfies Stored));
+    this.attach();
   }
 
   /** Detaches the desktop window when its loopback server is turned off. */

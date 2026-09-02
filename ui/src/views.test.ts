@@ -1,5 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import { dropView, restoreViews, serializeViews, setAppFormEditMode, showAppForm, showCompiler, showVariables, View, viewIdentity, visit } from "./views";
+import {
+  dropView,
+  restoreViews,
+  serializeViews,
+  setAppFormEditMode,
+  showAppForm,
+  showCompiler,
+  showMcp,
+  showVariables,
+  View,
+  viewIdentity,
+  visit,
+} from "./views";
 import { buildApp } from "./appTypes";
 
 // Views carry Monaco models in the app; here they are stubs, so they are built
@@ -60,6 +72,21 @@ describe("the mounted cache", () => {
   it("remembers which view of the app is showing", () => {
     const views = showAppForm([], "edit", grpcApp("orders"));
     expect((setAppFormEditMode(views, views[0].id, "json")[0] as any).editMode).toBe("json");
+  });
+});
+
+describe("the MCP view", () => {
+  // It saves as it goes, so there is nothing on it to protect from eviction — which
+  // is the whole of what makes it unlike the variables beside it in the band.
+  it("is one page the band goes back to, and the cache may let it go", () => {
+    const once = showMcp([]);
+    expect(showMcp(once)).toHaveLength(1);
+    expect(viewIdentity(once[0]).name).toBe("MCP server");
+    expect(viewIdentity(once[0]).path).toBe("Workspace");
+
+    let views = once;
+    for (let i = 0; i < 15; i++) views = showAppForm(views, "edit", buildApp(`app-${i}`, "grpc", { url: "example.com:443" }, {}));
+    expect(views.some((v) => v.type === "mcp")).toBe(false);
   });
 });
 

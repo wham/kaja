@@ -11,6 +11,7 @@ import {
   ChevronRight,
   CircleX,
   Ellipsis,
+  Plug,
   Plus,
   Plus as PlusIcon,
   RotateCw,
@@ -27,6 +28,7 @@ import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
+import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
 import { useMediaQuery } from "./useMediaQuery";
 import {
   appNodeId,
@@ -104,6 +106,10 @@ interface SidebarProps {
   onNewAppClick: () => void;
   onNewScript?: () => void;
   onVariablesClick?: () => void;
+  // Absent where this build offers no MCP server at all, which is what leaves the band
+  // with the one tool it always had.
+  onMcpClick?: () => void;
+  mcpState?: McpState;
   // One-shot signal to auto-expand a just-added app (and its first service).
   autoExpandApp?: { name: string };
   // macOS desktop: inset the band to clear the traffic lights and make its empty parts
@@ -123,6 +129,8 @@ export function Sidebar({
   onNewAppClick,
   onNewScript,
   onVariablesClick,
+  onMcpClick,
+  mcpState,
   autoExpandApp,
   reserveTrafficLights = false,
   onEditApp,
@@ -228,8 +236,9 @@ export function Sidebar({
       {/* 40px, the same as the command row next to it, so the two line up across
           the seam, and on macOS the band the traffic lights sit in. What it
           holds is what belongs to the window rather than to either list below:
-          the variables both of them read. */}
-      <GlobalBand reserveTrafficLights={reserveTrafficLights} onVariablesClick={onVariablesClick} />
+          the variables both lists read, and the server an agent reaches them
+          through. */}
+      <GlobalBand reserveTrafficLights={reserveTrafficLights} onVariablesClick={onVariablesClick} onMcpClick={onMcpClick} mcpState={mcpState} />
 
       {/* Both sections are the same 22px row now, which is what makes them read
           as peers: a name, the verb that belongs to that list and no other, and
@@ -455,7 +464,17 @@ export function Sidebar({
  * window's left corner. It says nothing about the lists below it, which is what lets
  * the two sections be peers.
  */
-function GlobalBand({ reserveTrafficLights, onVariablesClick }: { reserveTrafficLights?: boolean; onVariablesClick?: () => void }) {
+function GlobalBand({
+  reserveTrafficLights,
+  onVariablesClick,
+  onMcpClick,
+  mcpState,
+}: {
+  reserveTrafficLights?: boolean;
+  onVariablesClick?: () => void;
+  onMcpClick?: () => void;
+  mcpState?: McpState;
+}) {
   const noDrag = reserveTrafficLights ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined;
 
   return (
@@ -475,8 +494,32 @@ function GlobalBand({ reserveTrafficLights, onVariablesClick }: { reserveTraffic
             <IconButton icon={Braces} size="sm" variant="ghost" tooltip={false} aria-label="Variables" onClick={onVariablesClick} />
           </SimpleTooltip>
         )}
+        {onMcpClick && mcpState && <McpTool state={mcpState} onClick={onMcpClick} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * The plug, and the two marks it carries. The dot answers "is it on"; the ring answers
+ * "is anyone on it" — so when a client is calling the ring is up and the dot goes away
+ * rather than saying the same thing twice.
+ */
+function McpTool({ state, onClick }: { state: McpState; onClick: () => void }) {
+  const dot = mcpDotClass(state);
+  return (
+    <SimpleTooltip text="MCP server" side="bottom">
+      <span className="relative inline-flex">
+        {state === "active" && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
+          />
+        )}
+        <IconButton icon={Plug} size="sm" variant="ghost" tooltip={false} aria-label="MCP server" onClick={onClick} className={mcpPlugClass(state)} />
+        {dot && <span aria-hidden className={cn("pointer-events-none absolute top-1 right-1 size-[5px] rounded-full", dot)} />}
+      </span>
+    </SimpleTooltip>
   );
 }
 

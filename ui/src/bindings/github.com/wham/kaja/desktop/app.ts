@@ -19,7 +19,7 @@ export function LogFromUI(level: string, message: string): $CancellablePromise<v
 }
 
 /**
- * MCPServerInfo returns the current connection details for the UI footer.
+ * MCPServerInfo returns the current connection details for the UI's MCP page.
  */
 export function MCPServerInfo(): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(222308020).then(($result: any) => {
@@ -42,6 +42,17 @@ export function OpenDirectoryDialog(): $CancellablePromise<string> {
  */
 export function OpenFileDialog(): $CancellablePromise<string> {
     return $Call.ByID(4196526771);
+}
+
+/**
+ * RegenerateMCPToken mints a new bearer token and moves a running session onto it.
+ * Every configuration already pasted names the old one, which is what the page warns
+ * about before it asks for this.
+ */
+export function RegenerateMCPToken(): $CancellablePromise<$models.MCPInfo> {
+    return $Call.ByID(1152023458).then(($result: any) => {
+        return $$createType0($result);
+    });
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Braces, FileCode, PenLine, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
@@ -61,7 +61,13 @@ export interface VariablesView extends ViewBase {
   type: "variables";
 }
 
-export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView;
+// Kaja's own MCP server. Like the variables it saves as you go, so there is nothing
+// here to protect from eviction.
+export interface McpView extends ViewBase {
+  type: "mcp";
+}
+
+export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView;
 
 let sequence = 0;
 
@@ -151,6 +157,12 @@ export function showVariables(views: View[]): View[] {
   return show(views, { ...nextView("variables"), type: "variables" });
 }
 
+export function showMcp(views: View[]): View[] {
+  const existing = views.find((view) => view.type === "mcp");
+  if (existing) return visit(views, existing.id);
+  return show(views, { ...nextView("mcp"), type: "mcp" });
+}
+
 export function showCompiler(views: View[]): View[] {
   const existing = views.find((view) => view.type === "compiler");
   if (existing) return visit(views, existing.id);
@@ -207,6 +219,8 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: appFormName(view), path: "Settings", origin: "", icon: appFormIcon(view) };
     case "variables":
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
+    case "mcp":
+      return { name: "MCP server", path: "Workspace", origin: "", icon: Plug };
     case "compiler":
       return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
   }
