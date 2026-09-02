@@ -91,8 +91,8 @@ func (a *App) RegenerateMCPToken() MCPInfo {
 
 // The token is reported whether or not the server is running: it is the workspace's,
 // not the listener's, so a stopped server still has the one every pasted configuration
-// names — and the page's snippets stay copyable. A workspace that has never started one
-// has none, and there is nothing to copy anyway.
+// names — and the page's snippets stay copyable. Startup mints it, which is why a
+// workspace whose server has never been turned on has one too.
 // Must be called with mcpMu held.
 func (a *App) mcpInfoLocked() MCPInfo {
 	return MCPInfo{
@@ -190,7 +190,8 @@ func (a *App) stopMCPServer() {
 // loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
 // generating one the first time (or if the stored file is missing, empty or
 // unreadable). Persisting it keeps an installed client working when the server is
-// turned on again.
+// turned on again. Startup is what calls it: minting is a thing kaja does, never a
+// thing reporting the state of the server does.
 // Must be called with mcpMu held.
 func (a *App) loadOrCreateMCPToken() string {
 	if token := a.readMCPToken(); token != "" {

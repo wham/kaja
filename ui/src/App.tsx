@@ -282,10 +282,13 @@ export function App() {
   const mcpRequestRef = useRef(0);
   const [mcpActive, setMcpActive] = useState(false);
   const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
+  // The endpoint and the token are this browser's address and are reported whether or
+  // not the switch is on, so the MCP page names them — and every snippet stays
+  // copyable — with the server off. Only `enabled` is the switch.
   const mcpConnection = useMemo(() => {
     if (isWailsEnvironment()) return mcpInfo;
-    if (!agentState.connected || !agentState.url || !agentState.token) return undefined;
-    return { enabled: true, url: agentState.url, token: agentState.token, error: "" };
+    if (!agentState.url || !agentState.token) return undefined;
+    return { enabled: agentState.connected, url: agentState.url, token: agentState.token, error: "" };
   }, [mcpInfo, agentState.connected, agentState.url, agentState.token]);
   const setMCPEnabled = useCallback((enabled: boolean) => {
     if (!isWailsEnvironment()) {

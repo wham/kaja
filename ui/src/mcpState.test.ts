@@ -13,6 +13,11 @@ describe("mcpStatus", () => {
     expect(mcpStatus({ ...running, attached: false }).state).toBe("starting");
   });
 
+  test("the two waits are named apart, so neither reads as the other", () => {
+    expect(mcpStatus({ ...running, listening: false }).note).toBe("opening the endpoint");
+    expect(mcpStatus({ ...running, attached: false }).note).toBe("connecting this window");
+  });
+
   test("a server that couldn't start says so wherever the switch is", () => {
     const status = mcpStatus({ ...running, enabled: false, error: "Port 41521 is in use." });
     expect(status.state).toBe("error");

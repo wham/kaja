@@ -109,7 +109,7 @@ export function StatusBar({
         <IconButton
           size="xs"
           variant="ghost"
-          tooltip={false}
+          tooltip="native"
           icon={colorMode === "night" ? Sun : Moon}
           aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
           onClick={onToggleColorMode}

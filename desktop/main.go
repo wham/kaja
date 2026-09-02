@@ -136,6 +136,13 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
 
+	// The token is the workspace's address rather than the listener's, so it is minted
+	// when kaja starts rather than when its server does: the MCP page names it and every
+	// snippet on it is copyable before the switch has ever been turned on.
+	a.mcpMu.Lock()
+	a.mcpToken = a.loadOrCreateMCPToken()
+	a.mcpMu.Unlock()
+
 	return nil
 }
 

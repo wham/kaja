@@ -94,7 +94,7 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
         <IconButton
           size="xs"
           variant="ghost"
-          tooltip={false}
+          tooltip="native"
           icon={RotateCw}
           aria-label={`Recompile ${app.configuration.name}`}
           className="absolute right-2 top-1.5"
@@ -172,7 +172,7 @@ export function CompileStatus({ apps, configurationLoaded, onShowLog, onRecompil
       <PopoverContent align="start" side="top" className="w-[360px] p-1">
         <div className="flex items-center justify-between px-2 py-1">
           <span className="text-xs font-semibold text-foreground">Apps</span>
-          <IconButton size="xs" variant="ghost" tooltip={false} icon={RotateCw} aria-label="Recompile all" onClick={() => onRecompile()} />
+          <IconButton size="xs" variant="ghost" tooltip="native" icon={RotateCw} aria-label="Recompile all" onClick={() => onRecompile()} />
         </div>
         <div className="max-h-[320px] overflow-y-auto">
           {apps.map((app) => (

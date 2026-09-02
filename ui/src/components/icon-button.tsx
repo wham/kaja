@@ -21,14 +21,15 @@ export interface IconButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof iconButtonVariants>, Pick<VariantProps<typeof buttonVariants>, "variant"> {
   icon: LucideIcon;
   "aria-label": string;
-  // Hover tooltip. Turn off when the button is a Base UI trigger (Popover,
-  // DropdownMenu): both would claim the same `render` slot, so the native
-  // title attribute stands in.
-  tooltip?: boolean;
+  // Which tooltip the button carries, and it is never two: "hover" is the framework
+  // one; "native" is the title attribute, which is what a Base UI trigger (Popover,
+  // DropdownMenu) takes because both would claim the same `render` slot; "none" is for
+  // a button something around it already wraps in a tooltip of its own.
+  tooltip?: "hover" | "native" | "none";
 }
 
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: Icon, "aria-label": ariaLabel, variant = "outline", size, tooltip = true, className, ...rest },
+  { icon: Icon, "aria-label": ariaLabel, variant = "outline", size, tooltip = "hover", className, ...rest },
   ref,
 ) {
   const button = (
@@ -36,14 +37,14 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function
       ref={ref}
       type="button"
       aria-label={ariaLabel}
-      title={tooltip ? undefined : ariaLabel}
+      title={tooltip === "native" ? ariaLabel : undefined}
       className={cn(buttonVariants({ variant, size: "icon" }), iconButtonVariants({ size }), className)}
       {...rest}
     >
       <Icon />
     </button>
   );
-  if (!tooltip) return button;
+  if (tooltip !== "hover") return button;
   return <SimpleTooltip text={ariaLabel}>{button}</SimpleTooltip>;
 });
 

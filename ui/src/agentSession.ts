@@ -11,7 +11,11 @@
  * On the **web** the token is the address of this browser, not a key to the server: it
  * is made up here, never anywhere but this browser's storage, and opens nothing while
  * no window is listening. Until the server switch is turned on there is no stream or
- * session. It is the one thing kept in `localStorage` rather than in `storage.ts`,
+ * session. Being an address rather than a session, it is minted once and **outlives
+ * the switch**: turning the server off closes the session under it and leaves every
+ * configuration already pasted naming the same browser, which is why rolling it costs
+ * the deliberate gesture Regenerate token is. It is the one thing kept in
+ * `localStorage` rather than in `storage.ts`,
  * because localStorage is shared between an origin's tabs *and* says when it changes —
  * so connecting in one window attaches the others as they are. The IndexedDB store
  * reads itself once at startup, which would make a second window find out on its next
@@ -36,13 +40,13 @@ const RECONNECT_MAX_MS = 15000;
 export interface AgentSessionState {
   /** Whether this build can open an MCP server. */
   available: boolean;
-  /** Whether this browser has connected an agent. Shared by every tab. */
+  /** Whether the switch is on, so an agent can reach this browser. Shared by every tab. */
   connected: boolean;
   /** Whether this window's stream is open. */
   attached: boolean;
   /** Whether a run would land in this window rather than another one of yours. */
   onDuty: boolean;
-  /** The endpoint an agent is pointed at, and the token that names this browser. */
+  /** The endpoint an agent is pointed at, and the token that names this browser. Both outlive the switch. */
   url?: string;
   token?: string;
   error?: string;
@@ -82,6 +86,8 @@ interface Message {
 
 interface Stored {
   token: string;
+  /** The switch. Absent in what the first shape of this key wrote, which was only ever written while on. */
+  connected?: boolean;
 }
 
 function readStored(): Stored | undefined {
@@ -93,6 +99,20 @@ function readStored(): Stored | undefined {
   } catch {
     return undefined;
   }
+}
+
+function writeStored(stored: Stored): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // A browser refusing storage is one the token cannot outlive a reload in; the
+    // session still works for as long as this window is open.
+  }
+}
+
+/** Whether the switch is on. A stored token from before there was a flag means on. */
+function isOn(stored: Stored | undefined): boolean {
+  return !!stored && stored.connected !== false;
 }
 
 // A token is 32 hex characters of the browser's own randomness, which is what the
@@ -115,6 +135,11 @@ class AgentSession {
   private hostToken?: string;
   private streamId?: string;
   private abort?: AbortController;
+  // The token this window's stream is open under, which is what tells a stream that is
+  // still the right one from a stream on an address that has since been rolled.
+  private held?: string;
+  // Set while a reconnection is waiting out its backoff, so coming back can cut it short.
+  private wake?: () => void;
   private activityTimer?: number;
   private started = false;
   private reconnect = RECONNECT_MS;
@@ -139,12 +164,23 @@ class AgentSession {
 
     window.addEventListener("focus", this.reportFocus);
     document.addEventListener("visibilitychange", this.reportFocus);
+    window.addEventListener("online", this.retryNow);
     // The desktop waits for the switch to start its server and hand over the token.
     if (isWailsEnvironment()) return;
 
     void this.readAvailability();
     window.addEventListener("storage", this.onStorage);
-    if (readStored()) this.attach();
+    // The address is this browser's whether or not the switch is on, so it is minted
+    // here rather than by turning the server on: the page names an endpoint and a
+    // token from the first time it is opened, and nothing about them changes when the
+    // switch does.
+    let stored = readStored();
+    if (!stored) {
+      stored = { token: newToken(), connected: false };
+      writeStored(stored);
+    }
+    this.update(this.address());
+    if (isOn(stored)) this.attach();
   }
 
   /**
@@ -159,21 +195,22 @@ class AgentSession {
     this.attach();
   }
 
-  /** Turns the web server on with a fresh token and a stream in every window. */
+  /** Turns the web server on, on this browser's own address, with a stream in every window. */
   connect(): void {
-    const token = readStored()?.token ?? newToken();
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ token } satisfies Stored));
+    writeStored({ token: readStored()?.token ?? newToken(), connected: true });
     this.attach();
   }
 
   /**
-   * Turns the web server off and rolls the token. The server is told rather than left
-   * to time the session out: until it forgets the token, discovery would go on
-   * answering under it.
+   * Turns the web server off. The token stays: it is where this browser is reached, not
+   * the session, so every configuration already pasted is still pointed here and turning
+   * the switch back on needs nothing pasted again. The server is told rather than left to
+   * time the session out — until it forgets the token, discovery would go on answering
+   * under it.
    */
   disconnect(): void {
     const token = readStored()?.token;
-    window.localStorage.removeItem(STORAGE_KEY);
+    if (token) writeStored({ token, connected: false });
     this.detach();
     if (token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
@@ -181,18 +218,20 @@ class AgentSession {
   }
 
   /**
-   * Rolls the token this browser is reached at, leaving the server on. Every config
-   * already pasted names the old one, which is the whole point — so the old session is
-   * dropped rather than left to time out.
+   * Rolls the token this browser is reached at, leaving the switch where it is. Every
+   * config already pasted names the old one, which is the whole point — so the old
+   * session is dropped rather than left to time out. This is the only thing that
+   * changes the address, which is why the page asks twice for it.
    */
   regenerateToken(): void {
-    const previous = readStored()?.token;
+    const previous = readStored();
     this.detach();
-    if (previous) {
-      void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous}` } }).catch(() => {});
+    if (previous?.token) {
+      void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous.token}` } }).catch(() => {});
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: newToken() } satisfies Stored));
-    this.attach();
+    writeStored({ token: newToken(), connected: isOn(previous) });
+    this.update(this.address());
+    if (isOn(previous)) this.attach();
   }
 
   /** Detaches the desktop window when its loopback server is turned off. */
@@ -209,7 +248,7 @@ class AgentSession {
 
   private onStorage = (event: StorageEvent) => {
     if (event.key !== null && event.key !== STORAGE_KEY) return;
-    if (readStored()) {
+    if (isOn(readStored())) {
       this.attach();
     } else {
       this.detach();
@@ -232,14 +271,28 @@ class AgentSession {
     return this.hostToken ?? readStored()?.token;
   }
 
+  // Where this browser is reached, which is not a thing the switch decides. The
+  // desktop's endpoint is the loopback listener the process reports, not this page.
+  private address(): Pick<AgentSessionState, "token" | "url"> {
+    const token = this.currentToken();
+    return { token, url: token && !this.hostToken ? `${window.location.origin}/mcp` : undefined };
+  }
+
   private attach(): void {
     const token = this.currentToken();
-    if (!token || this.abort) {
-      this.update({ connected: !!token });
+    // A token rolled in another tab is a different address, and the stream this window
+    // holds is on the old one.
+    if (this.abort && this.held !== token) this.detach();
+    if (!token) {
+      this.update({ connected: false, ...this.address() });
       return;
     }
-    // The desktop's endpoint is the loopback listener the process reports, not this page.
-    this.update({ connected: true, token, url: this.hostToken ? undefined : `${window.location.origin}/mcp` });
+    if (this.abort) {
+      this.update({ connected: true });
+      return;
+    }
+    this.held = token;
+    this.update({ connected: true, ...this.address() });
     this.abort = new AbortController();
     void this.hold(token, this.abort);
   }
@@ -247,8 +300,10 @@ class AgentSession {
   private detach(): void {
     this.abort?.abort();
     this.abort = undefined;
+    this.held = undefined;
     this.streamId = undefined;
-    this.update({ connected: false, attached: false, onDuty: false, token: undefined, url: undefined, error: undefined });
+    this.wake?.();
+    this.update({ connected: false, attached: false, onDuty: false, error: undefined, ...this.address() });
   }
 
   // hold keeps the stream open for as long as this browser is connected, reopening it
@@ -276,7 +331,7 @@ class AgentSession {
       if (abort.signal.aborted) return;
       this.update({ attached: false, onDuty: false });
       this.streamId = undefined;
-      await new Promise((resolve) => window.setTimeout(resolve, this.reconnect));
+      await this.sleep(this.reconnect);
       this.reconnect = Math.min(this.reconnect * 2, RECONNECT_MAX_MS);
     }
   }
@@ -351,9 +406,34 @@ class AgentSession {
   // reportFocus decides where a run lands. A run's console is held in the window that
   // ran it, so it has to be the window being looked at.
   private reportFocus = (): void => {
-    if (!this.streamId || document.visibilityState === "hidden") return;
+    if (document.visibilityState === "hidden") return;
+    // Coming back to a window whose stream dropped while it was away is the moment to
+    // stop waiting: sitting out fifteen seconds of backoff is the whole of what makes
+    // the page look stuck on a server that is answering.
+    if (!this.state.attached) this.retryNow();
+    if (!this.streamId) return;
     void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId }));
   };
+
+  // A reconnection that is waiting is one that can be asked for now.
+  private retryNow = (): void => {
+    this.reconnect = RECONNECT_MS;
+    this.wake?.();
+  };
+
+  // Waits, but no longer than something asking for the reconnection now.
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      let timer = 0;
+      const done = () => {
+        window.clearTimeout(timer);
+        this.wake = undefined;
+        resolve();
+      };
+      timer = window.setTimeout(done, ms);
+      this.wake = done;
+    });
+  }
 
   private async post(path: string, body: string): Promise<void> {
     const token = this.currentToken();

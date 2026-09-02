@@ -868,7 +868,7 @@ function PathField({ value, onValueChange, onPick, icon, label, variables, place
             aria-label={label}
             variant="ghost"
             size="sm"
-            tooltip={false}
+            tooltip="native"
             disabled={readOnly}
             onClick={async () => {
               const picked = await onPick();
