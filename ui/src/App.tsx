@@ -936,6 +936,11 @@ export function App() {
         onNewDraftRef.current();
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        onRequestSaveRef.current();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
         e.preventDefault();
         toggleJsonViewRef.current();
@@ -1384,10 +1389,10 @@ export function App() {
   const onRequestSaveRef = useRef(onRequestSave);
   onRequestSaveRef.current = onRequestSave;
 
-  // Wire the native File → Save menu item (⌘S).
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    return onWailsEvent("menu:saveScript", () => onRequestSaveRef.current());
+    const unsubscribe = [onWailsEvent("menu:newScript", () => onNewDraftRef.current()), onWailsEvent("menu:newApp", () => onNewAppClickRef.current())];
+    return () => unsubscribe.forEach((off) => off());
   }, []);
 
   // The desktop's token is the process's, persisted so the connection command stays
@@ -1949,6 +1954,8 @@ export function App() {
     if (!runtime.canUpdateConfiguration) return;
     setNewAppOpen(true);
   };
+  const onNewAppClickRef = useRef(onNewAppClick);
+  onNewAppClickRef.current = onNewAppClick;
 
   const onSelectAppType = (type: string) => {
     setNewAppOpen(false);
