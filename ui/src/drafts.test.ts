@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import {
   appendCall,
   createDraft,
-  editedDrafts,
   findUntouched,
   isUntouched,
   markRun,
@@ -169,11 +168,10 @@ describe("the Drafts group", () => {
   });
 
   // Clearing untouched drafts must not reach the agent's row or your work.
-  it("counts untouched and edited without the agent's row", () => {
+  it("counts untouched without the agent's row", () => {
     const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentClient: "Claude" })];
 
     expect(untouchedDrafts(list).map((draft) => draft.id)).toEqual(["browsed"]);
-    expect(editedDrafts(list).map((draft) => draft.id)).toEqual(["edited"]);
   });
 
   // Clicking a method takes over a browsing buffer of your own, never the one an

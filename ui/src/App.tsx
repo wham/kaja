@@ -1,5 +1,4 @@
 import { useMediaQuery } from "./useMediaQuery";
-import { ConfirmationDialog } from "./components/confirmation-dialog";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
@@ -13,7 +12,7 @@ import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
 import { Console } from "./Console";
 import { newRunId, Run } from "./runs";
-import { consoles, FileConsole } from "./consoles";
+import { consoles } from "./consoles";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
 import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
 import { CompileLog } from "./CompileLog";
@@ -30,7 +29,6 @@ import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, sc
 import {
   appendCall,
   createDraft,
-  editedDrafts,
   findUntouched,
   isAgentDraft,
   isUntouched,
@@ -115,11 +113,8 @@ import { readInputKeys } from "./scriptInputs";
 import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
-import { FileName } from "./FileName";
 import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
-
-const UNDO_DISCARD_MS = 8000;
 
 // Read so start-up pruning can't drop a draft that is about to reopen.
 function openDraftIds(): string[] {
@@ -389,9 +384,6 @@ export function App() {
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
   const [compileLogExpandApp, setCompileLogExpandApp] = useState<{ name: string }>();
-  const [deleteScript, setDeleteScript] = useState<Script | null>(null);
-  const [deleteFolder, setDeleteFolder] = useState<string | null>(null);
-  const [clearAllPrompt, setClearAllPrompt] = useState<{ all: Draft[]; edited: Draft[] } | null>(null);
   // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
@@ -401,8 +393,6 @@ export function App() {
   const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
   const activeRunsRef = useRef(activeRuns);
   activeRunsRef.current = activeRuns;
-  const [discarded, setDiscarded] = useState<{ drafts: { draft: Draft; runs?: FileConsole }[]; label: string } | null>(null);
-  const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
@@ -1082,37 +1072,20 @@ export function App() {
   );
 
   const discardDrafts = useCallback(
-    (list: Draft[], label: string) => {
+    (list: Draft[]) => {
       if (list.length === 0) return;
       const ids = new Set(list.map((draft) => draft.id));
       applyViews((views) => views.filter((view) => !(view.type === "draft" && ids.has(view.draftId))));
       applyDrafts((current) => current.filter((draft) => !ids.has(draft.id)));
-      // The console is held alongside the draft so taking the discard back brings the runs too.
-      const held = list.map((draft) => ({ draft, runs: consoles.takeFile(draft.id) }));
-      for (const draft of list) dropStoredFile(draft.id);
-      if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-      setDiscarded({ drafts: held, label });
-      discardTimerRef.current = setTimeout(() => setDiscarded(null), UNDO_DISCARD_MS);
+      for (const draft of list) {
+        consoles.dropFile(draft.id);
+        dropStoredFile(draft.id);
+      }
     },
     [applyDrafts, applyViews],
   );
 
-  const onDiscardDraft = useCallback((draft: Draft) => discardDrafts([draft], `Discarded ${draft.title}`), [discardDrafts]);
-
-  const onUndoDiscard = useCallback(() => {
-    if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-    setDiscarded((held) => {
-      if (held) {
-        applyDrafts((list) => [...held.drafts.map((entry) => entry.draft), ...list]);
-        for (const { draft, runs } of held.drafts) {
-          if (!runs) continue;
-          consoles.putFile(draft.id, runs);
-          saveRuns(draft.id, runs.runs, runs.allItems());
-        }
-      }
-      return null;
-    });
-  }, [applyDrafts]);
+  const onDiscardDraft = useCallback((draft: Draft) => discardDrafts([draft]), [discardDrafts]);
 
   const onNewDraft = useCallback(() => {
     const draft = createDraft("", undefined, Date.now());
@@ -1375,19 +1348,11 @@ export function App() {
   );
 
   const onClearUntouched = useCallback(() => {
-    const list = untouchedDrafts(draftsRef.current);
-    if (list.length > 0) discardDrafts(list, `${list.length} untouched ${list.length === 1 ? "draft" : "drafts"} cleared`);
+    discardDrafts(untouchedDrafts(draftsRef.current));
   }, [discardDrafts]);
 
   const onClearAllDrafts = useCallback(() => {
-    const all = draftsRef.current.filter((draft) => !isAgentDraft(draft));
-    if (all.length === 0) return;
-    const edited = editedDrafts(all);
-    if (edited.length === 0) {
-      discardDrafts(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
-      return;
-    }
-    setClearAllPrompt({ all, edited });
+    discardDrafts(draftsRef.current.filter((draft) => !isAgentDraft(draft)));
   }, [discardDrafts]);
 
   const onRequestSaveRef = useRef(onRequestSave);
@@ -1578,7 +1543,7 @@ export function App() {
     [applyViews],
   );
 
-  const onConfirmDeleteScript = useCallback(
+  const onDeleteScript = useCallback(
     async (script: Script) => {
       try {
         await deleteScriptFile(script);
@@ -1629,7 +1594,7 @@ export function App() {
   // A folder is a place, so deleting one deletes what is filed there — the files
   // and the folders under it alike. Disk first: nothing leaves the sidebar until
   // it is gone, so a refused delete leaves a list that still matches the disk.
-  const onConfirmDeleteFolder = useCallback(
+  const onDeleteFolder = useCallback(
     async (path: string) => {
       const scripts = scriptsWithin(scriptsRef.current ?? [], path);
       try {
@@ -2006,9 +1971,6 @@ export function App() {
     dropAppForm();
   };
 
-  // What deleting the folder on the confirmation would take with it.
-  const deleteFolderFiles = useMemo(() => (deleteFolder ? scriptsWithin(scripts ?? [], deleteFolder) : []), [deleteFolder, scripts]);
-
   // Names no variable defines are in here too: the Variables view shows them as a warning.
   const variableUsage = useMemo(() => {
     const usage: { [name: string]: string[] } = {};
@@ -2310,11 +2272,11 @@ export function App() {
                     onScriptSelect={onScriptSelect}
                     onRenameScript={canWriteFiles ? onRenameScript : undefined}
                     onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
-                    onDeleteScript={canWriteFiles ? (script) => setDeleteScript(script) : undefined}
+                    onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
                     onCopyScriptLink={(script) => void onCopyScriptLink(script)}
                     onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
                     onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
-                    onDeleteFolder={canWriteFiles ? (path) => setDeleteFolder(path) : undefined}
+                    onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
                     onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
                   />
                 }
@@ -2676,102 +2638,6 @@ export function App() {
         />
       )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
-      {deleteScript && (
-        <ConfirmationDialog
-          title="Delete file?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const script = deleteScript;
-            setDeleteScript(null);
-            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-          }}
-        >
-          Permanently delete{" "}
-          <strong>
-            <FileName name={deleteScript.name} />
-          </strong>
-          ?
-        </ConfirmationDialog>
-      )}
-      {/* The dialog appears only when clearing costs something, and then it
-          names the work at stake. Its two buttons are both actions, so closing
-          it — Esc, the backdrop, the X — clears nothing: the safe path is the
-          fast one, not the one you fall into. */}
-      {clearAllPrompt && (
-        <Dialog
-          title={`Clear ${clearAllPrompt.all.length} ${clearAllPrompt.all.length === 1 ? "draft" : "drafts"}?`}
-          onClose={() => setClearAllPrompt(null)}
-          footerButtons={[
-            {
-              content: `Keep edited (${clearAllPrompt.all.length - clearAllPrompt.edited.length})`,
-              onClick: () => {
-                const untouched = clearAllPrompt.all.filter((draft) => !clearAllPrompt.edited.includes(draft));
-                setClearAllPrompt(null);
-                discardDrafts(untouched, `${untouched.length} untouched ${untouched.length === 1 ? "draft" : "drafts"} cleared`);
-              },
-            },
-            {
-              content: `Clear all ${clearAllPrompt.all.length}`,
-              variant: "destructive",
-              onClick: () => {
-                const all = clearAllPrompt.all;
-                setClearAllPrompt(null);
-                discardDrafts(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
-              },
-            },
-          ]}
-        >
-          <div className="flex flex-col gap-3">
-            <span className="text-sm text-muted-foreground">
-              {untouchedSentence(clearAllPrompt.all.length - clearAllPrompt.edited.length)} {clearAllPrompt.edited.length}{" "}
-              {clearAllPrompt.edited.length === 1 ? "has edits that aren't" : "have edits that aren't"} saved anywhere:
-            </span>
-            <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-card p-2">
-              {clearAllPrompt.edited.map((draft) => (
-                <span key={draft.id} className="truncate text-sm text-foreground">
-                  {draft.title}
-                </span>
-              ))}
-            </div>
-          </div>
-        </Dialog>
-      )}
-      {/* A folder is a place, so deleting one deletes the files filed there. The
-          dialog is where that is said, and it names what it costs rather than
-          refusing the folders that cost anything. */}
-      {deleteFolder && (
-        <ConfirmationDialog
-          title="Delete folder?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const path = deleteFolder;
-            setDeleteFolder(null);
-            if (gesture === "confirm" && path) void onConfirmDeleteFolder(path);
-          }}
-        >
-          Permanently delete <strong>{deleteFolder}</strong>
-          {deleteFolderFiles.length > 0
-            ? ` and the ${deleteFolderFiles.length === 1 ? "file" : `${deleteFolderFiles.length} files`} in it?`
-            : "? Anything filed there goes with it."}
-          {deleteFolderFiles.length > 0 && (
-            <div className="mt-3 flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-card p-2">
-              {deleteFolderFiles.map((script) => {
-                // A file deeper down is named by where it sits, so two `january.ts`
-                // in different subfolders are two different lines.
-                const under = script.folder.slice(deleteFolder.length + 1);
-                return (
-                  <span key={script.path} className="truncate text-sm text-foreground">
-                    {under && <span className="text-muted-foreground">{under}/</span>}
-                    <FileName name={script.name} />
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </ConfirmationDialog>
-      )}
       {/* A floating surface, so it is opaque: at 10% the destructive tint let the
           console header read straight through the message it was covering. */}
       {fileError && (
@@ -2782,16 +2648,6 @@ export function App() {
           <TriangleAlert size={16} className="mt-0.5 shrink-0 text-destructive" />
           <span className="min-w-0 break-words text-sm text-destructive">{fileError}</span>
           <IconButton icon={X} aria-label="Dismiss" size="xs" variant="ghost" onClick={() => setFileError(undefined)} />
-        </div>
-      )}
-      {/* Nothing was on disk, so discarding is taken back rather than confirmed
-          up front. */}
-      {discarded && (
-        <div className="fixed bottom-10 left-1/2 z-[1000] flex h-9 -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-popover px-3 shadow-lg">
-          <span className="text-sm text-muted-foreground">{discarded.label}</span>
-          <button type="button" className="text-sm font-medium text-foreground hover:underline" onClick={onUndoDiscard}>
-            Undo
-          </button>
         </div>
       )}
     </>
@@ -2854,11 +2710,6 @@ function FolderField({ value, folders, onChange, onSubmit }: { value: string; fo
       )}
     </FormControl>
   );
-}
-
-function untouchedSentence(count: number): string {
-  if (count === 0) return "None of them regenerate on demand.";
-  return `${count} ${count === 1 ? "is" : "are"} untouched and regenerate${count === 1 ? "s" : ""} on demand.`;
 }
 
 // A value no folder can have, so picking it can't collide with one.

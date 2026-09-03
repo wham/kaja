@@ -71,7 +71,7 @@ export interface ScriptsRegionProps {
   onDraftSelect: (draft: Draft) => void;
   onNameDraft: (draft: Draft) => void;
   onDiscardDraft: (draft: Draft) => void;
-  // Each confirmed against the list it is about to touch. Neither can reach a file.
+  // Neither can reach a file.
   onClearUntouched: () => void;
   onClearAllDrafts: () => void;
   sweepDrafts: boolean;
@@ -419,7 +419,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <CursorMenu at={draftsMenu} onClose={() => setDraftsMenu(null)} width="w-56">
         {/* Untouched means still byte-identical to the generated call: clearing
-            them removes nothing you wrote, so it needs no confirm. */}
+            them removes nothing you wrote. */}
         <DropdownMenuItem onSelect={props.onClearUntouched}>
           Clear untouched
           <span className="ml-auto pl-4 text-xs text-muted-foreground">{untouchedDrafts(drafts).length}</span>
@@ -486,7 +486,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           </DropdownMenuItem>
         )}
         {/* Nothing is on disk to remove, so this is a discard rather than a
-            delete: neutral, and undoable instead of confirmed. */}
+            delete. */}
         <DropdownMenuItem onSelect={() => draftMenu && props.onDiscardDraft(draftMenu.draft)}>
           <X size={16} />
           Discard
@@ -517,7 +517,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">F2</span>
           </DropdownMenuItem>
         )}
-        {/* The only destructive action in the sidebar that touches disk, and
+        {/* The only action in the sidebar that removes something from disk, and
             the only one in text-destructive. */}
         {props.onDeleteScript && (
           <DropdownMenuItem variant="danger" onSelect={() => scriptMenu && props.onDeleteScript?.(scriptMenu.script)}>
