@@ -77,6 +77,13 @@ export function setClipboardText(text: string): Promise<boolean> {
     .catch(() => false);
 }
 
+/** Reads the system clipboard, empty where the host has nothing or refuses. */
+export function getClipboardText(): Promise<string> {
+  return runtime()
+    .then(({ Clipboard }) => Clipboard.Text())
+    .catch(() => "");
+}
+
 /** Sets the window's title. */
 export function setWindowTitle(title: string): void {
   runtime()

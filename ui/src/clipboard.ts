@@ -1,4 +1,4 @@
-import { isWailsEnvironment, setClipboardText } from "./wails";
+import { getClipboardText, isWailsEnvironment, setClipboardText } from "./wails";
 
 /**
  * Puts text on the clipboard and reports whether it landed, so a copied state
@@ -21,6 +21,19 @@ export async function copyText(text: string): Promise<boolean> {
     }
   }
   return copySelection(text);
+}
+
+/**
+ * What is on the clipboard, empty where nothing can read it — the same rule the
+ * other way round, with no fallback: a selection can be written but not read.
+ */
+export async function clipboardText(): Promise<string> {
+  if (isWailsEnvironment()) return getClipboardText();
+  try {
+    return (await navigator.clipboard?.readText()) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function copySelection(text: string): boolean {

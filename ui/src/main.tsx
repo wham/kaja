@@ -1,3 +1,4 @@
+import "./monacoClipboard";
 import "../../server/build/tailwind.css";
 import * as monaco from "monaco-editor";
 import React from "react";
