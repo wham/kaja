@@ -41,7 +41,7 @@ export interface McpConditions {
   attached: boolean;
   /** A run would land in this window rather than another one of yours. */
   onDuty: boolean;
-  /** A client is calling right now. */
+  /** An agent is calling right now. */
   active: boolean;
   error?: string;
 }
@@ -74,7 +74,7 @@ export function isListening(info: McpConnection | undefined): boolean {
 
 export function mcpStatus({ enabled, listening, attached, onDuty, active, error }: McpConditions): McpStatus {
   if (error) return { state: "error", headline: "Failed to start", note: error, tone: "destructive" };
-  if (!enabled) return { state: "off", headline: "Off", note: "turn it on to let a client connect", tone: "muted" };
+  if (!enabled) return { state: "off", headline: "Off", note: "turn it on to let an agent connect", tone: "muted" };
   // Two different waits, and saying so is what keeps one of them from reading as the
   // other: an endpoint that isn't up yet is the server starting, while an endpoint
   // already named with no stream on it is this window reaching it.
@@ -83,7 +83,7 @@ export function mcpStatus({ enabled, listening, attached, onDuty, active, error 
   // Being on duty is what a window is unless it says otherwise, and a run's console is
   // held in the window that ran it — so the only thing worth a line is not being it.
   if (active) return { state: "active", headline: "Running", tone: "emerald" };
-  return { state: "running", headline: "Running", note: onDuty ? "no client attached" : "another window of yours is on duty", tone: "muted" };
+  return { state: "running", headline: "Running", note: onDuty ? "no agent attached" : "another window of yours is on duty", tone: "muted" };
 }
 
 /** The dot at the plug's corner and in front of the page's headline. */

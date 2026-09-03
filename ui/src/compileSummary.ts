@@ -1,4 +1,4 @@
-import { appParameters } from "./appTypes";
+import { appParameters, appType, appTypes } from "./appTypes";
 import { App } from "./apps";
 import { Log, LogLevel } from "./server/api";
 
@@ -41,6 +41,25 @@ export function firstErrorMessage(app: App): string | undefined {
 // server call it; the ones that don't name one report nothing here.
 export function appAddress(app: App): string {
   return appParameters(app.configuration).url ?? "";
+}
+
+// How many apps of each type the workspace holds, in the registry's own order and
+// leaving out the types nothing uses. It is what the footer says instead of `5 apps`
+// once everything is ready: the marks are the count and the type at once, which the
+// word "apps" was saying neither of.
+export function appTypeCounts(apps: App[]): { type: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const app of apps) {
+    const type = appType(app.configuration);
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  }
+  const ordered = appTypes.map((definition) => definition.type).filter((type) => counts.has(type));
+  // A type the registry has never heard of still has apps, and dropping them would
+  // make the footer say the workspace holds fewer than it does.
+  for (const type of counts.keys()) {
+    if (!ordered.includes(type)) ordered.push(type);
+  }
+  return ordered.map((type) => ({ type, count: counts.get(type) ?? 0 }));
 }
 
 export function countMethods(app: App): number {

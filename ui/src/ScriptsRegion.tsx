@@ -725,8 +725,8 @@ function AgentRow({
         <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
           <Plug size={12} />
         </span>
-        <span className="flex-1 truncate" title={`${draft.agentClient} is writing here — ${draft.title}`}>
-          {draft.agentClient}
+        <span className="flex-1 truncate" title={`${draft.agentName} is writing here — ${draft.title}`}>
+          {draft.agentName}
         </span>
         <span
           className={cn("flex shrink-0 items-center gap-0.5", active ? "justify-end" : "justify-center")}
@@ -734,15 +734,15 @@ function AgentRow({
         >
           {active ? (
             <>
-              {canWrite && <RowAction icon={Save} label={`Save what ${draft.agentClient} wrote as a file`} onClick={onSaveAsFile} />}
-              <RowAction icon={X} label={`Clear ${draft.agentClient}'s draft`} onClick={onDiscard} />
+              {canWrite && <RowAction icon={Save} label={`Save what ${draft.agentName} wrote as a file`} onClick={onSaveAsFile} />}
+              <RowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={onDiscard} />
             </>
           ) : waiting ? (
             <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
           ) : running ? (
             // The only live indicator in the sidebar: it goes out the moment the call finishes
             // and the row stays, name and all.
-            <span aria-hidden title={`${draft.agentClient} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
+            <span aria-hidden title={`${draft.agentName} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
           ) : null}
         </span>
       </div>

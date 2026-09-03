@@ -1,4 +1,5 @@
-import { Blocks, Globe, FolderOpen, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
+import { FolderOpen, Sparkles, type LucideIcon } from "lucide-react";
+import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a native
@@ -50,7 +51,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "grpc",
     label: "gRPC",
     description: "Call a gRPC service from its proto files or via server reflection.",
-    icon: Server,
+    icon: GrpcMark,
     // GrpcForm renders these: it reaches the server first and then offers what answered.
     customForm: true,
     surfaceNoun: "method",
@@ -80,7 +81,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "twirp",
     label: "Twirp",
     description: "Call a Twirp service from its proto files.",
-    icon: Plug,
+    icon: TwirpMark,
     parameters: [
       {
         key: "url",
@@ -102,7 +103,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "openapi",
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
-    icon: Globe,
+    icon: OpenApiMark,
     // OpenApiForm renders these: it reads the document first and then offers what it declares.
     customForm: true,
     surfaceNoun: "operation",
@@ -129,7 +130,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "mcp",
     label: "MCP",
     description: "Explore another Model Context Protocol server: its tools, resources and prompts.",
-    icon: Blocks,
+    icon: McpMark,
     // McpForm renders these: it reads the server first and then shows what it exposes.
     customForm: true,
     surfaceNoun: "method",

@@ -24,7 +24,7 @@ import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, 
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
-import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
+import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import {
   appendCall,
@@ -127,8 +127,14 @@ function openDraftIds(): string[] {
 }
 
 // Also reads the legacy "scratches" key: drafts were called scratches before the rename.
+// `agentClient` is the same kind of lag — the field held what connects to Kaja's MCP
+// server back when that was called a client — and is folded into `agentName` on the way
+// in, so a draft written before the rename keeps its row and its pin.
 function persistedDrafts(): Draft[] {
-  return getPersistedValue<Draft[]>("drafts") ?? getPersistedValue<Draft[]>("scratches") ?? [];
+  const stored = getPersistedValue<(Draft & { agentClient?: string })[]>("drafts") ?? getPersistedValue<(Draft & { agentClient?: string })[]>("scratches");
+  return (stored ?? []).map(({ agentClient, ...draft }) =>
+    draft.agentName === undefined && agentClient !== undefined ? { ...draft, agentName: agentClient } : draft,
+  );
 }
 
 // Vertical padding the editor reserves around the code (see Editor.tsx).
@@ -1097,16 +1103,16 @@ export function App() {
   onNewDraftRef.current = onNewDraft;
 
   /**
-   * The slot is the client's, not the endpoint's: Claude Code and Codex each write into
+   * The slot is the agent's, not the endpoint's: Claude Code and Codex each write into
    * a draft of their own rather than over each other's. It is found by the name the
    * draft is already labelled with, so there is nothing beside the list to keep in step
-   * with it and a draft written before there was more than one client is that client's.
+   * with it and a draft written before there was more than one agent is that agent's.
    */
   const agentDraft = useCallback(
-    (code: string, client: string): Draft => {
+    (code: string, agentName: string): Draft => {
       const now = Date.now();
-      const held = draftsRef.current.find((draft) => draft.agentClient === client);
-      const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentClient: client };
+      const held = draftsRef.current.find((draft) => draft.agentName === agentName);
+      const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentName };
       applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === draft.id ? draft : candidate)) : [draft, ...list]));
       const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === draft.id);
       if (view?.type === "draft" && view.model.getValue() !== code) view.model.setValue(code);
@@ -1135,11 +1141,11 @@ export function App() {
   );
 
   /**
-   * Opening the agent's draft puts the editor in follow mode: the client rewrites the
+   * Opening the agent's draft puts the editor in follow mode: the agent rewrites the
    * buffer between runs. Take over copies it into a draft of your own.
    */
-  const agentViewClient = useCallback(
-    (draftId: string) => draftsRef.current.find((draft) => draft.id === draftId && isAgentDraft(draft))?.agentClient,
+  const agentViewName = useCallback(
+    (draftId: string) => draftsRef.current.find((draft) => draft.id === draftId && isAgentDraft(draft))?.agentName,
     // The list is read through the ref, so this only has to re-run when it moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [drafts],
@@ -1332,7 +1338,7 @@ export function App() {
       folder: lastFolderRef.current,
       content: view.model.getValue(),
       draftId: view.draftId,
-      title: draft && isAgentDraft(draft) ? `Save what ${draft.agentClient} wrote as a file` : "Save as file",
+      title: draft && isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
     });
   }, [canWriteFiles, openNameSheet, takenNames]);
 
@@ -1343,7 +1349,7 @@ export function App() {
         folder: lastFolderRef.current,
         content: draft.code,
         draftId: draft.id,
-        title: isAgentDraft(draft) ? `Save what ${draft.agentClient} wrote as a file` : "Save as file",
+        title: isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
       }),
     [openNameSheet, takenNames],
   );
@@ -2080,7 +2086,7 @@ export function App() {
         key: `draft:${draft.id}`,
         name: draftTitleText(draft.title),
         path: "Drafts",
-        origin: draft.agentClient ?? draft.originAppName ?? "",
+        origin: draft.agentName ?? draft.originAppName ?? "",
         icon: isAgentDraft(draft) ? Plug : PenLine,
         provisional: isUntouched(draft),
         go: () => onDraftSelect(draft),
@@ -2100,6 +2106,9 @@ export function App() {
 
     for (const app of apps) {
       const packages = hasMultiplePackages(app.services);
+      // The mark is the only thing in a finder row that says what kind of app the
+      // method belongs to, which is the whole reason the app types have one.
+      const mark = getAppType(appType(app.configuration))?.icon ?? FileCode;
       for (const service of app.services) {
         const qualified = packages ? `${service.packageName}.${service.name}` : service.name;
         for (const method of service.methods) {
@@ -2110,7 +2119,7 @@ export function App() {
             name: method.name,
             path: `${app.configuration.name} / ${qualified}`,
             origin: app.configuration.name,
-            icon: FileCode,
+            icon: mark,
             uncallable: unsupportedReason(method, appType(app.configuration)) !== undefined,
             deprecated: method.deprecated,
             go: () => void onMethodSelect(method, service, app),
@@ -2334,12 +2343,12 @@ export function App() {
                           {/* Somebody else is writing in this one, so the editor
                               follows rather than pretending you can type into a
                               buffer that is being rewritten under you. */}
-                          {view.type === "draft" && agentViewClient(view.draftId) && (
+                          {view.type === "draft" && agentViewName(view.draftId) && (
                             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
                               <Plug size={13} className="shrink-0 text-muted-foreground" />
-                              <span className="shrink-0 text-sm text-foreground">{agentViewClient(view.draftId)}</span>
+                              <span className="shrink-0 text-sm text-foreground">{agentViewName(view.draftId)}</span>
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                agent draft · following {agentViewClient(view.draftId)}
+                                agent draft · following {agentViewName(view.draftId)}
                               </span>
                               <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
                                 Take over
@@ -2355,7 +2364,7 @@ export function App() {
                             onMount={(editor) => onEditorReady(view.id, editor)}
                             onGoToDefinition={onGoToDefinition}
                             viewState={view.viewState}
-                            readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewClient(view.draftId) !== undefined)}
+                            readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewName(view.draftId) !== undefined)}
                           />
                         </div>
                       )}

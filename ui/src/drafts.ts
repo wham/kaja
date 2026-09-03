@@ -29,9 +29,9 @@ export interface Draft {
   // The qualifier beside the title, which tells two same-named calls in different apps
   // apart. A draft is not bound to the method it came from.
   originAppName?: string;
-  // What an agent calls itself, on the one draft an MCP client writes in. It is what
-  // pins the row above your own drafts, outside the count and outside the sweep.
-  agentClient?: string;
+  // What an agent calls itself, on the one draft it writes in. It is what pins the row
+  // above your own drafts, outside the count and outside the sweep.
+  agentName?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -102,10 +102,10 @@ export function markRun(draft: Draft, code: string, now: number): Draft {
   };
 }
 
-// Excluded from the count and from the sweep: it persists with no client connected,
+// Excluded from the count and from the sweep: it persists with no agent connected,
 // because that is how you read what the last one did.
 export function isAgentDraft(draft: Draft): boolean {
-  return draft.agentClient !== undefined;
+  return draft.agentName !== undefined;
 }
 
 /**

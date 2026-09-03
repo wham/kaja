@@ -33,7 +33,7 @@ describe("mcpStatus", () => {
   });
 
   test("the only thing worth a line about a running server is not being on duty", () => {
-    expect(mcpStatus(running).note).toBe("no client attached");
+    expect(mcpStatus(running).note).toBe("no agent attached");
     expect(mcpStatus({ ...running, onDuty: false }).note).toBe("another window of yours is on duty");
   });
 

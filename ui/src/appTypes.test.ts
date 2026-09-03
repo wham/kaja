@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { APP_HEADER, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
+import { APP_HEADER, appTypes, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { ConfigurationApp } from "./server/api";
 
 const app = { name: "theatre" } as ConfigurationApp;
@@ -40,5 +40,15 @@ describe("isAppHeader", () => {
     expect(isAppHeader("x-kaja-app")).toBe(true);
     expect(isAppHeader("X-Kaja-App")).toBe(true);
     expect(isAppHeader("X-Kaja-Application")).toBe(false);
+  });
+});
+
+describe("appTypes", () => {
+  // In the tree and the finder the mark is the only thing saying what kind of app a
+  // method belongs to, so two types sharing one says nothing at all — which is what
+  // Server / Globe / Plug / Blocks were doing across four protocols.
+  it("gives every type a mark of its own", () => {
+    const marks = appTypes.map((type) => type.icon);
+    expect(new Set(marks).size).toBe(appTypes.length);
   });
 });

@@ -6,7 +6,8 @@ import { cn } from "./cn";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Switch } from "./components/switch";
-import { mcpClients, type McpEndpoint } from "./mcpClients";
+import { McpMap } from "./McpMap";
+import { mcpAgents, type McpEndpoint } from "./mcpAgents";
 import { isListening, mcpDotClass, mcpStatusOf, type McpConnection, type McpControl } from "./mcpState";
 import { desktop, isWailsEnvironment, openInBrowser } from "./wails";
 
@@ -27,12 +28,18 @@ function idleUrl(): string {
 type CopyTarget = "url" | "token" | "snippet";
 
 /**
- * The MCP server's page: the server at the top, and under it how a client reaches it.
+ * The MCP server's page: the server at the top, and under it how an agent reaches it.
  *
  * It reads top to bottom as one sentence. The band carries the two strings you have to
  * move by hand — the endpoint and the token — and the switch that owns the server. The
  * token is shown in full: it is a loopback credential you are about to paste into a
  * config file, so masking it only adds a click.
+ *
+ * **Off, the list gives way to the map.** A screenful of configuration per agent only
+ * means something once there is a server to point one at, so the space says what the
+ * switch is for instead — an agent, Kaja's canvas, the four protocols. The band is
+ * unchanged either way: the endpoint and the token are the workspace's address rather
+ * than the server's, so they stay copyable while nothing is listening.
  */
 export function Mcp({ info, control, active }: { info?: McpConnection; control: McpControl; active: boolean }) {
   const [selected, setSelected] = useState(0);
@@ -52,13 +59,13 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   const listening = isListening(info);
   const status = mcpStatusOf(info, control, active);
 
-  const client = mcpClients[selected];
+  const agent = mcpAgents[selected];
   // The token is the workspace's address on the desktop and this browser's on the web,
   // and on neither is it the server's: a stopped server still has the one every pasted
-  // configuration names, so every snippet below stays copyable with the switch off.
+  // configuration names, which is why the band states both with the switch off.
   const endpoint: McpEndpoint = { url: info?.url || idleUrl(), token: info?.token ?? "" };
-  const snippet = client.snippet(endpoint);
-  const configurationPath = client.configurationKey ? info?.configurationPaths?.[client.configurationKey] : undefined;
+  const snippet = agent.snippet(endpoint);
+  const configurationPath = agent.configurationKey ? info?.configurationPaths?.[agent.configurationKey] : undefined;
   const canReveal = isWailsEnvironment() && !!configurationPath;
   const written = !!endpoint.token;
 
@@ -83,7 +90,7 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   };
 
   const install = () => {
-    const link = client.install?.link(endpoint);
+    const link = agent.install?.link(endpoint);
     if (!link) return;
     if (isWailsEnvironment()) {
       openInBrowser(link);
@@ -123,57 +130,69 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
         </div>
       </section>
 
-      <section aria-label="Connect a client" className="flex min-h-0 flex-1 flex-col gap-2">
-        <h2 className="m-0 shrink-0 text-xs font-semibold text-foreground">Connect a client</h2>
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-          <nav aria-label="MCP client" className="w-[176px] shrink-0 overflow-y-auto border-r border-border py-[5px]">
-            {mcpClients.map((candidate, index) => (
-              <button
-                key={candidate.name}
-                type="button"
-                aria-current={index === selected}
-                onClick={() => setSelected(index)}
-                className={cn(
-                  "flex h-[26px] w-full cursor-pointer items-center border-0 px-2.5 text-left text-xs",
-                  index === selected ? "bg-accent font-semibold text-accent-foreground" : "bg-transparent text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <span className="truncate">{candidate.name}</span>
-              </button>
-            ))}
-          </nav>
+      {!control.enabled ? (
+        <section
+          aria-label="How Kaja works"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[22px] overflow-hidden rounded-lg border border-dashed border-border p-6"
+        >
+          <McpMap className="max-h-full w-full max-w-[880px]" />
+          <p className="m-0 max-w-[520px] shrink-0 text-center text-xs leading-[1.6] text-pretty text-muted-foreground">
+            Turn the server on and this panel lists the {mcpAgents.length} agents with a config to paste for each.
+          </p>
+        </section>
+      ) : (
+        <section aria-label="Connect an agent" className="flex min-h-0 flex-1 flex-col gap-2">
+          <h2 className="m-0 shrink-0 text-xs font-semibold text-foreground">Connect an agent</h2>
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+            <nav aria-label="MCP agent" className="w-[176px] shrink-0 overflow-y-auto border-r border-border py-[5px]">
+              {mcpAgents.map((candidate, index) => (
+                <button
+                  key={candidate.name}
+                  type="button"
+                  aria-current={index === selected}
+                  onClick={() => setSelected(index)}
+                  className={cn(
+                    "flex h-[26px] w-full cursor-pointer items-center border-0 px-2.5 text-left text-xs",
+                    index === selected ? "bg-accent font-semibold text-accent-foreground" : "bg-transparent text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  <span className="truncate">{candidate.name}</span>
+                </button>
+              ))}
+            </nav>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-4 py-3.5">
-            <div className="flex min-h-8 items-center gap-2">
-              <span className="shrink-0 truncate text-sm font-semibold text-foreground">{client.name}</span>
-              <span className="shrink-0 rounded border border-border px-1.5 text-xs text-muted-foreground">{client.kind}</span>
-              <span className="flex-1" />
-              {client.install && written && (
-                <Button size="sm" onClick={install}>
-                  {client.install.label}
-                </Button>
-              )}
-            </div>
-            <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{client.lead}</p>
-            <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border", !written && "opacity-45")}>
-              <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border bg-muted pl-2.5 pr-1">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{client.path}</span>
-                {written && <Verb label={copied === "snippet" ? "Copied" : "Copy"} lit={copied === "snippet"} onClick={() => copy("snippet", snippet)} />}
-                {canReveal && (
-                  <>
-                    <span className="h-3 w-px shrink-0 bg-border" />
-                    <Verb label="Reveal" onClick={() => void desktop().then((app) => app.ShowFileInFinder(configurationPath))} />
-                  </>
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-4 py-3.5">
+              <div className="flex min-h-8 items-center gap-2">
+                <span className="shrink-0 truncate text-sm font-semibold text-foreground">{agent.name}</span>
+                <span className="shrink-0 rounded border border-border px-1.5 text-xs text-muted-foreground">{agent.kind}</span>
+                <span className="flex-1" />
+                {agent.install && written && (
+                  <Button size="sm" onClick={install}>
+                    {agent.install.label}
+                  </Button>
                 )}
               </div>
-              <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-4 py-3.5 font-mono text-xs leading-[1.75] break-words whitespace-pre-wrap text-foreground">
-                {snippet}
-              </pre>
+              <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.lead}</p>
+              <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border", !written && "opacity-45")}>
+                <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border bg-muted pl-2.5 pr-1">
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{agent.path}</span>
+                  {written && <Verb label={copied === "snippet" ? "Copied" : "Copy"} lit={copied === "snippet"} onClick={() => copy("snippet", snippet)} />}
+                  {canReveal && (
+                    <>
+                      <span className="h-3 w-px shrink-0 bg-border" />
+                      <Verb label="Reveal" onClick={() => void desktop().then((app) => app.ShowFileInFinder(configurationPath))} />
+                    </>
+                  )}
+                </div>
+                <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-4 py-3.5 font-mono text-xs leading-[1.75] break-words whitespace-pre-wrap text-foreground">
+                  {snippet}
+                </pre>
+              </div>
+              {agent.foot && <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.foot}</p>}
             </div>
-            {client.foot && <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{client.foot}</p>}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

@@ -128,7 +128,7 @@ describe("pruneDrafts", () => {
   // The agent's row persists with no client connected — that is how you read
   // what the last one did — so only a deliberate clear removes it.
   it("never sweeps the agent's draft", () => {
-    expect(pruneDrafts([stale("agent", { agentClient: "Claude" })], NOW, new Set())).toHaveLength(1);
+    expect(pruneDrafts([stale("agent", { agentName: "Claude" })], NOW, new Set())).toHaveLength(1);
   });
 
   it("sweeps nothing while the sweep is off", () => {
@@ -149,7 +149,7 @@ describe("the Drafts group", () => {
       draft("browsed-old", NOW - 2 * DAY),
       draft("edited", NOW - 3 * DAY, { code: listShows + "// mine" }),
       draft("browsed-new", NOW),
-      draft("agent", NOW - 9 * DAY, { agentClient: "Claude" }),
+      draft("agent", NOW - 9 * DAY, { agentName: "Claude" }),
       draft("ran", NOW - DAY, { ran: true }),
     ]);
 
@@ -160,8 +160,8 @@ describe("the Drafts group", () => {
   it("pins a row per agent, most recently run first", () => {
     const ordered = orderDrafts([
       draft("mine", NOW),
-      draft("codex", NOW - 2 * DAY, { agentClient: "Codex" }),
-      draft("claude", NOW - DAY, { agentClient: "Claude Code" }),
+      draft("codex", NOW - 2 * DAY, { agentName: "Codex" }),
+      draft("claude", NOW - DAY, { agentName: "Claude Code" }),
     ]);
 
     expect(ordered.map((draft) => draft.id)).toEqual(["claude", "codex", "mine"]);
@@ -169,7 +169,7 @@ describe("the Drafts group", () => {
 
   // Clearing untouched drafts must not reach the agent's row or your work.
   it("counts untouched without the agent's row", () => {
-    const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentClient: "Claude" })];
+    const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentName: "Claude" })];
 
     expect(untouchedDrafts(list).map((draft) => draft.id)).toEqual(["browsed"]);
   });
@@ -177,7 +177,7 @@ describe("the Drafts group", () => {
   // Clicking a method takes over a browsing buffer of your own, never the one an
   // agent is writing in.
   it("never reopens the agent's draft as a browsing buffer", () => {
-    const agent = draft("agent", NOW, { agentClient: "Claude" });
+    const agent = draft("agent", NOW, { agentName: "Claude" });
     expect(findUntouched([agent], agent.code, agent.originAppName)).toBeUndefined();
   });
 });
