@@ -1,14 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { App, CompilationStatus, createPendingApp } from "./apps";
 import { LogLevel } from "./server/api";
-import { appTypeCounts, appWarnings, countMethods, firstErrorMessage, settledLabel, summarizeCompilation } from "./compileSummary";
+import { appWarnings, countMethods, firstErrorMessage, settledLabel, summarizeCompilation } from "./compileSummary";
 
 function app(name: string, status: CompilationStatus, logs: { level: LogLevel; message: string }[] = []): App {
-  return typedApp(name, "grpc", status, logs);
-}
-
-function typedApp(name: string, type: string, status: CompilationStatus, logs: { level: LogLevel; message: string }[] = []): App {
-  const app = createPendingApp({ name, [type]: { headers: {} }, app: { oneofKind: type } } as any);
+  const app = createPendingApp({ name, grpc: { url: "", protoDir: "", headers: {} }, app: { oneofKind: "grpc" } } as any);
   app.compilation = { status, logs: logs.map((log) => ({ level: log.level, message: log.message })) as any };
   return app;
 }
@@ -118,23 +114,5 @@ describe("settledLabel", () => {
 
   test("long compiles round to whole seconds", () => {
     expect(settledLabel([app("a", "success"), app("b", "success")], 12400)).toBe("2 apps ready · 12s");
-  });
-});
-
-describe("appTypeCounts", () => {
-  test("nothing to count is no rows", () => {
-    expect(appTypeCounts([])).toEqual([]);
-  });
-
-  test("apps are counted per type, in the registry's order", () => {
-    const apps = [typedApp("theatre", "openapi", "success"), typedApp("a", "grpc", "success"), typedApp("b", "grpc", "success")];
-    expect(appTypeCounts(apps)).toEqual([
-      { type: "grpc", count: 2 },
-      { type: "openapi", count: 1 },
-    ]);
-  });
-
-  test("a type the registry never heard of still counts, rather than going missing", () => {
-    expect(appTypeCounts([typedApp("x", "soap", "success")])).toEqual([{ type: "soap", count: 1 }]);
   });
 });

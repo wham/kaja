@@ -7,17 +7,7 @@ import { AppTypeIcon } from "./AppTypeIcon";
 import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
-import {
-  appTypeCounts,
-  appWarnings,
-  countMethods,
-  firstErrorMessage,
-  isCompiling,
-  settledLabel,
-  summarizeCompilation,
-  appAddress,
-  CompileState,
-} from "./compileSummary";
+import { appWarnings, countMethods, firstErrorMessage, isCompiling, settledLabel, summarizeCompilation, appAddress, CompileState } from "./compileSummary";
 
 // How long the green receipt stays up after a batch settles, before the
 // indicator falls back to its resting label.
@@ -44,22 +34,6 @@ const stateClass: Record<CompileState, string> = {
   warning: "text-amber-600 dark:text-amber-400",
   failed: "text-destructive",
 };
-
-// What the footer says once every app is ready: a mark per type with the number of
-// apps behind it. `5 apps` was a number over a list you could see, and said nothing
-// about what the five were; the marks say both, in the same width.
-function TypeCounts({ apps }: { apps: App[] }) {
-  return (
-    <span className="flex shrink-0 items-center gap-2">
-      {appTypeCounts(apps).map(({ type, count }) => (
-        <span key={type} className="flex items-center gap-1">
-          <AppTypeIcon type={type} size={12} className="text-current" />
-          <span className="font-mono">{count}</span>
-        </span>
-      ))}
-    </span>
-  );
-}
 
 function StateIcon({ state }: { state: CompileState }) {
   if (state === "loading" || state === "compiling") return <Spinner size="sm" className="size-[14px] shrink-0 text-current" />;
@@ -194,16 +168,10 @@ export function CompileStatus({ apps, configurationLoaded, onShowLog, onRecompil
         >
           <StateIcon state={settled ? "ready" : summary.state} />
           {/* Truncates rather than wraps: the bar is 30px, so a second line is
-              drawn under the bottom of the window. The counts stand in for the label
-              only where there is nothing else to say — a receipt states a duration and
-              every other state states what went wrong, neither of which is a count. */}
-          {summary.state === "ready" && !settled ? (
-            <TypeCounts apps={apps} />
-          ) : (
-            <span aria-live="polite" className="truncate">
-              {label}
-            </span>
-          )}
+              drawn under the bottom of the window. */}
+          <span aria-live="polite" className="truncate">
+            {label}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-[360px] p-1">
