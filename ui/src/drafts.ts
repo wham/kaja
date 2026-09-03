@@ -118,14 +118,10 @@ export function orderDrafts(drafts: Draft[]): Draft[] {
   return [...drafts].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
 }
 
-// Clearing untouched drafts removes nothing you wrote: clicking the method again
-// regenerates the same code, which is why it needs no confirm.
+// Clicking the method again regenerates the same code, so clearing these removes
+// nothing you wrote.
 export function untouchedDrafts(drafts: Draft[]): Draft[] {
   return drafts.filter((draft) => !isAgentDraft(draft) && isUntouched(draft));
-}
-
-export function editedDrafts(drafts: Draft[]): Draft[] {
-  return drafts.filter((draft) => !isAgentDraft(draft) && !isUntouched(draft));
 }
 
 // Unlimited only works if the browsing buffers clear themselves out. Anything run or

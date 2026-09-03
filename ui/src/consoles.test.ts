@@ -521,18 +521,6 @@ describe("renaming, taking and dropping a file", () => {
     expect(store.file("b.ts").runs).toHaveLength(0);
   });
 
-  it("hands the console back so a discard can be undone", () => {
-    start("draft-1");
-    const taken = store.takeFile("draft-1");
-
-    expect(store.file("draft-1").runs).toHaveLength(0);
-    expect(taken?.runs).toHaveLength(1);
-
-    store.putFile("draft-1", taken!);
-
-    expect(store.file("draft-1").runs).toHaveLength(1);
-  });
-
   it("drops a file outright", () => {
     start("a.ts");
     store.dropFile("a.ts");

@@ -578,28 +578,11 @@ export class Consoles {
     this.#flagsChanged();
   }
 
-  // Discarding a draft is undoable, so its runs have to be able to come back with it.
-  takeFile(fileId: string): FileConsole | undefined {
-    const file = this.#files.get(fileId);
-    if (!file) return undefined;
-    this.#files.delete(fileId);
+  dropFile(fileId: string): void {
+    if (!this.#files.delete(fileId)) return;
     if (this.#mru === fileId) this.#mru = null;
     this.#touch(fileId, true);
     this.#flagsChanged();
-    return file;
-  }
-
-  putFile(fileId: string, file: FileConsole): void {
-    this.#files.delete(fileId);
-    this.#files.set(fileId, file);
-    this.#mru = fileId;
-    this.#evict();
-    this.#touch(fileId, true);
-    this.#flagsChanged();
-  }
-
-  dropFile(fileId: string): void {
-    this.takeFile(fileId);
   }
 
   hasWorkInFlight(fileId: string | undefined, runId: string): boolean {
