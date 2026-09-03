@@ -61,7 +61,9 @@ function flushWrites(): void {
       store.put(value, key);
     }
   } catch (error) {
-    console.warn("Failed to write to storage:", error);
+    // A write that was refused is work that is gone, so it is an error and lands in
+    // the footer. Nothing else in the app would ever say so.
+    console.error("Failed to write to storage:", error);
   }
 }
 
@@ -82,7 +84,7 @@ function flushTypeMemoryWrites(): void {
       store.delete(key);
     }
   } catch (error) {
-    console.warn("Failed to write to type memory storage:", error);
+    console.error("Failed to write to type memory storage:", error);
   }
 }
 
@@ -92,7 +94,7 @@ export async function initializeStorage(): Promise<void> {
     cache = await readAllFromStore(db, UI_STATE_STORE);
     typeMemoryCache = await readAllFromStore(db, TYPE_MEMORY_STORE);
   } catch (error) {
-    console.warn("Failed to initialize storage:", error);
+    console.error("Failed to initialize storage:", error);
   }
 }
 

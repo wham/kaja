@@ -1,4 +1,4 @@
-import { Braces, Check, ChevronDown, CircleAlert, Copy, Plus, Trash2 } from "lucide-react";
+import { Braces, Check, ChevronDown, Copy, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyText } from "./clipboard";
 import { Alert } from "./components/alert";
@@ -10,7 +10,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { VariableSource, VariableStatus } from "./server/api";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
@@ -83,9 +82,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
   const [editVersion, setEditVersion] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [pendingStoredWrites, setPendingStoredWrites] = useState(0);
-  const [configurationError, setConfigurationError] = useState<string>();
-  const [storedValueError, setStoredValueError] = useState<string>();
   const [entering, setEntering] = useState<Set<number>>(new Set());
   const [justStored, setJustStored] = useState<Set<string>>(new Set());
   const [movingToEnvironment, setMovingToEnvironment] = useState<{ index: number; name: string; value: string } | null>(null);
@@ -207,7 +203,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
       submittedVersionRef.current = version;
       submittedVariablesRef.current = snapshot;
       setSaving(true);
-      setConfigurationError(undefined);
 
       const cleared = Object.keys(variables).filter(
         (name) => variableKind(variables[name]) === "stored" && (!(name in snapshot) || variableKind(snapshot[name]) !== "stored"),
@@ -215,7 +210,7 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
 
       void onSaveRef
         .current({ variables: snapshot, cleared })
-        .catch((error) => setConfigurationError(rpcErrorMessage(error)))
+        .catch((error) => console.error(`Saving variables failed: ${rpcErrorMessage(error)}`))
         .finally(() => setSaving(false));
     }, AUTOSAVE_MS);
 
@@ -230,8 +225,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
       next.delete(index);
       return next;
     });
-    setPendingStoredWrites((count) => count + 1);
-    setStoredValueError(undefined);
     const write = storedWriteChainRef.current.then(() => onStoreValue(name, value));
     storedWriteChainRef.current = write.then(
       () => undefined,
@@ -239,19 +232,14 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
     );
     try {
       await write;
-      setStoredValueError(undefined);
       setJustStored((prev) => new Set(prev).add(name));
     } catch (error) {
-      setStoredValueError(rpcErrorMessage(error));
-    } finally {
-      setPendingStoredWrites((count) => count - 1);
+      console.error(`Storing ${name} failed: ${rpcErrorMessage(error)}`);
     }
   };
 
   const body =
     rows.length === 0 ? (
-      // Centred in the body band rather than the whole pane: the footer below it is chrome
-      // the blankslate has to sit clear of.
       <div className="flex min-h-0 flex-1 items-center justify-center px-4">
         <Blankslate className="max-w-[340px] py-0">
           <Blankslate.Visual>
@@ -380,32 +368,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   return (
     <div className="flex h-full flex-col bg-background">
       {body}
-
-      {!readOnly && (
-        <div className="flex h-[52px] shrink-0 items-center justify-end gap-2 border-t border-border px-4">
-          {saving || pendingStoredWrites > 0 ? (
-            <>
-              <Spinner className="size-[13px]" />
-              <span className="text-xs text-muted-foreground">Saving…</span>
-            </>
-          ) : configurationError || storedValueError ? (
-            <SimpleTooltip
-              text={storedValueError ?? configurationError ?? ""}
-              contentClassName="max-w-[300px] whitespace-normal break-words font-mono leading-5"
-            >
-              <span className="flex cursor-default items-center gap-2 text-xs text-destructive underline decoration-dotted underline-offset-4">
-                <CircleAlert size={13} />
-                Not saved
-              </span>
-            </SimpleTooltip>
-          ) : (
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Check size={13} />
-              Saved
-            </span>
-          )}
-        </div>
-      )}
 
       {movingToEnvironment && (
         <ConfirmationDialog

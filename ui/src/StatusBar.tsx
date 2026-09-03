@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
+import { ErrorStatus, useAppErrors } from "./ErrorStatus";
 import { summarizeCompilation } from "./compileSummary";
 import { McpPopover, type McpConnection, type McpControl } from "./McpPopover";
 import { App } from "./apps";
@@ -91,6 +92,7 @@ export function StatusBar({
   onShowCompileLog,
   onRecompile,
 }: StatusBarProps) {
+  const appErrors = useAppErrors();
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
@@ -130,6 +132,12 @@ export function StatusBar({
     leftItems.push(
       <CompileStatus key="compile" apps={apps} configurationLoaded={configurationLoaded} onShowLog={onShowCompileLog} onRecompile={onRecompile} />,
     );
+  }
+  // Last, and absent until Kaja has failed at something. It reads the error store
+  // itself rather than taking it as a prop: what it reports is the window's, not this
+  // bar's, and every writer already reaches it through `console.error`.
+  if (appErrors.length > 0) {
+    leftItems.push(<ErrorStatus key="errors" />);
   }
 
   // The right padding is 11, not 12: these glyphs are smaller than the rest of the
