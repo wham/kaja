@@ -29,6 +29,7 @@ service Api {
   rpc CreateScriptFolder(CreateScriptFolderRequest) returns (CreateScriptFolderResponse);
   rpc RenameScriptFolder(RenameScriptFolderRequest) returns (RenameScriptFolderResponse);
   rpc DeleteScriptFolder(DeleteScriptFolderRequest) returns (DeleteScriptFolderResponse);
+  rpc ScanScriptVariables(ScanScriptVariablesRequest) returns (ScanScriptVariablesResponse);
 }
 
 message CompileRequest {
@@ -548,6 +549,39 @@ message DeleteScriptFolderRequest {
 }
 
 message DeleteScriptFolderResponse {}
+
+// ScanScriptVariables reports which scripts reference the named variables. An
+// app's references are read out of the configuration the client already holds;
+// a script's cost a read of the file, so they are answered here, in one walk of
+// the scripts folder, rather than a search per variable the client has to pace.
+//
+// A script names a variable two ways, and both are counted: `kaja.variables.NAME`,
+// which is how a script reads one, and `${NAME}` inside a value it sends, which
+// the request hop expands. The names come from the caller, so an interpolated
+// local can only be counted if it is spelled exactly like a variable.
+message ScanScriptVariablesRequest {
+  repeated string names = 1;
+}
+
+// One script that references a variable, and how many times.
+message ScriptReference {
+  // Absolute path, as ListScripts reports it.
+  string path = 1;
+  int32 count = 2;
+}
+
+message VariableReferences {
+  string name = 1;
+  repeated ScriptReference scripts = 2;
+}
+
+message ScanScriptVariablesResponse {
+  // One entry per requested name, whether or not anything references it.
+  repeated VariableReferences variables = 1;
+  // Set when the walk stopped short of the whole folder, so the counts read as a
+  // floor rather than a total.
+  bool truncated = 2;
+}
 
 message Configuration {
   // kaja can be deployed at a subpath - i.e. kaja.tools/demo

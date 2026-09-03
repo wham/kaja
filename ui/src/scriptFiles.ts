@@ -89,3 +89,31 @@ export async function renameScriptFolder(path: string, name: string): Promise<st
 export async function deleteScriptFolder(path: string): Promise<void> {
   await getApiClient().deleteScriptFolder({ name: path });
 }
+
+export interface ScriptReference {
+  path: string;
+  count: number;
+}
+
+export interface ScriptScan {
+  references: Map<string, ScriptReference[]>;
+  truncated: boolean;
+}
+
+/**
+ * Which scripts reference the named variables. Reading a folder one file at a
+ * time over the wire is what would make the Variables screen's "Used by" column
+ * expensive, so the walk happens where the disk is: the names go down, the
+ * references come back, and there is nothing for the screen to pace.
+ */
+export async function scanScriptVariables(names: string[]): Promise<ScriptScan> {
+  const { response } = await getApiClient().scanScriptVariables({ names });
+  const references = new Map<string, ScriptReference[]>();
+  for (const entry of response.variables) {
+    references.set(
+      entry.name,
+      entry.scripts.map((script) => ({ path: script.path, count: script.count })),
+    );
+  }
+  return { references, truncated: response.truncated };
+}

@@ -17,6 +17,7 @@ export interface DialogFooterButton {
   content: React.ReactNode;
   onClick: () => void;
   variant?: ButtonProps["variant"];
+  disabled?: boolean;
 }
 
 export interface DialogProps {
@@ -50,7 +51,7 @@ function Dialog({ title, width = "default", onClose, footerButtons, initialFocus
           {footerButtons && footerButtons.length > 0 && (
             <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
               {footerButtons.map((button, index) => (
-                <Button key={index} variant={button.variant ?? "outline"} onClick={button.onClick}>
+                <Button key={index} variant={button.variant ?? "outline"} disabled={button.disabled} onClick={button.onClick}>
                   {button.content}
                 </Button>
               ))}

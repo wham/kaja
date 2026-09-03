@@ -5,6 +5,8 @@ import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { ScanScriptVariablesResponse } from "./api";
+import type { ScanScriptVariablesRequest } from "./api";
 import type { DeleteScriptFolderResponse } from "./api";
 import type { DeleteScriptFolderRequest } from "./api";
 import type { RenameScriptFolderResponse } from "./api";
@@ -138,6 +140,10 @@ export interface IApiClient {
      * @generated from protobuf rpc: DeleteScriptFolder
      */
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse>;
+    /**
+     * @generated from protobuf rpc: ScanScriptVariables
+     */
+    scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -295,5 +301,12 @@ export class ApiClient implements IApiClient, ServiceInfo {
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
         const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ScanScriptVariables
+     */
+    scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this._transport, method, opt, input);
     }
 }

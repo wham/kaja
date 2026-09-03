@@ -92,6 +92,7 @@ import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
 import { setVariables, variableReferences } from "./variableExpansion";
+import { appVariableUses } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowTitle } from "./wails";
@@ -1972,19 +1973,7 @@ export function App() {
   };
 
   // Names no variable defines are in here too: the Variables view shows them as a warning.
-  const variableUsage = useMemo(() => {
-    const usage: { [name: string]: string[] } = {};
-    for (const name of Object.keys(configuration?.variables ?? {})) {
-      usage[name] = [];
-    }
-    for (const app of configuration?.apps ?? []) {
-      const values = [...Object.values(appParameters(app)), ...Object.values(appHeaders(app))];
-      for (const name of new Set(values.flatMap(variableReferences))) {
-        (usage[name] ??= []).push(app.name);
-      }
-    }
-    return usage;
-  }, [configuration?.apps, configuration?.variables]);
+  const variableUses = useMemo(() => appVariableUses(configuration?.apps ?? []), [configuration?.apps]);
 
   const onVariablesClick = useCallback(() => {
     applyViews(showVariables);
@@ -2397,10 +2386,14 @@ export function App() {
                           variables={configuration?.variables ?? {}}
                           status={variableStatus}
                           storeAvailable={runtime.variableStoreAvailable}
-                          usage={variableUsage}
+                          uses={variableUses}
+                          scripts={scripts ?? []}
+                          active={view.id === currentView?.id}
                           readOnly={!runtime.canUpdateConfiguration}
                           onSave={onVariablesSave}
                           onStoreValue={onStoreVariableValue}
+                          onScriptSelect={(script) => void onScriptSelect(script)}
+                          onRevealApp={(name) => setAutoExpandApp({ name })}
                         />
                       )}
                     </div>
