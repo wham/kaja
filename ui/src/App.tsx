@@ -65,7 +65,7 @@ import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { logFileLevel } from "./scriptConsole";
-import { logScriptLine } from "./uiLog";
+import { deviceConsole, logScriptLine } from "./uiLog";
 import { Configuration, ConfigurationApp, GetConfigurationResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -586,7 +586,10 @@ export function App() {
 
   const reportScriptError = useCallback(
     (run: Run) => (error: unknown) => {
-      console.error("Script error:", error);
+      // The run's own console is where this belongs, and `recordLogs` below puts it
+      // there. `deviceConsole` keeps it out of the footer's errors, which are for what
+      // Kaja failed at rather than what a script did.
+      deviceConsole.error("Script error:", error);
       const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
       consoles.recordLogs(run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now());
     },

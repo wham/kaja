@@ -3,6 +3,7 @@ import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
 import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, LogLevel, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { deviceConsole } from "./uiLog";
 
 function formatDuration(milliseconds: number): string {
   const seconds = Math.round(milliseconds / 1000);
@@ -93,7 +94,10 @@ export function useCompilation(
     } catch (error: any) {
       if (signal.aborted) return;
 
-      console.error("Compilation error:", error);
+      // Stated on the app's row in the compile status and in its log, two glyphs from
+      // the footer's error count; through `deviceConsole` so one failure doesn't light
+      // both.
+      deviceConsole.error("Compilation error:", error);
       // A call that never answered has nothing to report but itself, and an app left
       // at "running" would spin for the rest of the session.
       updateApp(appName, (app) => ({

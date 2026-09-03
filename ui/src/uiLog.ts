@@ -1,3 +1,4 @@
+import { recordAppError } from "./appErrors";
 import { bindMembers } from "./bindMembers";
 import { desktop, isWailsEnvironment } from "./wails";
 
@@ -25,10 +26,17 @@ function formatArg(arg: unknown): string {
 function send(level: string, args: unknown[]): void {
   const message = args.map(formatArg).join(" ");
   // Logging must never throw or recurse back into the patched console.
+  if (level === "ERROR") recordAppError(message);
   write(level, message);
 }
 
+// kaja.log is the desktop's alone: it is the file a TestFlight user attaches to a bug
+// report. The footer's own account of the same errors is not, which is why the ring
+// above is filled on both builds and this is guarded.
 function write(level: string, message: string): void {
+  if (!isWailsEnvironment()) {
+    return;
+  }
   desktop()
     .then((app) => app.LogFromUI(level, message))
     .catch(() => {});
@@ -49,26 +57,25 @@ export const deviceConsole: Console = bindMembers(console);
  * file is still greppable by severity, and `[script]` says where the line came
  * from: `2026-08-10T… [ui] [INFO] [script] 42 shows`.
  *
- * No-op outside the desktop, like everything else here.
+ * No-op outside the desktop: `write` is the desktop's alone.
  */
 export function logScriptLine(level: string, message: string): void {
-  if (!isWailsEnvironment()) {
-    return;
-  }
   write(level, `[script] ${message}`);
 }
 
 /**
- * Mirror frontend console errors and uncaught failures into <kajaHome>/logs/kaja.log
- * via the desktop app. The webview console is otherwise only visible in Web
- * Inspector, so this is how TestFlight users can share frontend logs. No-op
- * outside the Wails desktop environment.
+ * Catch what Kaja failed at: `console.error`, `console.warn`, and the two events that
+ * carry a failure nobody caught.
+ *
+ * The errors go to `appErrors`, which the footer draws, on both builds. Everything
+ * also goes to <kajaHome>/logs/kaja.log through `write`, which is the desktop's alone
+ * — the webview console is otherwise only visible in Web Inspector, so the file is how
+ * a TestFlight user shares frontend logs.
+ *
+ * `deviceConsole` is read at this module's own load, so it is the unpatched console
+ * however late this runs. That is what keeps a script's lines out of the footer.
  */
 export function installUiLog(): void {
-  if (!isWailsEnvironment()) {
-    return;
-  }
-
   const originalError = console.error.bind(console);
   const originalWarn = console.warn.bind(console);
 
