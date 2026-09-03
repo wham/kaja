@@ -95,7 +95,7 @@ describe("viewIdentity", () => {
     const draft = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
     const identity = viewIdentity(draftView("draft-1", "s1"), [draft]);
 
-    expect(identity.name).toBe("GetShow · vera-lune");
+    expect(identity.name).toBe("GetShow vera-lune");
     expect(identity.path).toBe("Drafts");
     expect(identity.origin).toBe("theatre");
   });

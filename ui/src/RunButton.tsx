@@ -9,7 +9,7 @@ const isMac = navigator.platform.startsWith("Mac");
 export const runShortcutLabel = isMac ? "⌘⏎" : "Ctrl+⏎";
 export const runWithParametersShortcutLabel = isMac ? "⇧⌘⏎" : "Ctrl+Shift+⏎";
 export const copyDeeplinkShortcutLabel = isMac ? "⌘⇧C" : "Ctrl+Shift+C";
-export const nameShortcutLabel = isMac ? "⌘S" : "Ctrl+S";
+export const saveAsFileShortcutLabel = isMac ? "⌘S" : "Ctrl+S";
 
 interface RunButtonProps {
   onRun: () => void;
@@ -28,7 +28,7 @@ interface RunButtonProps {
   onRevealInFinder?: () => void;
   // What a draft has instead of an address: the sheet that gives it one, and the
   // discard that closes the buffer. Absent on a file.
-  onNameDraft?: () => void;
+  onSaveAsFile?: () => void;
   onDiscardDraft?: () => void;
   // A read-only file's only route to a copy you can change.
   onDuplicateAsDraft?: () => void;
@@ -54,14 +54,14 @@ export function RunButton({
   onRunWithParameters,
   onCopyDeeplink,
   onRevealInFinder,
-  onNameDraft,
+  onSaveAsFile,
   onDiscardDraft,
   onDuplicateAsDraft,
 }: RunButtonProps) {
   const elapsedMs = useElapsed(running, startedAt);
   const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator above it.
-  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
+  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onSaveAsFile, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to choose
   // between.
   const split = !running && (aboutTheScript || onRunWithParameters !== undefined);
@@ -133,10 +133,10 @@ export function RunButton({
               {/* A draft's counterpart to the address a file has: it has no
                   deeplink because it has no name, and this is the sheet that
                   fixes that. */}
-              {onNameDraft && (
-                <DropdownMenuItem onSelect={() => onNameDraft()}>
-                  <span className="flex-1">Name…</span>
-                  <Shortcut label={nameShortcutLabel} />
+              {onSaveAsFile && (
+                <DropdownMenuItem onSelect={() => onSaveAsFile()}>
+                  <span className="flex-1">Save as file…</span>
+                  <Shortcut label={saveAsFileShortcutLabel} />
                 </DropdownMenuItem>
               )}
               {onDiscardDraft && (

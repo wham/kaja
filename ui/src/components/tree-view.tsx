@@ -85,7 +85,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded, event) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
-          "group flex h-[22px] cursor-pointer items-center gap-1.5 pl-2 pr-1 text-[13px] outline-none",
+          "group flex h-[22px] cursor-pointer items-center gap-1.5 pl-2 pr-2 text-[13px] outline-none",
           current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50",
           "focus-visible:bg-accent/50",
         )}
@@ -123,7 +123,7 @@ function SubTree({ state, count = 3, leaf, children }: SubTreeProps) {
       <ul role="group" className={className}>
         {Array.from({ length: count }).map((_, index) => (
           <li key={index} role="treeitem">
-            <div className="flex h-[22px] items-center gap-1.5 pl-2 pr-1">
+            <div className="flex h-[22px] items-center gap-1.5 pl-2 pr-2">
               <span className="size-3 shrink-0" />
               <div className="h-2.5 w-24 animate-pulse rounded bg-muted" />
             </div>
@@ -147,8 +147,10 @@ function LeadingVisual({ children }: { children: React.ReactNode }) {
 // a kebab on hover doesn't move the label's truncation point under the cursor.
 // A row whose hover actions are several buttons wide overrides the width, and
 // buys the room back by dropping its leading glyph for as long as it is hovered.
+// 18px against the row's own 8px of padding, which is the column every control at
+// the panel's right edge stands in.
 function TrailingVisual({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <span className={cn("ml-auto flex w-6 shrink-0 items-center justify-center", className)}>{children}</span>;
+  return <span className={cn("ml-auto flex w-[18px] shrink-0 items-center justify-center", className)}>{children}</span>;
 }
 
 TreeView.Item = Item;

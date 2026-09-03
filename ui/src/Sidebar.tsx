@@ -70,7 +70,9 @@ export const TRAFFIC_LIGHTS_INSET = 78;
 const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-[13px] font-medium text-foreground";
 
 // Small enough to sit inside a 22px row, which is what lets the frequent verbs live
-// on the row instead of behind a menu.
+// on the row instead of behind a menu. Every one of them sits in an 18px box 8px in
+// from the panel's right edge — one column, from the band's tools down to the last
+// method in the tree.
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 
 function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void }) {
@@ -310,7 +312,7 @@ export function Sidebar({
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
-                  <span className="ml-auto -mr-[5px] flex w-6 shrink-0 items-center justify-center">
+                  <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
                     {(touch || active) && (
                       <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
                     )}
@@ -479,7 +481,7 @@ function GlobalBand({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-1.5"
+      className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-[3px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       {!reserveTrafficLights && (
@@ -546,7 +548,7 @@ function SectionHeader({
   seam?: boolean;
 }) {
   return (
-    <div className={cn("flex h-[22px] shrink-0 items-center gap-1 pr-1.5", seam && "mt-1 h-[27px] border-t border-border pt-1")}>
+    <div className={cn("flex h-[22px] shrink-0 items-center gap-1 pr-2", seam && "mt-1 h-[27px] border-t border-border pt-1")}>
       <h2 id={id} className="flex min-w-0">
         <button
           type="button"
