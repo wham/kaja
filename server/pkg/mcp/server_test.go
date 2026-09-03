@@ -161,18 +161,12 @@ const token = "secret-token"
 
 func call(t *testing.T, srv *Server, method string, params interface{}) rpcResponse {
 	t.Helper()
-	body := map[string]interface{}{"jsonrpc": "2.0", "id": 1, "method": method}
-	if params != nil {
-		body["params"] = params
-	}
-	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("%s: status = %d, body = %s", method, rec.Code, rec.Body.String())
-	}
+	return request(t, srv, method, params, nil)
+}
+
+func request(t *testing.T, srv *Server, method string, params interface{}, headers map[string]string) rpcResponse {
+	t.Helper()
+	rec := post(t, srv, method, params, headers)
 	var resp rpcResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("%s: decode response: %v (%s)", method, err, rec.Body.String())
@@ -180,14 +174,52 @@ func call(t *testing.T, srv *Server, method string, params interface{}) rpcRespo
 	return resp
 }
 
+func post(t *testing.T, srv *Server, method string, params interface{}, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := map[string]interface{}{"jsonrpc": "2.0", "id": 1, "method": method}
+	if params != nil {
+		body["params"] = params
+	}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+token)
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%s: status = %d, body = %s", method, rec.Code, rec.Body.String())
+	}
+	return rec
+}
+
 // tool calls a tool and returns its text content.
 func tool(t *testing.T, srv *Server, name string, args map[string]string) string {
+	t.Helper()
+	return toolAs(t, srv, "", name, args)
+}
+
+// toolAs calls a tool as the client holding a session, which is how one endpoint
+// serving two agents is written in a test.
+func toolAs(t *testing.T, srv *Server, session, name string, args map[string]string) string {
 	t.Helper()
 	params := map[string]interface{}{"name": name}
 	if args != nil {
 		params["arguments"] = args
 	}
-	return toolText(t, call(t, srv, "tools/call", params))
+	headers := map[string]string{}
+	if session != "" {
+		headers[sessionHeader] = session
+	}
+	return toolText(t, request(t, srv, "tools/call", params, headers))
+}
+
+// handshake introduces a client and answers with the session it was pinned.
+func handshake(t *testing.T, srv *Server, info map[string]string) string {
+	t.Helper()
+	rec := post(t, srv, "initialize", map[string]interface{}{"clientInfo": info}, nil)
+	return rec.Header().Get(sessionHeader)
 }
 
 func contains(t *testing.T, text string, fragments ...string) {
@@ -514,7 +546,7 @@ func TestCallTool_CRUD(t *testing.T) {
 }
 
 // The draft an inline run lands in is labelled with the agent that ran it, so
-// the name it announced at the handshake has to reach the run.
+// the name it announced has to reach the run.
 func TestRunScriptCarriesTheClientName(t *testing.T) {
 	bridge := newFakeBridge()
 	srv := NewServer(bridge, token)
@@ -526,16 +558,78 @@ func TestRunScriptCarriesTheClientName(t *testing.T) {
 	}
 
 	// A title is what a person reads; the identifier is the fallback.
-	call(t, srv, "initialize", map[string]interface{}{"clientInfo": map[string]string{"name": "claude-code", "title": "Claude Code"}})
+	handshake(t, srv, map[string]string{"name": "claude-code", "title": "Claude Code"})
 	tool(t, srv, "run_script", map[string]string{"code": "1"})
 	if bridge.lastClient != "Claude Code" {
 		t.Errorf("client = %q, want Claude Code", bridge.lastClient)
 	}
 
-	call(t, srv, "initialize", map[string]interface{}{"clientInfo": map[string]string{"name": "cursor-vscode"}})
+	handshake(t, srv, map[string]string{"name": "cursor-vscode"})
 	tool(t, srv, "run_script", map[string]string{"code": "1"})
 	if bridge.lastClient != "cursor-vscode" {
 		t.Errorf("client = %q, want cursor-vscode", bridge.lastClient)
+	}
+}
+
+// Two agents on one endpoint each get their own draft, so a run has to be read as
+// the client that made it rather than as whoever handshook last.
+func TestTwoClientsAreToldApartByTheirSession(t *testing.T) {
+	bridge := newFakeBridge()
+	srv := NewServer(bridge, token)
+
+	code := handshake(t, srv, map[string]string{"name": "claude-code", "title": "Claude Code"})
+	codex := handshake(t, srv, map[string]string{"name": "codex"})
+	if code == "" || codex == "" {
+		t.Fatalf("handshakes pinned no session (%q, %q)", code, codex)
+	}
+	if code == codex {
+		t.Fatalf("both clients were pinned the same session %q", code)
+	}
+
+	// Interleaved, and the later handshake is the one the fallback would have named.
+	toolAs(t, srv, code, "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "Claude Code" {
+		t.Errorf("client = %q, want Claude Code", bridge.lastClient)
+	}
+	toolAs(t, srv, codex, "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "codex" {
+		t.Errorf("client = %q, want codex", bridge.lastClient)
+	}
+
+	// A client that handshakes again is the same client, so it keeps its session and
+	// the map is bounded by how many agents there are.
+	if again := handshake(t, srv, map[string]string{"name": "claude-code", "title": "Claude Code"}); again != code {
+		t.Errorf("session = %q, want the one already pinned (%q)", again, code)
+	}
+}
+
+// The revision that dropped the handshake carries the identity on every request,
+// where it outranks any session at all.
+func TestClientInfoInMetaNamesTheCaller(t *testing.T) {
+	bridge := newFakeBridge()
+	srv := NewServer(bridge, token)
+
+	handshake(t, srv, map[string]string{"name": "claude-code", "title": "Claude Code"})
+	call(t, srv, "tools/call", map[string]interface{}{
+		"name":      "run_script",
+		"arguments": map[string]string{"code": "1"},
+		"_meta":     map[string]interface{}{metaClientInfo: map[string]string{"name": "codex"}},
+	})
+	if bridge.lastClient != "codex" {
+		t.Errorf("client = %q, want codex", bridge.lastClient)
+	}
+}
+
+// A session nothing pinned is a client kaja has never met, which is the one case
+// left for the last handshake to answer.
+func TestUnknownSessionFallsBackToTheLastHandshake(t *testing.T) {
+	bridge := newFakeBridge()
+	srv := NewServer(bridge, token)
+
+	handshake(t, srv, map[string]string{"name": "codex"})
+	toolAs(t, srv, "nothing-pinned-this", "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "codex" {
+		t.Errorf("client = %q, want codex", bridge.lastClient)
 	}
 }
 

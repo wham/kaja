@@ -116,7 +116,7 @@ server/proto/api.proto
 3. **Naming a draft moves it into Files.** The naming sheet asks for a name and a folder, nothing else.
 4. **Discarding is safe.** Untouched drafts are cleared without asking; edited ones need a confirm that names them.
 
-One word throughout — a **draft** (`drafts.ts`, `Draft`, `draftTitle.ts`, IndexedDB, unlimited, web and desktop alike). The old "scratch" keys (`drafts`, `agentDraftId`, view `type: "draft"`) are still read once for migration.
+One word throughout — a **draft** (`drafts.ts`, `Draft`, `draftTitle.ts`, IndexedDB, unlimited, web and desktop alike). The old "scratch" key (`drafts`) is still read once for migration.
 
 - **Five verbs, one object each.** You **name** a draft, **save** a file, **clear** drafts, **delete** a file, **revert** a file to saved. Nothing says "unsaved", because nothing is at risk.
 - **Clicking a method never asks what to do with it** (`onMethodSelect`). `findUntouched` first looks for an untouched draft holding exactly this call from this app and **reopens** it (`reopen` only bumps `updatedAt`, so it sits at the top and out of the sweep's reach). Otherwise an **untouched** draft — byte-identical to its generated code and never run (`isUntouched`) — is **taken over**, and a worked-in one is left alone while the call starts a new draft. The agent's draft is never taken over. Appending is deliberate: **⌥click or the row's `+`**; `appendCall` merges import lines and edits the text rather than reprinting it, so the author's formatting survives. Generated code is run through prettier **before it reaches the model** — format-on-open only fires when a model is created, and a takeover writes into one that already exists. The editor wraps rather than scrolling sideways.
@@ -170,12 +170,13 @@ One word throughout — a **draft** (`drafts.ts`, `Draft`, `draftTitle.ts`, Inde
 
 ### The agent's draft
 
-A snippet run over MCP is run in **one** draft, the same one every time, so its runs appear in the sidebar and the run history.
+A snippet run over MCP is run in **one** draft per client, the same one every time that client runs, so its runs appear in the sidebar and the run history.
 
-- **One row, pinned above your own, wearing the last client's name** — `clientInfo.title`, else `clientInfo.name`, else `Agent`, captured in `server/pkg/mcp/server.go` and carried into the run. `agentClient` on the `Draft` is the whole of it; `isAgentDraft` pins the row, excludes it from the count and spares it from the sweep. The icon is `Plug`, which already means MCP in the sidebar's band.
+- **One row per client, pinned above your own and wearing its name** — `clientInfo.title`, else `clientInfo.name`, else `Agent`, read in `server/pkg/mcp/server.go` and carried into the run. `agentClient` on the `Draft` is the whole of it, the **slot included**: `agentDraft` finds the client's buffer by that name rather than by an id held beside the list, so nothing can drift from it and a draft written when there was one slot belongs to whoever last wrote it. `isAgentDraft` pins the rows, excludes them from the count and spares them from the sweep; among themselves they order by recency. The icon is `Plug`, which already means MCP in the sidebar's band.
+- **One endpoint serves every client, so a run says who made it** (`identify`). Three ways, newest first: the revision that dropped the handshake carries `clientInfo` in `params._meta` on every request; an older one announces it at `initialize` and echoes the `Mcp-Session-Id` pinned in the answer; a client doing neither is whoever handshook last, which is what a single-agent endpoint was already read as. A name is pinned a session **once**, so a client that handshakes on every start is one entry and the map is bounded by how many agents there are rather than by how often they connect.
 - **The emerald dot is the only live indicator in the sidebar.** It goes out when the call finishes; the row and its name persist with no client connected.
-- **It can be cleared like any draft** — the next snippet makes another.
-- **Naming it works the same way.** `create_script` also consumes it when what was saved is exactly what was last run (`consumeAgentDraft`), so the buffer becomes the file rather than lingering as a copy, and its console follows it to the path.
+- **It can be cleared like any draft** — the next snippet from that client makes another.
+- **Naming it works the same way.** `create_script` also consumes it when what was saved is exactly what was last run (`consumeAgentDraft`, matching the code rather than a remembered id), so the buffer becomes the file rather than lingering as a copy, and its console follows it to the path.
 
 ## Deeplinks
 

@@ -109,7 +109,7 @@ export function isAgentDraft(draft: Draft): boolean {
 }
 
 /**
- * The order the Drafts group reads in: the agent's row first, then edited drafts —
+ * The order the Drafts group reads in: the agents' rows first, then edited drafts —
  * work never hides behind generated calls — then the browsing buffers, each half most
  * recently opened first.
  */

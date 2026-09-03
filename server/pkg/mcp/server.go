@@ -11,7 +11,9 @@ package mcp
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -134,6 +136,15 @@ const defaultClientName = "Agent"
 // indistinguishable from one that failed.
 const streamKeepalive = 15 * time.Second
 
+// sessionHeader is what a handshake pins and every request after it echoes, which
+// is what tells two agents on one endpoint apart. Streamable HTTP makes echoing it
+// the client's job once a server has issued one.
+const sessionHeader = "Mcp-Session-Id"
+
+// metaClientInfo is where the revision that dropped the handshake carries the
+// client's identity: on every request, in params._meta.
+const metaClientInfo = "io.modelcontextprotocol/clientInfo"
+
 // Server is the MCP HTTP handler.
 type Server struct {
 	bridge   Bridge
@@ -142,15 +153,21 @@ type Server struct {
 
 	mu       sync.Mutex
 	inFlight int
-	// What the last client to handshake called itself. One buffer is shared by every
-	// client, so this is whichever touched it last.
+	// What the last client to handshake called itself, which is what a request
+	// carrying neither a session nor an identity of its own is read as.
 	client string
+	// The name each pinned session belongs to, and the session pinned for each name.
+	// A name is minted a session once, so a client that handshakes on every start is
+	// one entry rather than a hundred, and the map is bounded by how many agents
+	// there are rather than by how often they connect.
+	sessions map[string]string
+	pinned   map[string]string
 }
 
 // NewServer builds a server. token guards every request via a bearer header;
 // it must be non-empty.
 func NewServer(bridge Bridge, token string) *Server {
-	return &Server{bridge: bridge, token: token}
+	return &Server{bridge: bridge, token: token, sessions: map[string]string{}, pinned: map[string]string{}}
 }
 
 // Streamed answers over SSE whenever the client says it accepts one, so a slow
@@ -208,6 +225,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	caller := s.identify(w, r, req)
+
 	// An agent's calls arrive in bursts, so the request is marked from the moment it
 	// lands until it is answered and the UI holds the mark a little longer.
 	if req.Method != "ping" {
@@ -222,11 +241,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.streamed && acceptsEventStream(r) {
-		s.respondStreamed(w, r, req)
+		s.respondStreamed(w, r, req, caller)
 		return
 	}
 
-	result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
+	result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
 	resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
 	if rerr != nil {
 		resp.Error = rerr
@@ -243,11 +262,11 @@ func acceptsEventStream(r *http.Request) bool {
 // respondStreamed answers over SSE, which Streamable HTTP allows for any request.
 // The answer is the same JSON-RPC response in one event; what it buys is the comment
 // line sent while it is still being produced.
-func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest) {
+func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest, caller string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		// Nothing can be flushed, so a stream would be buffered into a single write anyway.
-		result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
+		result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
 		resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
 		if rerr != nil {
 			resp.Error = rerr
@@ -269,7 +288,7 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 	}
 	done := make(chan answer, 1)
 	go func() {
-		result, rerr := s.dispatch(r.Context(), req.Method, req.Params)
+		result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
 		done <- answer{result: result, err: rerr}
 	}()
 
@@ -319,7 +338,7 @@ func (s *Server) authorized(r *http.Request) bool {
 	return subtleEqual(strings.TrimPrefix(h, prefix), s.token)
 }
 
-func (s *Server) dispatch(ctx context.Context, method string, params json.RawMessage) (interface{}, *rpcError) {
+func (s *Server) dispatch(ctx context.Context, method string, params json.RawMessage, caller string) (interface{}, *rpcError) {
 	switch method {
 	case "initialize":
 		return s.handleInitialize(params), nil
@@ -328,7 +347,7 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	case "tools/list":
 		return map[string]interface{}{"tools": toolDefinitions(s.bridge.CanWriteScripts())}, nil
 	case "tools/call":
-		return s.handleToolCall(ctx, params)
+		return s.handleToolCall(ctx, params, caller)
 	case "resources/list":
 		return s.handleResourcesList()
 	case "resources/read":
@@ -338,29 +357,7 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	}
 }
 
-// handleInitialize also learns what the client calls itself. The name is only ever
-// read back onto the draft an inline run lands in.
 func (s *Server) handleInitialize(params json.RawMessage) interface{} {
-	var announced struct {
-		ClientInfo struct {
-			Title string `json:"title"`
-			Name  string `json:"name"`
-		} `json:"clientInfo"`
-	}
-	if err := json.Unmarshal(params, &announced); err == nil {
-		// A title is written to be read; a name is an identifier ("claude-code"). Prefer the
-		// one meant for a person, since that is where this ends up.
-		name := strings.TrimSpace(announced.ClientInfo.Title)
-		if name == "" {
-			name = strings.TrimSpace(announced.ClientInfo.Name)
-		}
-		if name != "" {
-			s.mu.Lock()
-			s.client = name
-			s.mu.Unlock()
-		}
-	}
-
 	return map[string]interface{}{
 		"protocolVersion": protocolVersion,
 		"capabilities": map[string]interface{}{
@@ -375,8 +372,92 @@ func (s *Server) handleInitialize(params json.RawMessage) interface{} {
 	}
 }
 
-// clientName is what the last handshake announced, or the fallback.
-func (s *Server) clientName() string {
+// identify is who this request is from, which is the whole of what gives an agent a
+// draft of its own. Three ways of saying it, newest first: the revision that dropped
+// the handshake carries the identity on every request, an older one announces it once
+// and echoes the session pinned for it, and a client that does neither is whoever
+// handshook last — which is what a single-agent endpoint was already read as.
+//
+// A handshake also pins the session, so the answer to `initialize` is where the
+// header is set.
+func (s *Server) identify(w http.ResponseWriter, r *http.Request, req rpcRequest) string {
+	if name := announcedName(req.Params, metaClientInfo); name != "" {
+		return name
+	}
+	if req.Method == "initialize" {
+		name := announcedName(req.Params, "clientInfo")
+		if name == "" {
+			return s.lastClient()
+		}
+		w.Header().Set(sessionHeader, s.pin(name))
+		return name
+	}
+	if id := r.Header.Get(sessionHeader); id != "" {
+		s.mu.Lock()
+		name := s.sessions[id]
+		s.mu.Unlock()
+		if name != "" {
+			return name
+		}
+	}
+	return s.lastClient()
+}
+
+// announcedName reads a clientInfo out of the params, either at the top level (the
+// handshake) or under `_meta` (every request of the modern revision). A title is
+// written to be read; a name is an identifier ("claude-code"). Prefer the one meant
+// for a person, since a draft's row is where this ends up.
+func announcedName(params json.RawMessage, key string) string {
+	fields := map[string]json.RawMessage{}
+	if json.Unmarshal(params, &fields) != nil {
+		return ""
+	}
+	if key == metaClientInfo {
+		meta := map[string]json.RawMessage{}
+		if json.Unmarshal(fields["_meta"], &meta) != nil {
+			return ""
+		}
+		fields = meta
+	}
+	var announced struct {
+		Title string `json:"title"`
+		Name  string `json:"name"`
+	}
+	if json.Unmarshal(fields[key], &announced) != nil {
+		return ""
+	}
+	if title := strings.TrimSpace(announced.Title); title != "" {
+		return title
+	}
+	return strings.TrimSpace(announced.Name)
+}
+
+// pin records the handshake and answers with the session this name is known by.
+func (s *Server) pin(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.client = name
+	if id, ok := s.pinned[name]; ok {
+		return id
+	}
+	id := newSessionID()
+	s.pinned[name] = id
+	s.sessions[id] = name
+	return id
+}
+
+// newSessionID is the opaque handle a handshake is pinned under. It identifies a
+// client rather than authorizing one — the bearer token does that — so it is short.
+func newSessionID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return hex.EncodeToString([]byte(time.Now().Format(time.RFC3339Nano)))
+	}
+	return hex.EncodeToString(b)
+}
+
+// lastClient is what the last handshake announced, or the fallback.
+func (s *Server) lastClient() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.client == "" {
