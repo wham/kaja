@@ -1114,14 +1114,17 @@ export function App() {
   const onNewDraftRef = useRef(onNewDraft);
   onNewDraftRef.current = onNewDraft;
 
-  const agentDraftIdRef = useRef<string | undefined>(getPersistedValue<string>("agentDraftId") ?? getPersistedValue<string>("agentScratchId"));
+  /**
+   * The slot is the client's, not the endpoint's: Claude Code and Codex each write into
+   * a draft of their own rather than over each other's. It is found by the name the
+   * draft is already labelled with, so there is nothing beside the list to keep in step
+   * with it and a draft written before there was more than one client is that client's.
+   */
   const agentDraft = useCallback(
     (code: string, client: string): Draft => {
       const now = Date.now();
-      const held = draftsRef.current.find((draft) => draft.id === agentDraftIdRef.current);
+      const held = draftsRef.current.find((draft) => draft.agentClient === client);
       const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentClient: client };
-      agentDraftIdRef.current = draft.id;
-      setPersistedValue("agentDraftId", draft.id);
       applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === draft.id ? draft : candidate)) : [draft, ...list]));
       const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === draft.id);
       if (view?.type === "draft" && view.model.getValue() !== code) view.model.setValue(code);
@@ -1136,11 +1139,9 @@ export function App() {
   // from what it ran is a new one, and the buffer stays where it is.
   const consumeAgentDraft = useCallback(
     (script: Script, content: string) => {
-      const id = agentDraftIdRef.current;
-      const draft = id ? draftsRef.current.find((candidate) => candidate.id === id) : undefined;
-      if (!id || !draft || draft.code !== content) return;
-      agentDraftIdRef.current = undefined;
-      setPersistedValue("agentDraftId", undefined);
+      const draft = draftsRef.current.find((candidate) => isAgentDraft(candidate) && candidate.code === content);
+      if (!draft) return;
+      const id = draft.id;
       const shown = viewsRef.current.find((view) => view.type === "draft" && view.draftId === id);
       applyViews((views) => (shown ? dropView(showScript(views, script, content), shown.id) : views));
       applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
@@ -1498,10 +1499,6 @@ export function App() {
       if (sheet.draftId) {
         const id = sheet.draftId;
         applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
-        if (id === agentDraftIdRef.current) {
-          agentDraftIdRef.current = undefined;
-          setPersistedValue("agentDraftId", undefined);
-        }
         consoles.renameFile(id, script.path);
         renameStoredFile(id, script.path);
         moveRunInput(id, script.path);

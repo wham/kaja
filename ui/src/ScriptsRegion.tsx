@@ -103,8 +103,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const touch = useMediaQuery("(hover: none)");
 
   const ordered = useMemo(() => orderDrafts(drafts), [drafts]);
-  const agentDraft = ordered.find(isAgentDraft);
-  // The agent's row is pinned above your own and outside the count.
+  // One row per agent that has run something here, pinned above your own and outside
+  // the count. Two agents on one endpoint are two rows, most recently run first.
+  const agentDrafts = useMemo(() => ordered.filter(isAgentDraft), [ordered]);
   const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
@@ -223,7 +224,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     >
       {/* Zero drafts hides the group rather than showing an empty label: there
           is nothing there and nothing to say about it. */}
-      {(agentDraft !== undefined || ownDrafts.length > 0) && (
+      {(agentDrafts.length > 0 || ownDrafts.length > 0) && (
         <>
           <GroupHeader
             label="Drafts"
@@ -238,20 +239,21 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           />
           {draftsOpen && (
             <ul role="tree" aria-label="Drafts" className="select-none">
-              {agentDraft && (
+              {agentDrafts.map((draft) => (
                 <AgentRow
-                  draft={agentDraft}
-                  current={props.currentDraftId === agentDraft.id}
-                  running={props.runningFileIds?.has(agentDraft.id)}
-                  waiting={props.waitingFileIds?.has(agentDraft.id)}
-                  active={active(`draft:${agentDraft.id}`)}
+                  key={draft.id}
+                  draft={draft}
+                  current={props.currentDraftId === draft.id}
+                  running={props.runningFileIds?.has(draft.id)}
+                  waiting={props.waitingFileIds?.has(draft.id)}
+                  active={active(`draft:${draft.id}`)}
                   canWrite={canWrite}
-                  onHover={(on) => setHovered(on ? `draft:${agentDraft.id}` : null)}
-                  onSelect={() => props.onDraftSelect(agentDraft)}
-                  onName={() => props.onNameDraft(agentDraft)}
-                  onDiscard={() => props.onDiscardDraft(agentDraft)}
+                  onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
+                  onSelect={() => props.onDraftSelect(draft)}
+                  onName={() => props.onNameDraft(draft)}
+                  onDiscard={() => props.onDiscardDraft(draft)}
                 />
-              )}
+              ))}
               {draftsShown.map((draft) => (
                 <DraftRow
                   key={draft.id}

@@ -157,6 +157,17 @@ describe("the Drafts group", () => {
     expect(ordered.map((draft) => draft.id)).toEqual(["agent", "ran", "edited", "browsed-new", "browsed-old"]);
   });
 
+  // A slot per client, so the rows read as who is writing where.
+  it("pins a row per agent, most recently run first", () => {
+    const ordered = orderDrafts([
+      draft("mine", NOW),
+      draft("codex", NOW - 2 * DAY, { agentClient: "Codex" }),
+      draft("claude", NOW - DAY, { agentClient: "Claude Code" }),
+    ]);
+
+    expect(ordered.map((draft) => draft.id)).toEqual(["claude", "codex", "mine"]);
+  });
+
   // Clearing untouched drafts must not reach the agent's row or your work.
   it("counts untouched and edited without the agent's row", () => {
     const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentClient: "Claude" })];
