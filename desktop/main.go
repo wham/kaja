@@ -191,8 +191,11 @@ func (a *App) buildAppMenu() *application.Menu {
 	appMenu.AddRole(application.AppMenu)
 
 	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.Add("Save").SetAccelerator("CmdOrCtrl+S").OnClick(func(*application.Context) {
-		a.app.Event.Emit("menu:saveScript")
+	fileMenu.Add("New Script").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
+		a.app.Event.Emit("menu:newScript")
+	})
+	fileMenu.Add("New App…").OnClick(func(*application.Context) {
+		a.app.Event.Emit("menu:newApp")
 	})
 
 	appMenu.AddRole(application.EditMenu)
