@@ -504,7 +504,7 @@ function GlobalBand({
 
 /**
  * The plug, and the two marks it carries. The dot answers "is it on"; the ring answers
- * "is anyone on it" — so when a client is calling the ring is up and the dot goes away
+ * "is anyone on it" — so when an agent is calling the ring is up and the dot goes away
  * rather than saying the same thing twice.
  */
 function McpTool({ state, onClick }: { state: McpState; onClick: () => void }) {

@@ -35,8 +35,8 @@ type MCPInfo struct {
 	URL     string `json:"url"`
 	Token   string `json:"token"`
 	Error   string `json:"error"`
-	// ConfigurationPaths is where each client keeps the file its snippet goes
-	// into, keyed by the client the MCP page shows it under.
+	// ConfigurationPaths is where each agent keeps the file its snippet goes
+	// into, keyed by the agent the MCP page shows it under.
 	ConfigurationPaths map[string]string `json:"configurationPaths"`
 }
 
@@ -100,14 +100,14 @@ func (a *App) mcpInfoLocked() MCPInfo {
 		URL:                a.mcpURL,
 		Token:              a.readMCPToken(),
 		Error:              a.mcpError,
-		ConfigurationPaths: mcpClientConfigurationPaths(),
+		ConfigurationPaths: mcpAgentConfigurationPaths(),
 	}
 }
 
-// mcpClientConfigurationPaths is the file each client keeps its MCP servers in, so
-// the page can link to the one it is telling you to edit. A client whose path this
-// machine can't answer for is absent, and its snippet names the file without a link.
-func mcpClientConfigurationPaths() map[string]string {
+// mcpAgentConfigurationPaths is the file each agent keeps its MCP servers in, so the
+// page can link to the one it is telling you to edit. An agent whose path this machine
+// can't answer for is absent, and its snippet names the file without a link.
+func mcpAgentConfigurationPaths() map[string]string {
 	paths := map[string]string{}
 	// The three places os.UserConfigDir reports are the three Claude Desktop looks in:
 	// Application Support, %AppData%, and ~/.config. Cline files itself under the same
@@ -189,7 +189,7 @@ func (a *App) stopMCPServer() {
 
 // loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
 // generating one the first time (or if the stored file is missing, empty or
-// unreadable). Persisting it keeps an installed client working when the server is
+// unreadable). Persisting it keeps an installed agent working when the server is
 // turned on again. Startup is what calls it: minting is a thing kaja does, never a
 // thing reporting the state of the server does.
 // Must be called with mcpMu held.

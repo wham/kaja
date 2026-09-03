@@ -21,7 +21,7 @@
  * reads itself once at startup, which would make a second window find out on its next
  * reload.
  *
- * On the **desktop** the process persists the token so installed clients keep working,
+ * On the **desktop** the process persists the token so installed agents keep working,
  * and hands it over (`adopt`) while its server is on. That is the whole of the
  * difference: one window attached on the mux the webview already fetches its calls on.
  */
@@ -55,6 +55,11 @@ export interface AgentSessionState {
 /**
  * What a run asks of the window. Code is always set; path is what it lands under, and
  * client is what the agent calls itself.
+ *
+ * The field is `client` because that is the MCP handshake's own word for the end that
+ * connects, and this carries its `clientInfo` name verbatim. Everywhere the product
+ * says it rather than the protocol — the page, the sidebar row, the stored draft — the
+ * word is **agent**.
  */
 export interface AgentRun {
   path: string;

@@ -1,6 +1,10 @@
-// The clients an agent can be connected through, and the snippet each one takes. A
-// client is a name, where its snippet goes, and the text of it — nothing here knows
+// The agents that can be pointed at Kaja's MCP server, and the snippet each one takes.
+// An agent is a name, where its snippet goes, and the text of it — nothing here knows
 // what the page looks like.
+//
+// "Agent" is the word throughout: the map, the section heading and this list all say
+// the same one. "Client" is the MCP protocol's term for the end of the wire that
+// connects, and it stays where the protocol is spoken.
 
 /** The endpoint a snippet is written against. */
 export interface McpEndpoint {
@@ -10,19 +14,19 @@ export interface McpEndpoint {
 
 // What connecting costs, which is what the pane's shape varies on: a one-click install
 // adds a button, a config file adds Reveal, a terminal command adds neither.
-export type McpClientKind = "one-click install" | "config file" | "terminal command";
+export type McpAgentKind = "one-click install" | "config file" | "terminal command";
 
-export interface McpClient {
+export interface McpAgent {
   name: string;
-  kind: McpClientKind;
-  /** Where the snippet goes, in the client's own words. */
+  kind: McpAgentKind;
+  /** Where the snippet goes, in the agent's own words. */
   path: string;
   lead: string;
   /** The one thing that bites after the snippet is in place, where there is one. */
   foot?: string;
   /**
-   * The key the desktop resolves this client's configuration file under. A client
-   * whose snippet goes into a file it names has one — a one-click client included,
+   * The key the desktop resolves this agent's configuration file under. An agent
+   * whose snippet goes into a file it names has one — a one-click agent included,
    * since the hand-edit under the button goes into that same file; one told to run a
    * command doesn't.
    */
@@ -32,7 +36,7 @@ export interface McpClient {
 }
 
 // Cursor and VS Code both register a URL scheme, so Kaja can hand the server straight
-// over: the client opens, and writes its own configuration once you accept.
+// over: the agent opens, and writes its own configuration once you accept.
 function cursorLink({ url, token }: McpEndpoint): string {
   const server = { url, headers: { Authorization: `Bearer ${token}` } };
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=kaja&config=${encodeURIComponent(btoa(JSON.stringify(server)))}`;
@@ -47,7 +51,7 @@ function mcpServers(body: string): string {
   return `{\n  "mcpServers": {\n    "kaja": {\n${body}\n    }\n  }\n}`;
 }
 
-export const mcpClients: McpClient[] = [
+export const mcpAgents: McpAgent[] = [
   {
     name: "Claude Code",
     kind: "terminal command",
