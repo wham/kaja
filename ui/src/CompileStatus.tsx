@@ -44,8 +44,13 @@ function StateIcon({ state }: { state: CompileState }) {
 
 // AppRow is the app as the popover states it: what it is, where it points, and
 // what came of compiling it. Selecting it opens the log.
+//
+// The trailing column is the recompile button's and is held open whether or not
+// the button is drawn, so nothing in the row moves as the cursor crosses it: the
+// duration keeps its place rather than being swapped out for the control. The
+// reveal is CSS off the row's hover, and the button stays in the document for the
+// keyboard.
 function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => void; onRecompile: () => void }) {
-  const [hovered, setHovered] = useState(false);
   const status = app.compilation.status;
   const warnings = appWarnings(app);
 
@@ -62,7 +67,7 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
   };
 
   return (
-    <div className="relative" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <div className="group relative">
       <button
         type="button"
         data-testid="app-status-row"
@@ -87,20 +92,20 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
           </span>
           <span className="truncate text-[11px] text-muted-foreground">{detail()}</span>
         </span>
-        {!hovered && app.compilation.duration && <span className="shrink-0 pt-px text-[11px] text-muted-foreground">{app.compilation.duration}</span>}
+        {app.compilation.duration && <span className="shrink-0 pt-px text-[11px] text-muted-foreground">{app.compilation.duration}</span>}
       </button>
-      {/* Outside the row button: a button can't nest another one. */}
-      {hovered && (
-        <IconButton
-          size="xs"
-          variant="ghost"
-          tooltip="native"
-          icon={RotateCw}
-          aria-label={`Recompile ${app.configuration.name}`}
-          className="absolute right-2 top-1.5"
-          onClick={onRecompile}
-        />
-      )}
+      {/* Outside the row button: a button can't nest another one. Invisible until the
+          row is hovered or the button itself is focused, and untargetable while it is,
+          so a click near the right edge still opens the log. */}
+      <IconButton
+        size="xs"
+        variant="ghost"
+        tooltip="native"
+        icon={RotateCw}
+        aria-label={`Recompile ${app.configuration.name}`}
+        className="pointer-events-none absolute right-2 top-1.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+        onClick={onRecompile}
+      />
     </div>
   );
 }
