@@ -19,17 +19,16 @@ import { useMediaQuery } from "./useMediaQuery";
  *    files, so nothing about them is styled as a warning.
  * 2. Files never turn into drafts on their own. Editing a saved file leaves it a file,
  *    auto-saving in place; the one way into Drafts is running something with no file.
- * 3. Naming a draft moves it into Files.
+ * 3. Saving a draft as a file moves it into Files.
  * 4. Discarding is safe: untouched drafts are swept without asking, edited ones are
  *    never removed without a confirm that names them.
  *
  * The section header — the one over Apps, and its **+** — belongs to the sidebar; what
- * is left here is the two groups. There is no filter over these rows: finding
- * something by name is `⌘P`, so the two counts state what is in each group and
- * nothing else.
+ * is left here is the two groups. There is no filter over these rows and no count over
+ * them either: finding something by name is `⌘P`, and the rows are the list.
  *
  * One list of names, in one font: every row is the UI font with only the extension
- * dimmed. Mono belongs to content — the editor, the payload panes, the naming field —
+ * dimmed. Mono belongs to content — the editor, the payload panes, the name field —
  * not to navigation. No dot survives; the run indicators have the trailing slot to
  * themselves, at a fixed width, so nothing under the cursor moves as a run starts.
  *
@@ -38,17 +37,25 @@ import { useMediaQuery } from "./useMediaQuery";
  */
 
 // The base indent of a row inside a group, so the group's label and its rows share a
-// left edge, and one level of folder depth.
-const ROW_INDENT = 24;
+// left edge — the label sits behind a 12px chevron and a 6px gap, which is what makes
+// it 26 — and one level of folder depth.
+const ROW_INDENT = 26;
 const DEPTH_INDENT = 14;
 // The chevron column a folder row spends and a file row doesn't.
 const CHEVRON_SLOT = 18;
+// Every control at a row's right edge — a group's verb, a row's hover actions, a run
+// indicator — is an 18px box 8px in from the edge, so all of them share one column
+// with the tools in the panel's band above.
+const TRAILING_SLOT = 18;
+// A click on the name of a row that already has the focus renames it in place. It
+// waits, because the second click of a double click has to arrive first.
+const RENAME_CLICK_MS = 450;
 // A shut folder opens when a drag rests on it, which is the only way into a subfolder
 // without letting go.
 const SPRING_MS = 600;
 
 const GROUP_HEADER = "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
-const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-1 text-[13px] outline-none focus-visible:bg-accent/50";
+const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-2 text-[13px] outline-none focus-visible:bg-accent/50";
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
@@ -69,11 +76,11 @@ export interface ScriptsRegionProps {
   canWrite: boolean;
 
   onDraftSelect: (draft: Draft) => void;
-  onNameDraft: (draft: Draft) => void;
+  onSaveDraftAsFile: (draft: Draft) => void;
   onDiscardDraft: (draft: Draft) => void;
   // Neither can reach a file.
-  onClearUntouched: () => void;
-  onClearAllDrafts: () => void;
+  onDiscardUntouched: () => void;
+  onDiscardAllDrafts: () => void;
   sweepDrafts: boolean;
   onToggleSweepDrafts: () => void;
 
@@ -228,12 +235,11 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         <>
           <GroupHeader
             label="Drafts"
-            count={ownDrafts.length}
             open={draftsOpen}
             onToggle={() => setDraftsOpen((open) => !open)}
             action={
               ownDrafts.length > 0
-                ? { icon: Trash2, label: "Clear drafts", onClick: (event) => setDraftsMenu({ top: event.clientY, left: event.clientX }) }
+                ? { icon: Trash2, label: "Discard drafts", onClick: (event) => setDraftsMenu({ top: event.clientY, left: event.clientX }) }
                 : undefined
             }
           />
@@ -250,7 +256,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   canWrite={canWrite}
                   onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
                   onSelect={() => props.onDraftSelect(draft)}
-                  onName={() => props.onNameDraft(draft)}
+                  onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
                   onDiscard={() => props.onDiscardDraft(draft)}
                 />
               ))}
@@ -266,7 +272,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   canWrite={canWrite}
                   onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
                   onSelect={() => props.onDraftSelect(draft)}
-                  onName={() => props.onNameDraft(draft)}
+                  onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
                   onDiscard={() => props.onDiscardDraft(draft)}
                   onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
                 />
@@ -289,7 +295,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <GroupHeader
         label="Files"
-        count={scripts.length}
         open={filesOpen}
         onToggle={() => setFilesOpen((open) => !open)}
         // The row that means the top level, so a file inside a folder has somewhere to be
@@ -410,7 +415,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           {scripts.length === 0 && folders.length === 0 && !folderEdit && (
             <li role="treeitem">
               <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
-                {canWrite ? "Name a draft to file it here." : "Scripts in the workspace's folder appear here."}
+                {canWrite ? "Save a draft as a file to see it here." : "Scripts in the workspace's folder appear here."}
               </div>
             </li>
           )}
@@ -420,12 +425,12 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
       <CursorMenu at={draftsMenu} onClose={() => setDraftsMenu(null)} width="w-56">
         {/* Untouched means still byte-identical to the generated call: clearing
             them removes nothing you wrote. */}
-        <DropdownMenuItem onSelect={props.onClearUntouched}>
-          Clear untouched
+        <DropdownMenuItem onSelect={props.onDiscardUntouched}>
+          Discard untouched
           <span className="ml-auto pl-4 text-xs text-muted-foreground">{untouchedDrafts(drafts).length}</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={props.onClearAllDrafts}>
-          Clear all
+        <DropdownMenuItem onSelect={props.onDiscardAllDrafts}>
+          Discard all
           <span className="ml-auto pl-4 text-xs text-muted-foreground">{ownDrafts.length}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -467,7 +472,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           >
             <Pencil size={16} />
             Rename
-            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">F2</span>
           </DropdownMenuItem>
         )}
         {props.onDeleteFolder && (
@@ -480,9 +484,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <CursorMenu at={draftMenu} onClose={() => setDraftMenu(null)}>
         {canWrite && (
-          <DropdownMenuItem onSelect={() => draftMenu && props.onNameDraft(draftMenu.draft)}>
+          <DropdownMenuItem onSelect={() => draftMenu && props.onSaveDraftAsFile(draftMenu.draft)}>
             <Save size={16} />
-            Name…
+            Save as file…
           </DropdownMenuItem>
         )}
         {/* Nothing is on disk to remove, so this is a discard rather than a
@@ -514,7 +518,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           <DropdownMenuItem onSelect={() => scriptMenu && setRenaming(scriptMenu.script.path)}>
             <Pencil size={16} />
             Rename
-            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">F2</span>
           </DropdownMenuItem>
         )}
         {/* The only action in the sidebar that removes something from disk, and
@@ -532,11 +535,12 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
 /**
  * A group header is a 22px row like the ones under it, its chevron in the same column
- * as the app rows' below. Its count earns its place because the group collapses.
+ * as the app rows' below. It carries no count: the rows under it are the list, and a
+ * number over them says nothing you can act on. Its verb is on the row and on a
+ * right-click, the way every other row in the region carries its menu.
  */
 function GroupHeader({
   label,
-  count,
   open,
   onToggle,
   action,
@@ -545,7 +549,6 @@ function GroupHeader({
   onDrop,
 }: {
   label: string;
-  count: number;
   open: boolean;
   onToggle: () => void;
   action?: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void };
@@ -559,6 +562,11 @@ function GroupHeader({
       onClick={onToggle}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onContextMenu={(event) => {
+        if (!action) return;
+        event.preventDefault();
+        action.onClick(event);
+      }}
       role="button"
       // Named explicitly, because the row holds a button of its own: without it the
       // group's name would absorb its action's, and neither could be addressed on its own.
@@ -586,7 +594,6 @@ function GroupHeader({
           }}
         />
       )}
-      <span className="min-w-3 shrink-0 text-right tabular-nums">{count}</span>
     </div>
   );
 }
@@ -601,7 +608,7 @@ function DraftRow({
   canWrite,
   onHover,
   onSelect,
-  onName,
+  onSaveAsFile,
   onDiscard,
   onMenu,
 }: {
@@ -614,7 +621,7 @@ function DraftRow({
   canWrite: boolean;
   onHover: (on: boolean) => void;
   onSelect: () => void;
-  onName: () => void;
+  onSaveAsFile: () => void;
   onDiscard: () => void;
   onMenu: (event: React.MouseEvent) => void;
 }) {
@@ -652,12 +659,12 @@ function DraftRow({
           className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}
         >
           {name}
-          {qualifier && <span className="ml-1 text-muted-foreground opacity-70">{qualifier}</span>}
+          {qualifier && <span className="ml-1.5 text-muted-foreground opacity-70">{qualifier}</span>}
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={active}>
           {active && (
             <>
-              {canWrite && <RowAction icon={Save} label={`Name ${draft.title}`} onClick={onName} />}
+              {canWrite && <RowAction icon={Save} label={`Save ${draft.title} as a file`} onClick={onSaveAsFile} />}
               <RowAction icon={X} label={`Discard ${draft.title}`} onClick={onDiscard} />
               <RowAction icon={Ellipsis} label={`Actions for ${draft.title}`} onClick={onMenu} />
             </>
@@ -682,7 +689,7 @@ function AgentRow({
   canWrite,
   onHover,
   onSelect,
-  onName,
+  onSaveAsFile,
   onDiscard,
 }: {
   draft: Draft;
@@ -692,15 +699,15 @@ function AgentRow({
   active: boolean;
   canWrite: boolean;
   onHover: (on: boolean) => void;
+  onSaveAsFile: () => void;
   onSelect: () => void;
-  onName: () => void;
   onDiscard: () => void;
 }) {
   return (
     <li role="treeitem" aria-current={current || undefined}>
       <div
         tabIndex={0}
-        style={{ paddingLeft: ROW_INDENT - 4 }}
+        style={{ paddingLeft: ROW_INDENT }}
         className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50")}
         onClick={onSelect}
         onMouseEnter={() => onHover(true)}
@@ -712,14 +719,22 @@ function AgentRow({
           }
         }}
       >
-        <Plug size={13} className="shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate" title={`${draft.agentClient} is writing here · ${draft.title}`}>
+        {/* Hung into the chevron column the groups and the app rows use, so the
+            plug costs the name none of its width and every draft's name starts in
+            one place. */}
+        <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+          <Plug size={12} />
+        </span>
+        <span className="flex-1 truncate" title={`${draft.agentClient} is writing here — ${draft.title}`}>
           {draft.agentClient}
         </span>
-        <span className="flex w-6 shrink-0 items-center justify-end gap-0.5">
+        <span
+          className={cn("flex shrink-0 items-center gap-0.5", active ? "justify-end" : "justify-center")}
+          style={active ? undefined : { width: TRAILING_SLOT }}
+        >
           {active ? (
             <>
-              {canWrite && <RowAction icon={Save} label={`Name what ${draft.agentClient} wrote`} onClick={onName} />}
+              {canWrite && <RowAction icon={Save} label={`Save what ${draft.agentClient} wrote as a file`} onClick={onSaveAsFile} />}
               <RowAction icon={X} label={`Clear ${draft.agentClient}'s draft`} onClick={onDiscard} />
             </>
           ) : waiting ? (
@@ -733,6 +748,45 @@ function AgentRow({
       </div>
     </li>
   );
+}
+
+/**
+ * Clicking the name of a row that already has the focus renames it where it is, which
+ * is the gesture a desktop file list has. It waits so the second click of a double
+ * click arrives first, and the row losing the focus cancels it, so a field never opens
+ * on a row you have already left.
+ */
+function useClickRename(enabled: boolean, onStartRename: () => void) {
+  const row = useRef<HTMLDivElement>(null);
+  const focused = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = undefined;
+  };
+  useEffect(() => cancel, []);
+
+  return {
+    row,
+    onBlur: cancel,
+    name: {
+      // Read before the click moves the focus, which is the whole of what tells a
+      // second click from the one that selected the row.
+      onMouseDown: () => {
+        focused.current = row.current !== null && document.activeElement === row.current;
+      },
+      onClick: (event: React.MouseEvent) => {
+        if (!enabled || !focused.current) return;
+        // The click is spent on the rename, so the row's own verb — opening the file,
+        // folding the folder — doesn't also run.
+        event.stopPropagation();
+        cancel();
+        timer.current = setTimeout(onStartRename, RENAME_CLICK_MS);
+      },
+      onDoubleClick: cancel,
+    },
+  };
 }
 
 function FolderRow({
@@ -770,12 +824,15 @@ function FolderRow({
   onRename: (name: string) => Promise<void>;
   onCancelRename: () => void;
 }) {
+  const rename = useClickRename(canRename, onStartRename);
+
   return (
     <li role="treeitem" aria-expanded={open}>
       {editing ? (
         <FolderNameField depth={node.depth} initial={node.name} siblingNames={siblingNames} onCommit={onRename} onCancel={onCancelRename} />
       ) : (
         <div
+          ref={rename.row}
           tabIndex={0}
           style={{ paddingLeft: ROW_INDENT + node.depth * DEPTH_INDENT }}
           className={cn(ROW, "text-foreground hover:bg-accent/50", dropping && DROPPING)}
@@ -789,22 +846,24 @@ function FolderRow({
           }}
           onMouseEnter={() => onHover(true)}
           onMouseLeave={() => onHover(false)}
+          onBlur={rename.onBlur}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
               onToggle();
-            } else if (event.key === "F2" && canRename) {
-              event.preventDefault();
-              onStartRename();
             }
           }}
         >
           <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", open && "rotate-90")} />
           <Folder size={13} className="shrink-0 text-muted-foreground" />
-          <span className="flex-1 truncate">{node.name}</span>
+          {/* The chevron and the glyph keep folding the folder however often you
+              click them; the name is what a second click renames. */}
+          <span className="flex-1 truncate" {...rename.name}>
+            {node.name}
+          </span>
           {/* A folder row carries nothing on the right, which is what frees that
               edge for the hover actions and keeps long names legible. */}
-          <span className="flex w-6 shrink-0 items-center justify-end">
+          <span className="flex shrink-0 items-center justify-center" style={{ width: TRAILING_SLOT }}>
             {active && hasMenu && <RowAction icon={Ellipsis} label={`Actions for ${node.name}`} onClick={onMenu} />}
           </span>
         </div>
@@ -990,6 +1049,9 @@ function FileRow({
   onCancelRename: () => void;
 }) {
   const indent = ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT;
+  // A file has a selected state of its own, so a second click means a click on the row
+  // that is open — not merely on the one the focus was left on.
+  const rename = useClickRename(canRename && current, onStartRename);
 
   if (editing) {
     return (
@@ -1018,6 +1080,7 @@ function FileRow({
   return (
     <li role="treeitem" aria-current={current || undefined}>
       <div
+        ref={rename.row}
         tabIndex={0}
         draggable={draggable}
         style={{ paddingLeft: indent }}
@@ -1033,13 +1096,11 @@ function FileRow({
         }}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
+        onBlur={rename.onBlur}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             onSelect();
-          } else if (event.key === "F2" && canRename) {
-            event.preventDefault();
-            onStartRename();
           }
         }}
       >
@@ -1050,7 +1111,7 @@ function FileRow({
             survives the truncation. The same two-tone name is drawn in the
             command row's trigger, in the finder and in every sheet title, so
             one object never reads two ways. */}
-        <span className="flex-1 truncate">
+        <span className="flex-1 truncate" {...rename.name}>
           <FileName name={script.name} />
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={false}>
@@ -1080,7 +1141,10 @@ function RowTrailing({
   children?: React.ReactNode;
 }) {
   return (
-    <span className={cn("flex shrink-0 items-center justify-end gap-0.5", wide ? "w-auto" : "w-6")}>
+    <span
+      className={cn("flex shrink-0 items-center gap-0.5", wide ? "w-auto justify-end" : "justify-center")}
+      style={wide ? undefined : { width: TRAILING_SLOT }}
+    >
       {children ||
         (waiting ? (
           <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />

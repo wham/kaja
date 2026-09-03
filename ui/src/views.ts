@@ -3,6 +3,7 @@ import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
 import { isUntouched, Draft } from "./drafts";
+import { draftTitleText } from "./draftTitle";
 import { ConfigurationApp } from "./server/api";
 
 // How many views the pane keeps mounted. There is no "open files" set: this is a
@@ -196,7 +197,7 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       // its own copy without the two drifting apart.
       const draft = drafts.find((candidate) => candidate.id === view.draftId);
       return {
-        name: draft?.title ?? "Draft",
+        name: draft ? draftTitleText(draft.title) : "Draft",
         path: "Drafts",
         origin: draft?.originAppName ?? "",
         icon: PenLine,

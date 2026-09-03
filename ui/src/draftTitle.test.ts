@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { deriveDraftTitle, proposeFileName, proposeFileNames, readCalls, titleParts } from "./draftTitle";
+import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames, readCalls, titleParts } from "./draftTitle";
 
 const generated = (body: string, names = "TheKajaTheatre") => `import { ${names} } from "theatre/service";\n\n${body}\n`;
 
@@ -91,14 +91,21 @@ describe("deriveDraftTitle", () => {
 });
 
 describe("titleParts", () => {
-  it("splits the qualifier off, so a row can dim it", () => {
-    expect(titleParts("GetShow · vera-lune")).toEqual({ name: "GetShow", qualifier: "· vera-lune" });
-    expect(titleParts("Sum · 5, 3")).toEqual({ name: "Sum", qualifier: "· 5, 3" });
+  it("splits the qualifier off, so a row can dim it — and spends the separator, which the dimming already says", () => {
+    expect(titleParts("GetShow · vera-lune")).toEqual({ name: "GetShow", qualifier: "vera-lune" });
+    expect(titleParts("Sum · 5, 3")).toEqual({ name: "Sum", qualifier: "5, 3" });
   });
 
   it("leaves a bare name alone", () => {
     expect(titleParts("ListShows")).toEqual({ name: "ListShows" });
     expect(titleParts("ListShows → GetShow")).toEqual({ name: "ListShows → GetShow" });
+  });
+});
+
+describe("draftTitleText", () => {
+  it("says the whole title where nothing dims the qualifier", () => {
+    expect(draftTitleText("GetShow · vera-lune")).toBe("GetShow vera-lune");
+    expect(draftTitleText("ListShows")).toBe("ListShows");
   });
 });
 

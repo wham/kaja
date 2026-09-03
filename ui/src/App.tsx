@@ -40,7 +40,7 @@ import {
   untouchedDrafts,
   withCode,
 } from "./drafts";
-import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitle";
+import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
@@ -1331,27 +1331,27 @@ export function App() {
       folder: lastFolderRef.current,
       content: view.model.getValue(),
       draftId: view.draftId,
-      title: draft && isAgentDraft(draft) ? `Name what ${draft.agentClient} wrote` : "Name this draft",
+      title: draft && isAgentDraft(draft) ? `Save what ${draft.agentClient} wrote as a file` : "Save as file",
     });
   }, [canWriteFiles, openNameSheet, takenNames]);
 
-  const onNameDraft = useCallback(
+  const onSaveDraftAsFile = useCallback(
     (draft: Draft) =>
       openNameSheet({
         name: proposeFileName(draft.title, takenNames("")),
         folder: lastFolderRef.current,
         content: draft.code,
         draftId: draft.id,
-        title: isAgentDraft(draft) ? `Name what ${draft.agentClient} wrote` : "Name this draft",
+        title: isAgentDraft(draft) ? `Save what ${draft.agentClient} wrote as a file` : "Save as file",
       }),
     [openNameSheet, takenNames],
   );
 
-  const onClearUntouched = useCallback(() => {
+  const onDiscardUntouched = useCallback(() => {
     discardDrafts(untouchedDrafts(draftsRef.current));
   }, [discardDrafts]);
 
-  const onClearAllDrafts = useCallback(() => {
+  const onDiscardAllDrafts = useCallback(() => {
     discardDrafts(draftsRef.current.filter((draft) => !isAgentDraft(draft)));
   }, [discardDrafts]);
 
@@ -2089,7 +2089,7 @@ export function App() {
       if (shownDrafts.has(draft.id)) continue;
       destinations.push({
         key: `draft:${draft.id}`,
-        name: draft.title,
+        name: draftTitleText(draft.title),
         path: "Drafts",
         origin: draft.agentClient ?? draft.originAppName ?? "",
         icon: isAgentDraft(draft) ? Plug : PenLine,
@@ -2138,7 +2138,7 @@ export function App() {
   const recentFiles = useMemo<RecentFile[]>(() => {
     const files: RecentFile[] = drafts.slice(0, 3).map((draft) => ({
       key: draft.id,
-      name: draft.title,
+      name: draftTitleText(draft.title),
       icon: PenLine,
       updatedAt: draft.updatedAt,
       saved: false,
@@ -2161,7 +2161,7 @@ export function App() {
           className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
         >
           <SaveIcon size={12} />
-          Name
+          Save as file
           <span className="font-mono text-muted-foreground">{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"}</span>
         </button>
         <IconButton
@@ -2190,7 +2190,7 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
-      onNameDraft={currentDraft && canWriteFiles ? onRequestSave : undefined}
+      onSaveAsFile={currentDraft && canWriteFiles ? onRequestSave : undefined}
       onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
       onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
@@ -2263,10 +2263,10 @@ export function App() {
                     waitingFileIds={waitingFiles}
                     canWrite={canWriteFiles}
                     onDraftSelect={onDraftSelect}
-                    onNameDraft={onNameDraft}
+                    onSaveDraftAsFile={onSaveDraftAsFile}
                     onDiscardDraft={onDiscardDraft}
-                    onClearUntouched={onClearUntouched}
-                    onClearAllDrafts={onClearAllDrafts}
+                    onDiscardUntouched={onDiscardUntouched}
+                    onDiscardAllDrafts={onDiscardAllDrafts}
                     sweepDrafts={sweepDrafts}
                     onToggleSweepDrafts={() => setSweepDrafts((on) => !on)}
                     onScriptSelect={onScriptSelect}

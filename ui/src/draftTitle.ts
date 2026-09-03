@@ -165,11 +165,22 @@ function truncate(value: string): string {
 /**
  * The title is one string wherever it is stored, but a row can dim the part that only
  * qualifies it. That is what tells a draft apart from the method of the same name a
- * few rows below it in the tree.
+ * few rows below it in the tree — and the dimming is the whole of what says so, so the
+ * separator is dropped rather than drawn as a bullet nobody can read a meaning into.
  */
 export function titleParts(title: string): { name: string; qualifier?: string } {
   const at = title.indexOf(" · ");
-  return at === -1 ? { name: title } : { name: title.slice(0, at), qualifier: title.slice(at + 1) };
+  return at === -1 ? { name: title } : { name: title.slice(0, at), qualifier: title.slice(at + 3) };
+}
+
+/**
+ * The title as one line, for the places that draw it without dimming anything — the
+ * finder, the command row's trigger, the window. The qualifier is still there; only
+ * the separator the split takes it apart on is spent.
+ */
+export function draftTitleText(title: string): string {
+  const { name, qualifier } = titleParts(title);
+  return qualifier ? `${name} ${qualifier}` : name;
 }
 
 /**
