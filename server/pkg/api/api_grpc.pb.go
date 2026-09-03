@@ -39,6 +39,7 @@ const (
 	Api_CreateScriptFolder_FullMethodName  = "/Api/CreateScriptFolder"
 	Api_RenameScriptFolder_FullMethodName  = "/Api/RenameScriptFolder"
 	Api_DeleteScriptFolder_FullMethodName  = "/Api/DeleteScriptFolder"
+	Api_ScanScriptVariables_FullMethodName = "/Api/ScanScriptVariables"
 )
 
 // ApiClient is the client API for Api service.
@@ -71,6 +72,7 @@ type ApiClient interface {
 	CreateScriptFolder(ctx context.Context, in *CreateScriptFolderRequest, opts ...grpc.CallOption) (*CreateScriptFolderResponse, error)
 	RenameScriptFolder(ctx context.Context, in *RenameScriptFolderRequest, opts ...grpc.CallOption) (*RenameScriptFolderResponse, error)
 	DeleteScriptFolder(ctx context.Context, in *DeleteScriptFolderRequest, opts ...grpc.CallOption) (*DeleteScriptFolderResponse, error)
+	ScanScriptVariables(ctx context.Context, in *ScanScriptVariablesRequest, opts ...grpc.CallOption) (*ScanScriptVariablesResponse, error)
 }
 
 type apiClient struct {
@@ -299,6 +301,16 @@ func (c *apiClient) DeleteScriptFolder(ctx context.Context, in *DeleteScriptFold
 	return out, nil
 }
 
+func (c *apiClient) ScanScriptVariables(ctx context.Context, in *ScanScriptVariablesRequest, opts ...grpc.CallOption) (*ScanScriptVariablesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScanScriptVariablesResponse)
+	err := c.cc.Invoke(ctx, Api_ScanScriptVariables_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ApiServer is the server API for Api service.
 // All implementations should embed UnimplementedApiServer
 // for forward compatibility.
@@ -329,6 +341,7 @@ type ApiServer interface {
 	CreateScriptFolder(context.Context, *CreateScriptFolderRequest) (*CreateScriptFolderResponse, error)
 	RenameScriptFolder(context.Context, *RenameScriptFolderRequest) (*RenameScriptFolderResponse, error)
 	DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error)
+	ScanScriptVariables(context.Context, *ScanScriptVariablesRequest) (*ScanScriptVariablesResponse, error)
 }
 
 // UnimplementedApiServer should be embedded to have
@@ -397,6 +410,9 @@ func (UnimplementedApiServer) RenameScriptFolder(context.Context, *RenameScriptF
 }
 func (UnimplementedApiServer) DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteScriptFolder not implemented")
+}
+func (UnimplementedApiServer) ScanScriptVariables(context.Context, *ScanScriptVariablesRequest) (*ScanScriptVariablesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ScanScriptVariables not implemented")
 }
 func (UnimplementedApiServer) testEmbeddedByValue() {}
 
@@ -764,6 +780,24 @@ func _Api_DeleteScriptFolder_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_ScanScriptVariables_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScanScriptVariablesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).ScanScriptVariables(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_ScanScriptVariables_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).ScanScriptVariables(ctx, req.(*ScanScriptVariablesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Api_ServiceDesc is the grpc.ServiceDesc for Api service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -842,6 +876,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteScriptFolder",
 			Handler:    _Api_DeleteScriptFolder_Handler,
+		},
+		{
+			MethodName: "ScanScriptVariables",
+			Handler:    _Api_ScanScriptVariables_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

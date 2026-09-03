@@ -990,6 +990,73 @@ export interface DeleteScriptFolderRequest {
 export interface DeleteScriptFolderResponse {
 }
 /**
+ * ScanScriptVariables reports which scripts reference the named variables. An
+ * app's references are read out of the configuration the client already holds;
+ * a script's cost a read of the file, so they are answered here, in one walk of
+ * the scripts folder, rather than a search per variable the client has to pace.
+ *
+ * A script names a variable two ways, and both are counted: `kaja.variables.NAME`,
+ * which is how a script reads one, and `${NAME}` inside a value it sends, which
+ * the request hop expands. The names come from the caller, so an interpolated
+ * local can only be counted if it is spelled exactly like a variable.
+ *
+ * @generated from protobuf message ScanScriptVariablesRequest
+ */
+export interface ScanScriptVariablesRequest {
+    /**
+     * @generated from protobuf field: repeated string names = 1
+     */
+    names: string[];
+}
+/**
+ * One script that references a variable, and how many times.
+ *
+ * @generated from protobuf message ScriptReference
+ */
+export interface ScriptReference {
+    /**
+     * Absolute path, as ListScripts reports it.
+     *
+     * @generated from protobuf field: string path = 1
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: int32 count = 2
+     */
+    count: number;
+}
+/**
+ * @generated from protobuf message VariableReferences
+ */
+export interface VariableReferences {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: repeated ScriptReference scripts = 2
+     */
+    scripts: ScriptReference[];
+}
+/**
+ * @generated from protobuf message ScanScriptVariablesResponse
+ */
+export interface ScanScriptVariablesResponse {
+    /**
+     * One entry per requested name, whether or not anything references it.
+     *
+     * @generated from protobuf field: repeated VariableReferences variables = 1
+     */
+    variables: VariableReferences[];
+    /**
+     * Set when the walk stopped short of the whole folder, so the counts read as a
+     * floor rather than a total.
+     *
+     * @generated from protobuf field: bool truncated = 2
+     */
+    truncated: boolean;
+}
+/**
  * @generated from protobuf message Configuration
  */
 export interface Configuration {
@@ -4643,6 +4710,218 @@ class DeleteScriptFolderResponse$Type extends MessageType<DeleteScriptFolderResp
  */
 export const DeleteScriptFolderResponse = new DeleteScriptFolderResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ScanScriptVariablesRequest$Type extends MessageType<ScanScriptVariablesRequest> {
+    constructor() {
+        super("ScanScriptVariablesRequest", [
+            { no: 1, name: "names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ScanScriptVariablesRequest>): ScanScriptVariablesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.names = [];
+        if (value !== undefined)
+            reflectionMergePartial<ScanScriptVariablesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ScanScriptVariablesRequest): ScanScriptVariablesRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string names */ 1:
+                    message.names.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ScanScriptVariablesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string names = 1; */
+        for (let i = 0; i < message.names.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.names[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ScanScriptVariablesRequest
+ */
+export const ScanScriptVariablesRequest = new ScanScriptVariablesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ScriptReference$Type extends MessageType<ScriptReference> {
+    constructor() {
+        super("ScriptReference", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ScriptReference>): ScriptReference {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.count = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ScriptReference>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ScriptReference): ScriptReference {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* int32 count */ 2:
+                    message.count = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ScriptReference, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* int32 count = 2; */
+        if (message.count !== 0)
+            writer.tag(2, WireType.Varint).int32(message.count);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ScriptReference
+ */
+export const ScriptReference = new ScriptReference$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class VariableReferences$Type extends MessageType<VariableReferences> {
+    constructor() {
+        super("VariableReferences", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "scripts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ScriptReference }
+        ]);
+    }
+    create(value?: PartialMessage<VariableReferences>): VariableReferences {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.scripts = [];
+        if (value !== undefined)
+            reflectionMergePartial<VariableReferences>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: VariableReferences): VariableReferences {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* repeated ScriptReference scripts */ 2:
+                    message.scripts.push(ScriptReference.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: VariableReferences, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* repeated ScriptReference scripts = 2; */
+        for (let i = 0; i < message.scripts.length; i++)
+            ScriptReference.internalBinaryWrite(message.scripts[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message VariableReferences
+ */
+export const VariableReferences = new VariableReferences$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ScanScriptVariablesResponse$Type extends MessageType<ScanScriptVariablesResponse> {
+    constructor() {
+        super("ScanScriptVariablesResponse", [
+            { no: 1, name: "variables", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableReferences },
+            { no: 2, name: "truncated", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ScanScriptVariablesResponse>): ScanScriptVariablesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.variables = [];
+        message.truncated = false;
+        if (value !== undefined)
+            reflectionMergePartial<ScanScriptVariablesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ScanScriptVariablesResponse): ScanScriptVariablesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated VariableReferences variables */ 1:
+                    message.variables.push(VariableReferences.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool truncated */ 2:
+                    message.truncated = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ScanScriptVariablesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated VariableReferences variables = 1; */
+        for (let i = 0; i < message.variables.length; i++)
+            VariableReferences.internalBinaryWrite(message.variables[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* bool truncated = 2; */
+        if (message.truncated !== false)
+            writer.tag(2, WireType.Varint).bool(message.truncated);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ScanScriptVariablesResponse
+ */
+export const ScanScriptVariablesResponse = new ScanScriptVariablesResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
     constructor() {
         super("Configuration", [
@@ -5578,5 +5857,6 @@ export const Api = new ServiceType("Api", [
     { name: "ListScriptFolders", options: {}, I: ListScriptFoldersRequest, O: ListScriptFoldersResponse },
     { name: "CreateScriptFolder", options: {}, I: CreateScriptFolderRequest, O: CreateScriptFolderResponse },
     { name: "RenameScriptFolder", options: {}, I: RenameScriptFolderRequest, O: RenameScriptFolderResponse },
-    { name: "DeleteScriptFolder", options: {}, I: DeleteScriptFolderRequest, O: DeleteScriptFolderResponse }
+    { name: "DeleteScriptFolder", options: {}, I: DeleteScriptFolderRequest, O: DeleteScriptFolderResponse },
+    { name: "ScanScriptVariables", options: {}, I: ScanScriptVariablesRequest, O: ScanScriptVariablesResponse }
 ]);

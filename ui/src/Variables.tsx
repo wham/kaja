@@ -1,19 +1,25 @@
-import { Braces, Check, ChevronDown, Copy, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Braces, Check, ChevronDown, CircleAlert, Copy, Plus, Search, Trash2 } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Script } from "./apps";
 import { copyText } from "./clipboard";
+import { cn } from "./cn";
 import { Alert } from "./components/alert";
 import { Blankslate } from "./components/blankslate";
 import { Button } from "./components/button";
-import { cn } from "./cn";
+import { Checkbox } from "./components/checkbox";
 import { ConfirmationDialog } from "./components/confirmation-dialog";
+import { Dialog } from "./components/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { SimpleTooltip } from "./components/tooltip";
-import { VariableSource, VariableStatus } from "./server/api";
-import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { Spinner } from "./components/spinner";
 import { rpcErrorMessage } from "./rpcMessage";
+import { VariableSource, VariableStatus } from "./server/api";
+import { useVariableScan, VariableScan } from "./useVariableScan";
+import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
+import { orderReferences, pluralCount, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
 
 interface VariableRow {
   key: string;
@@ -29,10 +35,16 @@ interface VariablesProps {
   variables: { [key: string]: string };
   status: VariableStatus[];
   storeAvailable: boolean;
-  usage: { [name: string]: string[] };
+  uses: Map<string, VariableUse[]>;
+  scripts: Script[];
+  // Whether this is the view on screen. The scan runs when it becomes one, which
+  // is what makes coming back from a script the moment its references are re-read.
+  active: boolean;
   readOnly?: boolean;
   onSave: (save: VariablesSave) => Promise<void>;
   onStoreValue: (name: string, value: string) => Promise<void>;
+  onScriptSelect: (script: Script) => void;
+  onRevealApp: (name: string) => void;
 }
 
 const SOURCE_LABEL: Record<VariableKind, string> = {
@@ -44,6 +56,11 @@ const SOURCE_LABEL: Record<VariableKind, string> = {
 const AUTOSAVE_MS = 600;
 
 function toRows(variables: { [key: string]: string }): VariableRow[] {
+  // A variable you just added stays where you added it because the rows are the
+  // table's own state and a save is not re-adopted. This is what an *external*
+  // change is read back in, and the order there is alphabetical rather than the
+  // file's: a protobuf map does not carry one, so the wire's is arbitrary and a
+  // reload would shuffle the table.
   return Object.entries(variables)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({ key, value }));
@@ -78,12 +95,25 @@ export function shouldAdoptIncomingVariables(
   return sameVariables(current, previous) && !(editedSinceSubmission && acknowledgingSubmission);
 }
 
-export function Variables({ variables, status, storeAvailable, usage, readOnly = false, onSave, onStoreValue }: VariablesProps) {
+export function Variables({
+  variables,
+  status,
+  storeAvailable,
+  uses,
+  scripts,
+  active,
+  readOnly = false,
+  onSave,
+  onStoreValue,
+  onScriptSelect,
+  onRevealApp,
+}: VariablesProps) {
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
   const [editVersion, setEditVersion] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [entering, setEntering] = useState<Set<number>>(new Set());
   const [justStored, setJustStored] = useState<Set<string>>(new Set());
+  const [keychainSheet, setKeychainSheet] = useState<{ index: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState<{ index: number; name: string; apps: number; files: number; held: boolean } | null>(null);
   const [movingToEnvironment, setMovingToEnvironment] = useState<{ index: number; name: string; value: string } | null>(null);
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const nameInputs = useRef<Map<number, HTMLInputElement>>(new Map());
@@ -93,14 +123,18 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   const submittedVersionRef = useRef<number | undefined>(undefined);
   const submittedVariablesRef = useRef<{ [key: string]: string } | undefined>(undefined);
   const onSaveRef = useRef(onSave);
+  // Names whose keychain entry the delete dialog was told to leave alone. Deleting
+  // a variable otherwise takes the value it named with it.
+  const retainStoredRef = useRef<Set<string>>(new Set());
   const storedWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   editVersionRef.current = editVersion;
   onSaveRef.current = onSave;
 
   const statusByName = useMemo(() => new Map(status.map((entry) => [entry.name, entry])), [status]);
+  const scannedNames = useMemo(() => Object.keys(variables), [variables]);
+  const { scan, rescan } = useVariableScan(scannedNames, active);
 
   useEffect(() => {
-    if (entering.size > 0) return;
     const previous = variablesRef.current;
     variablesRef.current = variables;
     const submittedVersion = submittedVersionRef.current;
@@ -113,7 +147,7 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
       submittedVersionRef.current = undefined;
       submittedVariablesRef.current = undefined;
     }
-  }, [entering.size, variables]);
+  }, [variables]);
 
   useEffect(() => {
     if (focusRow === null) return;
@@ -153,7 +187,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   const removeRow = (index: number, focus?: number) => {
     markEdited();
     setRows((prev) => prev.filter((_, i) => i !== index));
-    setEntering(new Set());
     if (focus !== undefined) setFocusRow(focus);
   };
 
@@ -184,14 +217,12 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   });
   const invalid = duplicateKey || rowErrors.some(Boolean);
 
-  // A ${NAME} an app uses that no variable defines; requests send it literally. Read
-  // from the rows rather than the file, so deleting a variable two apps use says so at
-  // once instead of after the save.
+  // A ${NAME} an app uses that no variable defines; requests send it literally. It
+  // has no row to be said in, which is why it is the one thing here reported over
+  // the table rather than under a field. Read from the rows rather than the file,
+  // so deleting a variable two apps use says so at once instead of after the save.
   const defined = new Set(trimmedKeys.filter(Boolean));
-  const undefinedReferences = Object.keys(usage)
-    .filter((name) => usage[name].length > 0 && !defined.has(name))
-    .sort();
-  const unresolved = status.filter((entry) => entry.source === VariableSource.UNSET && entry.name in variables);
+  const undefinedReferences = [...uses.keys()].filter((name) => !defined.has(name)).sort();
 
   useEffect(() => {
     if (readOnly || !dirty || invalid || saving || attemptedVersionRef.current === editVersion) return;
@@ -204,8 +235,14 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
       submittedVariablesRef.current = snapshot;
       setSaving(true);
 
+      // A name that is back in the table is a variable again, so whatever the
+      // delete dialog was told about the last one of that name no longer applies.
+      for (const name of Object.keys(snapshot)) retainStoredRef.current.delete(name);
       const cleared = Object.keys(variables).filter(
-        (name) => variableKind(variables[name]) === "stored" && (!(name in snapshot) || variableKind(snapshot[name]) !== "stored"),
+        (name) =>
+          variableKind(variables[name]) === "stored" &&
+          !retainStoredRef.current.has(name) &&
+          (!(name in snapshot) || variableKind(snapshot[name]) !== "stored"),
       );
 
       void onSaveRef
@@ -217,14 +254,8 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
     return () => clearTimeout(timer);
   }, [dirty, editVersion, edited, invalid, readOnly, saving, variables]);
 
-  const storeValue = async (index: number, value: string) => {
-    const name = rows[index].key.trim();
+  const storeValue = async (name: string, value: string) => {
     if (!name) return;
-    setEntering((prev) => {
-      const next = new Set(prev);
-      next.delete(index);
-      return next;
-    });
     const write = storedWriteChainRef.current.then(() => onStoreValue(name, value));
     storedWriteChainRef.current = write.then(
       () => undefined,
@@ -236,6 +267,27 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
     } catch (error) {
       console.error(`Storing ${name} failed: ${rpcErrorMessage(error)}`);
     }
+  };
+
+  const held = (row: VariableRow) => {
+    const name = row.key.trim();
+    return statusByName.get(name)?.source === VariableSource.KEYCHAIN || justStored.has(name);
+  };
+
+  // Deleting a variable something reads breaks that reference, and deleting one the
+  // keychain holds a value for throws the value away. Either is worth stating; a
+  // variable that is neither goes on the click.
+  const askToDelete = (index: number) => {
+    const row = rows[index];
+    const name = row.key.trim();
+    const apps = uses.get(name)?.length ?? 0;
+    const files = scan.status === "scanned" ? (scan.references.get(name)?.length ?? 0) : 0;
+    const holdsValue = variableKind(row.value) === "stored" && held(row);
+    if (!name || (apps === 0 && files === 0 && !holdsValue)) {
+      removeRow(index);
+      return;
+    }
+    setDeleting({ index, name, apps, files, held: holdsValue });
   };
 
   const body =
@@ -276,12 +328,12 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
           </p>
         )}
 
-        {(undefinedReferences.length > 0 || unresolved.length > 0) && (
+        {undefinedReferences.length > 0 && (
           <div className="flex shrink-0 flex-col gap-2 pb-3">
             {undefinedReferences.map((name) => (
               <Alert key={name} variant="warning" className="flex items-center justify-between gap-4">
                 <span>
-                  <code>{"${" + name + "}"}</code> is used by {usage[name].join(", ")} but isn't defined.
+                  <code>{"${" + name + "}"}</code> is used by {[...new Set(uses.get(name)?.map((use) => use.app))].join(", ")} but isn't defined.
                 </span>
                 {!readOnly && (
                   <Button
@@ -297,11 +349,6 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
                 )}
               </Alert>
             ))}
-            {unresolved.map((entry) => (
-              <Alert key={entry.name} variant="warning">
-                <code>{entry.name}</code> isn't set on this machine. Requests that use it will send <code>{"${" + entry.name + "}"}</code> literally.
-              </Alert>
-            ))}
           </div>
         )}
 
@@ -309,45 +356,48 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
           <span className="w-[168px]">Name</span>
           {readOnly && <span className="w-[104px]">Source</span>}
           <span className="flex-1">Value</span>
-          <span className="w-16">Used by</span>
-          <span className="w-5" />
+          <span className="w-[132px]">Used by</span>
+          <span className="ml-1 w-6" />
         </div>
 
-        {rows.map((row, index) =>
-          readOnly ? (
-            <VariableRowStatic key={index} row={row} status={statusByName.get(row.key.trim())} usedBy={usage[row.key.trim()]} />
+        {rows.map((row, index) => {
+          const name = row.key.trim();
+          const usedBy = (
+            <UsedBy
+              name={name}
+              apps={uses.get(name) ?? []}
+              scan={scan}
+              scripts={scripts}
+              onRescan={rescan}
+              onScriptSelect={onScriptSelect}
+              onRevealApp={onRevealApp}
+            />
+          );
+          return readOnly ? (
+            <VariableRowStatic key={index} row={row} status={statusByName.get(name)} usedBy={usedBy} />
           ) : (
             <VariableRowEditor
               key={index}
               index={index}
               row={row}
               error={rowErrors[index]}
-              status={statusByName.get(row.key.trim())}
+              status={statusByName.get(name)}
               storeAvailable={storeAvailable}
-              entering={entering.has(index)}
-              justStored={justStored.has(row.key.trim())}
-              usedBy={usage[row.key.trim()]}
+              held={held(row)}
+              usedBy={usedBy}
               nameRef={(element) => {
                 if (element) nameInputs.current.set(index, element);
                 else nameInputs.current.delete(index);
               }}
               onChange={(patch) => update(index, patch)}
               onSource={(kind) => setSource(index, kind)}
-              onEnterValue={() => setEntering((prev) => new Set(prev).add(index))}
-              onStoreValue={(value) => storeValue(index, value)}
-              onCancelValue={() =>
-                setEntering((prev) => {
-                  const next = new Set(prev);
-                  next.delete(index);
-                  return next;
-                })
-              }
-              onRemove={(focus) => removeRow(index, focus)}
+              onEnterValue={() => setKeychainSheet({ index, name })}
+              onRemove={(focus) => (focus === undefined ? askToDelete(index) : removeRow(index, focus))}
               onAddRow={index === rows.length - 1 ? addRow : undefined}
               isLast={index === rows.length - 1}
             />
-          ),
-        )}
+          );
+        })}
 
         {/* The add row sits where the new row will appear, inside the table. */}
         {!readOnly && (
@@ -368,6 +418,30 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   return (
     <div className="flex h-full flex-col bg-background">
       {body}
+
+      {keychainSheet && (
+        <KeychainSheet
+          name={keychainSheet.name}
+          onClose={() => setKeychainSheet(null)}
+          onSubmit={(value) => {
+            setKeychainSheet(null);
+            void storeValue(keychainSheet.name, value);
+          }}
+        />
+      )}
+
+      {deleting && (
+        <DeleteDialog
+          deleting={deleting}
+          onClose={(gesture, clearStored) => {
+            if (gesture === "confirm") {
+              if (deleting.held && !clearStored) retainStoredRef.current.add(deleting.name);
+              removeRow(deleting.index);
+            }
+            setDeleting(null);
+          }}
+        />
+      )}
 
       {movingToEnvironment && (
         <ConfirmationDialog
@@ -397,17 +471,14 @@ interface VariableRowEditorProps {
   error?: string;
   status?: VariableStatus;
   storeAvailable: boolean;
-  entering: boolean;
   // Counting one written just now for a variable the file doesn't name yet.
-  justStored: boolean;
-  usedBy?: string[];
+  held: boolean;
+  usedBy: ReactNode;
   isLast: boolean;
   nameRef: (element: HTMLInputElement | null) => void;
   onChange: (patch: Partial<VariableRow>) => void;
   onSource: (kind: VariableKind) => void;
   onEnterValue: () => void;
-  onStoreValue: (value: string) => void;
-  onCancelValue: () => void;
   onRemove: (focus?: number) => void;
   onAddRow?: () => void;
 }
@@ -418,16 +489,13 @@ function VariableRowEditor({
   error,
   status,
   storeAvailable,
-  entering,
-  justStored,
+  held,
   usedBy,
   isLast,
   nameRef,
   onChange,
   onSource,
   onEnterValue,
-  onStoreValue,
-  onCancelValue,
   onRemove,
   onAddRow,
 }: VariableRowEditorProps) {
@@ -436,16 +504,22 @@ function VariableRowEditor({
   const source = status?.source ?? VariableSource.UNSET;
   const storedEnv = status?.envName || storedEnvName(name || "NAME");
   // A keychain row on a machine with no store has nothing to take a value into: it can
-  // only be supplied as KAJA_<NAME>, so the row says that instead of offering an input
-  // that goes nowhere.
+  // only be supplied as KAJA_<NAME>, so the row says that instead of offering a sheet
+  // that writes nowhere.
   const needsEnvironment = kind === "stored" && !storeAvailable && source !== VariableSource.ENVIRONMENT;
-  // Deleting a variable an app reads breaks that reference, so the count says so while
-  // the gesture that would do it is under the pointer.
-  const [deleteHovered, setDeleteHovered] = useState(false);
+  // Nothing about one row is reported outside it: the field goes amber and the
+  // consequence sits under it, rather than a banner above the table naming a row the
+  // eye then has to go find.
+  const unset =
+    Boolean(name) &&
+    !error &&
+    ((kind === "stored" && !held && source === VariableSource.UNSET) || (kind === "environment" && status?.source === VariableSource.UNSET));
 
   return (
-    <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1 border-t border-border px-1 py-1.5">
+    <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1.5 border-t border-border px-1 py-1.5 transition-colors hover:bg-muted/40">
       <div className="flex items-center gap-3">
+        {/* Three bordered boxes across a row is more frame than content, so the
+            name is plain text until the pointer or the focus is on it. */}
         <Input
           ref={nameRef}
           value={row.key}
@@ -458,7 +532,7 @@ function VariableRowEditor({
             }
           }}
           placeholder="API_BASE_URL"
-          className="w-[168px] shrink-0 font-mono text-xs"
+          className="w-[168px] shrink-0 border-transparent bg-transparent px-2.5 font-mono text-xs shadow-none hover:border-input focus-visible:border-input"
         />
 
         {/* The source picker is welded to the value it describes: one control
@@ -466,24 +540,14 @@ function VariableRowEditor({
             to its right that is whatever the mode needs. */}
         <div className="flex min-w-0 flex-1 items-center">
           <SourcePicker kind={kind} name={name} environmentName={environmentName(row)} storeAvailable={storeAvailable} onSelect={onSource} />
-          <div
-            className={cn(
-              "-ml-px flex h-8 min-w-0 flex-1 items-center rounded-r-md border border-input bg-background shadow-sm focus-within:relative focus-within:ring-2 focus-within:ring-ring",
-              error && "border-destructive",
-            )}
+          <ValueField
+            warn={unset}
+            error={Boolean(error)}
+            clickable={kind === "stored" && storeAvailable}
+            onClick={kind === "stored" && storeAvailable ? onEnterValue : undefined}
           >
             {kind === "stored" ? (
-              <StoredValueCell
-                storedEnv={storedEnv}
-                source={source}
-                held={source === VariableSource.KEYCHAIN || justStored}
-                storeAvailable={storeAvailable}
-                named={Boolean(name)}
-                entering={entering}
-                onEnter={onEnterValue}
-                onStore={onStoreValue}
-                onCancel={onCancelValue}
-              />
+              <StoredValueCell storedEnv={storedEnv} source={source} held={held} storeAvailable={storeAvailable} />
             ) : (
               <>
                 <Input
@@ -501,7 +565,7 @@ function VariableRowEditor({
                 {kind === "environment" && status && (
                   <span
                     className={cn(
-                      "shrink-0 pr-2.5 text-xs",
+                      "pointer-events-none shrink-0 pr-2.5 text-xs",
                       status.source === VariableSource.UNSET ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
                     )}
                   >
@@ -510,47 +574,81 @@ function VariableRowEditor({
                 )}
               </>
             )}
-          </div>
+          </ValueField>
         </div>
 
-        <span className="w-16 shrink-0">
-          <UsedBy usedBy={usedBy} name={name} warn={deleteHovered} />
-        </span>
-        {/* Delete isn't a mode, so it doesn't sit in the mode list. */}
-        <span className="flex w-5 shrink-0 justify-center">
+        <span className="w-[132px] shrink-0">{usedBy}</span>
+        {/* Delete isn't a mode, so it doesn't sit in the mode list. Twice the
+            column gap from the count beside it, so it reads as the row's. */}
+        <span className="ml-1 flex w-6 shrink-0 justify-center">
           <IconButton
             icon={Trash2}
-            aria-label={`Delete ${name || "this variable"}`}
+            aria-label="Delete variable"
             variant="ghost"
-            size="xs"
-            tooltip="native"
-            className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-            onMouseEnter={() => setDeleteHovered(true)}
-            onMouseLeave={() => setDeleteHovered(false)}
-            onFocus={() => setDeleteHovered(true)}
-            onBlur={() => setDeleteHovered(false)}
+            size="sm"
+            className="h-6 w-6 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:size-3.5"
             onClick={() => onRemove()}
           />
         </span>
       </div>
 
       {error && <FormControl.Validation>{error}</FormControl.Validation>}
-      {!error && entering && storeAvailable && (
-        <FormControl.Caption>
-          {name ? "Press ⏎ to write it to this machine's keychain. Keychain values are stored at once." : "Name the variable first."}
-        </FormControl.Caption>
+      {!error && unset && !needsEnvironment && (
+        <RowCaption>
+          Requests send the text <code>{"${" + name + "}"}</code> until this is set.
+        </RowCaption>
       )}
       {!error && needsEnvironment && (
-        <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-          This machine has nowhere to store a value — define <code>{storedEnv}</code> in the environment.
-          <CopyButton value={storedEnv + "="} label={`Copy ${storedEnv}=`} />
-        </span>
+        <RowCaption>
+          This machine has nowhere to store a value. Define <code>{storedEnv}</code> in the environment.{" "}
+          <span className="inline-flex align-middle">
+            <CopyButton value={storedEnv + "="} label={`Copy ${storedEnv}=`} />
+          </span>
+        </RowCaption>
       )}
     </div>
   );
 }
 
-// `bg-muted` rather than a button surface, so it reads as part of the field.
+// A caption sits under the field it is about, left edge aligned to the value
+// column, which is what says it belongs to that field rather than to the row.
+function RowCaption({ children }: { children: ReactNode }) {
+  return (
+    <div className="text-xs text-muted-foreground" style={{ paddingLeft: 180 }}>
+      {children}
+    </div>
+  );
+}
+
+// The whole field is one hit target, so its action can sit next to the state it
+// acts on rather than pinned to the far edge of a wide window.
+function ValueField({
+  warn,
+  error,
+  clickable,
+  onClick,
+  children,
+}: {
+  warn: boolean;
+  error: boolean;
+  clickable: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  const className = cn(
+    "group/value -ml-px flex h-8 min-w-0 flex-1 items-center rounded-r-md border shadow-sm focus-within:relative focus-within:ring-2 focus-within:ring-ring",
+    error ? "border-destructive bg-background" : warn ? "border-amber-500/40 bg-amber-500/10" : "border-input bg-background",
+    clickable && "cursor-pointer text-left transition-colors hover:border-ring focus-visible:relative focus-visible:ring-2 focus-visible:ring-ring",
+  );
+  if (!clickable) return <div className={className}>{children}</div>;
+  return (
+    <button type="button" className={className} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+// bg-muted rather than a button surface, so it reads as part of the field.
 function SourcePicker({
   kind,
   name,
@@ -576,126 +674,155 @@ function SourcePicker({
           <ChevronDown size={11} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[300px]">
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">Where does this value come from?</div>
-        <SourceItem selected={kind === "value"} label="Value" note="written in kaja.json" onSelect={() => onSelect("value")} />
+      <DropdownMenuContent align="start" className="w-[288px]">
+        <div className="flex h-6 items-center px-2 text-xs text-muted-foreground">Where the value comes from</div>
+        <SourceItem selected={kind === "value"} label="Value" description="Written in kaja.json" onSelect={() => onSelect("value")} />
         <SourceItem
           selected={kind === "stored"}
           label="Keychain"
-          note={storeAvailable ? "stays on this machine" : `reads ${storedEnvName(name || "NAME")}`}
+          description={storeAvailable ? "Stays on this machine" : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
-        <SourceItem selected={kind === "environment"} label="Environment" note={environmentName} onSelect={() => onSelect("environment")} />
-        <div className="mt-1 border-t border-border px-2 pb-0.5 pt-1.5 text-xs text-muted-foreground">
-          Keychain and environment values never reach kaja.json.
-        </div>
+        <SourceItem
+          selected={kind === "environment"}
+          label="Environment"
+          description={`Read from ${environmentName}`}
+          onSelect={() => onSelect("environment")}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-function SourceItem({ selected, label, note, onSelect }: { selected: boolean; label: string; note: string; onSelect: () => void }) {
+function SourceItem({ selected, label, description, onSelect }: { selected: boolean; label: string; description: string; onSelect: () => void }) {
   return (
-    <DropdownMenuItem onSelect={onSelect}>
-      <span className="flex w-3.5 shrink-0 justify-center">{selected && <Check size={12} />}</span>
-      <span className="min-w-0">
-        {label} <span className="text-muted-foreground">— {note}</span>
+    <DropdownMenuItem className="items-start py-[5px]" onSelect={onSelect}>
+      <span className="flex w-3.5 shrink-0 justify-center pt-0.5">{selected && <Check size={14} />}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="text-xs">{label}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
       </span>
     </DropdownMenuItem>
   );
 }
 
-// StoredValueCell never shows the value: it says whether there is one, and offers to
-// replace it.
-function StoredValueCell({
-  storedEnv,
-  source,
-  held,
-  storeAvailable,
-  named,
-  entering,
-  onEnter,
-  onStore,
-  onCancel,
-}: {
-  storedEnv: string;
-  source: VariableSource;
-  held: boolean;
-  storeAvailable: boolean;
-  named: boolean;
-  entering: boolean;
-  onEnter: () => void;
-  onStore: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState("");
-
-  if (entering && storeAvailable) {
-    return (
-      <Input
-        type="password"
-        value={value}
-        autoFocus
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && value && named) {
-            e.preventDefault();
-            onStore(value);
-            setValue("");
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            setValue("");
-            onCancel();
-          }
-        }}
-        onBlur={() => {
-          if (value && named) {
-            onStore(value);
-            setValue("");
-          } else {
-            onCancel();
-          }
-        }}
-        placeholder="Paste value"
-        className="h-full rounded-none border-0 bg-transparent px-2.5 text-xs shadow-none focus-visible:ring-0"
-        autoComplete="off"
-      />
-    );
-  }
+// StoredValueCell never shows the value: it says whether there is one, and names the
+// action that changes it right beside that.
+function StoredValueCell({ storedEnv, source, held, storeAvailable }: { storedEnv: string; source: VariableSource; held: boolean; storeAvailable: boolean }) {
+  const action = (
+    <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover/value:text-foreground">
+      {held ? "Replace" : "Set value"}
+    </span>
+  );
 
   if (!held && source === VariableSource.ENVIRONMENT) {
     return (
-      <span className="min-w-0 flex-1 truncate px-2.5 text-xs text-muted-foreground">
-        From <code>{storedEnv}</code>
+      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <span className="truncate text-xs text-muted-foreground">
+          Read from <code>{storedEnv}</code>
+        </span>
+        {storeAvailable && action}
       </span>
     );
   }
 
-  if (!storeAvailable) {
-    return <span className="min-w-0 flex-1 truncate px-2.5 text-xs text-muted-foreground">Not set</span>;
+  if (!held) {
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+        <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not set</span>
+        {storeAvailable && action}
+      </span>
+    );
   }
 
   return (
-    <span className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2.5">
-      <span className="truncate text-xs text-muted-foreground">{held ? "Held on this machine" : "Not set"}</span>
-      <Button variant="link" size="sm" className="h-auto shrink-0 p-0 text-xs" onClick={onEnter}>
-        {held ? "Replace" : "Set"}
-      </Button>
+    <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+      <span className="truncate text-xs text-muted-foreground">Held on this machine</span>
+      {action}
     </span>
+  );
+}
+
+// The one place a value is typed. It is a sheet rather than an inline field because
+// what it writes is machine state: it lands the moment it is confirmed, outside the
+// file's own save.
+function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () => void; onSubmit: (value: string) => void }) {
+  const [value, setValue] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+
+  return (
+    <Dialog
+      title={`Set ${name}`}
+      width="sm"
+      onClose={onClose}
+      initialFocusRef={input}
+      footerButtons={[
+        { content: "Cancel", onClick: onClose },
+        { content: "Set value", variant: "default", disabled: value === "", onClick: () => value && onSubmit(value) },
+      ]}
+    >
+      <div className="flex flex-col gap-2 py-2">
+        <Input
+          ref={input}
+          type="password"
+          autoComplete="off"
+          placeholder="Paste value"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && value) {
+              e.preventDefault();
+              onSubmit(value);
+            }
+          }}
+        />
+        <p className="text-xs text-muted-foreground">Stored in this machine's keychain. Kaja reads it at request time and never writes it to kaja.json.</p>
+      </div>
+    </Dialog>
+  );
+}
+
+function DeleteDialog({
+  deleting,
+  onClose,
+}: {
+  deleting: { name: string; apps: number; files: number; held: boolean };
+  onClose: (gesture: "confirm" | "cancel", clearStored: boolean) => void;
+}) {
+  const [clearStored, setClearStored] = useState(true);
+  const referenced = [deleting.apps > 0 && pluralCount(deleting.apps, "app"), deleting.files > 0 && pluralCount(deleting.files, "script")].filter(Boolean);
+
+  return (
+    <ConfirmationDialog
+      title={`Delete ${deleting.name}?`}
+      confirmButtonContent="Delete variable"
+      confirmButtonType="danger"
+      onClose={(gesture) => onClose(gesture, clearStored)}
+    >
+      {referenced.length > 0 && <span className="block">{referenced.join(" and ")} reference it. They will send the text as written.</span>}
+      {deleting.held && (
+        <span className="mt-3 flex items-center gap-2">
+          <Checkbox checked={clearStored} onCheckedChange={(checked) => setClearStored(checked === true)} id="clear-stored" />
+          <label htmlFor="clear-stored" className="cursor-pointer text-sm text-foreground">
+            Also clear the value held on this machine
+          </label>
+        </span>
+      )}
+    </ConfirmationDialog>
   );
 }
 
 // A read-only configuration can't be edited into shape, so the row is the wiring
 // information instead: the name, where the value comes from, and whether it arrived.
-function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?: VariableStatus; usedBy?: string[] }) {
+function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?: VariableStatus; usedBy: ReactNode }) {
   const kind = variableKind(row.value);
   const source = status?.source ?? VariableSource.UNSET;
   const envName = status?.envName || (kind === "stored" ? storedEnvName(row.key) : environmentName(row));
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-3 border-t border-border px-1 text-xs">
-      <span className="w-[168px] shrink-0 truncate font-mono">{row.key}</span>
+      <span className="w-[168px] shrink-0 truncate px-2.5 font-mono">{row.key}</span>
       <span className="w-[104px] shrink-0 text-muted-foreground">{SOURCE_LABEL[kind]}</span>
       <span className="min-w-0 flex-1 truncate">
         {kind === "value" ? (
@@ -705,32 +832,144 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
             <code>{envName}</code> not set
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
-          <span className="text-muted-foreground">Stored in your keychain</span>
+          <span className="text-muted-foreground">Held on this machine</span>
         ) : (
           <span className="text-muted-foreground">
-            From <code>{envName}</code>
+            Read from <code>{envName}</code>
           </span>
         )}
       </span>
-      <span className="w-16 shrink-0">
-        <UsedBy usedBy={usedBy} name={row.key} />
-      </span>
-      <span className="w-5 shrink-0" />
+      <span className="w-[132px] shrink-0">{usedBy}</span>
+      <span className="ml-1 w-6 shrink-0" />
     </div>
   );
 }
 
-function UsedBy({ usedBy, name, warn }: { usedBy?: string[]; name: string; warn?: boolean }) {
+// The column is never a dead number: it states a finding, or shows the scan running,
+// or offers to run it again. App references are read from the configuration, so they
+// are there on load; script references are the scan's.
+function UsedBy({
+  name,
+  apps,
+  scan,
+  scripts,
+  onRescan,
+  onScriptSelect,
+  onRevealApp,
+}: {
+  name: string;
+  apps: VariableUse[];
+  scan: VariableScan;
+  scripts: Script[];
+  onRescan: () => void;
+  onScriptSelect: (script: Script) => void;
+  onRevealApp: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
   if (!name) return null;
-  if (!usedBy || usedBy.length === 0) {
+
+  const appCount = apps.length > 0 ? <span className="text-xs text-foreground">{pluralCount(apps.length, "app")}</span> : null;
+
+  if (scan.status === "scanning") {
+    return (
+      <span className="flex items-center gap-1.5">
+        <Spinner className="size-3" />
+        <span className="text-xs text-muted-foreground">{apps.length > 0 ? `${pluralCount(apps.length, "app")}, scanning` : "Scanning"}</span>
+      </span>
+    );
+  }
+
+  if (scan.status === "failed") {
+    return (
+      <span className="flex items-center gap-1.5">
+        {appCount}
+        <span className="text-xs text-muted-foreground">Scan failed</span>
+        <IconButton icon={Search} aria-label="Scan scripts again" variant="ghost" size="xs" className="[&_svg]:size-3" onClick={onRescan} />
+      </span>
+    );
+  }
+
+  const files = orderReferences(scan.references.get(name) ?? [], scripts);
+  if (apps.length === 0 && files.length === 0) {
     return <span className="text-xs text-muted-foreground/60">Unused</span>;
   }
+
   return (
-    <SimpleTooltip text={`${usedBy.join(", ")}. Scripts aren't scanned.`}>
-      <span className={cn("cursor-default text-xs", warn ? "text-destructive" : "text-muted-foreground")}>
-        {usedBy.length} app{usedBy.length === 1 ? "" : "s"}
-      </span>
-    </SimpleTooltip>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="flex items-center gap-1.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {appCount}
+          {files.length > 0 && <span className="text-xs text-muted-foreground">{pluralCount(files.length, "file")}</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[272px] p-1">
+        {apps.length > 0 && <UsedByGroup label="Apps" />}
+        {apps.map((use, index) => (
+          <UsedByRow
+            key={`${use.app} ${use.field} ${index}`}
+            label={use.app}
+            trailing={use.field}
+            onSelect={() => {
+              setOpen(false);
+              onRevealApp(use.app);
+            }}
+          />
+        ))}
+        {files.length > 0 && <UsedByGroup label="Files" />}
+        {files.map((reference) => {
+          const script = scripts.find((candidate) => candidate.path === reference.path);
+          return (
+            <UsedByRow
+              key={reference.path}
+              mono
+              label={scriptReferenceLabel(reference, scripts)}
+              trailing={String(reference.count)}
+              onSelect={
+                script
+                  ? () => {
+                      setOpen(false);
+                      onScriptSelect(script);
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
+        <div className="my-1 border-t border-border" />
+        <div className="flex h-6 items-center justify-between px-2">
+          <span className="text-xs text-muted-foreground">{scan.truncated ? "Scan stopped short" : scannedAgo(scan.at, Date.now())}</span>
+          <button
+            type="button"
+            className="rounded-sm text-xs text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={onRescan}
+          >
+            Rescan
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UsedByGroup({ label }: { label: string }) {
+  return (
+    <div className="flex h-[22px] items-center px-2">
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function UsedByRow({ label, trailing, mono, onSelect }: { label: string; trailing: string; mono?: boolean; onSelect?: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={!onSelect}
+      onClick={onSelect}
+      className="flex h-[26px] w-full items-center justify-between gap-2 rounded-sm px-2 text-left outline-none transition-colors enabled:hover:bg-accent enabled:hover:text-accent-foreground focus-visible:bg-accent"
+    >
+      <span className={cn("min-w-0 truncate text-xs", mono && "font-mono")}>{label}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{trailing}</span>
+    </button>
   );
 }
 
