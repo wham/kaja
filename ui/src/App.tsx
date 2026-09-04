@@ -2306,7 +2306,11 @@ export function App() {
                 whether the workspace names any apps, so until the configuration
                 answers that, neither is shown. */}
             {views.length === 0 && configurationLoaded && apps.length === 0 && (
-              <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={runtime.canUpdateConfiguration} />
+              <FirstAppBlankslate
+                onNewAppClick={onNewAppClick}
+                onConnectAgentClick={mcpControl ? onMcpClick : undefined}
+                canUpdateConfiguration={runtime.canUpdateConfiguration}
+              />
             )}
             {views.length === 0 && configurationLoaded && apps.length > 0 && (
               <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewDraft={onNewDraft} recent={recentFiles} />
@@ -2334,6 +2338,7 @@ export function App() {
                           apps={apps}
                           configurationLoaded={configurationLoaded}
                           onNewAppClick={onNewAppClick}
+                          onConnectAgentClick={mcpControl ? onMcpClick : undefined}
                           canUpdateConfiguration={runtime.canUpdateConfiguration}
                           expandApp={compileLogExpandApp}
                         />
