@@ -413,12 +413,12 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           {/* Zero files wants a line of instruction rather than a blank space:
               this is the one screen that can say where files come from. It states
               the rule and stops — there is no action to offer, since a file only
-              exists once a draft is named, and a full sentence would weigh more
+              exists once a draft is saved, and a full sentence would weigh more
               than the rows it sits among. */}
           {scripts.length === 0 && folders.length === 0 && !folderEdit && (
             <li role="treeitem">
               <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
-                {canWrite ? "Named drafts land here" : "Scripts in the workspace's folder appear here."}
+                {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
               </div>
             </li>
           )}

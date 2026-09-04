@@ -23,7 +23,7 @@ interface NoFileBlankslateProps {
 
 /**
  * The first screen of a new install, and where every "nothing open" moment
- * lands. It has one job: say that picking a call in the tree writes you a
+ * lands. It has one job: say that picking a method in the tree drafts you a
  * script, which is the entire model of the product and is said nowhere else.
  *
  * Under the sentence sits your recent work, because the people who see this
@@ -39,8 +39,8 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
       <div className="flex flex-col items-center gap-2">
         <FileCode size={28} className="text-muted-foreground" />
-        <p className="m-0 text-sm text-foreground">Pick a call in the sidebar and Kaja writes the script.</p>
-        <p className="m-0 text-xs text-muted-foreground">Everything here is a script. Edit it, run it, save it if it's worth keeping.</p>
+        <p className="m-0 text-sm text-foreground">Pick a method in the sidebar and Kaja drafts a script.</p>
+        <p className="m-0 text-xs text-muted-foreground">Edit it, run it, save it as a file.</p>
       </div>
       {recent.length > 0 && (
         <div className="flex w-[300px] flex-col gap-1">
