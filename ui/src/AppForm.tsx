@@ -266,6 +266,12 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   const loadedAppNameRef = useRef<string | null>(null);
 
+  // The effect's cleanup closes over the editMode of the run it is cleaning up, which on
+  // the way out of the JSON view is still "json". The question it has to answer is which
+  // view is on screen now, so it reads that here.
+  const editModeRef = useRef(editMode);
+  editModeRef.current = editMode;
+
   // The JSON editor opens on what the form currently holds, so switching between the
   // two views doesn't drop what was filled in on either side.
   const getJsonAppData = getCurrentApp;
@@ -333,7 +339,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     }
 
     return () => {
-      if (editMode !== "json") {
+      if (editModeRef.current !== "json") {
         editorRef.current?.dispose();
         editorRef.current = null;
         monacoModelRef.current?.dispose();
@@ -429,7 +435,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
       <div className="min-h-0 flex-1 overflow-auto">
         {editMode === "form" ? (
-          <div className="max-w-[640px] p-6">
+          <div key="form" className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
               {customForm ? (
                 // Keyed by the app being edited: switching apps in the sidebar starts the form over
@@ -496,66 +502,74 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 <>
                   <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
 
-                  {(definition?.parameters ?? []).map((parameter) => (
-                    <FormControl key={parameter.key}>
-                      <FormControl.Label>{parameter.label}</FormControl.Label>
-                      {parameter.type === "boolean" ? (
-                        <Checkbox
-                          checked={parameters[parameter.key] === "true"}
-                          disabled={readOnly}
-                          onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
-                        />
-                      ) : parameter.type === "upload" ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-                            <FileIcon size={16} />
-                            {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
-                            <input
-                              type="file"
-                              accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                              hidden
-                              disabled={readOnly}
-                              onChange={(e) => {
-                                handleUpload(parameter.key, e.target.files?.[0]);
-                                e.target.value = "";
-                              }}
-                            />
-                          </label>
-                          <span className="text-xs text-muted-foreground">
-                            {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
-                          </span>
-                        </div>
-                      ) : (
-                        <VariableSuggestInput
-                          value={parameters[parameter.key] ?? ""}
-                          onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
-                          variables={variables}
-                          placeholder={parameter.placeholder}
-                          disabled={readOnly}
-                          trailingAction={
-                            (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                              <IconButton
-                                icon={parameter.type === "folder" ? Folder : FileIcon}
-                                aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                                variant="ghost"
-                                size="sm"
-                                tooltip="native"
-                                onClick={async () => {
-                                  const app = await desktop();
-                                  const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
-                                  if (path) {
-                                    setParameters((prev) => ({ ...prev, [parameter.key]: path }));
-                                  }
-                                }}
+                  {(definition?.parameters ?? []).map((parameter) => {
+                    // A picked parameter names a folder outside the workspace, which the
+                    // desktop is granted by the picker alone, so there the field states
+                    // what was picked rather than taking a path on trust.
+                    const picked = isWailsEnvironment() ? parameter.picked : undefined;
+                    const pick = async () => {
+                      const app = await desktop();
+                      const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
+                      if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
+                    };
+                    const caption = picked?.caption ?? parameter.caption;
+                    return (
+                      <FormControl key={parameter.key}>
+                        <FormControl.Label>{parameter.label}</FormControl.Label>
+                        {parameter.type === "boolean" ? (
+                          <Checkbox
+                            checked={parameters[parameter.key] === "true"}
+                            disabled={readOnly}
+                            onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
+                          />
+                        ) : parameter.type === "upload" ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                              <FileIcon size={16} />
+                              {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                              <input
+                                type="file"
+                                accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                                hidden
                                 disabled={readOnly}
+                                onChange={(e) => {
+                                  handleUpload(parameter.key, e.target.files?.[0]);
+                                  e.target.value = "";
+                                }}
                               />
-                            ) : undefined
-                          }
-                        />
-                      )}
-                      {parameter.caption && <FormControl.Caption>{parameter.caption}</FormControl.Caption>}
-                    </FormControl>
-                  ))}
+                            </label>
+                            <span className="text-xs text-muted-foreground">
+                              {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
+                            </span>
+                          </div>
+                        ) : (
+                          <VariableSuggestInput
+                            value={parameters[parameter.key] ?? ""}
+                            onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
+                            variables={variables}
+                            placeholder={picked ? picked.placeholder : parameter.placeholder}
+                            disabled={readOnly}
+                            readOnly={!!picked}
+                            onClick={picked && !readOnly ? pick : undefined}
+                            trailingAction={
+                              (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
+                                <IconButton
+                                  icon={parameter.type === "folder" ? Folder : FileIcon}
+                                  aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
+                                  variant="ghost"
+                                  size="sm"
+                                  tooltip="native"
+                                  onClick={pick}
+                                  disabled={readOnly}
+                                />
+                              ) : undefined
+                            }
+                          />
+                        )}
+                        {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
+                      </FormControl>
+                    );
+                  })}
 
                   {demo && !readOnly && (
                     <button
@@ -583,7 +597,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
             </div>
           </div>
         ) : (
-          <div ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
+          // Keyed apart from the form: both branches are a div in the same slot, so
+          // without it React reuses the node and the editor's own DOM, which React did
+          // not put there and will not take away, stays among the fields.
+          <div key="json" ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
         )}
       </div>
 
