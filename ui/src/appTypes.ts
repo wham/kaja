@@ -15,6 +15,11 @@ export interface AppParameterDefinition {
   caption?: string;
   // Optional parameters are not required to create the app.
   optional?: boolean;
+  // A path the desktop cannot take on trust: macOS grants a sandboxed app a folder by
+  // the user choosing it, so a typed one has no access at all. There the field is
+  // read-only, clicking it or the picker is what writes it, and these stand in for the
+  // placeholder and caption beside them.
+  picked?: { placeholder: string; caption: string };
 }
 
 // AppSurface is how much an app turned out to expose, which a custom form reads off
@@ -178,8 +183,9 @@ export const appTypes: AppTypeDefinition[] = [
         key: "path",
         label: "Folder",
         type: "folder",
-        placeholder: "/path/to/notes",
-        caption: "Methods list, create, read and append to files in this folder. On the desktop, pick the folder to grant access.",
+        placeholder: "/path/to/folder",
+        caption: "Absolute path on the machine serving the workspace.",
+        picked: { placeholder: "No folder picked", caption: "Picking the folder is what grants Kaja access to it." },
       },
     ],
   },
