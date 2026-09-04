@@ -38,7 +38,7 @@ describe("mcpAgents", () => {
   });
 
   test("VS Code's deeplink carries the same, as its own handler wants it", () => {
-    const link = agent("VS Code / Copilot").install!.link(endpoint);
+    const link = agent("VS Code").install!.link(endpoint);
     expect(JSON.parse(decodeURIComponent(link.slice("vscode:mcp/install?".length)))).toEqual({
       name: "kaja",
       type: "http",
