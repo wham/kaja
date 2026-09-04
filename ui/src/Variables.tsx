@@ -772,7 +772,7 @@ function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () 
             }
           }}
         />
-        <p className="text-xs text-muted-foreground">Stored in this Mac keychain and never written to kaja.json.</p>
+        <p className="text-xs text-muted-foreground">Stored in this Mac keychain.</p>
       </div>
     </Dialog>
   );
