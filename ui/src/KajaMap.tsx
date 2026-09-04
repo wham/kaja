@@ -18,7 +18,8 @@ import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
  * agent's run looks like when it lands.
  */
 
-// The apps down the right-hand side, each with the one word its surface is read from.
+// The apps down the right-hand side, each with the one word its surface is read from,
+// in the order the New dialog offers them in (appTypes.ts).
 const PROTOCOLS = [
   { mark: GrpcMark, name: "gRPC", source: ".proto", y: 40 },
   { mark: OpenApiMark, name: "OpenAPI", source: "schema", y: 100 },

@@ -44,8 +44,10 @@ export interface AppTypeDefinition {
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
-// In the order shown in the New grid. Keep in sync with the app types registered on
-// the server (server/pkg/api/api.go).
+// In the order shown in the New grid, which is the order the empty state's map lists
+// the protocols in (KajaMap.tsx): the dialog is opened from that screen, so a reader
+// meets the same four in the same places. Keep in sync with the app types registered
+// on the server (server/pkg/api/api.go).
 export const appTypes: AppTypeDefinition[] = [
   {
     type: "grpc",
@@ -76,28 +78,6 @@ export const appTypes: AppTypeDefinition[] = [
       name: "grpcb.in",
       parameters: { url: "grpcb.in:9000", reflection: "true" },
     },
-  },
-  {
-    type: "twirp",
-    label: "Twirp",
-    description: "Call a Twirp service from its proto files.",
-    icon: TwirpMark,
-    parameters: [
-      {
-        key: "url",
-        label: "URL",
-        type: "url",
-        placeholder: "https://example.com/twirp",
-        caption: "Base URL of the Twirp server.",
-      },
-      {
-        key: "protoDir",
-        label: "Proto directory",
-        type: "folder",
-        placeholder: "path/to/proto",
-        caption: "Directory of .proto files (Twirp has no reflection).",
-      },
-    ],
   },
   {
     type: "openapi",
@@ -145,6 +125,28 @@ export const appTypes: AppTypeDefinition[] = [
       name: "DeepWiki",
       parameters: { url: "https://mcp.deepwiki.com/mcp" },
     },
+  },
+  {
+    type: "twirp",
+    label: "Twirp",
+    description: "Call a Twirp service from its proto files.",
+    icon: TwirpMark,
+    parameters: [
+      {
+        key: "url",
+        label: "URL",
+        type: "url",
+        placeholder: "https://example.com/twirp",
+        caption: "Base URL of the Twirp server.",
+      },
+      {
+        key: "protoDir",
+        label: "Proto directory",
+        type: "folder",
+        placeholder: "path/to/proto",
+        caption: "Directory of .proto files (Twirp has no reflection).",
+      },
+    ],
   },
   {
     preview: true,
