@@ -57,7 +57,7 @@ export const REFUSED_GLOBALS: { readonly [name: string]: string } = {
   document: "document is Kaja's own window, not a page the script may write to. A script draws with kaja.text, kaja.code and kaja.table.",
   window: "window is Kaja's own, not a page the script may write to. A script draws with kaja.text, kaja.code and kaja.table.",
   require:
-    'require is not defined in a script, and there is no module system to reach a package through. An import names an app — import { Shows } from "theatre" — and the rest is the standard library.',
+    'require is not defined in a script, and there is no module system to reach a package through. An import names an app, like import { Shows } from "theatre". Everything else is the standard library.',
   process: "process is Node's, and a script runs in a browser. The workspace's variables are kaja.variables.<name>, resolved for you.",
 };
 

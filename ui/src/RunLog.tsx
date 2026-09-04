@@ -199,9 +199,9 @@ export function RunLog({
           rather than in the header. */}
       <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
         {group.run.payloadsExpired ? (
-          <RunLog.NoPayload>Response no longer kept — run to see it live</RunLog.NoPayload>
+          <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
         ) : selectedItem?.payloadsDropped ? (
-          <RunLog.NoPayload>Payload let go to keep this run bounded — run to see it live</RunLog.NoPayload>
+          <RunLog.NoPayload>Payload dropped to keep this run bounded. Run to see it live</RunLog.NoPayload>
         ) : selectedItem?.call ? (
           <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
         ) : selectedItem?.printed ? (

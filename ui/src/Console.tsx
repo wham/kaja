@@ -278,7 +278,7 @@ export function Console({
   if (groups.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
-        Run a script to see its calls here — <span className="ml-1 font-mono">{runShortcutLabel}</span>
+        Run a script to see its calls here. <span className="ml-1 font-mono">{runShortcutLabel}</span>
       </div>
     );
   }

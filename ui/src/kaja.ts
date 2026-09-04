@@ -515,7 +515,7 @@ export class Kaja {
   async approve<T>(call: Call<T>): Promise<T> {
     this.#refuseInsidePerfTest("kaja.approve");
     if (call.started) {
-      throw new Error(`kaja.approve: ${call.label} has already been sent. Write the call inside it — kaja.approve(${call.label}({ … })).`);
+      throw new Error(`kaja.approve: ${call.label} has already been sent. Write the call inside it: kaja.approve(${call.label}({ … })).`);
     }
     // Before anything is awaited, or the tick this was written in would end
     // while the question was still on screen and send the call itself.
@@ -633,7 +633,7 @@ export class Kaja {
     const app = typeof target === "string" ? rateLimitHost(target) : (target as Methods | undefined)?.[APP_OF];
     if (typeof app !== "string" || app === "") {
       throw new Error(
-        'kaja.rateLimit: expects a service imported from an app — kaja.rateLimit(Shows) — or the host a fetch goes to — kaja.rateLimit("api.example.com").',
+        'kaja.rateLimit: expects a service imported from an app, kaja.rateLimit(Shows), or the host a fetch goes to, kaja.rateLimit("api.example.com").',
       );
     }
 
@@ -695,7 +695,7 @@ export class Kaja {
   #refuseInsidePerfTest(verb: string): void {
     if (!this._internal.inPerfTest) return;
     throw new Error(
-      `${verb} cannot be used inside kaja.perfTest — ${verb === "kaja.approve" ? "a held call" : "a question"} would park every virtual user on one answer. Ask before the test, or take the value from kaja.input.`,
+      `${verb} cannot be used inside kaja.perfTest: ${verb === "kaja.approve" ? "a held call" : "a question"} would park every virtual user on one answer. Ask before the test, or take the value from kaja.input.`,
     );
   }
 

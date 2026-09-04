@@ -658,7 +658,7 @@ function DraftRow({
             the next call you pick takes it over — a rule you could otherwise
             only learn by being surprised by it, so the row is dimmed. */}
         <span
-          title={browsing ? "Browsing — the next call you pick takes this over" : undefined}
+          title={browsing ? "Browsing. The next call you pick takes this over" : undefined}
           className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}
         >
           {name}
@@ -728,7 +728,7 @@ function AgentRow({
         <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
           <Plug size={12} />
         </span>
-        <span className="flex-1 truncate" title={`${draft.agentName} is writing here — ${draft.title}`}>
+        <span className="flex-1 truncate" title={`${draft.agentName} is writing here: ${draft.title}`}>
           {draft.agentName}
         </span>
         <span

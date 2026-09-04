@@ -69,7 +69,7 @@ export const mcpAgents: McpAgent[] = [
     kind: "config file",
     path: "…/Claude/claude_desktop_config.json",
     lead: "No HTTP transport, so it bridges through mcp-remote over stdio.",
-    foot: "Needs Node on PATH. Claude Desktop reads this file only at launch — quit it fully and reopen.",
+    foot: "Needs Node on PATH. Claude Desktop reads this file only at launch, so quit it fully and reopen.",
     configurationKey: "claudeDesktop",
     snippet: ({ url, token }) =>
       JSON.stringify(

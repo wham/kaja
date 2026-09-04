@@ -28,5 +28,5 @@ export function printJson(value: unknown): string {
 export function drawnText(text: string): string {
   if (text.length <= MAX_DRAWN_CHARS) return text;
   const dropped = text.length - MAX_DRAWN_CHARS;
-  return `${text.slice(0, MAX_DRAWN_CHARS)}\n\n… ${dropped.toLocaleString()} more characters not shown — copy to get all of it`;
+  return `${text.slice(0, MAX_DRAWN_CHARS)}\n\n… ${dropped.toLocaleString()} more characters not shown. Copy to get all of it.`;
 }
