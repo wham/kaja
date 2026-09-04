@@ -593,11 +593,6 @@ function VariableRowEditor({
       </div>
 
       {error && <FormControl.Validation>{error}</FormControl.Validation>}
-      {!error && unset && !needsEnvironment && (
-        <RowCaption>
-          Requests send the text <code>{"${" + name + "}"}</code> until this is set.
-        </RowCaption>
-      )}
       {!error && needsEnvironment && (
         <RowCaption>
           This machine has nowhere to store a value. Define <code>{storedEnv}</code> in the environment.{" "}
