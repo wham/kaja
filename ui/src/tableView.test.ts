@@ -307,7 +307,7 @@ describe("tableSummary", () => {
     expect(tableSummary(counted, tableWindow(counted, { page: 0, search: "" }))).toBe("1–10 of 2,431");
 
     const expired = table(25, { expired: true, total: 2431 });
-    expect(tableSummary(expired, tableWindow(expired, { page: 0, search: "" }))).toBe("1–10 of 2,431 loaded — run to load the rest");
+    expect(tableSummary(expired, tableWindow(expired, { page: 0, search: "" }))).toBe("1–10 of 2,431 loaded. Run to load the rest");
   });
 
   it("says a local filter is searching what is loaded", () => {

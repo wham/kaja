@@ -101,7 +101,7 @@ export class PerfPlan {
       throw new Error(`kaja.perfTest: concurrency must be a whole number of virtual users, got ${options.concurrency}.`);
     }
     if (options.iterations !== undefined && options.duration !== undefined) {
-      throw new Error("kaja.perfTest: give iterations or duration, not both — they are two ways to say the same budget.");
+      throw new Error("kaja.perfTest: give iterations or duration, not both. They are two ways to say the same budget.");
     }
     if (options.iterations !== undefined && (!Number.isInteger(options.iterations) || options.iterations < 1)) {
       throw new Error(`kaja.perfTest: iterations must be a whole number above zero, got ${options.iterations}.`);
@@ -125,7 +125,7 @@ export class PerfPlan {
     // Draining takes time the test has to have. With a budget in iterations there is
     // no moment to start draining from — the last iteration is the end.
     if (this.rampDownMs > 0 && this.durationMs === undefined) {
-      throw new Error("kaja.perfTest: rampDown needs duration — with iterations the test ends when the last one does, which is nothing to ramp down from.");
+      throw new Error("kaja.perfTest: rampDown needs duration. With iterations the test ends when the last one does, which is nothing to ramp down from.");
     }
     const shaped = (this.warmupMs ?? 0) + this.rampUpMs + this.rampDownMs;
     if (this.durationMs !== undefined && shaped > this.durationMs) {

@@ -807,7 +807,7 @@ function ServerSection({
         <ChoiceCard selected={choice === "custom"}>
           <ChoiceRow selected={choice === "custom"} disabled={readOnly} onSelect={() => onChoice("custom")} icon={Pencil}>
             <span className={cn("text-sm", choice === "custom" ? "text-foreground" : "text-muted-foreground")}>
-              Somewhere else — a local mock, a staging host
+              Somewhere else: a local mock, a staging host
             </span>
           </ChoiceRow>
           {choice === "custom" && (

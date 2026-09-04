@@ -209,7 +209,7 @@ export function credentialNote(scheme: OpenApiSecurityScheme): { text: string; m
     return { text: `${scheme.parameterName}: ‹key›`, mono: true };
   }
   if (scheme.type === "oauth2" || scheme.type === "openIdConnect") {
-    return { text: "Sent as a bearer token. Kaja doesn't run the authorization flow yet — paste a token you already hold.", mono: false };
+    return { text: "Sent as a bearer token. Kaja doesn't run the authorization flow yet, so paste a token you already hold.", mono: false };
   }
   if (scheme.type === "http" && scheme.scheme && scheme.scheme.toLowerCase() !== "bearer") {
     return { text: `Sent verbatim after ${scheme.scheme}. Kaja doesn't perform the challenge handshake.`, mono: false };

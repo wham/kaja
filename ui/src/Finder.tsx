@@ -117,7 +117,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           data-testid="file-switcher"
           aria-expanded={open}
           aria-controls="finder"
-          aria-label={`${current.name} — go to another file`}
+          aria-label={`${current.name}. Go to another file`}
           className={cn(
             // It gives up room before anything else in the row does — a label that truncates is
             // read; a button that shrinks is one drawn over the button next to it.

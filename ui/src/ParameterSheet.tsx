@@ -205,7 +205,7 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
           ) : (
             // A script that takes nothing still gets the sheet: the URL is the whole point of it.
             <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
-              This script takes no parameters. Anything that opens a URL can run it — a{" "}
+              This script takes no parameters. Anything that opens a URL can run it: a{" "}
               {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}
               <span className="font-mono text-foreground">open</span> in a shell.
             </p>
@@ -235,7 +235,7 @@ function Guidance({ door, parameters }: { door: ParameterDoor; parameters: strin
   if (door === "copy") {
     return (
       <>
-        A value typed here is baked into the deeplink. Left blank, the key still ships — point a launcher&rsquo;s token at it, like Raycast&rsquo;s{" "}
+        A value typed here is baked into the deeplink. Left blank, the key still ships, so a launcher&rsquo;s own token can go there, like Raycast&rsquo;s{" "}
         <span className="font-mono">{"{clipboard}"}</span>.
       </>
     );
