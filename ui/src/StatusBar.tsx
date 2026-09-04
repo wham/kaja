@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { GitBranch, MessagesSquare, Moon, Sun } from "lucide-react";
+import { CircleDot, GitBranch, Moon, Sun } from "lucide-react";
 import { IconButton } from "./components/icon-button";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
@@ -26,12 +26,14 @@ interface StatusBarProps {
   onRecompile: (appName?: string) => void;
 }
 
-function openFeedback() {
-  const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+const FEEDBACK_URL = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+
+const externalLinkClass = "inline-flex items-center gap-2 text-xs text-muted-foreground no-underline hover:text-foreground";
+
+function handleExternalLinkClick(e: React.MouseEvent<HTMLAnchorElement>) {
   if (isWailsEnvironment()) {
-    openInBrowser(url);
-  } else {
-    window.open(url, "_blank");
+    e.preventDefault();
+    openInBrowser(e.currentTarget.href);
   }
 }
 
@@ -51,26 +53,12 @@ export function StatusBar({
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
-  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (isWailsEnvironment() && githubUrl) {
-      e.preventDefault();
-      openInBrowser(githubUrl);
-    }
-  };
-
   // The compile status sits at the end so its label can grow and shrink without moving
   // the ref and the build around.
   const leftItems: React.ReactNode[] = [];
   if (githubUrl && shortRef) {
     leftItems.push(
-      <a
-        key="ref"
-        href={githubUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={handleLinkClick}
-        className="inline-flex items-center gap-2 text-xs text-muted-foreground no-underline hover:text-foreground"
-      >
+      <a key="ref" href={githubUrl} target="_blank" rel="noopener noreferrer" onClick={handleExternalLinkClick} className={externalLinkClass}>
         <GitBranch size={14} />
         <span>{shortRef}</span>
       </a>,
@@ -83,6 +71,14 @@ export function StatusBar({
       </span>,
     );
   }
+  // Feedback opens an issue on the same repository the ref points at, so it reads as
+  // the third thing said about this build rather than a tool beside the theme switch.
+  leftItems.push(
+    <a key="feedback" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" onClick={handleExternalLinkClick} className={externalLinkClass}>
+      <CircleDot size={14} />
+      <span>Feedback</span>
+    </a>,
+  );
   if (summarizeCompilation(apps, configurationLoaded).state !== "empty") {
     leftItems.push(
       <CompileStatus key="compile" apps={apps} configurationLoaded={configurationLoaded} onShowLog={onShowCompileLog} onRecompile={onRecompile} />,
@@ -112,7 +108,6 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
-        <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
         <IconButton
           size="xs"
