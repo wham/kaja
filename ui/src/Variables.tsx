@@ -772,7 +772,7 @@ function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () 
             }
           }}
         />
-        <p className="text-xs text-muted-foreground">Stored in this Mac keychain.</p>
+        <p className="text-xs text-muted-foreground">Stored on this Mac.</p>
       </div>
     </Dialog>
   );
