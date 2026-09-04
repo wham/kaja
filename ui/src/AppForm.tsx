@@ -266,6 +266,12 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   const loadedAppNameRef = useRef<string | null>(null);
 
+  // The effect's cleanup closes over the editMode of the run it is cleaning up, which on
+  // the way out of the JSON view is still "json". The question it has to answer is which
+  // view is on screen now, so it reads that here.
+  const editModeRef = useRef(editMode);
+  editModeRef.current = editMode;
+
   // The JSON editor opens on what the form currently holds, so switching between the
   // two views doesn't drop what was filled in on either side.
   const getJsonAppData = getCurrentApp;
@@ -333,7 +339,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     }
 
     return () => {
-      if (editMode !== "json") {
+      if (editModeRef.current !== "json") {
         editorRef.current?.dispose();
         editorRef.current = null;
         monacoModelRef.current?.dispose();
@@ -429,7 +435,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
       <div className="min-h-0 flex-1 overflow-auto">
         {editMode === "form" ? (
-          <div className="max-w-[640px] p-6">
+          <div key="form" className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
               {customForm ? (
                 // Keyed by the app being edited: switching apps in the sidebar starts the form over
@@ -591,7 +597,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
             </div>
           </div>
         ) : (
-          <div ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
+          // Keyed apart from the form: both branches are a div in the same slot, so
+          // without it React reuses the node and the editor's own DOM, which React did
+          // not put there and will not take away, stays among the fields.
+          <div key="json" ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
         )}
       </div>
 
