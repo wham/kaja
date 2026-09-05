@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { Block } from "./blocks";
 import { Consoles } from "./consoles";
 import { MethodCall } from "./kaja";
+import { shelf } from "./payloadArchive";
 import { defaultView, followSelection, Run, RunSelection, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
@@ -150,6 +151,24 @@ describe("a run of a thousand calls", () => {
     expect(calls[0].key).toBe("show-0");
     expect(calls[699].payloadsDropped).toBeUndefined();
     expect(calls[699].call?.output).toBeDefined();
+  });
+
+  // Out of the heap is not out of reach: the row carries where its payload went, and
+  // selecting it is what fetches it back.
+  it("says where a payload went when there is a shelf to put it on", () => {
+    const available = shelf.available;
+    shelf.available = () => true;
+    try {
+      const created = start("a.ts");
+      for (let i = 0; i < 700; i++) store.recordCall("a.ts", created.id, call("GetShow", { output: { seats: [1, 2, 3] } }), NOW);
+      paint();
+
+      const calls = store.file("a.ts").groups[0].calls;
+      expect(typeof calls[0].archivedPayload).toBe("number");
+      expect(calls[699].archivedPayload).toBeUndefined();
+    } finally {
+      shelf.available = available;
+    }
   });
 
   it("repaints once a frame, not once a call", () => {
