@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -109,24 +111,52 @@ func (a *App) mcpInfoLocked() MCPInfo {
 // can't answer for is absent, and its snippet names the file without a link.
 func mcpAgentConfigurationPaths() map[string]string {
 	paths := map[string]string{}
-	// The three places os.UserConfigDir reports are the three Claude Desktop looks in:
-	// Application Support, %AppData%, and ~/.config. Cline files itself under the same
-	// root, inside the VS Code extension that hosts it.
-	if dir, err := os.UserConfigDir(); err == nil {
+	home, err := homeDir()
+	if err != nil {
+		return paths
+	}
+	// The three configuration roots are the three Claude Desktop looks in: Application
+	// Support, %AppData%, and ~/.config. Cline files itself under the same root, inside
+	// the VS Code extension that hosts it.
+	if dir := configurationDir(home); dir != "" {
 		paths["claudeDesktop"] = filepath.Join(dir, "Claude", "claude_desktop_config.json")
 		paths["cline"] = filepath.Join(dir, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		paths["cursor"] = filepath.Join(home, ".cursor", "mcp.json")
-		paths["windsurf"] = filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
-		paths["codex"] = filepath.Join(home, ".codex", "config.toml")
-		paths["gemini"] = filepath.Join(home, ".gemini", "settings.json")
-		// Zed and Goose read ~/.config on every platform, macOS included, so these two
-		// don't go through os.UserConfigDir.
-		paths["zed"] = filepath.Join(home, ".config", "zed", "settings.json")
-		paths["goose"] = filepath.Join(home, ".config", "goose", "config.yaml")
-	}
+	paths["cursor"] = filepath.Join(home, ".cursor", "mcp.json")
+	paths["windsurf"] = filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
+	paths["codex"] = filepath.Join(home, ".codex", "config.toml")
+	paths["gemini"] = filepath.Join(home, ".gemini", "settings.json")
+	// Zed and Goose read ~/.config on every platform, macOS included, so these two
+	// don't go through the configuration root.
+	paths["zed"] = filepath.Join(home, ".config", "zed", "settings.json")
+	paths["goose"] = filepath.Join(home, ".config", "goose", "config.yaml")
 	return paths
+}
+
+// homeDir is the home directory of whoever is running kaja, which is not what
+// os.UserHomeDir answers with here: it reads $HOME, and under the App Sandbox $HOME is
+// kaja's own container, so every agent's configuration file would be looked for inside
+// it. os/user reads pw_dir through the directory service, which the sandbox does not
+// rewrite, so it reports the real home on either side of it.
+func homeDir() (string, error) {
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+		return u.HomeDir, nil
+	}
+	return os.UserHomeDir()
+}
+
+// configurationDir is os.UserConfigDir resolved against a home directory handed in.
+// Only macOS derives that root from $HOME and only macOS sandboxes, so %AppData% and
+// $XDG_CONFIG_HOME are left to the standard library, which is where they are right.
+func configurationDir(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support")
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return dir
 }
 
 func (a *App) startMCPServer() {
