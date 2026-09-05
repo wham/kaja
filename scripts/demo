@@ -15,9 +15,11 @@
 #   Accessibility    to send the app keystrokes and click its menu bar
 #   Screen Recording to photograph a window that is not this terminal's
 #
-# Without the first the script stops and says so. Without the second
-# `screencapture` quietly hands back the wallpaper, which is why every shot's
-# size is checked and why you should look at the results.
+# Both are asked for before anything is quit or moved aside, and the message
+# names the terminal to switch on: a permission missing is one the run cannot
+# acquire on its way past, and finding out after the workspace has been staged
+# costs a launch and a restore to learn one thing. Granting one takes effect
+# when the terminal is next started, not while it is running.
 #
 # --- Why it is driven by the keyboard -----------------------------------------
 #
@@ -54,10 +56,6 @@ SLOW=1
 # machine and a machine without one, and it is what the app already opens at.
 WINDOW_WIDTH=1440
 WINDOW_HEIGHT=900
-# Clear of the menu bar. macOS clamps a position it cannot honour, and every
-# shot reads the window back rather than assuming this landed.
-WINDOW_X=0
-WINDOW_Y=38
 
 # What a run costs is the API's business, not this script's, and nothing the app
 # does is observable from out here except its window title — so the beats that
@@ -101,14 +99,58 @@ pause() { sleep "$(echo "$1 $SLOW" | awk '{ print $1 * $2 }')"; }
 
 # -- Preflight -----------------------------------------------------------------
 
+# Both permissions below are filed against the terminal this was run from, which
+# is somewhere up the parent chain rather than this shell, so the message can
+# name the row to switch on.
+responsible_app() {
+    local pid=$PPID command
+    while [ "${pid:-1}" -gt 1 ]; do
+        command="$(ps -o comm= -p "$pid" 2>/dev/null)" || return
+        case "$command" in
+            /Applications/*.app/Contents/MacOS/*) basename "${command%%.app/*}.app"; return ;;
+        esac
+        pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    done
+}
+GRANTEE="$(responsible_app)"
+GRANTEE="${GRANTEE:-the terminal running this}"
+
 [ "$(uname -s)" = "Darwin" ] || die "scripts/demo drives a macOS app; this is $(uname -s)."
 [ -d "$APP_PATH" ] || die "no app bundle at $APP_PATH. Install Kaja, or pass --app."
 
 if ! osascript -e 'tell application "System Events" to get name of first process' > /dev/null 2>&1; then
-    die "this terminal has no Accessibility access, so it cannot drive the app.
-       Grant it in System Settings → Privacy & Security → Accessibility, then run again."
+    die "$GRANTEE has no Accessibility access, so it cannot drive the app.
+       Switch it on in System Settings → Privacy & Security → Accessibility, then run again."
 fi
 
+# Asked before anything is quit or moved aside: without it screencapture refuses
+# every rect, and finding that out after the workspace has been staged costs a
+# launch and a restore to learn one thing.
+PROBE="${TMPDIR:-/tmp}/kaja-demo-probe.png"
+rm -f "$PROBE"
+if ! screencapture -x -t png -R0,0,8,8 "$PROBE" > /dev/null 2>&1 || [ ! -s "$PROBE" ]; then
+    rm -f "$PROBE"
+    die "$GRANTEE has no Screen Recording access, so nothing can be photographed.
+       Switch it on in System Settings → Privacy & Security → Screen Recording, quit
+       $GRANTEE completely so the new permission is picked up, then run again.
+       open 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'"
+fi
+rm -f "$PROBE"
+
+# The window has to fit under the menu bar whole, or the region photographed is
+# not the size App Store Connect takes. Both numbers are points, which is what
+# the window is placed in.
+read -r MENU_BAR SCREEN_HEIGHT SCREEN_WIDTH <<< "$(osascript -l JavaScript -e 'ObjC.import("AppKit");
+const s = $.NSScreen.mainScreen, f = s.frame, v = s.visibleFrame;
+`${Math.round(f.size.height - v.origin.y - v.size.height)} ${Math.round(f.size.height)} ${Math.round(f.size.width)}`')"
+
+WINDOW_X=0
+WINDOW_Y=$((MENU_BAR + 8))
+
+if [ $((WINDOW_Y + WINDOW_HEIGHT)) -gt "$SCREEN_HEIGHT" ] || [ "$WINDOW_WIDTH" -gt "$SCREEN_WIDTH" ]; then
+    die "this display is ${SCREEN_WIDTH}×${SCREEN_HEIGHT} points, which has no room for a
+       ${WINDOW_WIDTH}×${WINDOW_HEIGHT} window below the menu bar. App Store Connect takes no smaller size."
+fi
 # -- The workspace the shipped app reads ---------------------------------------
 
 # Under the App Sandbox os.UserHomeDir() answers with the app's own container, so
@@ -203,7 +245,7 @@ APPLESCRIPT
 act() {
     tell_kaja "        set frontmost of proc to true
         delay 0.1
-$1"
+$1" > /dev/null
 }
 
 press() { act "        $1"; pause "$WAIT_UI"; }
@@ -388,5 +430,5 @@ shot 09-agent
 
 say "Done"
 note "$(ls "$OUT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ') screenshots in $OUT_DIR"
-note "Look at them before you upload: a Screen Recording permission that was never granted"
-note "photographs the wallpaper at exactly the right size."
+note "Look at them before you upload: every beat waits by the clock, so a slow API"
+note "can leave a run half drawn. --slow 2 gives all of them longer."
