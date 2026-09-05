@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -219,7 +220,7 @@ func (a *App) buildAppMenu() *application.Menu {
 // showConfigurationInFinder reveals kaja.json in the system file browser with
 // the file itself selected.
 func (a *App) showConfigurationInFinder() {
-	revealFileInFinder(filepath.Join(a.workspaceDir, "kaja.json"))
+	selectInFinder(filepath.Join(a.workspaceDir, "kaja.json"))
 }
 
 // showLogsInFinder reveals the logs directory (see LogFromUI) in the system
@@ -230,30 +231,42 @@ func (a *App) showLogsInFinder() {
 		slog.Warn("Failed to create logs directory", "error", err)
 		return
 	}
-	revealInFinder(dir)
+	openFolderInFinder(dir)
 }
 
-// ShowFileInFinder reveals a file in the system file browser with the file selected.
-// A path that isn't there yet opens the nearest directory that is, so the link always
-// lands somewhere.
+// ShowFileInFinder reveals a path in the system file browser, selected in the folder
+// holding it. A path that isn't there yet falls back to the nearest ancestor that is,
+// so the link always lands somewhere.
+//
+// Everything here goes through the selecting call rather than opening the folder,
+// because a sandboxed kaja is not allowed to open a folder it has no access to and an
+// agent's configuration file is one such folder every time. Revealing is not gated the
+// same way: Finder does it on kaja's behalf, so it works wherever the path is.
 func (a *App) ShowFileInFinder(path string) {
+	if target := revealTarget(path); target != "" {
+		selectInFinder(target)
+	}
+}
+
+// revealTarget is the path Finder is pointed at: the one asked for, or the nearest
+// ancestor that answers for itself. Empty where there is nothing to reveal.
+func revealTarget(path string) string {
 	if strings.TrimSpace(path) == "" {
-		return
+		return ""
 	}
-	if _, err := os.Stat(path); err == nil {
-		revealFileInFinder(path)
-		return
-	}
-	for dir := filepath.Dir(path); ; {
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			revealInFinder(dir)
-			return
+	for p := path; ; {
+		// A stat that fails for anything but the path not being there is a question this
+		// process can't answer — under the App Sandbox a path outside the container may
+		// refuse its metadata — so Finder is asked about it rather than the walk climbing
+		// past the folder the answer was in.
+		if _, err := os.Stat(p); err == nil || !errors.Is(err, os.ErrNotExist) {
+			return p
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return
+		parent := filepath.Dir(p)
+		if parent == p {
+			return ""
 		}
-		dir = parent
+		p = parent
 	}
 }
 

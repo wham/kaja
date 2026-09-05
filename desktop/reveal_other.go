@@ -8,8 +8,8 @@ import (
 	"runtime"
 )
 
-// revealInFinder opens the given directory in the system file browser.
-func revealInFinder(path string) {
+// openFolderInFinder opens the given directory in the system file browser.
+func openFolderInFinder(path string) {
 	if runtime.GOOS == "windows" {
 		_ = exec.Command("explorer", path).Start()
 		return
@@ -17,9 +17,9 @@ func revealInFinder(path string) {
 	_ = exec.Command("xdg-open", path).Start()
 }
 
-// revealFileInFinder opens the given file's directory in the system file
-// browser with the file selected, where the browser supports it.
-func revealFileInFinder(path string) {
+// selectInFinder opens the folder holding the given path in the system file browser
+// with the path selected, where the browser supports it.
+func selectInFinder(path string) {
 	if runtime.GOOS == "windows" {
 		_ = exec.Command("explorer", "/select,"+path).Start()
 		return
