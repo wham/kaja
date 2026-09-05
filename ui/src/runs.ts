@@ -55,9 +55,12 @@ export interface ConsoleItem {
   // Read off the request once when the call was issued: the request never changes
   // after that, and the log would otherwise re-read it per row per repaint.
   key?: string;
-  // The payload was let go to keep a long run bounded. The row is still the record
-  // that the call happened.
+  // The payload has left the heap to keep a long run bounded. The row is still the
+  // record that the call happened.
   payloadsDropped?: boolean;
+  // Where it went: the ref the payload archive answers with, absent where there was
+  // nowhere to shelve it. A row that has one is a row the pane can still fill in.
+  archivedPayload?: number;
 }
 
 export type RunStatus = "pending" | "streaming" | "success" | "error";

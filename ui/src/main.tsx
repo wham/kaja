@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
+import { resetPayloadArchive } from "./payloadArchive";
 import { getPersistedValue, initializeStorage } from "./storage";
 import { pruneTypeMemory } from "./typeMemory";
 import { installUiLog } from "./uiLog";
@@ -18,6 +19,9 @@ installUiLog();
 
 initializeStorage().then(() => {
   pruneTypeMemory();
+  // The shelf holds the payloads of rows a session was holding, and this session is
+  // holding none yet.
+  resetPayloadArchive();
 
   // The zoom itself is the webview's, set by the process behind it; what is read here is
   // the one thing the layout measures against it, before the first frame draws.
