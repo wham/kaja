@@ -37,12 +37,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/how-it-works.svg" alt="gRPC, OpenAPI and MCP apps on one side, an agent writing scripts and you approving writes on the other, all meeting in Kaja" width="840" />
+  <img src="docs/how-it-works.svg" alt="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks gRPC, OpenAPI, MCP and Twirp to your apps" width="840" />
 </p>
 
 <p align="center">
   <a href="https://demo.kaja.tools">
-    <img src="docs/screenshot-1.png" alt="Kaja running a script against a gRPC app" width="820" />
+    <img src="docs/screenshot-1.png" alt="Kaja with a script open, the calls it made and the response below it" width="820" />
   </a>
 </p>
 
