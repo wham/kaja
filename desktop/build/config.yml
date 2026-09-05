@@ -11,7 +11,7 @@ info:
   productName: "Kaja"
   productIdentifier: "tools.kaja.Kaja"
   copyright: "2026 Tomas Vesely"
-  version: "0.14.0"
+  version: "0.15.0"
 
 # `wails3 dev` runs from desktop/, so the root is the repository: the desktop
 # links against server/, and a change there is a change to what it runs.
