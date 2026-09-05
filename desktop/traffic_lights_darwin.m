@@ -29,18 +29,23 @@
     BOOL _scheduled;
 }
 - (instancetype)initWithBandHeight:(CGFloat)bandHeight;
+- (void)setBandHeight:(CGFloat)bandHeight;
 @end
 
 static KajaTrafficLights *trafficLights = nil;
 
 // Centres the macOS window buttons on a band of the given height. Called from
-// Go (traffic_lights_darwin.go); the first call is the one that counts.
+// Go (traffic_lights_darwin.go): once for the window's own band, and again with
+// what the band comes to whenever the window is zoomed — the buttons are the
+// system's own and are drawn at the same size however big the window draws
+// everything else.
 void kajaAlignTrafficLights(double bandHeight) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (trafficLights != nil) {
+        if (trafficLights == nil) {
+            trafficLights = [[KajaTrafficLights alloc] initWithBandHeight:bandHeight];
             return;
         }
-        trafficLights = [[KajaTrafficLights alloc] initWithBandHeight:bandHeight];
+        [trafficLights setBandHeight:bandHeight];
     });
 }
 
@@ -90,6 +95,15 @@ void kajaAlignTrafficLights(double bandHeight) {
     _window = window;
     [self apply];
     return YES;
+}
+
+- (void)setBandHeight:(CGFloat)bandHeight {
+    if (_bandHeight == bandHeight) {
+        return;
+    }
+    _bandHeight = bandHeight;
+    [self apply];
+    [self scheduleApply];
 }
 
 - (void)windowBecameMain:(NSNotification *)notification {

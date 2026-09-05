@@ -61,6 +61,7 @@ import { AppForm } from "./AppForm";
 import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
+import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { deviceConsole, logScriptLine } from "./uiLog";
@@ -264,6 +265,7 @@ export function App() {
     window.innerWidth >= SIDE_BY_SIDE_MIN_WIDTH ? "horizontal" : "vertical",
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
+  const [zoom, setZoom] = usePersistedState<number>("zoom", DEFAULT_ZOOM);
   useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
   const [finder, setFinder] = useState<"first" | "previous">();
   const viewsRef = useRef(views);
@@ -872,6 +874,17 @@ export function App() {
     setValueCompletionApps(apps);
   }, [apps]);
 
+  // The window's zoom is the webview's own, so it is the process behind it that is asked
+  // for it. What is said here is what the layout measures against it: the room the band
+  // leaves the macOS window buttons, which the zoom never scales.
+  useEffect(() => {
+    const wanted = clampZoom(zoom);
+    declareZoom(wanted);
+    if (isWailsEnvironment()) {
+      emitWailsEvent("zoom:changed", wanted / 100);
+    }
+  }, [zoom]);
+
   useEffect(() => {
     monaco.editor.setTheme(monacoTheme(colorMode));
     document.body.style.backgroundColor = surfaceColor(colorMode);
@@ -945,10 +958,20 @@ export function App() {
         toggleJsonViewRef.current();
         return;
       }
+      // A browser zooms itself on these keys, and better: taking them there would be
+      // kaja doing the same thing worse and in one window's own way. The window has no
+      // address bar to hold that control, so this is where it states it — on the desktop
+      // kaja ships, which is the one whose webview can be asked to zoom (zoom.ts).
+      const gesture = isDesktopMac ? zoomGesture(e) : undefined;
+      if (gesture) {
+        e.preventDefault();
+        setZoom((current) => zoomAfter(current, gesture));
+        return;
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isDesktopMac]);
 
   useEffect(() => {
     const handler = () => {
@@ -2426,6 +2449,8 @@ export function App() {
         <StatusBar
           colorMode={colorMode}
           onToggleColorMode={onToggleColorMode}
+          zoom={zoom}
+          onResetZoom={() => setZoom(DEFAULT_ZOOM)}
           gitRef={runtime.gitRef}
           buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}

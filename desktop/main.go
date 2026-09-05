@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,6 +137,18 @@ func (a *App) attach(app *application.App, window *application.WebviewWindow) {
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
+
+	// The window's zoom is the webview's own, so the window asks for it here rather than
+	// drawing it itself. The buttons in the corner are the system's and are not scaled by
+	// it, so the band they are centred on is a different number of points at every zoom.
+	a.app.Event.On("zoom:changed", func(event *application.CustomEvent) {
+		factor, ok := event.Data.(float64)
+		if !ok || factor <= 0 {
+			return
+		}
+		setPageZoom(factor)
+		alignTrafficLights(int(math.Round(headerBandHeight * factor)))
+	})
 
 	// The token is the workspace's address rather than the listener's, so it is minted
 	// when kaja starts rather than when its server does: the MCP page names it and every
