@@ -411,11 +411,14 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             />
           )}
           {/* Zero files wants a line of instruction rather than a blank space:
-              this is the one screen that can say where files come from. */}
+              this is the one screen that can say where files come from. It states
+              the rule and stops — there is no action to offer, since a file only
+              exists once a draft is saved, and a full sentence would weigh more
+              than the rows it sits among. */}
           {scripts.length === 0 && folders.length === 0 && !folderEdit && (
             <li role="treeitem">
               <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
-                {canWrite ? "Save a draft as a file to see it here." : "Scripts in the workspace's folder appear here."}
+                {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
               </div>
             </li>
           )}
@@ -655,7 +658,7 @@ function DraftRow({
             the next call you pick takes it over — a rule you could otherwise
             only learn by being surprised by it, so the row is dimmed. */}
         <span
-          title={browsing ? "Browsing — the next call you pick takes this over" : undefined}
+          title={browsing ? "Browsing. The next call you pick takes this over" : undefined}
           className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}
         >
           {name}
@@ -725,7 +728,7 @@ function AgentRow({
         <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
           <Plug size={12} />
         </span>
-        <span className="flex-1 truncate" title={`${draft.agentName} is writing here — ${draft.title}`}>
+        <span className="flex-1 truncate" title={`${draft.agentName} is writing here: ${draft.title}`}>
           {draft.agentName}
         </span>
         <span

@@ -1,0 +1,515 @@
+#!/bin/bash
+# Walk the installed Kaja through its own story and photograph each screen, at
+# the size the Mac App Store takes.
+#
+#   scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N]
+#
+# It drives the *shipped* app — /Applications/Kaja.app, the one the App Store
+# installed — because that is the build the screenshots are for. That app reads
+# its workspace out of its sandbox container and nowhere else, so the demo
+# stages one there, takes its pictures, and puts the real one back.
+#
+# Two permissions have to be granted to whatever terminal runs this, once, in
+# System Settings → Privacy & Security:
+#
+#   Accessibility    to send the app keystrokes and click its menu bar
+#   Screen Recording to photograph a window that is not this terminal's
+#
+# Both are asked for before anything is quit or moved aside, and the message
+# names the terminal to switch on: a permission missing is one the run cannot
+# acquire on its way past, and finding out after the workspace has been staged
+# costs a launch and a restore to learn one thing. Granting one takes effect
+# when the terminal is next started, not while it is running.
+#
+# --- Why it is driven by the keyboard -----------------------------------------
+#
+# Kaja's window is a webview, so there is no native control to ask for by name
+# and a coordinate is a guess that rots with the next layout change. What it has
+# instead is ⌘P: the finder reaches every file, every draft, every call, plus
+# Variables and the MCP page. So navigation here is ⌘P, a query, and ⏎, and the
+# only thing clicked is a native menu item.
+#
+# The finder's highlight starts on the *previous* place, so ⌘P⏎ is "back". It
+# only falls to the first row when the query has narrowed the list to one. Every
+# query below is therefore chosen to match exactly one destination — a filename
+# is written with its extension for that reason, since bare "movies" is also
+# inside "ListMovies".
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=scripts/common
+source "$SCRIPT_DIR/common"
+
+BUNDLE_ID="$(product_info productIdentifier)"
+PRODUCT_NAME="$(product_info productName)"
+
+APP_PATH="/Applications/$PRODUCT_NAME.app"
+OUT_DIR="$REPO_ROOT/desktop/build/screenshots"
+KEEP_WORKSPACE=false
+SLOW=1
+
+# The four sizes App Store Connect accepts for a Mac screenshot are 1280×800,
+# 1440×900, 2560×1600 and 2880×1800. A 1440×900 window is the largest of them at
+# 1x and the largest of them again at 2x, so one window size covers a Retina
+# machine and a machine without one, and it is what the app already opens at.
+WINDOW_WIDTH=1440
+WINDOW_HEIGHT=900
+
+# What a run costs is the API's business, not this script's, and nothing the app
+# does is observable from out here except its window title — so the beats that
+# wait for a call wait by the clock. --slow multiplies all of them.
+WAIT_UI=0.6        # a menu opening, a popover fading in, a view swapping
+WAIT_FINDER=1.5    # ⌘P until the finder has taken the keyboard (see go_to)
+WAIT_LAUNCH=20     # cold launch, until there is a window to talk to
+WAIT_COMPILE=25    # three remote apps opened and compiled
+WAIT_RUN=12        # one call, there and back
+WAIT_PERF=45       # kaja.perfTest's own schedule, plus its ramps
+
+usage() {
+    cat >&2 <<USAGE
+usage: scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N]
+
+  --out DIR   where the screenshots land (default: desktop/build/screenshots)
+  --app PATH  the bundle to drive (default: $APP_PATH)
+  --keep      leave the demo workspace in place instead of restoring yours
+  --slow N    multiply every wait by N, for a slow machine or a slow network
+USAGE
+    exit 1
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --out) OUT_DIR="${2:-}"; shift 2 ;;
+        --app) APP_PATH="${2:-}"; shift 2 ;;
+        --keep) KEEP_WORKSPACE=true; shift ;;
+        --slow) SLOW="${2:-}"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "error: unknown argument '$1'" >&2; usage ;;
+    esac
+done
+
+say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+note() { printf '  %s\n' "$*"; }
+warn() { printf '  \033[33mwarning:\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# Every sleep in the script, so --slow reaches all of them.
+pause() { sleep "$(echo "$1 $SLOW" | awk '{ print $1 * $2 }')"; }
+
+# -- Preflight -----------------------------------------------------------------
+
+# Both permissions below are filed against the terminal this was run from, which
+# is somewhere up the parent chain rather than this shell, so the message can
+# name the row to switch on.
+responsible_app() {
+    local pid=$PPID command
+    while [ "${pid:-1}" -gt 1 ]; do
+        command="$(ps -o comm= -p "$pid" 2>/dev/null)" || return
+        case "$command" in
+            /Applications/*.app/Contents/MacOS/*) basename "${command%%.app/*}.app"; return ;;
+        esac
+        pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    done
+}
+GRANTEE="$(responsible_app)"
+GRANTEE="${GRANTEE:-the terminal running this}"
+
+[ "$(uname -s)" = "Darwin" ] || die "scripts/demo drives a macOS app; this is $(uname -s)."
+[ -d "$APP_PATH" ] || die "no app bundle at $APP_PATH. Install Kaja, or pass --app."
+
+if ! osascript -e 'tell application "System Events" to get name of first process' > /dev/null 2>&1; then
+    die "$GRANTEE has no Accessibility access, so it cannot drive the app.
+       Switch it on in System Settings → Privacy & Security → Accessibility, then run again."
+fi
+
+# Asked before anything is quit or moved aside: without it screencapture refuses
+# every rect, and finding that out after the workspace has been staged costs a
+# launch and a restore to learn one thing.
+PROBE="${TMPDIR:-/tmp}/kaja-demo-probe.png"
+rm -f "$PROBE"
+if ! screencapture -x -t png -R0,0,8,8 "$PROBE" > /dev/null 2>&1 || [ ! -s "$PROBE" ]; then
+    rm -f "$PROBE"
+    die "$GRANTEE has no Screen Recording access, so nothing can be photographed.
+       Switch it on in System Settings → Privacy & Security → Screen Recording, quit
+       $GRANTEE completely so the new permission is picked up, then run again.
+       open 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'"
+fi
+rm -f "$PROBE"
+
+# App Store Connect refuses a screenshot that carries an alpha channel, and
+# screencapture writes one into every PNG it takes — even a region of the screen
+# that is opaque throughout. Neither it nor sips has a flag to drop one, and
+# drawing the pixels into an opaque bitmap is the only way that keeps them: the
+# JPEG round trip that would also drop it does not.
+#
+# Compiled rather than scripted because JXA's AppKit bridge ignores the
+# assignment to NSGraphicsContext.currentContext without saying so and hands back
+# a black image. -Onone because all the work is inside ImageIO, so it builds in
+# four seconds rather than thirty and runs the same.
+FLATTEN="${TMPDIR:-/tmp}/kaja-demo-flatten"
+cat > "$FLATTEN.swift" <<'FLATTEN_SWIFT'
+import AppKit
+import ImageIO
+import UniformTypeIdentifiers
+
+let args = CommandLine.arguments
+guard args.count == 3,
+      let source = NSImage(contentsOfFile: args[1]),
+      let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil),
+      let context = CGContext(data: nil, width: image.width, height: image.height,
+                              bitsPerComponent: 8, bytesPerRow: 0,
+                              space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+else { exit(1) }
+context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+guard let opaque = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+          URL(fileURLWithPath: args[2]) as CFURL, UTType.png.identifier as CFString, 1, nil)
+else { exit(1) }
+CGImageDestinationAddImage(destination, opaque, nil)
+guard CGImageDestinationFinalize(destination) else { exit(1) }
+FLATTEN_SWIFT
+
+FLATTEN_STAMP="$(fingerprint "$FLATTEN.swift")"
+if [ ! -x "$FLATTEN" ] || ! stamp_matches "$FLATTEN.stamp" "$FLATTEN_STAMP"; then
+    command -v swiftc > /dev/null || die "swiftc is missing, so a screenshot cannot be made opaque.
+       Install the Xcode Command Line Tools with xcode-select --install."
+    say "Building the flattener"
+    swiftc -Onone -o "$FLATTEN" "$FLATTEN.swift" || die "could not build the flattener."
+    stamp_write "$FLATTEN.stamp" "$FLATTEN_STAMP"
+fi
+
+# The window has to fit under the menu bar whole, or the region photographed is
+# not the size App Store Connect takes. Both numbers are points, which is what
+# the window is placed in.
+read -r MENU_BAR SCREEN_HEIGHT SCREEN_WIDTH <<< "$(osascript -l JavaScript -e 'ObjC.import("AppKit");
+const s = $.NSScreen.mainScreen, f = s.frame, v = s.visibleFrame;
+`${Math.round(f.size.height - v.origin.y - v.size.height)} ${Math.round(f.size.height)} ${Math.round(f.size.width)}`')"
+
+WINDOW_X=0
+WINDOW_Y=$((MENU_BAR + 8))
+
+if [ $((WINDOW_Y + WINDOW_HEIGHT)) -gt "$SCREEN_HEIGHT" ] || [ "$WINDOW_WIDTH" -gt "$SCREEN_WIDTH" ]; then
+    die "this display is ${SCREEN_WIDTH}×${SCREEN_HEIGHT} points, which has no room for a
+       ${WINDOW_WIDTH}×${WINDOW_HEIGHT} window below the menu bar. App Store Connect takes no smaller size."
+fi
+# -- The workspace the shipped app reads ---------------------------------------
+
+# Under the App Sandbox os.UserHomeDir() answers with the app's own container, so
+# this is the path main.go's appSupportDir builds. A build running unsandboxed
+# reads the same directory under the real home instead.
+CONTAINER_HOME="$HOME/Library/Containers/$BUNDLE_ID/Data"
+if [ -d "$CONTAINER_HOME" ]; then
+    KAJA_HOME="$CONTAINER_HOME/Library/Application Support/kaja"
+    WEBSITE_DATA="$CONTAINER_HOME/Library/WebKit"
+else
+    KAJA_HOME="$HOME/Library/Application Support/kaja"
+    WEBSITE_DATA="$HOME/Library/WebKit/$BUNDLE_ID"
+fi
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+HOME_BACKUP="$KAJA_HOME.demo-backup-$STAMP"
+DATA_BACKUP="$WEBSITE_DATA.demo-backup-$STAMP"
+
+quit_kaja() {
+    osascript -e "tell application id \"$BUNDLE_ID\" to quit" > /dev/null 2>&1 || true
+    local deadline=$((SECONDS + 15))
+    while [ $SECONDS -lt $deadline ]; do
+        pgrep -f "$APP_PATH/Contents/MacOS/" > /dev/null 2>&1 || return 0
+        sleep 0.3
+    done
+    pkill -f "$APP_PATH/Contents/MacOS/" 2>/dev/null || true
+    sleep 1
+}
+
+restore_workspace() {
+    if [ "$KEEP_WORKSPACE" = true ]; then
+        say "Left the demo workspace in place."
+        note "yours is at $HOME_BACKUP"
+        return
+    fi
+    quit_kaja
+    if [ -d "$HOME_BACKUP" ]; then
+        rm -rf "$KAJA_HOME"
+        mv "$HOME_BACKUP" "$KAJA_HOME"
+    fi
+    if [ -d "$DATA_BACKUP" ]; then
+        rm -rf "$WEBSITE_DATA"
+        mv "$DATA_BACKUP" "$WEBSITE_DATA"
+    fi
+    say "Put your workspace back."
+}
+
+# A kill -9 leaves the backups where the message says they are, so the way back
+# is a rename either way.
+trap restore_workspace EXIT
+
+say "Kaja demo"
+note "app        $APP_PATH"
+note "workspace  $KAJA_HOME"
+note "backup     $HOME_BACKUP"
+note "output     $OUT_DIR"
+
+mkdir -p "$OUT_DIR"
+
+quit_kaja
+
+# Moved rather than copied: the browser storage holds the drafts of whoever was
+# using the app, and a cold start has to be one.
+if [ -d "$KAJA_HOME" ]; then mv "$KAJA_HOME" "$HOME_BACKUP"; fi
+if [ -d "$WEBSITE_DATA" ]; then mv "$WEBSITE_DATA" "$DATA_BACKUP"; fi
+mkdir -p "$KAJA_HOME/scripts"
+
+# The first screen is the one a workspace with no apps shows, so the file starts
+# empty and the apps arrive between the second shot and the third.
+echo '{}' > "$KAJA_HOME/kaja.json"
+
+# -- Talking to the window -----------------------------------------------------
+
+# AppleScript against the running app, with `proc` bound to its process. Asking
+# the window something goes through this; doing something to it goes through
+# `act`, which brings the app forward first — a keystroke lands on whatever is
+# frontmost, and so does the region a screenshot captures. Separate, because the
+# waits below poll and an activation per tick is a cost for nothing.
+tell_kaja() {
+    osascript <<APPLESCRIPT
+tell application "System Events"
+    set proc to first application process whose bundle identifier is "$BUNDLE_ID"
+    tell proc
+$1
+    end tell
+end tell
+APPLESCRIPT
+}
+
+# The delay is the gap between asking for the app and it being the one the window
+# server sends keys to.
+act() {
+    tell_kaja "        set frontmost of proc to true
+        delay 0.1
+$1" > /dev/null
+}
+
+press() { act "        $1"; pause "$WAIT_UI"; }
+
+window_title() { tell_kaja '        return name of window 1' 2>/dev/null || true; }
+
+window_rect() {
+    tell_kaja '        return (get position of window 1) & (get size of window 1)' 2>/dev/null | tr -d ' '
+}
+
+# The one thing the app tells the outside world about itself: opening a draft or a
+# file puts its name in the title. Silent, because the caller decides whether a
+# miss is worth saying anything about.
+title_becomes() {
+    local want="$1" deadline=$((SECONDS + ${2:-12}))
+    while [ $SECONDS -lt $deadline ]; do
+        if [ "$(window_title)" = "$want" ]; then return 0; fi
+        sleep 0.2
+    done
+    return 1
+}
+
+# ⌘P, a query narrow enough to leave one row, and ⏎ — then read the title back to
+# see that it landed.
+#
+# The finder focuses its input a frame after the popover opens, so a query typed
+# while the window is still busy with the run before it goes to the editor
+# instead. The popover is then sitting open matching nothing, ⏎ selects the row
+# that isn't there, and every later beat types into that same popover rather than
+# navigating — one missed frame and the rest of the storyboard photographs one
+# screen. So Esc clears whatever is open before ⌘P, and a miss is retried rather
+# than carried. The stray keystrokes land in the view being left, which no later
+# beat comes back to.
+#
+# Variables and the MCP page leave the title at the product's own name, so there
+# is nothing to check them against; they are last for that reason.
+go_to() {
+    local query="$1" want="$2" attempt
+    for attempt in 1 2 3; do
+        press 'key code 53'
+        press 'keystroke "p" using command down'
+        pause "$WAIT_FINDER"
+        act "        keystroke \"$query\""
+        pause "$WAIT_UI"
+        press 'key code 36'
+        if [ -z "$want" ] || title_becomes "$want"; then return 0; fi
+        warn "\"$query\" did not open \"$want\" (attempt $attempt of 3)"
+    done
+    warn "could not navigate to \"$query\"; the shots after this are of whatever is on screen"
+}
+
+run_script() { press 'key code 36 using command down'; }
+
+# The console taking the whole window, which is a size rather than a mode: the run
+# gets everything but a 40px bar, the canvas' padding grows and the charts stop
+# being mostly gap. It settles the view as well as the size, and the run has just
+# settled which view that is — the canvas for a run that drew, the stats for one
+# shaped for them — so it is pressed after the run rather than before. Toggled off
+# with the same key rather than Esc, which the console only takes when nothing
+# else wanted it.
+full_screen() { press 'keystroke "f" using {command down, shift down}'; }
+
+shot() {
+    local name="$1" file="$OUT_DIR/$1.png" rect width height alpha
+    act ''
+    pause "$WAIT_UI"
+    rect="$(window_rect)"
+    [ -n "$rect" ] || { warn "no window to photograph; skipped $name"; return; }
+
+    screencapture -x -t png -R"$rect" "$file"
+    if "$FLATTEN" "$file" "$file.opaque" && [ -s "$file.opaque" ]; then
+        mv "$file.opaque" "$file"
+    else
+        rm -f "$file.opaque"
+        warn "$name.png kept its alpha channel, which App Store Connect will refuse"
+    fi
+
+    read -r width height alpha <<< "$(sips -g pixelWidth -g pixelHeight -g hasAlpha "$file" |
+        awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } /hasAlpha/ { a = $2 } END { print w, h, a }')"
+    case "${width}x${height}/${alpha}" in
+        2880x1800/no|2560x1600/no|1440x900/no|1280x800/no) note "$name.png  ${width}×${height}" ;;
+        *) warn "$name.png is ${width}×${height} with alpha ${alpha}, which App Store Connect will refuse" ;;
+    esac
+}
+
+# -- Launch --------------------------------------------------------------------
+
+say "Launching"
+open -a "$APP_PATH"
+
+deadline=$((SECONDS + WAIT_LAUNCH))
+until [ -n "$(window_rect)" ]; do
+    [ $SECONDS -lt $deadline ] || die "the app did not open a window within ${WAIT_LAUNCH}s."
+    sleep 0.5
+done
+
+act "        set position of window 1 to {$WINDOW_X, $WINDOW_Y}
+        set size of window 1 to {$WINDOW_WIDTH, $WINDOW_HEIGHT}"
+pause "$WAIT_UI"
+
+placed="$(window_rect)"
+[ "${placed#*,*,}" = "$WINDOW_WIDTH,$WINDOW_HEIGHT" ] ||
+    warn "the window is ${placed#*,*,} rather than ${WINDOW_WIDTH}×${WINDOW_HEIGHT}; the display may be too small."
+
+# -- 01  A workspace with nothing in it ----------------------------------------
+
+say "01  Start, with no apps"
+pause 2
+shot 01-start
+
+# -- 02  What can be connected -------------------------------------------------
+
+say "02  New app"
+# The one native control in the demo. File → New App… is the same call the
+# sidebar's + makes, and a menu item is addressable by name where a webview
+# control is not.
+act '        click (first menu item of menu 1 of menu bar item "File" of menu bar 1 whose name starts with "New App")'
+pause 1
+shot 02-new-app
+press 'key code 53'
+
+# -- The apps arrive -----------------------------------------------------------
+
+# Written under the running app rather than before it started, so the first shot
+# is of a workspace that genuinely had nothing in it. All three are reached over
+# the wire and none needs a proto file on disk, which is what keeps the staged
+# workspace to this one file plus the scripts beside it.
+cat > "$KAJA_HOME/kaja.json" <<'CONFIGURATION'
+{
+  "apps": [
+    {
+      "name": "theatre",
+      "openapi": {
+        "spec_url": "${THEATRE_URL}/openapi.yaml"
+      }
+    },
+    {
+      "name": "seating",
+      "grpc": {
+        "url": "${SEATING_HOST}",
+        "reflection": true
+      }
+    },
+    {
+      "name": "concierge",
+      "mcp": {
+        "url": "https://concierge.kaja.tools/mcp"
+      }
+    }
+  ],
+  "variables": {
+    "THEATRE_URL": "https://theatre.kaja.tools",
+    "SEATING_HOST": "dns:seating.kaja.tools:443",
+    "CONCIERGE_TOKEN": "${secret}",
+    "HOME_CITY": "${env:HOME_CITY}"
+  }
+}
+CONFIGURATION
+
+cp "$REPO_ROOT"/workspace/scripts/*.ts "$KAJA_HOME/scripts/"
+
+say "Reloading, and waiting for the apps to compile"
+# The configuration is watched, but the scripts folder is read once at load, so
+# the way to have both is the window's own Reload.
+press 'keystroke "r" using command down'
+pause "$WAIT_COMPILE"
+
+# -- 03  The API as a tree of calls --------------------------------------------
+
+say "03  Apps"
+shot 03-apps
+
+# -- 04  A call, as a script ---------------------------------------------------
+
+say "04  A call drafted into a script"
+go_to "ListMovies" "ListMovies - $PRODUCT_NAME"
+shot 04-draft
+
+# -- 05  Running it ------------------------------------------------------------
+
+say "05  The run"
+run_script
+pause "$WAIT_RUN"
+shot 05-run
+
+# -- 06  What a script drew ----------------------------------------------------
+
+say "06  The canvas"
+go_to "movies.ts" "movies.ts - $PRODUCT_NAME"
+run_script
+pause "$WAIT_RUN"
+full_screen
+shot 06-canvas
+full_screen
+
+# -- 07  What the calls added up to --------------------------------------------
+
+say "07  The performance test"
+go_to "how-fast.ts" "how-fast.ts - $PRODUCT_NAME"
+run_script
+pause "$WAIT_PERF"
+full_screen
+shot 07-stats
+full_screen
+
+# -- 08  The values the workspace names ----------------------------------------
+
+say "08  Variables"
+go_to "Variables" "$PRODUCT_NAME"
+pause 1
+shot 08-variables
+
+# -- 09  The door an agent comes through ---------------------------------------
+
+say "09  The MCP server"
+go_to "MCP server" "$PRODUCT_NAME"
+pause 1
+shot 09-agent
+
+say "Done"
+note "$(ls "$OUT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ') screenshots in $OUT_DIR"
+note "Look at them before you upload: every beat waits by the clock, so a slow API"
+note "can leave a run half drawn. --slow 2 gives all of them longer."

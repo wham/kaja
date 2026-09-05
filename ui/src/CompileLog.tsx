@@ -12,6 +12,7 @@ interface CompileLogProps {
   apps: App[];
   configurationLoaded: boolean;
   onNewAppClick?: () => void;
+  onConnectAgentClick?: () => void;
   canUpdateConfiguration?: boolean;
   // The app the log was opened for; its logs are expanded and scrolled to.
   expandApp?: { name: string };
@@ -20,7 +21,7 @@ interface CompileLogProps {
 const CHEVRON_SIZE = 16;
 const CHECK_ICON_SIZE = 12;
 
-export function CompileLog({ apps, configurationLoaded, onNewAppClick, canUpdateConfiguration, expandApp }: CompileLogProps) {
+export function CompileLog({ apps, configurationLoaded, onNewAppClick, onConnectAgentClick, canUpdateConfiguration, expandApp }: CompileLogProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -83,7 +84,7 @@ export function CompileLog({ apps, configurationLoaded, onNewAppClick, canUpdate
       );
     }
 
-    return <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={canUpdateConfiguration} />;
+    return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateConfiguration={canUpdateConfiguration} />;
   }
 
   return (

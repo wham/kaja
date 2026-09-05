@@ -61,23 +61,6 @@ export const mcpAgents: McpAgent[] = [
     snippet: ({ url, token }) => `claude mcp add --transport http kaja \\\n  ${url} \\\n  --header "Authorization: Bearer ${token}"`,
   },
   {
-    name: "VS Code / Copilot",
-    kind: "one-click install",
-    path: "run in a terminal",
-    lead: "Opens VS Code's install prompt through its vscode: handler; VS Code writes the server into its own settings. The command below does the same thing without the handler.",
-    install: { label: "Add to VS Code", link: vsCodeLink },
-    snippet: ({ url, token }) => `code --add-mcp '{"name":"kaja","type":"http",\n  "url":"${url}",\n  "headers":{"Authorization":"Bearer ${token}"}}'`,
-  },
-  {
-    name: "Cursor",
-    kind: "one-click install",
-    path: "~/.cursor/mcp.json",
-    lead: "Opens Cursor through its deeplink handler and prefills the server; Cursor writes mcp.json once you accept. Below is the equivalent hand-edit.",
-    configurationKey: "cursor",
-    install: { label: "Add to Cursor", link: cursorLink },
-    snippet: ({ url, token }) => mcpServers(`      "url": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
-  },
-  {
     // The connector UI connects from Anthropic's servers, which can't reach localhost,
     // so Desktop goes through the mcp-remote stdio bridge instead. The header is passed
     // via an env var because Claude Desktop splits args on spaces, which would otherwise
@@ -86,7 +69,7 @@ export const mcpAgents: McpAgent[] = [
     kind: "config file",
     path: "…/Claude/claude_desktop_config.json",
     lead: "No HTTP transport, so it bridges through mcp-remote over stdio.",
-    foot: "Needs Node on PATH. Claude Desktop reads this file only at launch — quit it fully and reopen.",
+    foot: "Needs Node on PATH. Claude Desktop reads this file only at launch, so quit it fully and reopen.",
     configurationKey: "claudeDesktop",
     snippet: ({ url, token }) =>
       JSON.stringify(
@@ -102,6 +85,32 @@ export const mcpAgents: McpAgent[] = [
         null,
         2,
       ),
+  },
+  {
+    name: "Cursor",
+    kind: "one-click install",
+    path: "~/.cursor/mcp.json",
+    lead: "Opens Cursor through its deeplink handler and prefills the server; Cursor writes mcp.json once you accept. Below is the equivalent hand-edit.",
+    configurationKey: "cursor",
+    install: { label: "Add to Cursor", link: cursorLink },
+    snippet: ({ url, token }) => mcpServers(`      "url": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
+  },
+  {
+    name: "VS Code",
+    kind: "one-click install",
+    path: "run in a terminal",
+    lead: "Opens VS Code's install prompt through its vscode: handler; VS Code writes the server into its own settings. The command below does the same thing without the handler.",
+    install: { label: "Add to VS Code", link: vsCodeLink },
+    snippet: ({ url, token }) => `code --add-mcp '{"name":"kaja","type":"http",\n  "url":"${url}",\n  "headers":{"Authorization":"Bearer ${token}"}}'`,
+  },
+  {
+    name: "OpenAI Codex CLI",
+    kind: "config file",
+    path: "~/.codex/config.toml",
+    lead: "TOML. Append both tables at the end of the file.",
+    foot: "The headers table has to come after its parent table.",
+    configurationKey: "codex",
+    snippet: ({ url, token }) => `[mcp_servers.kaja]\nurl = "${url}"\n\n[mcp_servers.kaja.headers]\nAuthorization = "Bearer ${token}"`,
   },
   {
     name: "Windsurf",
@@ -139,15 +148,6 @@ export const mcpAgents: McpAgent[] = [
     configurationKey: "goose",
     snippet: ({ url, token }) =>
       `extensions:\n  kaja:\n    type: streamable_http\n    uri: ${url}\n    headers:\n      Authorization: "Bearer ${token}"\n    enabled: true`,
-  },
-  {
-    name: "OpenAI Codex CLI",
-    kind: "config file",
-    path: "~/.codex/config.toml",
-    lead: "TOML. Append both tables at the end of the file.",
-    foot: "The headers table has to come after its parent table.",
-    configurationKey: "codex",
-    snippet: ({ url, token }) => `[mcp_servers.kaja]\nurl = "${url}"\n\n[mcp_servers.kaja.headers]\nAuthorization = "Bearer ${token}"`,
   },
   {
     name: "Gemini CLI",

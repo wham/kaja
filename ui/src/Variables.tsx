@@ -593,11 +593,6 @@ function VariableRowEditor({
       </div>
 
       {error && <FormControl.Validation>{error}</FormControl.Validation>}
-      {!error && unset && !needsEnvironment && (
-        <RowCaption>
-          Requests send the text <code>{"${" + name + "}"}</code> until this is set.
-        </RowCaption>
-      )}
       {!error && needsEnvironment && (
         <RowCaption>
           This machine has nowhere to store a value. Define <code>{storedEnv}</code> in the environment.{" "}
@@ -680,7 +675,7 @@ function SourcePicker({
         <SourceItem
           selected={kind === "stored"}
           label="Keychain"
-          description={storeAvailable ? "Stays on this machine" : `Read from ${storedEnvName(name || "NAME")}`}
+          description={storeAvailable ? "Stored on this Mac" : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
         <SourceItem
@@ -738,7 +733,7 @@ function StoredValueCell({ storedEnv, source, held, storeAvailable }: { storedEn
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-      <span className="truncate text-xs text-muted-foreground">Held on this machine</span>
+      <span className="truncate text-xs text-muted-foreground">Stored on this Mac</span>
       {action}
     </span>
   );
@@ -777,7 +772,7 @@ function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () 
             }
           }}
         />
-        <p className="text-xs text-muted-foreground">Stored in this machine's keychain. Kaja reads it at request time and never writes it to kaja.json.</p>
+        <p className="text-xs text-muted-foreground">Stored on this Mac.</p>
       </div>
     </Dialog>
   );
@@ -805,7 +800,7 @@ function DeleteDialog({
         <span className="mt-3 flex items-center gap-2">
           <Checkbox checked={clearStored} onCheckedChange={(checked) => setClearStored(checked === true)} id="clear-stored" />
           <label htmlFor="clear-stored" className="cursor-pointer text-sm text-foreground">
-            Also clear the value held on this machine
+            Also clear the value stored on this Mac
           </label>
         </span>
       )}
@@ -832,7 +827,7 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
             <code>{envName}</code> not set
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
-          <span className="text-muted-foreground">Held on this machine</span>
+          <span className="text-muted-foreground">Stored on this Mac</span>
         ) : (
           <span className="text-muted-foreground">
             Read from <code>{envName}</code>

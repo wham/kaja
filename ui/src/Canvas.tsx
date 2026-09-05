@@ -106,7 +106,7 @@ export function Canvas({
   }, [scrollRef, fullScreen]);
 
   if (group.run.payloadsExpired) {
-    return <Canvas.Notice>Canvas no longer kept — run to see it live</Canvas.Notice>;
+    return <Canvas.Notice>Canvas no longer kept. Run to see it live</Canvas.Notice>;
   }
   if (group.items.length === 0) {
     return <Canvas.Notice>{group.running ? "Waiting for the first call…" : "This run drew nothing."}</Canvas.Notice>;
@@ -827,7 +827,7 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
         {block.question}
       </span>
       {block.cancelled ? (
-        <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled — the script stopped here</span>
+        <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled. The script stopped here</span>
       ) : (
         <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
           {block.answer}
@@ -957,9 +957,9 @@ Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: Ap
       ) : (
         <div className={cn(block.decision === "rejected" ? "italic text-muted-foreground" : "text-foreground")}>
           {block.decision === "rejected"
-            ? "Not approved — the script stopped here"
+            ? "Not approved. The script stopped here"
             : block.standing
-              ? `Approved — and every ${block.method} after it`
+              ? `Approved, and every ${block.method} after it`
               : "Approved"}
         </div>
       )}
@@ -1164,7 +1164,7 @@ Canvas.Failure = function ({ failure, onOpen }: { failure: FailureNotice; onOpen
       <AlertTriangle size={12} className="shrink-0" />
       <span className="min-w-0 truncate">
         {failure.count > 1 && `${failure.count} × `}
-        {failure.method} failed{said && ` — ${said}`}
+        {failure.method} failed{said && `: ${said}`}
       </span>
       <button type="button" className="ml-auto shrink-0 whitespace-nowrap hover:text-foreground" onClick={onOpen}>
         Open in log

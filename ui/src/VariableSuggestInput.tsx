@@ -32,6 +32,9 @@ interface VariableSuggestInputProps {
   variables: { [key: string]: string };
   placeholder?: string;
   disabled?: boolean;
+  // A value the field cannot be typed into, only written by whatever `onClick` opens.
+  readOnly?: boolean;
+  onClick?: () => void;
   className?: string;
   type?: string;
   trailingAction?: React.ReactNode;
@@ -48,6 +51,8 @@ export function VariableSuggestInput({
   variables,
   placeholder,
   disabled,
+  readOnly,
+  onClick,
   className,
   type,
   trailingAction,
@@ -63,7 +68,7 @@ export function VariableSuggestInput({
 
   const refreshSuggestion = () => {
     const input = inputRef.current;
-    if (!input) return;
+    if (!input || readOnly) return;
     const next = matchVariableReferencePrefix(input.value, input.selectionStart ?? 0);
     setSuggestion((prev) => {
       if (prev?.start !== next?.start || prev?.query !== next?.query) {
@@ -127,7 +132,9 @@ export function VariableSuggestInput({
           }}
           placeholder={placeholder}
           disabled={disabled}
-          className={cn(trailingAction ? "pr-9" : undefined, className)}
+          readOnly={readOnly}
+          onClick={onClick}
+          className={cn(trailingAction ? "pr-9" : undefined, onClick ? "cursor-pointer" : undefined, className)}
         />
         {trailingAction && <div className="absolute right-1 top-1/2 -translate-y-1/2">{trailingAction}</div>}
       </div>

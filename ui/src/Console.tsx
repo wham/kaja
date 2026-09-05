@@ -11,6 +11,7 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { RunLog } from "./RunLog";
+import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
 import {
   callRows,
@@ -38,9 +39,6 @@ const MAX_VISIBLE_RUN_ROWS = 8;
 // Utilities carry no resting chrome: they are worth no more weight than the tabs
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
-
-// The room the macOS traffic lights need in the full-screen bar.
-const TRAFFIC_LIGHTS_INSET = 78;
 
 interface ConsoleProps {
   // The whole scope: the runs are that file's runs, and changing it swaps consoles
@@ -278,7 +276,7 @@ export function Console({
   if (groups.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
-        Run a script to see its calls here — <span className="ml-1 font-mono">{runShortcutLabel}</span>
+        Run a script to see its calls here. <span className="ml-1 font-mono">{runShortcutLabel}</span>
       </div>
     );
   }

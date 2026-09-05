@@ -7,6 +7,7 @@ import { CompileStatus } from "./CompileStatus";
 import { ErrorStatus, useAppErrors } from "./ErrorStatus";
 import { summarizeCompilation } from "./compileSummary";
 import { App } from "./apps";
+import { DEFAULT_ZOOM } from "./zoom";
 
 export type ColorMode = "day" | "night";
 
@@ -16,6 +17,8 @@ export const statusBarIconClass = "h-6 w-6 [&_svg]:size-[14px]";
 interface StatusBarProps {
   colorMode: ColorMode;
   onToggleColorMode: () => void;
+  zoom: number;
+  onResetZoom: () => void;
   gitRef?: string;
   buildNumber?: string;
   featurePreviews: FeaturePreview[];
@@ -40,6 +43,8 @@ function handleExternalLinkClick(e: React.MouseEvent<HTMLAnchorElement>) {
 export function StatusBar({
   colorMode,
   onToggleColorMode,
+  zoom,
+  onResetZoom,
   gitRef,
   buildNumber,
   featurePreviews,
@@ -108,6 +113,19 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
+        {/* Absent at 100%, like everything else in this bar that has nothing to say. It
+            is the only thing that states the size the window is drawn at, and the only
+            way back to 100% for someone who never learned the key. */}
+        {zoom !== DEFAULT_ZOOM && (
+          <button
+            type="button"
+            title="Reset zoom (⌘0)"
+            onClick={onResetZoom}
+            className="rounded px-1 font-mono text-xs tabular-nums text-muted-foreground hover:text-foreground"
+          >
+            {zoom}%
+          </button>
+        )}
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
         <IconButton
           size="xs"

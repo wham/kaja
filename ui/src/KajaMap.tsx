@@ -4,9 +4,11 @@ import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
  * How Kaja works, drawn: an agent on the left, Kaja as a canvas in the middle, the four
  * protocols it speaks on the right.
  *
- * It is what the MCP page shows in place of the agent list while the server is off — a
- * list of configurations to paste only means something once there is a server to point
- * one at, and the space is better spent saying what turning the switch on gets you.
+ * It is what the empty state shows under its heading, and it is drawn once: the two ends
+ * of the picture are the two doors into Kaja, so the screen that has nothing to show yet
+ * is the screen the whole flow belongs on. It appears nowhere else — once one app exists
+ * the empty state is gone, and a map redrawn on the MCP page would be a second copy of a
+ * picture the person has already read.
  *
  * The map keeps the website's reading order and drops its colour and its screenshot:
  * strokes only, three weights — `border` for the wires and the canvas's own blocks,
@@ -16,7 +18,8 @@ import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
  * agent's run looks like when it lands.
  */
 
-// The apps down the right-hand side, each with the one word its surface is read from.
+// The apps down the right-hand side, each with the one word its surface is read from,
+// in the order the New dialog offers them in (appTypes.ts).
 const PROTOCOLS = [
   { mark: GrpcMark, name: "gRPC", source: ".proto", y: 40 },
   { mark: OpenApiMark, name: "OpenAPI", source: "schema", y: 100 },
@@ -24,7 +27,13 @@ const PROTOCOLS = [
   { mark: TwirpMark, name: "Twirp", source: ".proto", y: 220 },
 ];
 
-export function McpMap({ className }: { className?: string }) {
+// Where the two ends of the map sit across its width, so an action drawn under the
+// picture lands beneath the node it belongs to: the agent box is centred on x=120 of
+// the 880 viewBox, the column of protocols on x=760.
+export const AGENT_END = "13.6%";
+export const APPS_END = "86.4%";
+
+export function KajaMap({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 880 300"

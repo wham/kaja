@@ -117,7 +117,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           data-testid="file-switcher"
           aria-expanded={open}
           aria-controls="finder"
-          aria-label={current ? `${current.name} — go to another file` : "Go to a file"}
+          aria-label={`${current.name}. Go to another file`}
           className={cn(
             // It gives up room before anything else in the row does — a label that truncates is
             // read; a button that shrinks is one drawn over the button next to it.
@@ -236,19 +236,16 @@ function DestinationRow({
 }
 
 // The trigger says where you are, in 26px: icon, name, and the one qualifier that
-// tells two identically named calls apart.
-function TriggerContent({ destination, errorCount }: { destination?: Destination; errorCount: number }) {
+// tells two identically named calls apart. There is always somewhere to be — Start is
+// the bottom of the stack — so it has no "nothing open" state to draw.
+function TriggerContent({ destination, errorCount }: { destination: Destination; errorCount: number }) {
   const [dropLabel, setDropLabel] = useState(false);
   const probeRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const probe = probeRef.current;
     setDropLabel(probe ? probe.offsetWidth > TRIGGER_MAX_WIDTH - TRIGGER_CHROME : false);
-  }, [destination?.name, destination?.origin, errorCount]);
-
-  if (!destination) {
-    return <span className="truncate text-sm text-muted-foreground">Nothing open</span>;
-  }
+  }, [destination.name, destination.origin, errorCount]);
 
   const Icon = errorCount > 0 ? CircleAlert : destination.icon;
   const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : destination.origin;

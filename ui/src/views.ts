@@ -1,4 +1,4 @@
-import { Braces, FileCode, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, House, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
@@ -22,6 +22,12 @@ interface ViewBase {
 
 export interface CompilerView extends ViewBase {
   type: "compiler";
+}
+
+// Where the window opens and where "back" ends up. It holds nothing of its own, so it
+// costs nothing to keep mounted for the life of the session.
+export interface StartView extends ViewBase {
+  type: "start";
 }
 
 // The draft itself lives in the draft store and outlives the view.
@@ -68,7 +74,7 @@ export interface McpView extends ViewBase {
   type: "mcp";
 }
 
-export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView;
+export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | StartView;
 
 let sequence = 0;
 
@@ -94,6 +100,16 @@ function holdsWork(view: View): boolean {
   return view.type === "variables" || view.type === "appForm";
 }
 
+/**
+ * Start, the permanent last entry of the list. Visiting it brings it to the front like
+ * anything else and leaving it lets it fall back down, but it never leaves: it is the
+ * one place there is always a way back to, which is what the empty pane it replaced
+ * could not be.
+ */
+export function startView(): StartView {
+  return { ...nextView("start"), type: "start" };
+}
+
 // Bringing a view to the front is the only way one becomes current.
 export function visit(views: View[], id: string): View[] {
   const index = views.findIndex((view) => view.id === id);
@@ -103,11 +119,12 @@ export function visit(views: View[], id: string): View[] {
 
 function show(views: View[], view: View): View[] {
   const next = [view, ...views];
-  if (next.length <= MOUNTED_LIMIT) return next;
+  // Start sits outside the cap, so it never costs a real view its place.
+  if (next.filter((candidate) => candidate.type !== "start").length <= MOUNTED_LIMIT) return next;
 
   // Drop the least recently visited view the cache is free to let go of.
   for (let index = next.length - 1; index > 0; index--) {
-    if (!holdsWork(next[index])) return [...next.slice(0, index), ...next.slice(index + 1)];
+    if (next[index].type !== "start" && !holdsWork(next[index])) return [...next.slice(0, index), ...next.slice(index + 1)];
   }
   return next;
 }
@@ -224,6 +241,10 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: "MCP server", path: "Workspace", origin: "", icon: Plug };
     case "compiler":
       return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
+    // No qualifier: it is one view of its own, and the finder row saying so twice is
+    // the icon treatment it is not supposed to have.
+    case "start":
+      return { name: "Start", path: "", origin: "", icon: House };
   }
 }
 
@@ -281,7 +302,8 @@ export function persistedDraftId(view: PersistedView): string | undefined {
 //
 // The compile log is not among them: it is a report on this session's apps rather
 // than a document, so starting on it means starting on an account of a compilation
-// that hasn't run — and with no apps, on one that never can.
+// that hasn't run — and with no apps, on one that never can. Neither is Start, which
+// is recreated on every launch by definition.
 export interface PersistedViewState {
   views: PersistedView[];
 }
@@ -340,5 +362,8 @@ export function restoreViews(state: PersistedViewState | undefined, drafts: Draf
     });
   }
 
+  // Start is the bottom of every stack, which on a workspace that restored nothing
+  // makes it the view the window opens on.
+  views.push(startView());
   return views;
 }

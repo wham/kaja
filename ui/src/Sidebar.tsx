@@ -63,8 +63,9 @@ import {
  */
 
 // The desktop window hides its title bar, so whatever sits in that corner has to
-// clear the traffic lights.
-export const TRAFFIC_LIGHTS_INSET = 78;
+// clear the traffic lights. They are the system's own and are drawn in the screen's
+// pixels however the window is zoomed, so the room left for them is stated in those.
+export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // A section header is a row of the same height as the rows under it.
 const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-[13px] font-medium text-foreground";
@@ -272,11 +273,25 @@ export function Sidebar({
       />
       {appsOpen && (
         <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-          {apps.length === 0 && (
-            <div className="px-2 py-1 text-xs text-muted-foreground">
-              {canUpdateConfiguration ? "Add an app to explore its API." : "Apps named in kaja.json appear here."}
-            </div>
-          )}
+          {/* Where there is an action, the empty list shows the action rather than
+              a sentence about it: this list can be filled from here, so its one row
+              is the verb, at the same 22px as the app rows it will be replaced by. */}
+          {apps.length === 0 &&
+            (canUpdateConfiguration ? (
+              <button
+                type="button"
+                onClick={onNewAppClick}
+                className={cn(
+                  SECTION_ROW,
+                  "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Plus size={12} className="shrink-0" />
+                <span>New app</span>
+              </button>
+            ) : (
+              <div className="px-2 py-1 text-xs text-muted-foreground">Apps named in kaja.json appear here.</div>
+            ))}
           {apps.map((app, appIndex) => {
             const appName = app.configuration.name;
             const treeApp = treeApps[appIndex];

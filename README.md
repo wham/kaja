@@ -37,12 +37,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/how-it-works.svg" alt="gRPC, OpenAPI and MCP apps on one side, an agent writing scripts and you approving writes on the other, all meeting in Kaja" width="840" />
+  <img src="docs/how-it-works.svg" alt="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks gRPC, OpenAPI, MCP and Twirp to your apps" width="840" />
 </p>
 
 <p align="center">
   <a href="https://demo.kaja.tools">
-    <img src="docs/screenshot-1.png" alt="Kaja running a script against a gRPC app" width="820" />
+    <img src="docs/screenshot-1.png" alt="Kaja with a script open, the calls it made and the response below it" width="820" />
   </a>
 </p>
 
@@ -74,6 +74,7 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -tags development -v)`. The `development` tag is the one `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
 - Update demo protos: `scripts/demo-protos` refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo services themselves live in [kaja-tools/website](https://github.com/kaja-tools/website).
+- App Store screenshots: `scripts/demo` walks the installed `/Applications/Kaja.app` through its own story — empty workspace, new app, the tree, a drafted call, a run, the canvas, a performance test, variables, the MCP page — and photographs each at 1440×900 into `desktop/build/screenshots`. It stages a workspace in the app's sandbox container and puts yours back on the way out. The terminal running it needs Accessibility and Screen Recording access.
 
 ### Releases
 

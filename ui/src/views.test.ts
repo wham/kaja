@@ -6,8 +6,10 @@ import {
   setAppFormEditMode,
   showAppForm,
   showCompiler,
+  showDefinition,
   showMcp,
   showVariables,
+  startView,
   View,
   viewIdentity,
   visit,
@@ -90,6 +92,36 @@ describe("the MCP view", () => {
   });
 });
 
+describe("Start", () => {
+  // It is what the window opens on, and what "back" reaches when nothing else is
+  // underneath — so a restore that recovered nothing still has a view.
+  it("is the bottom of every restored stack", () => {
+    expect(restoreViews(undefined, []).map((v) => v.type)).toEqual(["start"]);
+    expect(viewIdentity(startView()).name).toBe("Start");
+  });
+
+  it("is never evicted and never costs a real view its place", () => {
+    let views: View[] = [startView()];
+    for (let i = 0; i < 15; i++) views = showDefinition(views, {} as any, 1, 1);
+
+    expect(views[views.length - 1].type).toBe("start");
+    expect(views.filter((v) => v.type !== "start")).toHaveLength(10);
+  });
+
+  it("comes to the front like anything else, and falls back down again", () => {
+    const views = showVariables([startView()]);
+    const start = views.find((v) => v.type === "start")!;
+
+    expect(visit(views, start.id)[0].type).toBe("start");
+    expect(showMcp(visit(views, start.id)).map((v) => v.type)).toEqual(["mcp", "start", "variables"]);
+  });
+
+  // Recreated on launch by definition, so there is nothing about it to store.
+  it("is not persisted", () => {
+    expect(serializeViews([startView()], () => undefined).views).toEqual([]);
+  });
+});
+
 describe("viewIdentity", () => {
   it("takes a draft's name from the store, so the two can't drift apart", () => {
     const draft = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
@@ -116,7 +148,7 @@ describe("serializeViews", () => {
     const views: View[] = [view("compiler-1", 1), draftView("draft-1", "s1")];
     expect(serializeViews(views, () => undefined).views).toEqual([{ type: "draft", draftId: "s1", viewState: undefined }]);
 
-    expect(restoreViews({ views: [{ type: "compiler" } as any] }, [])).toEqual([]);
+    expect(restoreViews({ views: [{ type: "compiler" } as any] }, []).map((v) => v.type)).toEqual(["start"]);
   });
 
   it("uses live editor view state over stored view state", () => {

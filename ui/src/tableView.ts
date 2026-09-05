@@ -245,7 +245,7 @@ export function tableSummary(block: TableBlock, window: TableWindow): string {
   const total = `${count(whole.count)}${whole.exact ? "" : "+"}`;
   // A source that said how many there are and then stopped before sending any.
   if (window.to === 0) return `0 of ${total}`;
-  if (block.expired === true) return `${range} of ${total} loaded — run to load the rest`;
+  if (block.expired === true) return `${range} of ${total} loaded. Run to load the rest`;
   return `${range} of ${total}`;
 }
 

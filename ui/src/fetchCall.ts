@@ -140,7 +140,7 @@ function describeBody(body: BodyInit | null | undefined): unknown {
 export function readBody(bytes: ArrayBuffer, contentType: string): unknown {
   if (bytes.byteLength === 0) return undefined;
   if (bytes.byteLength > MAX_BODY_BYTES) {
-    return `<${describeType(contentType)}, ${bytes.byteLength} bytes — too large to keep in the log>`;
+    return `<${describeType(contentType)}, ${bytes.byteLength} bytes, too large to keep in the log>`;
   }
   if (!isTextual(contentType)) {
     return `<${describeType(contentType)}, ${bytes.byteLength} bytes>`;

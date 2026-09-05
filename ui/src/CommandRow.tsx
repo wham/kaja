@@ -6,7 +6,7 @@ import { SimpleTooltip } from "./components/tooltip";
 interface CommandRowProps {
   // Room the macOS traffic lights need when this row is what the window's left
   // corner lands on.
-  leftInset: number;
+  leftInset: number | string;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   // The finder's trigger; it owns its own popover.

@@ -623,7 +623,7 @@ function TransportSection({
             <ChoiceCard selected={transport === TLS_AUTO}>
               <ChoiceRow selected={transport === TLS_AUTO} disabled={readOnly} onSelect={() => onTransportChange(TLS_AUTO)} icon={Waypoints}>
                 <span className={cn("text-sm", transport === TLS_AUTO ? "text-foreground" : "text-muted-foreground")}>
-                  Decide from the address — https, grpcs, or port 443
+                  Decide from the address: https, grpcs, or port 443
                 </span>
               </ChoiceRow>
             </ChoiceCard>
@@ -702,7 +702,7 @@ function CertificatesSection({ open, onOpenChange, parameters, onParameterChange
             <div className="flex items-center gap-1.5">
               <ShieldCheck size={13} className="text-muted-foreground" />
               <span className="text-sm text-foreground">Client certificate</span>
-              <span className="text-xs text-muted-foreground">Mutual TLS — the server authenticates Kaja too</span>
+              <span className="text-xs text-muted-foreground">Mutual TLS. The server authenticates Kaja too</span>
             </div>
             <FileField
               value={parameters.clientCertFile ?? ""}
@@ -741,7 +741,7 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
       <p className="text-xs text-muted-foreground">
-        Sent as metadata with every call, and with reflection. A client certificate is a transport credential — it lives under Certificates above.
+        Sent as metadata with every call, and with reflection. A client certificate is a transport credential, so it lives under Certificates above.
       </p>
       <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Authentication">
         {authSchemes.map((scheme) => {
