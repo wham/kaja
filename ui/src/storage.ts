@@ -1,7 +1,10 @@
 const DB_NAME = "kaja";
 const UI_STATE_STORE = "ui-state";
 const TYPE_MEMORY_STORE = "type-memory";
-const DB_VERSION = 2;
+// The one store nothing is read out of at startup: a call's payload once it has left
+// the heap, fetched back only when a row is selected. See payloadArchive.ts.
+const PAYLOAD_STORE = "call-payloads";
+const DB_VERSION = 3;
 const WRITE_DEBOUNCE_MS = 500;
 
 let cache = new Map<string, any>();
@@ -24,9 +27,22 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!database.objectStoreNames.contains(TYPE_MEMORY_STORE)) {
         database.createObjectStore(TYPE_MEMORY_STORE);
       }
+      if (!database.objectStoreNames.contains(PAYLOAD_STORE)) {
+        // Keyed by an ordinal the archive hands out, so letting the oldest go is one
+        // range delete; the index is what takes a run's payloads with the run.
+        database.createObjectStore(PAYLOAD_STORE).createIndex("runId", "runId");
+      }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      // Another tab upgrading the schema is held up by this connection, so it is let
+      // go rather than making the newer window wait on the older one.
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
+    // A tab still on the old schema is one this window cannot wait out — it goes on
+    // without a database rather than never drawing.
+    request.onblocked = () => reject(new Error("A window on an older version of Kaja is holding the database open"));
   });
 }
 
@@ -95,6 +111,27 @@ export async function initializeStorage(): Promise<void> {
     typeMemoryCache = await readAllFromStore(db, TYPE_MEMORY_STORE);
   } catch (error) {
     console.error("Failed to initialize storage:", error);
+  }
+}
+
+// Asked before a payload is handed over, so shelving one costs no transaction when
+// there is nowhere to put it.
+export function payloadStoreAvailable(): boolean {
+  return db !== null;
+}
+
+/**
+ * The payload store, opened per transaction. Everything else here is a cache read
+ * once and answered from memory; this one is deliberately not, so the caller gets the
+ * store rather than its contents. A database that isn't there yet is not a failure —
+ * the archive simply has nowhere to write and the row says so.
+ */
+export function payloadStore(mode: IDBTransactionMode): IDBObjectStore | null {
+  if (!db) return null;
+  try {
+    return db.transaction(PAYLOAD_STORE, mode).objectStore(PAYLOAD_STORE);
+  } catch {
+    return null;
   }
 }
 

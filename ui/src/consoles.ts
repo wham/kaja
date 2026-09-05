@@ -1,5 +1,6 @@
 import { Block, isAwaitingUser } from "./blocks";
 import { callKey, MethodCall } from "./kaja";
+import { archivePayload, dropRunPayloads } from "./payloadArchive";
 import {
   ConsoleItem,
   ConsoleTab,
@@ -39,8 +40,10 @@ const MAX_RUNS_PER_FILE = 25;
  */
 const MAX_ITEMS_PER_RUN = 20_000;
 /**
- * How many calls in a file hold on to their payloads. The row is cheap and the
- * payload is not, so they expire separately.
+ * How many calls in a file hold their payloads in memory. The row is cheap and the
+ * payload is not, so they leave the heap separately: past this the payload is written
+ * to the archive (`payloadArchive.ts`) and read back when the row is selected. What
+ * the number bounds now is the heap, not the history.
  */
 const MAX_PAYLOADS_PER_FILE = 500;
 // Past this the least recently run file is let go — its last runs are in the store,
@@ -227,7 +230,10 @@ export class FileConsole {
 
   #trimRuns(): void {
     if (this.runs.length <= MAX_RUNS_PER_FILE) return;
-    for (const run of this.runs.splice(0, this.runs.length - MAX_RUNS_PER_FILE)) this.#groups.delete(run.id);
+    const gone = this.runs.splice(0, this.runs.length - MAX_RUNS_PER_FILE);
+    for (const run of gone) this.#groups.delete(run.id);
+    // The rows are gone, so nothing is left that could ask for what is under them.
+    dropRunPayloads(gone.map((run) => run.id));
     this.#ordered = null;
   }
 
@@ -344,6 +350,7 @@ export class FileConsole {
   }
 
   clear(now: number): void {
+    dropRunPayloads(this.runs.map((run) => run.id));
     this.runs = [];
     this.#groups.clear();
     this.#byCall.clear();
@@ -373,9 +380,10 @@ export class FileConsole {
   }
 
   /**
-   * A call keeps what it carried until enough newer calls push it out, then keeps its
-   * row and loses the payload. The error is not let go — it is small, and it is what
-   * the row's status is read from.
+   * A call keeps what it carried in memory until enough newer calls push it out, and
+   * then it is shelved rather than thrown away: the row keeps its ref and the pane
+   * fetches the payload back when the row is selected. The error is not let go — it is
+   * small, and it is what the row's status is read from.
    */
   #hold(item: ConsoleItem): void {
     this.#holding.push(item);
@@ -388,6 +396,7 @@ export class FileConsole {
       this.#held = 0;
     }
     if (!old?.call) return;
+    old.archivedPayload = archivePayload(old.runId, { input: old.call.input, output: old.call.output, streamOutputs: old.call.streamOutputs });
     old.call.input = undefined;
     old.call.output = undefined;
     old.call.streamOutputs = old.call.streamOutputs && [];
@@ -579,7 +588,9 @@ export class Consoles {
   }
 
   dropFile(fileId: string): void {
+    const file = this.#files.get(fileId);
     if (!this.#files.delete(fileId)) return;
+    if (file) dropRunPayloads(file.runs.map((run) => run.id));
     if (this.#mru === fileId) this.#mru = null;
     this.#touch(fileId, true);
     this.#flagsChanged();

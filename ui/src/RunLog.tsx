@@ -10,6 +10,7 @@ import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { KajaTrace } from "./KajaTrace";
 import { callDurationMs, callLabel, MethodCall } from "./kaja";
+import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
@@ -200,8 +201,8 @@ export function RunLog({
       <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
         {group.run.payloadsExpired ? (
           <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
-        ) : selectedItem?.payloadsDropped ? (
-          <RunLog.NoPayload>Payload dropped to keep this run bounded. Run to see it live</RunLog.NoPayload>
+        ) : selectedItem?.payloadsDropped && selectedItem.call ? (
+          <RunLog.ShelvedPayloadPane key={selectedItem.id} item={selectedItem} activeTab={activeTab} onTabChange={onTabChange} />
         ) : selectedItem?.call ? (
           <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
         ) : selectedItem?.printed ? (
@@ -217,6 +218,39 @@ export function RunLog({
     </div>
   );
 }
+
+/**
+ * A row whose payload left the heap. It is on the shelf rather than gone, so the pane
+ * asks for it back and draws the same pane it would have drawn — the reach of the log
+ * is what the disk holds, and only the working set is what React does.
+ */
+RunLog.ShelvedPayloadPane = function ({ item, activeTab, onTabChange }: { item: ConsoleItem; activeTab: ConsoleTab; onTabChange: (tab: ConsoleTab) => void }) {
+  // Null once the shelf has answered with nothing, which is a payload old enough to
+  // have been let go of there too.
+  const [payload, setPayload] = useState<ArchivedPayload | null | undefined>(undefined);
+  const ref = item.archivedPayload;
+
+  useEffect(() => {
+    if (ref === undefined) {
+      setPayload(null);
+      return;
+    }
+    let live = true;
+    setPayload(undefined);
+    void readArchivedPayload(ref).then((found) => {
+      if (live) setPayload(found ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ref]);
+
+  if (payload === null) return <RunLog.NoPayload>Payload no longer kept. Run to see it live</RunLog.NoPayload>;
+  // A read off the shelf lands within a frame or two, so the wait says nothing rather
+  // than flashing a state nobody has time to read.
+  if (payload === undefined) return <div className="min-h-0 flex-1" />;
+  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} activeTab={activeTab} onTabChange={onTabChange} />;
+};
 
 // A payload that is not there any more, and why. Expiry is only bearable when it is
 // a stated state rather than a silent hole.
