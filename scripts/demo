@@ -61,6 +61,7 @@ WINDOW_HEIGHT=900
 # does is observable from out here except its window title — so the beats that
 # wait for a call wait by the clock. --slow multiplies all of them.
 WAIT_UI=0.6        # a menu opening, a popover fading in, a view swapping
+WAIT_FINDER=1.5    # ⌘P until the finder has taken the keyboard (see go_to)
 WAIT_LAUNCH=20     # cold launch, until there is a window to talk to
 WAIT_COMPILE=25    # three remote apps opened and compiled
 WAIT_RUN=12        # one call, there and back
@@ -256,27 +257,57 @@ window_rect() {
     tell_kaja '        return (get position of window 1) & (get size of window 1)' 2>/dev/null | tr -d ' '
 }
 
-# The one thing the app tells the outside world about itself: opening a draft or
-# a file puts its name in the title, so a navigation can be waited for rather
-# than slept through.
-wait_title() {
-    local want="$1" deadline=$((SECONDS + ${2:-15}))
+# The one thing the app tells the outside world about itself: opening a draft or a
+# file puts its name in the title. Silent, because the caller decides whether a
+# miss is worth saying anything about.
+title_becomes() {
+    local want="$1" deadline=$((SECONDS + ${2:-12}))
     while [ $SECONDS -lt $deadline ]; do
         if [ "$(window_title)" = "$want" ]; then return 0; fi
         sleep 0.2
     done
-    warn "window title is \"$(window_title)\", expected \"$want\" — the shot after this may be of the wrong screen"
+    return 1
 }
 
-# ⌘P, a query narrow enough to leave one row, and ⏎.
+# ⌘P, a query narrow enough to leave one row, and ⏎ — then read the title back to
+# see that it landed.
+#
+# The finder focuses its input a frame after the popover opens, so a query typed
+# while the window is still busy with the run before it goes to the editor
+# instead. The popover is then sitting open matching nothing, ⏎ selects the row
+# that isn't there, and every later beat types into that same popover rather than
+# navigating — one missed frame and the rest of the storyboard photographs one
+# screen. So Esc clears whatever is open before ⌘P, and a miss is retried rather
+# than carried. The stray keystrokes land in the view being left, which no later
+# beat comes back to.
+#
+# Variables and the MCP page leave the title at the product's own name, so there
+# is nothing to check them against; they are last for that reason.
 go_to() {
-    press 'keystroke "p" using command down'
-    act "        keystroke \"$1\""
-    pause "$WAIT_UI"
-    press 'key code 36'
+    local query="$1" want="$2" attempt
+    for attempt in 1 2 3; do
+        press 'key code 53'
+        press 'keystroke "p" using command down'
+        pause "$WAIT_FINDER"
+        act "        keystroke \"$query\""
+        pause "$WAIT_UI"
+        press 'key code 36'
+        if [ -z "$want" ] || title_becomes "$want"; then return 0; fi
+        warn "\"$query\" did not open \"$want\" (attempt $attempt of 3)"
+    done
+    warn "could not navigate to \"$query\"; the shots after this are of whatever is on screen"
 }
 
 run_script() { press 'key code 36 using command down'; }
+
+# The console taking the whole window, which is a size rather than a mode: the run
+# gets everything but a 40px bar, the canvas' padding grows and the charts stop
+# being mostly gap. It settles the view as well as the size, and the run has just
+# settled which view that is — the canvas for a run that drew, the stats for one
+# shaped for them — so it is pressed after the run rather than before. Toggled off
+# with the same key rather than Esc, which the console only takes when nothing
+# else wanted it.
+full_screen() { press 'keystroke "f" using {command down, shift down}'; }
 
 shot() {
     local name="$1" rect width height
@@ -385,8 +416,7 @@ shot 03-apps
 # -- 04  A call, as a script ---------------------------------------------------
 
 say "04  A call drafted into a script"
-go_to "ListMovies"
-wait_title "ListMovies - $PRODUCT_NAME"
+go_to "ListMovies" "ListMovies - $PRODUCT_NAME"
 shot 04-draft
 
 # -- 05  Running it ------------------------------------------------------------
@@ -399,32 +429,34 @@ shot 05-run
 # -- 06  What a script drew ----------------------------------------------------
 
 say "06  The canvas"
-go_to "movies.ts"
-wait_title "movies.ts - $PRODUCT_NAME"
+go_to "movies.ts" "movies.ts - $PRODUCT_NAME"
 run_script
 pause "$WAIT_RUN"
+full_screen
 shot 06-canvas
+full_screen
 
 # -- 07  What the calls added up to --------------------------------------------
 
 say "07  The performance test"
-go_to "how-fast.ts"
-wait_title "how-fast.ts - $PRODUCT_NAME"
+go_to "how-fast.ts" "how-fast.ts - $PRODUCT_NAME"
 run_script
 pause "$WAIT_PERF"
+full_screen
 shot 07-stats
+full_screen
 
 # -- 08  The values the workspace names ----------------------------------------
 
 say "08  Variables"
-go_to "Variables"
+go_to "Variables" "$PRODUCT_NAME"
 pause 1
 shot 08-variables
 
 # -- 09  The door an agent comes through ---------------------------------------
 
 say "09  The MCP server"
-go_to "MCP server"
+go_to "MCP server" "$PRODUCT_NAME"
 pause 1
 shot 09-agent
 
