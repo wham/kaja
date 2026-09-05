@@ -63,8 +63,9 @@ import {
  */
 
 // The desktop window hides its title bar, so whatever sits in that corner has to
-// clear the traffic lights.
-export const TRAFFIC_LIGHTS_INSET = 78;
+// clear the traffic lights. They are the system's own and are drawn in the screen's
+// pixels however the window is zoomed, so the room left for them is stated in those.
+export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // A section header is a row of the same height as the rows under it.
 const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-[13px] font-medium text-foreground";
