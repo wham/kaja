@@ -65,6 +65,12 @@ export interface AgentRun {
   path: string;
   code: string;
   client?: string;
+  /**
+   * Aborted when the agent gives up on the run — it timed out, or the request went
+   * away. Nobody is coming for what the run produces after that, and a script left
+   * going holds everything it opened, so giving up on the answer ends the run.
+   */
+  controller: AbortController;
 }
 
 /** What an agent did to a file on disk, so the sidebar and an open editor keep up. */
@@ -148,6 +154,9 @@ class AgentSession {
   private activityTimer?: number;
   private started = false;
   private reconnect = RECONNECT_MS;
+  // The runs this window is carrying for an agent, so one the agent gave up on can be
+  // ended rather than left going with nothing waiting for it.
+  private running = new Map<string, AbortController>();
 
   getState = (): AgentSessionState => this.state;
 
@@ -380,6 +389,9 @@ class AgentSession {
       case "run":
         void this.run(message);
         break;
+      case "abort":
+        if (message.runId) this.running.get(message.runId)?.abort();
+        break;
       case "scripts":
         if (message.change) this.onScripts?.(message.change);
         break;
@@ -389,13 +401,20 @@ class AgentSession {
   private async run(message: Message): Promise<void> {
     if (!message.runId) return;
     const runId = message.runId;
+    const controller = new AbortController();
+    this.running.set(runId, controller);
     let result: unknown;
     try {
-      result = await this.runner?.({ path: message.path ?? "", code: message.code ?? "", client: message.client });
+      result = await this.runner?.({ path: message.path ?? "", code: message.code ?? "", client: message.client, controller });
     } catch (err) {
       result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] };
+    } finally {
+      this.running.delete(runId);
     }
-    await this.post("/agent-session/result", JSON.stringify({ runId, result }));
+    // A run's answer goes out even where the stream this window is holding has
+    // dropped: the stream is reopened without anything being said, but the run
+    // happened once and there is nothing to run again to get its result back.
+    await this.post("/agent-session/result", JSON.stringify({ runId, result }), false);
   }
 
   // markActive lights the plug and holds it a beat past the last request, which makes
@@ -440,9 +459,15 @@ class AgentSession {
     });
   }
 
-  private async post(path: string, body: string): Promise<void> {
+  /**
+   * `whileAttached` is what the message is worth when this window's stream is down.
+   * The catalog and the focus are re-sent by an attach, so sending them into a
+   * dropped stream is work for nothing; a run's result is not — it is the answer to
+   * something that already happened.
+   */
+  private async post(path: string, body: string, whileAttached = true): Promise<void> {
     const token = this.currentToken();
-    if (!token || !this.state.attached) return;
+    if (!token || (whileAttached && !this.state.attached)) return;
     try {
       await fetch(path, {
         method: "POST",

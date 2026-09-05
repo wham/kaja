@@ -82,8 +82,11 @@ export function mcpStatus({ enabled, listening, attached, onDuty, active, error 
   if (!attached) return { state: "starting", headline: "Starting", note: "connecting this window", tone: "muted" };
   // Being on duty is what a window is unless it says otherwise, and a run's console is
   // held in the window that ran it — so the only thing worth a line is not being it.
+  // Whether an agent is out there is not something to say either way: the endpoint is
+  // answered a request at a time, so nothing here knows who has been pointed at it or
+  // when they last called, and an idle minute is not an agent that never arrived.
   if (active) return { state: "active", headline: "Running", tone: "emerald" };
-  return { state: "running", headline: "Running", note: onDuty ? "no agent attached" : "another window of yours is on duty", tone: "muted" };
+  return { state: "running", headline: "Running", note: onDuty ? undefined : "another window of yours is on duty", tone: "muted" };
 }
 
 /** The dot at the plug's corner and in front of the page's headline. */

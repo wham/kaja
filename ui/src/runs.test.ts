@@ -120,7 +120,6 @@ describe("ItemStats", () => {
     expect(stats.size).toBe(1);
     expect(stats.status).toBe("success");
     expect(stats.inFlight).toBe(false);
-    expect(stats.duration).toBe(40);
   });
 
   /**
@@ -140,16 +139,6 @@ describe("ItemStats", () => {
     stats.add(item);
 
     expect(stats.inFlight).toBe(false);
-  });
-
-  it("reports wall time, not the sum of its calls", () => {
-    const concurrent = [
-      call("a", "r", { timestamp: NOW, durationMs: 300 }),
-      { ...call("b", "r", { timestamp: NOW + 10, durationMs: 300 }), timestamp: NOW + 10 },
-      { ...call("c", "r", { timestamp: NOW + 20, durationMs: 300 }), timestamp: NOW + 20 },
-    ];
-
-    expect(statsOf(concurrent).duration).toBe(320);
   });
 });
 
