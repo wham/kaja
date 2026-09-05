@@ -138,6 +138,49 @@ if ! screencapture -x -t png -R0,0,8,8 "$PROBE" > /dev/null 2>&1 || [ ! -s "$PRO
 fi
 rm -f "$PROBE"
 
+# App Store Connect refuses a screenshot that carries an alpha channel, and
+# screencapture writes one into every PNG it takes — even a region of the screen
+# that is opaque throughout. Neither it nor sips has a flag to drop one, and
+# drawing the pixels into an opaque bitmap is the only way that keeps them: the
+# JPEG round trip that would also drop it does not.
+#
+# Compiled rather than scripted because JXA's AppKit bridge ignores the
+# assignment to NSGraphicsContext.currentContext without saying so and hands back
+# a black image. -Onone because all the work is inside ImageIO, so it builds in
+# four seconds rather than thirty and runs the same.
+FLATTEN="${TMPDIR:-/tmp}/kaja-demo-flatten"
+cat > "$FLATTEN.swift" <<'FLATTEN_SWIFT'
+import AppKit
+import ImageIO
+import UniformTypeIdentifiers
+
+let args = CommandLine.arguments
+guard args.count == 3,
+      let source = NSImage(contentsOfFile: args[1]),
+      let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil),
+      let context = CGContext(data: nil, width: image.width, height: image.height,
+                              bitsPerComponent: 8, bytesPerRow: 0,
+                              space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+else { exit(1) }
+context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+guard let opaque = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+          URL(fileURLWithPath: args[2]) as CFURL, UTType.png.identifier as CFString, 1, nil)
+else { exit(1) }
+CGImageDestinationAddImage(destination, opaque, nil)
+guard CGImageDestinationFinalize(destination) else { exit(1) }
+FLATTEN_SWIFT
+
+FLATTEN_STAMP="$(fingerprint "$FLATTEN.swift")"
+if [ ! -x "$FLATTEN" ] || ! stamp_matches "$FLATTEN.stamp" "$FLATTEN_STAMP"; then
+    command -v swiftc > /dev/null || die "swiftc is missing, so a screenshot cannot be made opaque.
+       Install the Xcode Command Line Tools with xcode-select --install."
+    say "Building the flattener"
+    swiftc -Onone -o "$FLATTEN" "$FLATTEN.swift" || die "could not build the flattener."
+    stamp_write "$FLATTEN.stamp" "$FLATTEN_STAMP"
+fi
+
 # The window has to fit under the menu bar whole, or the region photographed is
 # not the size App Store Connect takes. Both numbers are points, which is what
 # the window is placed in.
@@ -310,19 +353,25 @@ run_script() { press 'key code 36 using command down'; }
 full_screen() { press 'keystroke "f" using {command down, shift down}'; }
 
 shot() {
-    local name="$1" rect width height
+    local name="$1" file="$OUT_DIR/$1.png" rect width height alpha
     act ''
     pause "$WAIT_UI"
     rect="$(window_rect)"
     [ -n "$rect" ] || { warn "no window to photograph; skipped $name"; return; }
 
-    screencapture -x -t png -R"$rect" "$OUT_DIR/$name.png"
+    screencapture -x -t png -R"$rect" "$file"
+    if "$FLATTEN" "$file" "$file.opaque" && [ -s "$file.opaque" ]; then
+        mv "$file.opaque" "$file"
+    else
+        rm -f "$file.opaque"
+        warn "$name.png kept its alpha channel, which App Store Connect will refuse"
+    fi
 
-    width="$(sips -g pixelWidth "$OUT_DIR/$name.png" | awk '/pixelWidth/ { print $2 }')"
-    height="$(sips -g pixelHeight "$OUT_DIR/$name.png" | awk '/pixelHeight/ { print $2 }')"
-    case "${width}x${height}" in
-        2880x1800|2560x1600|1440x900|1280x800) note "$name.png  ${width}×${height}" ;;
-        *) warn "$name.png is ${width}×${height}, which App Store Connect will refuse" ;;
+    read -r width height alpha <<< "$(sips -g pixelWidth -g pixelHeight -g hasAlpha "$file" |
+        awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } /hasAlpha/ { a = $2 } END { print w, h, a }')"
+    case "${width}x${height}/${alpha}" in
+        2880x1800/no|2560x1600/no|1440x900/no|1280x800/no) note "$name.png  ${width}×${height}" ;;
+        *) warn "$name.png is ${width}×${height} with alpha ${alpha}, which App Store Connect will refuse" ;;
     esac
 }
 
