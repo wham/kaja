@@ -45,7 +45,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
-import { AgentScriptChange, agentSession } from "./agentSession";
+import { AgentRun, AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
 import { unsupportedReason } from "./streaming";
@@ -401,6 +401,9 @@ export function App() {
   const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
   const activeRunsRef = useRef(activeRuns);
   activeRunsRef.current = activeRuns;
+  // Ending one run by id, which is declared below with the rest of the run lifecycle
+  // and reached from above it.
+  const stopRunRef = useRef<(runId: string) => void>(() => {});
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
@@ -1402,7 +1405,7 @@ export function App() {
 
   // The source always arrives with the run: whichever process holds the disk reads the
   // file itself, and the window is only ever handed what to run and where it lands.
-  const runForAgent = useCallback(async ({ path, code, client }: { path: string; code: string; client?: string }): Promise<McpRunReport> => {
+  const runForAgent = useCallback(async ({ path, code, client, controller }: AgentRun): Promise<McpRunReport> => {
     // Started before the run and read after it: type-checking is the editor worker's
     // job, so it costs the run no time. Nothing here waits on it to decide anything —
     // a type error is reported, not refused, exactly as pressing Run in the window
@@ -1414,10 +1417,17 @@ export function App() {
     const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
     const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
     let result: McpRunReport;
-    const { run, kaja } = beginRunRef.current(path ? path.split("/").pop()! : (draft?.title ?? "Agent script"), fileId, undefined, {
+    // The agent's controller is the run's, so an agent giving up on the answer and
+    // Stop in the window are the same abort — and a run nothing is waiting for is not
+    // left holding what it opened.
+    const { run, kaja } = beginRunRef.current(path ? path.split("/").pop()! : (draft?.title ?? "Agent script"), fileId, controller, {
       origin: "agent",
       collect,
     });
+    // Aborting the signal is not enough to end a run: a script sleeping between two
+    // calls never looks at it. So the abort is what Stop is, on this run alone.
+    const stop = () => stopRunRef.current(run.id);
+    controller.signal.addEventListener("abort", stop);
     try {
       const captured = await runScriptCaptured(code, kaja, appsRef.current);
       await kaja.settleTables();
@@ -1425,6 +1435,7 @@ export function App() {
     } catch (err) {
       result = { console: [], error: rpcErrorMessage(err), ...report() };
     } finally {
+      controller.signal.removeEventListener("abort", stop);
       markSettledRef.current(run.id);
     }
     return { ...result, diagnostics: await checking };
@@ -1809,20 +1820,37 @@ export function App() {
   }, [currentFileId]);
 
   /**
-   * Stop aborts this file's runs and the questions they are parked on, and ends the
-   * run itself rather than waiting for the script to unwind — a run parked on a
-   * question that will never be asked again has nothing left to settle it.
+   * Stopping a run aborts what it has in flight, cancels the questions it is parked
+   * on, and ends the run itself rather than waiting for the script to unwind — a run
+   * parked on a question that will never be asked again has nothing left to settle
+   * it, and a script sleeping between two calls does not notice a signal at all.
    */
+  const stopRuns = useCallback(
+    (stopping: LiveRun[]) => {
+      if (stopping.length === 0) return;
+      const ids = new Set(stopping.map((live) => live.run.id));
+      for (const [blockId, pending] of [...pendingPromptsRef.current.entries()]) {
+        if (ids.has(pending.runId)) onCancelAsk(blockId);
+      }
+      for (const live of stopping) live.controller?.abort();
+      endRuns(stopping, Date.now());
+    },
+    [onCancelAsk, endRuns],
+  );
+
+  // Stop is about the file on screen: it has to end what it is showing.
   const onStopActiveRun = useCallback(() => {
-    const stopping = activeRunsRef.current.filter((live) => live.run.fileId === currentFileId);
-    if (stopping.length === 0) return;
-    const ids = new Set(stopping.map((live) => live.run.id));
-    for (const [blockId, pending] of [...pendingPromptsRef.current.entries()]) {
-      if (ids.has(pending.runId)) onCancelAsk(blockId);
-    }
-    for (const live of stopping) live.controller?.abort();
-    endRuns(stopping, Date.now());
-  }, [onCancelAsk, currentFileId, endRuns]);
+    stopRuns(activeRunsRef.current.filter((live) => live.run.fileId === currentFileId));
+  }, [currentFileId, stopRuns]);
+
+  // One run, by id — what an agent giving up on the answer ends.
+  const stopRun = useCallback(
+    (runId: string) => {
+      stopRuns(activeRunsRef.current.filter((live) => live.run.id === runId));
+    },
+    [stopRuns],
+  );
+  stopRunRef.current = stopRun;
 
   const onRunWithParameters = useCallback(() => {
     const view = viewsRef.current[0];

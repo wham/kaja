@@ -324,6 +324,58 @@ func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 	}
 }
 
+func TestSaveConfiguration_WritesOneLayout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kaja.json")
+	configuration := &Configuration{
+		Apps: []*ConfigurationApp{{
+			Name: "theatre",
+			App:  &ConfigurationApp_Openapi{Openapi: &OpenApiApp{SpecUrl: "https://theatre.example.com/openapi.yaml"}},
+		}},
+		Variables: map[string]string{"TOKEN": "${secret}"},
+	}
+
+	if err := SaveConfiguration(path, configuration); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	// protojson varies its own whitespace, so what is asserted here is the layout
+	// a reader of the file sees: two-space indentation, one space after a colon.
+	want := `{
+  "apps": [
+    {
+      "name": "theatre",
+      "openapi": {
+        "spec_url": "https://theatre.example.com/openapi.yaml"
+      }
+    }
+  ],
+  "variables": {
+    "TOKEN": "${secret}"
+  }
+}
+`
+	if string(written) != want {
+		t.Errorf("configuration written as\n%s\nwant\n%s", written, want)
+	}
+
+	// Saving the same configuration again is the same file, which is what makes a
+	// diff of one say only what changed.
+	if err := SaveConfiguration(path, configuration); err != nil {
+		t.Fatalf("save again: %v", err)
+	}
+	again, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read again: %v", err)
+	}
+	if string(again) != string(written) {
+		t.Errorf("saving twice wrote two files:\n%s\n%s", written, again)
+	}
+}
+
 func TestExpandVariables(t *testing.T) {
 	variables := map[string]string{"HOST": "api.example.com", "TOKEN": "secret", "V_1": "one"}
 

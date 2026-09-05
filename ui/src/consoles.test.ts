@@ -84,11 +84,37 @@ describe("startRun", () => {
     expect(file.allItems()).toHaveLength(25);
   });
 
+  it("lets go of what a trimmed run was found by, and not of what is still listed", () => {
+    const oldest = start("a.ts", "run-0");
+    store.recordBlock("a.ts", oldest.id, "block-old", { kind: "text", text: "gone" }, NOW);
+    for (let i = 1; i < 25; i++) start("a.ts", `run-${i}`);
+    const newest = start("a.ts", "run-25");
+    store.recordBlock("a.ts", newest.id, "block-new", { kind: "text", text: "here" }, NOW);
+
+    expect(store.file("a.ts").runs).toHaveLength(25);
+    expect(store.findBlock("block-old")).toBeUndefined();
+    expect(store.findBlock("block-new")?.run.id).toBe("run-25");
+  });
+
   it("holds fifty files and lets go of the least recently run", () => {
-    for (let i = 0; i < 60; i++) start(`file-${i}.ts`, `run-${i}`);
+    for (let i = 0; i < 60; i++) {
+      const created = start(`file-${i}.ts`, `run-${i}`);
+      store.settleRun(`file-${i}.ts`, created.id, 10, NOW);
+    }
 
     expect(store.file("file-0.ts").runs).toHaveLength(0);
     expect(store.file("file-59.ts").runs).toHaveLength(1);
+  });
+
+  it("keeps a file whose run is still going, however long ago it was touched", () => {
+    start("running.ts", "still-going");
+    for (let i = 0; i < 60; i++) {
+      const created = start(`file-${i}.ts`, `run-${i}`);
+      store.settleRun(`file-${i}.ts`, created.id, 10, NOW);
+    }
+
+    expect(store.file("running.ts").runs).toHaveLength(1);
+    expect(store.file("file-0.ts").runs).toHaveLength(0);
   });
 });
 

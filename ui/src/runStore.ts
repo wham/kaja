@@ -129,20 +129,48 @@ export function serializeFile(runs: Run[], items: ConsoleItem[], now: number): S
   const stored: StoredRun[] = [];
   let budget = MAX_PAYLOAD_BYTES;
 
+  // Gathered in one pass over the file's items rather than filtered per run: this
+  // runs at the end of every run, and the file it walks holds every run it kept -
+  // half a million rows after a perf test, walked once per run being stored.
+  const wanted = new Set(kept.map((run) => run.id));
+  const byRun = new Map<string, ConsoleItem[]>(kept.map((run) => [run.id, []]));
+  for (const item of items) {
+    if (wanted.has(item.runId)) byRun.get(item.runId)!.push(item);
+  }
+
   // Newest first while spending, then flipped back to oldest first.
   for (let index = kept.length - 1; index >= 0; index--) {
     const run = kept[index];
-    const runItems = items.filter((item) => item.runId === run.id).map(toStoredItem);
-    const size = payloadBytes(runItems);
-    if (run.payloadsExpired || size > budget) {
+    const written = run.payloadsExpired ? undefined : storedWithin(byRun.get(run.id) ?? [], budget);
+    if (written === undefined) {
       stored.unshift({ run: { ...run, stale: true, payloadsExpired: true }, items: [] });
       continue;
     }
-    budget -= size;
-    stored.unshift({ run: { ...run, stale: true, payloadsExpired: false }, items: runItems });
+    budget -= written.size;
+    stored.unshift({ run: { ...run, stale: true, payloadsExpired: false }, items: written.items });
   }
 
   return { runs: stored, storedAt: now };
+}
+
+/**
+ * A run's items, if they fit in what is left of the budget, and nothing if they
+ * don't. The budget is spent as they are written rather than measured after: a run
+ * of twenty thousand calls is megabytes of JSON, and serializing all of it to find
+ * out it does not fit is the work at the end of every run that the budget is there
+ * to save. The size is the sum of the items plus the separators an array of them
+ * would carry, which is near enough for a budget.
+ */
+function storedWithin(items: ConsoleItem[], budget: number): { items: StoredItem[]; size: number } | undefined {
+  const written: StoredItem[] = [];
+  let size = 2;
+  for (const item of items) {
+    const one = toStoredItem(item);
+    size += payloadBytes(one) + 1;
+    if (size > budget) return undefined;
+    written.push(one);
+  }
+  return { items: written, size };
 }
 
 function toStoredItem(item: ConsoleItem): StoredItem {
@@ -172,9 +200,9 @@ function storedBlock(block: Block | undefined): Block | undefined {
   return block;
 }
 
-function payloadBytes(items: StoredItem[]): number {
+function payloadBytes(item: StoredItem): number {
   try {
-    return JSON.stringify(items).length;
+    return JSON.stringify(item).length;
   } catch {
     return MAX_PAYLOAD_BYTES + 1;
   }

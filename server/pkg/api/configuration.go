@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -273,10 +274,19 @@ func validateApps(configuration *Configuration, logger *Logger) {
 	configuration.Apps = validApps
 }
 
+// SaveConfiguration writes kaja.json.
+//
+// protojson lays the file out, and encoding/json lays it out again: protojson
+// varies its own whitespace on purpose - a space after the colon, or two,
+// settled per binary - so the same configuration written by two builds of kaja
+// is two files. kaja.json is a file people keep in a repository, and a diff
+// that touches every line because a variable was added is a diff nobody can
+// read. json.Indent writes its own separators over a compact encoding, so what
+// lands on disk depends on the content and nothing else. The trailing newline
+// is there for the same reason: it is what every other tool writing this file
+// would leave.
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
-	jsonBytes, err := protojson.MarshalOptions{
-		Multiline: true,
-		Indent:    "  ",
+	compact, err := protojson.MarshalOptions{
 		// Emit snake_case field names (proto_dir, spec_url) in kaja.json.
 		UseProtoNames: true,
 	}.Marshal(configuration)
@@ -284,7 +294,13 @@ func SaveConfiguration(configurationPath string, configuration *Configuration) e
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}
 
-	if err := os.WriteFile(configurationPath, jsonBytes, 0644); err != nil {
+	var indented bytes.Buffer
+	if err := json.Indent(&indented, compact, "", "  "); err != nil {
+		return fmt.Errorf("failed to format configuration: %w", err)
+	}
+	indented.WriteByte('\n')
+
+	if err := os.WriteFile(configurationPath, indented.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write configuration file: %w", err)
 	}
 

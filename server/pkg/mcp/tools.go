@@ -130,13 +130,13 @@ func allToolDefinitions() []map[string]interface{} {
 		{
 			"name":        "read_script",
 			"description": "Read the full contents of a script by its path.",
-			"inputSchema": obj(map[string]interface{}{"path": str("Absolute path of the script, as returned by list_scripts.")}, "path"),
+			"inputSchema": obj(map[string]interface{}{"path": str("Path of the script, as returned by list_scripts.")}, "path"),
 		},
 		{
 			"name":        "write_script",
 			"description": "Overwrite the contents of an existing script identified by its path. " + writtenNote + " " + commentsNote,
 			"inputSchema": obj(map[string]interface{}{
-				"path":    str("Absolute path of the script to overwrite."),
+				"path":    str("Path of the script to overwrite, as returned by list_scripts."),
 				"content": str("New TypeScript contents."),
 			}, "path", "content"),
 		},
@@ -154,14 +154,14 @@ func allToolDefinitions() []map[string]interface{} {
 			"name":        "rename_script",
 			"description": "Rename a script, or move it into another folder — on disk those are one operation, because a file's path is its name.",
 			"inputSchema": obj(map[string]interface{}{
-				"path":     str("Absolute path of the script to rename."),
+				"path":     str("Path of the script to rename, as returned by list_scripts."),
 				"new_name": str("New name, optionally with a folder (\"reports/churn\"). A .ts extension is added if missing."),
 			}, "path", "new_name"),
 		},
 		{
 			"name":        "delete_script",
 			"description": "Delete a script by its path.",
-			"inputSchema": obj(map[string]interface{}{"path": str("Absolute path of the script to delete.")}, "path"),
+			"inputSchema": obj(map[string]interface{}{"path": str("Path of the script to delete, as returned by list_scripts.")}, "path"),
 		},
 		{
 			"name": "run_script",
@@ -173,7 +173,7 @@ func allToolDefinitions() []map[string]interface{} {
 				"reported and the script keeps going, with undefined in place of the response. " +
 				runtimeNote,
 			"inputSchema": obj(map[string]interface{}{
-				"path": str("Absolute path of a saved script to run."),
+				"path": str("Path of a saved script to run, as returned by list_scripts."),
 				"code": str("Inline TypeScript to run instead of a saved script."),
 			}),
 		},

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ const scriptsRoot = "/w/scripts/"
 func (f *fakeScripts) List() ([]mcp.ScriptInfo, error) {
 	scripts := make([]mcp.ScriptInfo, 0, len(f.files))
 	for name := range f.files {
-		scripts = append(scripts, mcp.ScriptInfo{Path: scriptsRoot + name, Name: name})
+		scripts = append(scripts, mcp.ScriptInfo{Path: name, Name: name, RunPath: scriptsRoot + name})
 	}
 	return scripts, nil
 }
@@ -41,7 +42,7 @@ func (f *fakeScripts) Read(path string) (mcp.ScriptInfo, error) {
 	if !ok {
 		return mcp.ScriptInfo{}, errors.New("no script " + path)
 	}
-	return mcp.ScriptInfo{Path: scriptsRoot + name, Name: name, Content: content}, nil
+	return mcp.ScriptInfo{Path: name, Name: name, Content: content, RunPath: scriptsRoot + name}, nil
 }
 
 func (f *fakeScripts) Write(path, content string) (ScriptChange, error) {
@@ -248,15 +249,45 @@ func TestASavedScriptIsReadByTheServer(t *testing.T) {
 
 	call(t, registry, "tools/call", map[string]any{
 		"name":      "run_script",
-		"arguments": map[string]string{"path": "/w/scripts/seat-map.ts"},
+		"arguments": map[string]string{"path": "seat-map.ts"},
 	})
 
 	message := <-sent
 	if message.Code != "// seats" {
 		t.Errorf("expected the file's contents to reach the window, got %q", message.Code)
 	}
+	// The window is handed its own name for the file, whatever the agent called it:
+	// a console, a history and a sidebar row are all keyed on that one.
 	if message.Path != "/w/scripts/seat-map.ts" {
 		t.Errorf("expected the path to travel with it, got %q", message.Path)
+	}
+}
+
+// Where the workspace sits on the machine serving it is the server's business, and
+// an agent may be another process or another person's browser. Every path it is
+// given is a name under the scripts root, which is also what it hands back.
+func TestAnAgentIsGivenNamesRatherThanPlacesOnDisk(t *testing.T) {
+	registry := newOwnedRegistry()
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+
+	listed, _ := toolText(t, call(t, registry, "tools/call", map[string]any{"name": "list_scripts"}))
+	if !strings.Contains(listed, `"path": "seat-map.ts"`) {
+		t.Errorf("expected the script named under the scripts root, got %s", listed)
+	}
+	if strings.Contains(listed, scriptsRoot) {
+		t.Errorf("list_scripts named the server's own folder: %s", listed)
+	}
+
+	created, _ := toolText(t, call(t, registry, "tools/call", map[string]any{
+		"name":      "create_script",
+		"arguments": map[string]string{"name": "reports/weekly.ts", "content": "// weekly"},
+	}))
+	if strings.Contains(created, scriptsRoot) {
+		t.Errorf("create_script named the server's own folder: %s", created)
 	}
 }
 
@@ -314,6 +345,37 @@ func TestAWindowClosingFailsItsRun(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("the run did not fail when its window went away")
+	}
+}
+
+// Giving up on a run's answer has to give up on the run: the script goes on in the
+// window, holding whatever it opened, with nothing left to report to.
+func TestGivingUpOnARunTellsTheWindowToDropIt(t *testing.T) {
+	registry := newRegistry()
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+	session, _ := registry.Session(token)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.Run(ctx, "", "1", "Claude Code")
+		done <- err
+	}()
+
+	// The window is never answered, so the run is still going when the agent leaves.
+	started := drain(t, stream, "run")
+	cancel()
+
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected the run to end with the request, got %v", err)
+	}
+	aborted := drain(t, stream, "abort")
+	if aborted.RunID != started.RunID {
+		t.Errorf("abort named run %q, want the one that was started, %q", aborted.RunID, started.RunID)
 	}
 }
 
@@ -453,6 +515,39 @@ func TestPingIsNotActivity(t *testing.T) {
 	}
 }
 
+// heldResponse is a ResponseWriter whose body may be read while the handler is
+// still writing it. httptest.ResponseRecorder may not: this is the one handler
+// that answers with a stream held open for as long as the window is, so the test
+// and the handler are both at the buffer at once.
+type heldResponse struct {
+	header http.Header
+
+	mu   sync.Mutex
+	body strings.Builder
+}
+
+func newHeldResponse() *heldResponse {
+	return &heldResponse{header: http.Header{}}
+}
+
+func (r *heldResponse) Header() http.Header { return r.header }
+
+func (r *heldResponse) WriteHeader(int) {}
+
+func (r *heldResponse) Flush() {}
+
+func (r *heldResponse) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.Write(b)
+}
+
+func (r *heldResponse) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.String()
+}
+
 // The stream is held open by the window; the handler writes what the session
 // sends down it, starting with the window's own id.
 func TestAttachStreamsTheWindowsIdentity(t *testing.T) {
@@ -461,23 +556,23 @@ func TestAttachStreamsTheWindowsIdentity(t *testing.T) {
 	request.Header.Set("Authorization", "Bearer "+token)
 	ctx, cancel := context.WithCancel(request.Context())
 	request = request.WithContext(ctx)
-	recorder := httptest.NewRecorder()
+	response := newHeldResponse()
 
 	done := make(chan struct{})
 	go func() {
-		registry.ServeAttach(recorder, request)
+		registry.ServeAttach(response, request)
 		close(done)
 	}()
 
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && !strings.Contains(recorder.Body.String(), "hello") {
+	for time.Now().Before(deadline) && !strings.Contains(response.String(), "hello") {
 		time.Sleep(10 * time.Millisecond)
 	}
 	cancel()
 	<-done
 
-	if !strings.Contains(recorder.Body.String(), `"type":"hello"`) {
-		t.Errorf("expected the window to be told its id, got %q", recorder.Body.String())
+	if !strings.Contains(response.String(), `"type":"hello"`) {
+		t.Errorf("expected the window to be told its id, got %q", response.String())
 	}
 }
 

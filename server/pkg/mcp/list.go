@@ -11,26 +11,21 @@ import (
 // describe_method away, and the generated sources are resources, so nothing here
 // grows with the size of the API's types.
 func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
-	apps, services, methods := c.counts()
-	if methods == 0 {
+	if _, _, methods := c.counts(); methods == 0 {
 		return "No services yet. Kaja compiles an app's services when it opens; if an app is failing to compile, its methods are not callable and won't be listed here."
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d app(s), %d service(s), %d method(s).\n", apps, services, methods)
-	b.WriteString("read/write says whether calling the method changes data; a trailing \"?\" means it was inferred from the method name rather than stated by the API.\n")
-	b.WriteString("A request is an Input<T>: every field of it is optional, and one you leave out is sent as its zero value - so write the fields you mean and no others.\n")
-	b.WriteString("Call describe_method \"<Service>.<Method>\" for the TypeScript declarations it takes and returns, and a call to start from.\n")
-	if c.Runtime != "" {
-		b.WriteString("A script writes its output with the kaja runtime, which is not one of these: describe_type \"kaja\" for its declaration (canvas output, variables, ask, JSON builders).\n")
-	}
-
-	shown := 0
+	// The list is built before the header, because the header counts what the list
+	// holds: a filtered index that opened by naming the whole catalog said an app
+	// had five times what it went on to show.
+	var listing strings.Builder
+	apps, services, shown := 0, 0, 0
 	for _, app := range c.Apps {
 		if appFilter != "" && !strings.EqualFold(app.Name, appFilter) {
 			continue
 		}
 		var appBody strings.Builder
+		appServices := 0
 		for _, service := range app.Services {
 			if serviceFilter != "" && !strings.EqualFold(service.Name, serviceFilter) {
 				continue
@@ -47,15 +42,28 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 			if serviceBody.Len() == 0 {
 				continue
 			}
+			appServices++
 			fmt.Fprintf(&appBody, "  %s  —  import { %s } from %q;\n", service.Name, service.Name, service.ImportPath)
 			appBody.WriteString(serviceBody.String())
 		}
 		if appBody.Len() == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "\n%s (%s)\n", app.Name, app.Type)
-		b.WriteString(appBody.String())
+		apps++
+		services += appServices
+		fmt.Fprintf(&listing, "\n%s (%s)\n", app.Name, app.Type)
+		listing.WriteString(appBody.String())
 	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d app(s), %d service(s), %d method(s).\n", apps, services, shown)
+	b.WriteString("read/write says whether calling the method changes data; a trailing \"?\" means it was inferred from the method name rather than stated by the API.\n")
+	b.WriteString("A request is an Input<T>: every field of it is optional, and one you leave out is sent as its zero value - so write the fields you mean and no others.\n")
+	b.WriteString("Call describe_method \"<Service>.<Method>\" for the TypeScript declarations it takes and returns, and a call to start from.\n")
+	if c.Runtime != "" {
+		b.WriteString("A script writes its output with the kaja runtime, which is not one of these: describe_type \"kaja\" for its declaration (canvas output, variables, ask, JSON builders).\n")
+	}
+	b.WriteString(listing.String())
 
 	if shown == 0 {
 		return b.String() + "\nNothing matched that filter.\n"
