@@ -205,7 +205,11 @@ func (a *App) buildAppMenu() *application.Menu {
 	appMenu.AddRole(application.AppMenu)
 
 	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.Add("New Script").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
+	// No accelerator: the key for a new script is the window's own, and it is the
+	// workspace's to rebind. An accelerator here is macOS taking one fixed key before
+	// the webview ever sees it, which is the one way the menu and the window could
+	// come to disagree about what ⌘N does.
+	fileMenu.Add("New Script").OnClick(func(*application.Context) {
 		a.app.Event.Emit("menu:newScript")
 	})
 	fileMenu.Add("New App…").OnClick(func(*application.Context) {

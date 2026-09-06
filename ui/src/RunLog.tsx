@@ -12,7 +12,7 @@ import { KajaTrace } from "./KajaTrace";
 import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
-import { runShortcutLabel } from "./RunButton";
+import { useShortcutLabel } from "./shortcuts";
 import { LogLevel } from "./server/api";
 import { unwrapFailure, upstreamRequestLine } from "./upstream";
 
@@ -255,10 +255,11 @@ RunLog.ShelvedPayloadPane = function ({ item, activeTab, onTabChange }: { item: 
 // A payload that is not there any more, and why. Expiry is only bearable when it is
 // a stated state rather than a silent hole.
 RunLog.NoPayload = function ({ children }: { children: React.ReactNode }) {
+  const runLabel = useShortcutLabel("run");
   return (
     <div className="flex items-center gap-2 px-4 py-3">
       <span className="text-xs text-muted-foreground">{children}</span>
-      <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
+      <span className="font-mono text-xs text-muted-foreground">{runLabel}</span>
     </div>
   );
 };

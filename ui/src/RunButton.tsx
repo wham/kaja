@@ -3,13 +3,7 @@ import { useEffect, useState } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
-
-const isMac = navigator.platform.startsWith("Mac");
-
-export const runShortcutLabel = isMac ? "⌘⏎" : "Ctrl+⏎";
-export const runWithParametersShortcutLabel = isMac ? "⇧⌘⏎" : "Ctrl+Shift+⏎";
-export const copyDeeplinkShortcutLabel = isMac ? "⌘⇧C" : "Ctrl+Shift+C";
-export const saveAsFileShortcutLabel = isMac ? "⌘S" : "Ctrl+S";
+import { useShortcutLabel } from "./shortcuts";
 
 interface RunButtonProps {
   onRun: () => void;
@@ -59,6 +53,10 @@ export function RunButton({
   onDuplicateAsDraft,
 }: RunButtonProps) {
   const elapsedMs = useElapsed(running, startedAt);
+  const runLabel = useShortcutLabel("run");
+  const runWithParametersLabel = useShortcutLabel("runWithParameters");
+  const copyDeeplinkLabel = useShortcutLabel("copyDeeplink");
+  const saveAsFileLabel = useShortcutLabel("saveAsFile");
   const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator above it.
   const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onSaveAsFile, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
@@ -88,7 +86,7 @@ export function RunButton({
         ) : (
           // The hint is the first thing to go as the command row narrows: the screens that
           // narrow it that far have no keyboard to press.
-          !disabled && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runShortcutLabel}</span>
+          !disabled && runLabel !== "" && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runLabel}</span>
         )}
       </button>
       {split && (
@@ -108,12 +106,12 @@ export function RunButton({
             <DropdownMenuContent align="end" className="min-w-[260px]">
               <DropdownMenuItem onSelect={() => onRun()}>
                 <span className="flex-1">Run</span>
-                <Shortcut label={runShortcutLabel} />
+                <Shortcut label={runLabel} />
               </DropdownMenuItem>
               {onRunWithParameters && (
                 <DropdownMenuItem onSelect={() => onRunWithParameters()}>
                   <span className="flex-1">Run with parameters…</span>
-                  <Shortcut label={runWithParametersShortcutLabel} />
+                  <Shortcut label={runWithParametersLabel} />
                 </DropdownMenuItem>
               )}
               {aboutTheScript && <DropdownMenuSeparator />}
@@ -122,7 +120,7 @@ export function RunButton({
               {onCopyDeeplink && (
                 <DropdownMenuItem onSelect={() => onCopyDeeplink()}>
                   <span className="flex-1">Copy deeplink…</span>
-                  <Shortcut label={copyDeeplinkShortcutLabel} />
+                  <Shortcut label={copyDeeplinkLabel} />
                 </DropdownMenuItem>
               )}
               {onRevealInFinder && (
@@ -136,7 +134,7 @@ export function RunButton({
               {onSaveAsFile && (
                 <DropdownMenuItem onSelect={() => onSaveAsFile()}>
                   <span className="flex-1">Save as file…</span>
-                  <Shortcut label={saveAsFileShortcutLabel} />
+                  <Shortcut label={saveAsFileLabel} />
                 </DropdownMenuItem>
               )}
               {onDiscardDraft && (

@@ -2,6 +2,7 @@ import { Columns2, PanelLeftClose, PanelLeftOpen, Rows2 } from "lucide-react";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { SimpleTooltip } from "./components/tooltip";
+import { useShortcutLabel } from "./shortcuts";
 
 interface CommandRowProps {
   // Room the macOS traffic lights need when this row is what the window's left
@@ -39,7 +40,8 @@ interface CommandRowProps {
 // on the screen this narrows for. The finder truncates through all of it,
 // because with the sidebar collapsed it is the only thing saying where you are.
 export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, layout, onToggleLayout }: CommandRowProps) {
-  const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
+  const sidebarKey = useShortcutLabel("toggleSidebar");
+  const sidebarHint = sidebarKey === "" ? "" : ` (${sidebarKey})`;
 
   return (
     <div
@@ -50,7 +52,7 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
           truncates: the right side is buttons, and a button that has given up
           room is a button drawn over its neighbour. */}
       <div className="flex min-w-0 flex-1 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-        <SimpleTooltip text={sidebarCollapsed ? `Show sidebar (${modifier}B)` : `Hide sidebar (${modifier}B)`} side="bottom">
+        <SimpleTooltip text={sidebarCollapsed ? `Show sidebar${sidebarHint}` : `Hide sidebar${sidebarHint}`} side="bottom">
           <IconButton
             icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
             aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
