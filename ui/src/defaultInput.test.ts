@@ -2,7 +2,7 @@ import { MessageType } from "@protobuf-ts/runtime";
 import { expect, test } from "bun:test";
 import { defaultMessage, Imports } from "./defaultInput";
 import { Kaja } from "./kaja";
-import { printStatements } from "./appLoader";
+import { printStatements, wrapWide } from "./appLoader";
 import ts from "typescript";
 import { Sources } from "./sources";
 
@@ -234,4 +234,58 @@ test("defaultInput writes an empty request when nothing is required", () => {
 
   expect(expr.trim()).toBe("({});");
   expect(imports).toEqual({});
+});
+
+// The formatter indents what it is given and never wraps, so a request too wide for
+// the line is broken here or nowhere.
+test("wrapWide breaks a request that outgrows the line", () => {
+  const f = ts.factory;
+  const object = (properties: [string, ts.Expression][]) =>
+    f.createObjectLiteralExpression(properties.map(([name, value]) => f.createPropertyAssignment(name, value)));
+  const call = (service: string, method: string, input: ts.ObjectLiteralExpression) =>
+    printStatements([
+      f.createExpressionStatement(
+        f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier(service), f.createIdentifier(method)), undefined, [
+          wrapWide(input, service.length + method.length + 4),
+        ]),
+      ),
+    ]);
+
+  expect(call("Shows", "GetShow", object([["id", f.createStringLiteral("")]])).trim()).toBe('Shows.GetShow({ id: "" });');
+  expect(call("Shows", "Ping", object([])).trim()).toBe("Shows.Ping({});");
+
+  expect(
+    call(
+      "Theatre",
+      "ListShows",
+      object([
+        ["theaterId", f.createStringLiteral("")],
+        ["movieId", f.createStringLiteral("")],
+        ["city", f.createStringLiteral("")],
+        ["limit", f.createNumericLiteral(0)],
+        ["cursor", f.createStringLiteral("")],
+      ]),
+    ).trim(),
+  ).toBe(`Theatre.ListShows({\n    theaterId: "",\n    movieId: "",\n    city: "",\n    limit: 0,\n    cursor: ""\n});`);
+
+  // A nested object that still fits on its own line is left alone, which is what
+  // keeps a broken request from cascading all the way down.
+  expect(
+    call(
+      "ReallyLongServiceName",
+      "AnExtremelyLongMethodNameHere",
+      object([
+        ["someRatherLongFieldName", f.createStringLiteral("")],
+        [
+          "another",
+          object([
+            ["deeplyNestedFieldNameHere", f.createStringLiteral("")],
+            ["andAnotherOneToPushItOver", f.createStringLiteral("")],
+          ]),
+        ],
+      ]),
+    ).trim(),
+  ).toBe(
+    `ReallyLongServiceName.AnExtremelyLongMethodNameHere({\n    someRatherLongFieldName: "",\n    another: { deeplyNestedFieldNameHere: "", andAnotherOneToPushItOver: "" }\n});`,
+  );
 });

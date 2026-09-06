@@ -233,7 +233,8 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
     ts.factory.createCallExpression(
       ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(serviceName), ts.factory.createIdentifier(methodInfo.name)),
       undefined,
-      [input],
+      // `Service.Method(` before it and `);` after it are the room the request has left.
+      [wrapWide(input, serviceName.length + methodInfo.name.length + 2 + 2)],
     ),
   );
 
@@ -259,13 +260,55 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   return printStatements(statements);
 }
 
+const PRINT_WIDTH = 80;
+const INDENT = 2;
+
+/**
+ * A request wide enough to run off the line is broken onto lines here, where the
+ * nodes are. The printer decides that per literal and the formatter only indents
+ * what it is given, so nothing downstream can wrap a line this one leaves long.
+ *
+ * `column` is where the node starts, which is what says whether it fits; `indent`
+ * is the indentation of the line it sits on, which is what its properties are laid
+ * out from once it doesn't. The two are the same only at the start of a line.
+ */
+export function wrapWide<T extends ts.Expression>(node: T, column: number, indent = 0): T {
+  if (ts.isObjectLiteralExpression(node)) {
+    const wide = column + widthOf(node) > PRINT_WIDTH;
+    const inner = indent + INDENT;
+    const properties = node.properties.map((property) =>
+      ts.isPropertyAssignment(property)
+        ? ts.factory.createPropertyAssignment(
+            property.name,
+            wrapWide(property.initializer, wide ? inner + widthOf(property.name) + 2 : column, wide ? inner : indent),
+          )
+        : property,
+    );
+    return ts.factory.createObjectLiteralExpression(properties, wide) as ts.Expression as T;
+  }
+
+  if (ts.isArrayLiteralExpression(node)) {
+    const wide = column + widthOf(node) > PRINT_WIDTH;
+    const inner = indent + INDENT;
+    const elements = node.elements.map((element) => wrapWide(element, wide ? inner : column, wide ? inner : indent));
+    return ts.factory.createArrayLiteralExpression(elements, wide) as ts.Expression as T;
+  }
+
+  return node;
+}
+
+function widthOf(node: ts.Node): number {
+  return printer.printNode(ts.EmitHint.Unspecified, node, blankFile()).length;
+}
+
 export function printStatements(statements: ts.Statement[]): string {
-  let sourceFile = ts.createSourceFile("temp.ts", "", ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
-  sourceFile = ts.factory.updateSourceFile(sourceFile, statements);
+  return printer.printFile(ts.factory.updateSourceFile(blankFile(), statements));
+}
 
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
-  return printer.printFile(sourceFile);
+function blankFile(): ts.SourceFile {
+  return ts.createSourceFile("temp.ts", "", ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
 }
 
 // MethodSignature is a method as a script writes it. It is read off the generated
