@@ -15,7 +15,6 @@ import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
-import { formatJson } from "./formatter";
 import { codeFontSize } from "./monacoTheme";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
 import { getVariables } from "./variableExpansion";
@@ -320,21 +319,9 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           setJsonError(valid ? null : "Invalid JSON. Fix it to go back to the form or save.");
           onJsonValidChange(valid);
         });
-
-        formatJson(jsonStr).then((formatted) => {
-          if (monacoModelRef.current) {
-            monacoModelRef.current.setValue(formatted);
-          }
-        });
       } else if (loadedAppNameRef.current !== currentAppKey) {
         loadedAppNameRef.current = currentAppKey ?? null;
-        const jsonStr = JSON.stringify(appToJson(appData), null, 2);
-
-        formatJson(jsonStr).then((formatted) => {
-          if (monacoModelRef.current) {
-            monacoModelRef.current.setValue(formatted);
-          }
-        });
+        monacoModelRef.current?.setValue(JSON.stringify(appToJson(appData), null, 2));
       }
     }
 

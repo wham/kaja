@@ -22,10 +22,10 @@ self.MonacoEnvironment = {
 };
 
 monaco.languages.registerDocumentFormattingEditProvider("typescript", {
-  async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
+  provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
     return [
       {
-        text: await formatTypeScript(model.getValue()),
+        text: formatTypeScript(model.getValue()),
         range: model.getFullModelRange(),
       },
     ];
@@ -289,12 +289,11 @@ interface EditorProps {
   model: monaco.editor.ITextModel;
   readOnly?: boolean;
   /**
-   * Whether to run the buffer through prettier as it is shown. Only a generated
-   * module is: it is printed by the TypeScript printer, lives in memory and is
-   * nobody's file. A script's buffer is never touched, because a script is a file
-   * on disk and this editor auto-saves — reformatting it here would rewrite
-   * somebody's file for the crime of being opened, in prettier's defaults rather
-   * than in the settings the file was written under.
+   * Whether to run the buffer through the formatter as it is shown. Only a
+   * generated module is: it is printed by the TypeScript printer, lives in memory
+   * and is nobody's file. A script's buffer is never touched, because a script is
+   * a file on disk and this editor auto-saves — reformatting it here would rewrite
+   * somebody's file for the crime of being opened.
    */
   format?: boolean;
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
@@ -316,8 +315,6 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
     if (!containerRef.current) {
       return;
     }
-
-    let isDisposing = false;
 
     if (!editorRef.current) {
       editorRef.current = monaco.editor.create(containerRef.current, {
@@ -386,25 +383,18 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
 
     if (format && goingTo) {
       // startLineNumber/startColumn were resolved against the unformatted model
-      // text; formatting reflows lines, so remap the position through prettier.
+      // text; formatting moves them, so remap the position through the formatter.
       const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
-      formatTypeScriptWithCursor(model.getValue(), cursorOffset).then((result) => {
-        if (!isDisposing && editorRef.current) {
-          editorRef.current.setValue(result.code);
-          const position = model.getPositionAt(result.cursorOffset);
-          editorRef.current.revealLineInCenter(position.lineNumber);
-          editorRef.current.setPosition(position);
-        }
-      });
+      const result = formatTypeScriptWithCursor(model.getValue(), cursorOffset);
+      editorRef.current.setValue(result.code);
+      const position = model.getPositionAt(result.cursorOffset);
+      editorRef.current.revealLineInCenter(position.lineNumber);
+      editorRef.current.setPosition(position);
     } else if (format) {
-      formatTypeScript(model.getValue()).then((formattedCode) => {
-        if (!isDisposing && editorRef.current) {
-          editorRef.current.setValue(formattedCode);
-          if (viewState) {
-            editorRef.current.restoreViewState(viewState);
-          }
-        }
-      });
+      editorRef.current.setValue(formatTypeScript(model.getValue()));
+      if (viewState) {
+        editorRef.current.restoreViewState(viewState);
+      }
     } else {
       if (viewState) {
         editorRef.current.restoreViewState(viewState);
@@ -417,7 +407,6 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
     editorRef.current?.setModel(model);
 
     return () => {
-      isDisposing = true;
       editorRef.current?.dispose();
       editorRef.current = null;
     };

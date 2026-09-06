@@ -1046,7 +1046,7 @@ export function App() {
     async (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
       // Wrapped before it goes anywhere: the editor's format-on-open only fires when a
       // model is created, and a takeover writes into one that already exists.
-      const code = await formatTypeScript(generateMethodEditorCode(app, service, method));
+      const code = formatTypeScript(generateMethodEditorCode(app, service, method));
       const originAppName = app.configuration.name;
       recordUse(methodUse(originAppName, service, method));
       const now = Date.now();
@@ -1054,7 +1054,7 @@ export function App() {
       const currentDraft = current?.type === "draft" ? draftsRef.current.find((s) => s.id === current.draftId) : undefined;
 
       if (mode === "append" && current?.type === "draft" && currentDraft) {
-        const merged = await formatTypeScript(appendCall(current.model.getValue(), code));
+        const merged = formatTypeScript(appendCall(current.model.getValue(), code));
         current.model.setValue(merged);
         updateDraft(currentDraft.id, (draft) => withCode(draft, merged, now));
         return;

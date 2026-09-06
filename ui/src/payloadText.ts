@@ -7,8 +7,8 @@
 const MAX_DRAWN_CHARS = 2_000_000;
 
 /**
- * A response is printed, not formatted. Prettier costs about 2 ms a payload and
- * a parser download, against a fiftieth of that for the printer built into the
+ * A response is printed, not formatted. Parsing and reprinting one costs about
+ * 2 ms a payload, against a fiftieth of that for the printer built into the
  * language, and the two disagree only in places nobody reads a response for. It
  * is also synchronous, which is what stops a slow payload landing over a newer
  * one — the selection follows a run as it happens.
