@@ -372,14 +372,16 @@ func TestListServicesIsAnIndex(t *testing.T) {
 func TestListServicesFilters(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token)
 
+	// The header counts what the list holds, not what the catalog does: naming the
+	// whole catalog over a filtered list said the app had five times what follows.
 	byApp := tool(t, srv, "list_services", map[string]string{"app": "theatre"})
-	contains(t, byApp, "ListShows")
+	contains(t, byApp, "ListShows", "1 app(s), 1 service(s), 2 method(s).")
 	if strings.Contains(byApp, "GetSeatMap") {
 		t.Errorf("app filter leaked another app:\n%s", byApp)
 	}
 
 	bySearch := tool(t, srv, "list_services", map[string]string{"search": "seat"})
-	contains(t, bySearch, "GetSeatMap")
+	contains(t, bySearch, "GetSeatMap", "1 app(s), 1 service(s), 2 method(s).")
 	if strings.Contains(bySearch, "ListShows") {
 		t.Errorf("search leaked an unmatched method:\n%s", bySearch)
 	}

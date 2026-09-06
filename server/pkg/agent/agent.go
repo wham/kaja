@@ -57,11 +57,12 @@ var (
 
 // Message is what the server sends down a window's stream.
 type Message struct {
-	// Type is "hello", "run", "activity" or "duty".
+	// Type is "hello", "run", "abort", "activity", "duty" or "scripts".
 	Type string `json:"type"`
 	// StreamID identifies this window to the server, on "hello".
 	StreamID string `json:"streamId,omitempty"`
-	// RunID correlates a "run" with the result the window posts back.
+	// RunID correlates a "run" with the result the window posts back, and names the
+	// run to drop on an "abort".
 	RunID string `json:"runId,omitempty"`
 	// Path is the saved script being run, empty for an inline snippet. Code is always
 	// set: the server owns the disk, so it reads the file itself and the window is only
@@ -270,15 +271,20 @@ func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunRe
 		return mcp.RunResult{}, ctx.Err()
 	}
 
+	// Giving up on the answer is not giving up on the run: it is going on in the
+	// window, holding whatever it opened, and nobody is coming for what it produces.
+	// So the window is told to drop it, which is the same abort Stop is.
 	select {
 	case result := <-waiting:
 		return result, nil
 	case <-stream.closed:
 		return mcp.RunResult{}, ErrWindowClosed
 	case <-ctx.Done():
+		stream.send(Message{Type: "abort", RunID: runID})
 		return mcp.RunResult{}, ctx.Err()
 	case <-time.After(runTimeout):
-		return mcp.RunResult{}, fmt.Errorf("the script did not finish within %s", runTimeout)
+		stream.send(Message{Type: "abort", RunID: runID})
+		return mcp.RunResult{}, fmt.Errorf("the script did not finish within %s, so the run was stopped", runTimeout)
 	}
 }
 

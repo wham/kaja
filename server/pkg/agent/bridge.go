@@ -63,7 +63,8 @@ func (b *bridge) RunScript(ctx context.Context, path, code, client string) (mcp.
 		if err != nil {
 			return mcp.RunResult{}, err
 		}
-		path, code = script.Path, script.Content
+		// The window's own name for the file, which is what its console is keyed on.
+		path, code = script.RunPath, script.Content
 	}
 	return b.session.Run(ctx, path, code, client)
 }

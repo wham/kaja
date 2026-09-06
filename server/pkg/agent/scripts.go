@@ -42,9 +42,10 @@ type ScriptChange struct {
 }
 
 // Script is the change read as the file it left behind, which is what a tool answers
-// with.
+// with. The agent is answered with the workspace-relative name; the absolute Path is
+// what the windows are told, because it is what they key a console on.
 func (c ScriptChange) Script() mcp.ScriptInfo {
-	return mcp.ScriptInfo{Path: c.Path, Name: c.Name, Folder: c.Folder, Content: c.Content}
+	return mcp.ScriptInfo{Path: relativeScriptName(c.Folder, c.Name), Name: c.Name, Folder: c.Folder, Content: c.Content, RunPath: c.Path}
 }
 
 // workspaceScripts reads and writes the scripts folder through the same Api service
@@ -69,7 +70,7 @@ func (w *workspaceScripts) List() ([]mcp.ScriptInfo, error) {
 	}
 	scripts := make([]mcp.ScriptInfo, 0, len(response.Scripts))
 	for _, script := range response.Scripts {
-		scripts = append(scripts, mcp.ScriptInfo{Path: script.Path, Name: script.Name, Folder: script.Folder})
+		scripts = append(scripts, scriptInfo(script))
 	}
 	return scripts, nil
 }
@@ -123,7 +124,24 @@ func scriptInfo(script *api.Script) mcp.ScriptInfo {
 	if script == nil {
 		return mcp.ScriptInfo{}
 	}
-	return mcp.ScriptInfo{Path: script.Path, Name: script.Name, Folder: script.Folder, Content: script.Content}
+	return mcp.ScriptInfo{
+		Path:    relativeScriptName(script.Folder, script.Name),
+		Name:    script.Name,
+		Folder:  script.Folder,
+		Content: script.Content,
+		RunPath: script.Path,
+	}
+}
+
+// relativeScriptName is the script's place under the scripts root, which is the name
+// the agent is given and hands back. The service resolves a relative name and an
+// absolute one alike, so this is the same file said without saying where the
+// workspace lives.
+func relativeScriptName(folder string, name string) string {
+	if folder == "" {
+		return name
+	}
+	return folder + "/" + name
 }
 
 func change(action string, oldPath string, script *api.Script) ScriptChange {

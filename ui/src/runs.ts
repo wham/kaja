@@ -243,8 +243,6 @@ export class ItemStats {
   #inFlight = 0;
   #settled = 0;
   #slowest = 0;
-  #start = Infinity;
-  #end = -Infinity;
 
   has(id: string): boolean {
     return this.#of.has(id);
@@ -264,15 +262,12 @@ export class ItemStats {
     this.#counts[status]++;
     if (inFlight) this.#inFlight++;
 
-    // A duration is written once, when the call settles, so it only ever moves the
-    // window outward. The wall window keeps the full round trip — it is about this
-    // client's clock — while slowest compares what the rows show (callDurationMs).
+    // A duration is written once, when the call settles. Slowest compares what the
+    // rows show (callDurationMs) rather than the round trip they were measured over.
     const duration = item.call?.durationMs;
     if (duration !== undefined && was?.duration === undefined) {
       this.#settled++;
       this.#slowest = Math.max(this.#slowest, callDurationMs(item.call!) ?? duration);
-      this.#start = Math.min(this.#start, item.timestamp);
-      this.#end = Math.max(this.#end, item.timestamp + duration);
     }
 
     this.#of.set(item.id, { status, inFlight, duration });
@@ -301,15 +296,6 @@ export class ItemStats {
   // Bars only mean something with calls to compare, so a set of one gets none.
   get slowest(): number | undefined {
     return this.#settled > 1 ? this.#slowest : undefined;
-  }
-
-  /**
-   * Wall time for the whole set — not the sum of its calls, so a fan-out reports what
-   * it actually cost. Undefined while anything in it is in flight.
-   */
-  get duration(): number | undefined {
-    if (this.#of.size === 0 || this.#settled !== this.#of.size) return undefined;
-    return this.#end < this.#start ? undefined : this.#end - this.#start;
   }
 }
 

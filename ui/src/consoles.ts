@@ -73,6 +73,12 @@ class Group implements RunGroup {
   #seq = 0;
   #drawnAt = 0;
   readonly #failed = new Map<string, { item: ConsoleItem; seq: number }>();
+  /**
+   * Calls this run had no room left for. Remembered only so that settling one is not
+   * counted as another call left out, and held here rather than on the file so the set
+   * is let go with the run it belongs to.
+   */
+  readonly ignored = new Set<string>();
 
   constructor(public run: Run) {
     this.metrics = new RunMetrics(run.startedAt);
@@ -170,8 +176,6 @@ export class FileConsole {
   readonly #groups = new Map<string, Group>();
   readonly #byCall = new Map<string, ConsoleItem>();
   readonly #byItem = new Map<string, { item: ConsoleItem; group: Group }>();
-  // Remembered only so that settling one is not counted as another call left out.
-  readonly #ignored = new Set<string>();
   // A queue with a head rather than a shifting array: a spike pushes thousands
   // through it.
   readonly #holding: ConsoleItem[] = [];
@@ -228,10 +232,24 @@ export class FileConsole {
     return this.runs.reduce((highest, run) => Math.max(highest, run.number ?? 0), 0) + 1;
   }
 
+  /**
+   * Drop the oldest runs past the cap, and everything that was pointing at them. The
+   * indexes are what a call and a block are found again by, so a run taken off the
+   * list without them is a run whose items the file goes on holding for as long as it
+   * is open — which made the cap bound the list and nothing else.
+   */
   #trimRuns(): void {
     if (this.runs.length <= MAX_RUNS_PER_FILE) return;
     const gone = this.runs.splice(0, this.runs.length - MAX_RUNS_PER_FILE);
-    for (const run of gone) this.#groups.delete(run.id);
+    for (const run of gone) {
+      const group = this.#groups.get(run.id);
+      this.#groups.delete(run.id);
+      if (!group) continue;
+      for (const item of group.items) {
+        this.#byItem.delete(item.id);
+        if (item.call) this.#byCall.delete(item.call.id);
+      }
+    }
     // The rows are gone, so nothing is left that could ask for what is under them.
     dropRunPayloads(gone.map((run) => run.id));
     this.#ordered = null;
@@ -248,13 +266,14 @@ export class FileConsole {
       this.#groups.get(known.runId)?.patched(known);
       return;
     }
-    if (this.#ignored.has(call.id)) return;
+    const group = this.#groups.get(runId);
+    if (group === undefined || group.ignored.has(call.id)) return;
     const item: ConsoleItem = { id: newItemId(), runId, timestamp: call.timestamp, call, key: callKey(call) };
     if (this.#append(runId, item)) {
       this.#byCall.set(call.id, item);
       this.#hold(item);
     } else {
-      this.#ignored.add(call.id);
+      group.ignored.add(call.id);
     }
     void now;
   }
@@ -288,9 +307,12 @@ export class FileConsole {
     this.#append(runId, { id: newItemId(), runId, timestamp: now, logs: [{ level, message }], printed: true });
   }
 
+  // A duration is written once. Both the run ending on its own and something ending
+  // it — Stop, or an agent walking away from what it asked for — reach here, and a
+  // run settled twice would report the second reading as how long it took.
   settleRun(runId: string, durationMs: number): boolean {
     const index = this.runs.findIndex((run) => run.id === runId);
-    if (index === -1) return false;
+    if (index === -1 || this.runs[index].durationMs !== undefined) return false;
     this.runs[index] = { ...this.runs[index], durationMs };
     const group = this.#groups.get(runId);
     if (group) group.run = this.runs[index];
@@ -696,12 +718,23 @@ export class Consoles {
     for (const listener of this.#quietListeners) listener(fileId, runId);
   }
 
-  // Files are let go in the order they were last touched.
+  /**
+   * Files are let go in the order they were last touched, and a file with a run still
+   * going is never one of them: its calls are still arriving, and a console dropped
+   * out from under them is a run that stops being recorded halfway and never settles.
+   * Where every file is running there is nothing to let go of, and the map is over its
+   * cap until one of them ends.
+   */
   #evict(): void {
-    while (this.#files.size > MAX_FILES) {
-      const oldest = this.#files.keys().next().value;
-      if (oldest === undefined) return;
-      this.#files.delete(oldest);
+    if (this.#files.size <= MAX_FILES) return;
+    for (const [fileId, file] of [...this.#files]) {
+      if (this.#files.size <= MAX_FILES) return;
+      if (file.running) continue;
+      this.#files.delete(fileId);
+      // A payload goes with the row that could select it, and an evicted file's rows
+      // are as gone as a discarded one's.
+      dropRunPayloads(file.runs.map((run) => run.id));
+      if (this.#mru === fileId) this.#mru = null;
     }
   }
 }

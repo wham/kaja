@@ -32,11 +32,22 @@ var guide string
 // ScriptInfo is a script on disk. Content is populated only for reads, creates and
 // renames.
 type ScriptInfo struct {
+	// Path is the script's place in the workspace, relative to the scripts root
+	// ("reports/weekly.ts"), which is a name every tool here resolves - a listing's
+	// own path can be handed straight back. It is relative rather than absolute
+	// because where the workspace sits on the machine serving it is the server's
+	// business, and no tool needs it: the agent may be another process, or another
+	// person's browser.
 	Path string `json:"path"`
 	Name string `json:"name"`
 	// Relative to the workspace's scripts root; empty for one at the root.
 	Folder  string `json:"folder,omitempty"`
 	Content string `json:"content,omitempty"`
+	// RunPath is the absolute path the same script is known by inside a window: its
+	// console, its stored runs and its row in the sidebar are keyed on it, so a run
+	// dispatched under anything else lands in a console of its own. It is the
+	// window's name for the file, never the agent's, which is why it is not written.
+	RunPath string `json:"-"`
 }
 
 // MethodCallLog is a single RPC made while a script ran, mirrored from the UI so

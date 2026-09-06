@@ -288,6 +288,15 @@ registerTimestampCommand();
 interface EditorProps {
   model: monaco.editor.ITextModel;
   readOnly?: boolean;
+  /**
+   * Whether to run the buffer through prettier as it is shown. Only a generated
+   * module is: it is printed by the TypeScript printer, lives in memory and is
+   * nobody's file. A script's buffer is never touched, because a script is a file
+   * on disk and this editor auto-saves — reformatting it here would rewrite
+   * somebody's file for the crime of being opened, in prettier's defaults rather
+   * than in the settings the file was written under.
+   */
+  format?: boolean;
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onGoToDefinition: onGoToDefinition;
   startLineNumber?: number;
@@ -299,7 +308,7 @@ export interface onGoToDefinition {
   (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
 }
 
-export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
+export function Editor({ model, onMount, onGoToDefinition, readOnly = false, format = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -373,7 +382,9 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
       onMount?.(editorRef.current);
     }
 
-    if (!viewState && startLineNumber > 0) {
+    const goingTo = !viewState && startLineNumber > 0;
+
+    if (format && goingTo) {
       // startLineNumber/startColumn were resolved against the unformatted model
       // text; formatting reflows lines, so remap the position through prettier.
       const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
@@ -385,7 +396,7 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
           editorRef.current.setPosition(position);
         }
       });
-    } else {
+    } else if (format) {
       formatTypeScript(model.getValue()).then((formattedCode) => {
         if (!isDisposing && editorRef.current) {
           editorRef.current.setValue(formattedCode);
@@ -394,6 +405,13 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
           }
         }
       });
+    } else {
+      if (viewState) {
+        editorRef.current.restoreViewState(viewState);
+      } else if (goingTo) {
+        editorRef.current.revealLineInCenter(startLineNumber);
+        editorRef.current.setPosition({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
+      }
     }
 
     editorRef.current?.setModel(model);
