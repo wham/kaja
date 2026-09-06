@@ -37,6 +37,10 @@ export interface ShortcutDefinition {
   // Where the action is: a row that says only its name reads as a key that works
   // wherever you are, which most of these are not.
   where?: string;
+  // The verb this key presses writes a file, so it is not there at all on a workspace
+  // that is served read-only — the same rule that takes Save as file off the command
+  // row rather than disabling it.
+  writesFiles?: boolean;
 }
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = ["Window", "Scripts", "Running"];
@@ -51,8 +55,8 @@ export const SHORTCUTS: ShortcutDefinition[] = [
   { action: "toggleSidebar", label: "Show or hide the sidebar", group: "Window", defaults: ["Mod+B"] },
   { action: "fullScreenRun", label: "Full-screen run", group: "Window", defaults: ["Mod+Shift+F"], where: "In a run" },
   { action: "newDraft", label: "New script", group: "Scripts", defaults: ["Mod+N"] },
-  { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], where: "In Files" },
-  { action: "saveAsFile", label: "Save as file", group: "Scripts", defaults: ["Mod+S"], where: "On a draft" },
+  { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], where: "In Files", writesFiles: true },
+  { action: "saveAsFile", label: "Save as file", group: "Scripts", defaults: ["Mod+S"], where: "On a draft", writesFiles: true },
   { action: "copyDeeplink", label: "Copy deeplink", group: "Scripts", defaults: ["Mod+Shift+C"], where: "On a file" },
   { action: "editAsJson", label: "Edit as JSON", group: "Scripts", defaults: ["Mod+J"], where: "In app settings" },
   { action: "run", label: "Run", group: "Running", defaults: ["Mod+Enter", "F5"] },
@@ -65,6 +69,14 @@ const DEFINITION = new Map(SHORTCUTS.map((shortcut) => [shortcut.action, shortcu
 
 export function shortcutDefinition(action: ShortcutAction): ShortcutDefinition {
   return DEFINITION.get(action)!;
+}
+
+/**
+ * The rows worth showing. A key for a verb the workspace hasn't got is a key that
+ * does nothing, and stating one is what the read-only screen exists not to do.
+ */
+export function listedShortcuts(canWriteFiles: boolean): ShortcutDefinition[] {
+  return canWriteFiles ? SHORTCUTS : SHORTCUTS.filter((shortcut) => !shortcut.writesFiles);
 }
 
 // `Mod` is the platform's own command modifier — ⌘ on a Mac, Ctrl everywhere else —

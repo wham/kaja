@@ -448,6 +448,7 @@ The **log** is the flat audit log — one row per call, in wall order, always co
 - **Zoom is not in the table.** `⌘+`, `⌘-` and `⌘0` exist on the desktop to do what a browser already does with them, so a rebind would make the two builds disagree about keys nobody chose.
 - **A label is a hook** (`useShortcutLabel`), because rebinding one has to redraw every place that names it — the Run pill, the run menu, the command row's tooltip, the Files menu, the blankslate. There are no `⌘S` string constants left.
 - **The native menu states no accelerator.** macOS takes an accelerator before the webview ever sees the key, so a fixed one on File ▸ New Script is the one way the menu and the window could come to disagree about ⌘N. The window's own keydown is the whole of it, which is what already made every shortcut work in a browser too.
+- **A key for a verb the workspace hasn't got is not listed** (`listedShortcuts`). New folder and Save as file are the two that write a file, so a deployed kaja has neither row — the rule that takes Save as file off the command row rather than disabling it.
 - The view is `KeyboardShortcuts.tsx`, reached from the footer's keyboard glyph beside the flask or from the finder. It autosaves like the variables do and says nothing about having saved. A read-only configuration draws the chips and drops the verbs.
 
 ## What Kaja failed at

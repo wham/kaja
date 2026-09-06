@@ -9,9 +9,9 @@ import {
   bindingFromEvent,
   formatBinding,
   isMacPlatform,
+  listedShortcuts,
   resolveBindings,
   SHORTCUT_GROUPS,
-  SHORTCUTS,
   shortcutDefinition,
   type ShortcutAction,
 } from "./shortcuts";
@@ -24,6 +24,9 @@ const revealed = "opacity-0 transition-opacity focus-visible:opacity-100 group-h
 
 interface KeyboardShortcutsProps {
   shortcuts: { [key: string]: string };
+  // Whether the workspace's scripts folder may be written, which is what the two keys
+  // that write a file are listed on.
+  canWriteFiles: boolean;
   readOnly?: boolean;
   onSave: (shortcuts: { [key: string]: string }) => Promise<void>;
 }
@@ -42,7 +45,7 @@ interface KeyboardShortcutsProps {
  * rather than writing the shipped chord into the file. What kaja.json carries is
  * what this workspace disagreed with, which is what makes it worth committing.
  */
-export function KeyboardShortcuts({ shortcuts, readOnly = false, onSave }: KeyboardShortcutsProps) {
+export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, onSave }: KeyboardShortcutsProps) {
   const [overrides, setOverrides] = useState<{ [key: string]: string }>(() => ({ ...shortcuts }));
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,6 +62,7 @@ export function KeyboardShortcuts({ shortcuts, readOnly = false, onSave }: Keybo
     if (!dirtyRef.current) setOverrides({ ...shortcuts });
   }, [shortcuts]);
 
+  const listed = useMemo(() => listedShortcuts(canWriteFiles), [canWriteFiles]);
   const bindings = useMemo(() => resolveBindings(overrides), [overrides]);
   const conflicts = useMemo(() => bindingConflicts(bindings), [bindings]);
 
@@ -129,28 +133,32 @@ export function KeyboardShortcuts({ shortcuts, readOnly = false, onSave }: Keybo
         )}
       </div>
 
-      {SHORTCUT_GROUPS.map((group) => (
-        <section key={group} aria-label={group} className="shrink-0 pb-3">
-          <h2 className="m-0 flex h-[26px] items-center px-1 text-xs font-medium text-foreground">{group}</h2>
-          {SHORTCUTS.filter((shortcut) => shortcut.group === group).map((shortcut) => (
-            <ShortcutRow
-              key={shortcut.action}
-              label={shortcut.label}
-              where={shortcut.where}
-              bindings={bindings.get(shortcut.action) ?? []}
-              overridden={shortcut.action in overrides}
-              conflicts={conflicts.get(shortcut.action) ?? []}
-              recording={recording === shortcut.action}
-              readOnly={readOnly}
-              mac={mac}
-              onRecord={() => setRecording(shortcut.action)}
-              onCancel={() => setRecording(null)}
-              onReset={() => reset(shortcut.action)}
-              onClear={() => clear(shortcut.action)}
-            />
-          ))}
-        </section>
-      ))}
+      {SHORTCUT_GROUPS.map((group) => {
+        const rows = listed.filter((shortcut) => shortcut.group === group);
+        if (rows.length === 0) return null;
+        return (
+          <section key={group} aria-label={group} className="shrink-0 pb-3">
+            <h2 className="m-0 flex h-[26px] items-center px-1 text-xs font-medium text-foreground">{group}</h2>
+            {rows.map((shortcut) => (
+              <ShortcutRow
+                key={shortcut.action}
+                label={shortcut.label}
+                where={shortcut.where}
+                bindings={bindings.get(shortcut.action) ?? []}
+                overridden={shortcut.action in overrides}
+                conflicts={conflicts.get(shortcut.action) ?? []}
+                recording={recording === shortcut.action}
+                readOnly={readOnly}
+                mac={mac}
+                onRecord={() => setRecording(shortcut.action)}
+                onCancel={() => setRecording(null)}
+                onReset={() => reset(shortcut.action)}
+                onClear={() => clear(shortcut.action)}
+              />
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }

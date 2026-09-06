@@ -2468,7 +2468,12 @@ export function App() {
                     )}
                     {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
                     {view.type === "shortcuts" && (
-                      <KeyboardShortcuts shortcuts={configuration?.shortcuts ?? {}} readOnly={!runtime.canUpdateConfiguration} onSave={onShortcutsSave} />
+                      <KeyboardShortcuts
+                        shortcuts={configuration?.shortcuts ?? {}}
+                        canWriteFiles={canWriteFiles}
+                        readOnly={!runtime.canUpdateConfiguration}
+                        onSave={onShortcutsSave}
+                      />
                     )}
                     {view.type === "variables" && (
                       <Variables

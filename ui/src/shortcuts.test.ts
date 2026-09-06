@@ -4,6 +4,7 @@ import {
   bindingFromEvent,
   eventMatchesBinding,
   formatBinding,
+  listedShortcuts,
   normalizeBinding,
   resolveBindings,
   SHORTCUTS,
@@ -134,4 +135,15 @@ test("every action is named once and every default is canonical", () => {
     expect(shortcut.defaults.length).toBeGreaterThan(0);
     for (const binding of shortcut.defaults) expect(normalizeBinding(binding)).toBe(binding);
   }
+});
+
+test("a key for a verb the workspace hasn't got is not listed", () => {
+  const listed = listedShortcuts(false).map((shortcut) => shortcut.action);
+  expect(listed).not.toContain("newFolder");
+  expect(listed).not.toContain("saveAsFile");
+  // Everything that is not a write is still there — a deployed kaja still runs,
+  // finds and copies a deeplink.
+  expect(listed).toContain("run");
+  expect(listed).toContain("copyDeeplink");
+  expect(listedShortcuts(true)).toEqual(SHORTCUTS);
 });
