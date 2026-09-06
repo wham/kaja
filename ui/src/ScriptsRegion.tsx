@@ -99,6 +99,10 @@ export interface ScriptsRegionProps {
   onRenameFolder?: (path: string, name: string) => Promise<void>;
   onDeleteFolder?: (path: string) => void;
   onRevealScripts?: () => void;
+  // Where the scripts are kept, which is the one thing about the list that is a
+  // question about the folder rather than about what is filed in it.
+  onChooseScriptsFolder?: () => void;
+  onUseDefaultScriptsFolder?: () => void;
 }
 
 export function ScriptsRegion(props: ScriptsRegionProps) {
@@ -306,7 +310,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         onDragOver={(event) => onDragOverFolder(event, "")}
         onDrop={(event) => onDropInFolder(event, "")}
         action={
-          canWrite && (props.onCreateFolder || props.onRevealScripts)
+          canWrite && (props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder)
             ? { icon: Ellipsis, label: "Actions for Files", onClick: (event) => setFilesMenu({ top: event.clientY, left: event.clientX }) }
             : undefined
         }
@@ -459,6 +463,21 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             <ExternalLink size={16} />
             Reveal in Finder
           </DropdownMenuItem>
+        )}
+        {props.onChooseScriptsFolder && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={props.onChooseScriptsFolder}>
+              <Folder size={16} />
+              Scripts folder…
+            </DropdownMenuItem>
+            {props.onUseDefaultScriptsFolder && (
+              <DropdownMenuItem onSelect={props.onUseDefaultScriptsFolder}>
+                <Folder size={16} />
+                Use default folder
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       </CursorMenu>
 

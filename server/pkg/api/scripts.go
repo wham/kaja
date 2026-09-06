@@ -23,19 +23,76 @@ import (
 //
 // Writing is refused where this kaja does not own the workspace it opened, which is
 // the one answer canUpdateConfiguration reports.
+//
+// The folder is beside kaja.json unless the configuration names another one, which is
+// the whole of what moves: kaja.json stays where it is, so the apps a script imports
+// are there however the scripts are shared.
 
-// scriptsDir is the scripts folder beside kaja.json. It is derived from the
-// configuration path rather than from the process's working directory so the two can
-// never point at different folders. The path is absolute because it is what identifies
-// a script to the client - its console and its stored runs are keyed on it - and the
-// configuration path a server is started with is usually relative to wherever it was
-// started.
-func (s *ApiService) scriptsDir() string {
-	dir := filepath.Join(filepath.Dir(s.configurationPath), "scripts")
+// defaultScriptsRoot is the folder beside kaja.json, derived from the configuration
+// path rather than from the process's working directory so a server started anywhere
+// reads the same folder. The path is absolute because it is what identifies a script to
+// the client - its console and its stored runs are keyed on it - and the configuration
+// path a server is started with is usually relative to wherever it was started.
+func defaultScriptsRoot(configurationPath string) string {
+	dir := filepath.Join(filepath.Dir(configurationPath), "scripts")
 	if absolute, err := filepath.Abs(dir); err == nil {
 		return absolute
 	}
 	return dir
+}
+
+// scriptsRoot is the folder a configuration asks for, and the one it asked for that
+// could not be used. Empty asks for the folder beside kaja.json. A **relative** path is
+// resolved against kaja.json's own folder, which is what lets a checkout carry one; an
+// absolute path names a folder elsewhere on this machine, which is what the desktop's
+// picker writes.
+//
+// A folder that isn't there falls back to the default rather than being created: an
+// unplugged disk's mount point is a path that looks writable, and scripts written there
+// are ones the disk coming back would hide. It is read per call rather than held, so
+// the folder comes back on its own once the disk or the sync does.
+func scriptsRoot(configurationPath string, configured string) (dir string, unreachable string) {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return defaultScriptsRoot(configurationPath), ""
+	}
+
+	dir = configured
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(filepath.Dir(configurationPath), dir)
+	}
+	if absolute, err := filepath.Abs(dir); err == nil {
+		dir = absolute
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return defaultScriptsRoot(configurationPath), dir
+	}
+	return dir, ""
+}
+
+// scriptsDir is the folder this kaja keeps its scripts in.
+func (s *ApiService) scriptsDir() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsFolder)
+	return dir
+}
+
+// UnreachableScriptsFolder is the folder the configuration asks for that this kaja
+// could not use, empty where there is nothing to say. The desktop reports it once the
+// window is up, because an empty Files list otherwise gives no account of itself.
+func (s *ApiService) UnreachableScriptsFolder() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsFolder)
+	return unreachable
+}
+
+// SetScriptsFolder writes the folder into kaja.json, an empty one clearing it back to
+// the folder beside it. Whoever calls it owns the clients still reading the old folder,
+// which name every script by its absolute path: the desktop reloads its window.
+func (s *ApiService) SetScriptsFolder(dir string) error {
+	configuration := LoadGetConfigurationResponse(s.configurationPath).Configuration
+	configuration.ScriptsFolder = dir
+	return SaveConfiguration(s.configurationPath, configuration)
 }
 
 // CanWriteWorkspace reports whether this kaja may write the workspace it opened. The

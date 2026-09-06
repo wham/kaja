@@ -538,3 +538,80 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 		t.Errorf("a refused write landed anyway: %q", read.Script.Content)
 	}
 }
+
+// Only the folder moves: the configuration stays where it is, so the apps a script
+// imports are unaffected by pointing the scripts somewhere the machine syncs.
+func TestScriptsFolderNamedByTheConfiguration(t *testing.T) {
+	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
+	service := NewApiService(configurationPath, false, "", "", nil)
+
+	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
+	if err != nil {
+		t.Fatalf("failed to list scripts: %v", err)
+	}
+	if len(response.Scripts) != 1 || response.Scripts[0].Name != "programme.ts" {
+		t.Fatalf("expected the folder beside kaja.json, got %v", response.Scripts)
+	}
+
+	shared := filepath.Join(t.TempDir(), "scripts")
+	if err := os.MkdirAll(shared, 0755); err != nil {
+		t.Fatalf("failed to create the folder: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(shared, "seat-map.ts"), []byte("// seats"), 0644); err != nil {
+		t.Fatalf("failed to write the script: %v", err)
+	}
+	if err := service.SetScriptsFolder(shared); err != nil {
+		t.Fatalf("failed to write the folder: %v", err)
+	}
+
+	response, err = service.ListScripts(context.Background(), &ListScriptsRequest{})
+	if err != nil {
+		t.Fatalf("failed to list scripts: %v", err)
+	}
+	if len(response.Scripts) != 1 || response.Scripts[0].Name != "seat-map.ts" {
+		t.Fatalf("expected the named folder's script, got %v", response.Scripts)
+	}
+	if service.configurationPath != configurationPath {
+		t.Errorf("expected the configuration left where it is, got %q", service.configurationPath)
+	}
+
+	if err := service.SetScriptsFolder(""); err != nil {
+		t.Fatalf("failed to clear the folder: %v", err)
+	}
+	if service.scriptsDir() != defaultScriptsRoot(configurationPath) {
+		t.Errorf("expected the default folder back, got %q", service.scriptsDir())
+	}
+}
+
+// A relative folder is resolved against kaja.json's own folder, so a checkout can
+// carry one; an absolute one names a folder elsewhere on this machine.
+func TestScriptsRootResolvesWhatTheConfigurationNames(t *testing.T) {
+	dir := t.TempDir()
+	configurationPath := filepath.Join(dir, "kaja.json")
+
+	if root, unreachable := scriptsRoot(configurationPath, ""); root != defaultScriptsRoot(configurationPath) || unreachable != "" {
+		t.Errorf("expected the folder beside kaja.json, got %q and %q", root, unreachable)
+	}
+
+	relative := filepath.Join(dir, "shared")
+	if err := os.MkdirAll(relative, 0755); err != nil {
+		t.Fatalf("failed to create the folder: %v", err)
+	}
+	if root, unreachable := scriptsRoot(configurationPath, "shared"); root != relative || unreachable != "" {
+		t.Errorf("expected %q, got %q and %q", relative, root, unreachable)
+	}
+
+	absolute := t.TempDir()
+	if root, unreachable := scriptsRoot(configurationPath, absolute); root != absolute || unreachable != "" {
+		t.Errorf("expected %q, got %q and %q", absolute, root, unreachable)
+	}
+
+	// A folder that isn't there falls back to the default and says which one it could
+	// not reach. The name is left in the file, so an unplugged disk coming back is all
+	// it takes for the folder to be used again.
+	gone := filepath.Join(dir, "elsewhere")
+	root, unreachable := scriptsRoot(configurationPath, gone)
+	if root != defaultScriptsRoot(configurationPath) || unreachable != gone {
+		t.Errorf("expected the fallback and the folder it could not reach, got %q and %q", root, unreachable)
+	}
+}

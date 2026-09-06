@@ -1095,6 +1095,17 @@ export interface Configuration {
     shortcuts: {
         [key: string]: string;
     };
+    /**
+     * Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
+     * file, which is what a workspace says by saying nothing. A relative path is
+     * resolved against this file's own folder, so a checkout can carry one; an
+     * absolute path is a folder somewhere else on the machine, which is what the
+     * desktop's picker writes when the scripts are to live somewhere that syncs.
+     * A folder that isn't there is not created: the default is used for that launch.
+     *
+     * @generated from protobuf field: string scripts_folder = 8
+     */
+    scriptsFolder: string;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -2464,7 +2475,8 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 8, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }

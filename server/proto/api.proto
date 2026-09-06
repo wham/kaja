@@ -607,6 +607,13 @@ message Configuration {
   // left without one. It is configuration rather than a preference of the machine
   // so a workspace served to a browser can state its own.
   map<string, string> shortcuts = 7;
+  // Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
+  // file, which is what a workspace says by saying nothing. A relative path is
+  // resolved against this file's own folder, so a checkout can carry one; an
+  // absolute path is a folder somewhere else on the machine, which is what the
+  // desktop's picker writes when the scripts are to live somewhere that syncs.
+  // A folder that isn't there is not created: the default is used for that launch.
+  string scripts_folder = 8;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.

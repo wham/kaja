@@ -3712,7 +3712,14 @@ type Configuration struct {
 	// keeps the shortcut kaja ships, and an empty binding is an action deliberately
 	// left without one. It is configuration rather than a preference of the machine
 	// so a workspace served to a browser can state its own.
-	Shortcuts     map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Shortcuts map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
+	// file, which is what a workspace says by saying nothing. A relative path is
+	// resolved against this file's own folder, so a checkout can carry one; an
+	// absolute path is a folder somewhere else on the machine, which is what the
+	// desktop's picker writes when the scripts are to live somewhere that syncs.
+	// A folder that isn't there is not created: the default is used for that launch.
+	ScriptsFolder string `protobuf:"bytes,8,opt,name=scripts_folder,json=scriptsFolder,proto3" json:"scripts_folder,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3773,6 +3780,13 @@ func (x *Configuration) GetShortcuts() map[string]string {
 		return x.Shortcuts
 	}
 	return nil
+}
+
+func (x *Configuration) GetScriptsFolder() string {
+	if x != nil {
+		return x.ScriptsFolder
+	}
+	return ""
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -4817,13 +4831,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xeb\x02\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x92\x03\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
-	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x1a<\n" +
+	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x12%\n" +
+	"\x0escripts_folder\x18\b \x01(\tR\rscriptsFolder\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
