@@ -71,7 +71,10 @@ CODEGEN=$(fingerprint \
 if ! stamp_matches "$CODEGEN_STAMP" "$CODEGEN" || [ ! -f ui/src/server/api.ts ] || [ ! -f server/pkg/api/api.pb.go ]; then
     echo "Generating proto client code..."
     # UI proto client code, using protoc-gen-kaja
-    protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --proto_path=server/proto api.proto
+    # force_optimize_code_size for the same reason an app is generated with it: the
+    # runtime drives create and the binary codec off the field descriptors, which is
+    # most of what a message would otherwise generate.
+    protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --kaja_opt=force_optimize_code_size --proto_path=server/proto api.proto
     # require_unimplemented_servers=false so ApiServer is the methods and nothing else:
     # an embedded Unimplemented struct would let a method missing from ApiService compile.
     (cd server && protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-go-grpc=./build/protoc-gen-go-grpc --go-grpc_out=. --go-grpc_opt=require_unimplemented_servers=false -Iproto/ $(find proto -iname "*.proto"))
