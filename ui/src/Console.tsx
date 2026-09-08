@@ -26,7 +26,7 @@ import {
   RunGroup,
   RunSelection,
 } from "./runs";
-import { runShortcutLabel } from "./RunButton";
+import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
 export type { ConsoleItem } from "./runs";
@@ -89,6 +89,7 @@ export function Console({
     useCallback(() => consoles.fileVersion(fileId), [fileId]),
   );
 
+  const runLabel = useShortcutLabel("run");
   const file = consoles.file(fileId);
   const groups = file.groups;
   const selection = file.selection;
@@ -189,15 +190,17 @@ export function Console({
     [onSelect],
   );
 
-  // ⌃↑ / ⌃↓ step through this file's runs without opening the dropdown.
+  // Previous run and next run, which step through this file's runs without opening
+  // the dropdown.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || event.metaKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+      const step = matchesShortcut(event, "previousRun") ? -1 : matchesShortcut(event, "nextRun") ? 1 : 0;
+      if (step === 0) return;
       if (groups.length === 0) return;
       event.preventDefault();
       const index = groups.findIndex((group) => group.run.id === selection?.runId);
       const from = index === -1 ? groups.length - 1 : index;
-      const next = Math.max(0, Math.min(groups.length - 1, from + (event.key === "ArrowUp" ? -1 : 1)));
+      const next = Math.max(0, Math.min(groups.length - 1, from + step));
       selectRun(groups[next]);
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -244,7 +247,7 @@ export function Console({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+      if (matchesShortcut(event, "fullScreenRun")) {
         if (!selectedGroup) return;
         event.preventDefault();
         if (fullScreen) setFullScreen(false);
@@ -276,7 +279,7 @@ export function Console({
   if (groups.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
-        Run a script to see its calls here. <span className="ml-1 font-mono">{runShortcutLabel}</span>
+        Run a script to see its calls here. <span className="ml-1 font-mono">{runLabel}</span>
       </div>
     );
   }
@@ -340,7 +343,7 @@ export function Console({
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* One row spanning the full console width, and it holds its shape: which
           run, which view, and what to do with what is shown. Stepping through
-          the runs is the picker's and ⌃↑/⌃↓'s — a pair of arrows beside a
+          the runs is the picker's and the two run keys' — a pair of arrows beside a
           picker that already lists every run is the same verb twice, at the
           cost of the room the pill truncates for. Nothing here rearranges as
           the selection moves — that is the change the split pays for.

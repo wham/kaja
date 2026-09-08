@@ -6,6 +6,7 @@ import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timesta
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
 import { codeFontSize } from "./monacoTheme";
+import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { ScalarValue } from "./typeMemory";
 import { suggestValues } from "./valueCompletions";
 
@@ -32,17 +33,89 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
   },
 });
 
-// ⌘⏎ runs the script, and the shortcut lives on the window (see App.tsx). Monaco
-// binds the same chord to Insert Line Below and, having matched it, stops the
-// event at the editor — so inside the editor the key wrote a line instead of
-// running. Unbind it here, scoped to the same context the editor action claims,
-// so the chord goes unmatched and reaches the window while ⌘⏎ elsewhere in
-// Monaco (Replace All in the find widget) is left alone.
-monaco.editor.addKeybindingRule({
-  keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-  command: null,
-  when: "editorTextFocus",
-});
+/**
+ * Every chord the window states is unbound in Monaco, because Monaco matches first
+ * and then stops the event at the editor — ⌘⏎ ran Insert Line Below rather than the
+ * script, and a rebind onto ⌘/ or ⌘D would go the same way. The rule is scoped to the
+ * context the editor actions claim, so the same chord elsewhere in Monaco (⌘⏎ is
+ * Replace All in the find widget) is left alone.
+ *
+ * Monaco's registry only takes rules, so a chord the window has claimed **this
+ * session** stays out of its way even after being rebound away. Re-registering is
+ * what a rebind costs; a reload is what settles it back to the configured set.
+ */
+function claimWindowKeys() {
+  const rules = claimedBindings()
+    .map(monacoKeybinding)
+    .filter((keybinding): keybinding is number => keybinding !== undefined)
+    .map((keybinding) => ({ keybinding, command: null, when: "editorTextFocus" }));
+  if (rules.length > 0) monaco.editor.addKeybindingRules(rules);
+}
+
+const MONACO_MODIFIER: Record<string, number> = {
+  Mod: monaco.KeyMod.CtrlCmd,
+  // On a Mac this is the Ctrl key; off one, Mod and Ctrl are the same key and
+  // WinCtrl is the Windows key, which no binding here means.
+  Ctrl: isMacPlatform() ? monaco.KeyMod.WinCtrl : monaco.KeyMod.CtrlCmd,
+  Alt: monaco.KeyMod.Alt,
+  Shift: monaco.KeyMod.Shift,
+};
+
+const MONACO_NAMED_KEY: Record<string, number> = {
+  Enter: monaco.KeyCode.Enter,
+  Escape: monaco.KeyCode.Escape,
+  Tab: monaco.KeyCode.Tab,
+  Backspace: monaco.KeyCode.Backspace,
+  Delete: monaco.KeyCode.Delete,
+  Space: monaco.KeyCode.Space,
+  Home: monaco.KeyCode.Home,
+  End: monaco.KeyCode.End,
+  PageUp: monaco.KeyCode.PageUp,
+  PageDown: monaco.KeyCode.PageDown,
+  ArrowUp: monaco.KeyCode.UpArrow,
+  ArrowDown: monaco.KeyCode.DownArrow,
+  ArrowLeft: monaco.KeyCode.LeftArrow,
+  ArrowRight: monaco.KeyCode.RightArrow,
+  // Monaco names the physical key where the window names the character that was
+  // typed, so these agree on a US layout and are a best effort on any other. A chord
+  // this cannot place is one Monaco is left holding, which is the state every chord
+  // but ⌘⏎ was in before.
+  ";": monaco.KeyCode.Semicolon,
+  "=": monaco.KeyCode.Equal,
+  ",": monaco.KeyCode.Comma,
+  "-": monaco.KeyCode.Minus,
+  ".": monaco.KeyCode.Period,
+  "/": monaco.KeyCode.Slash,
+  "`": monaco.KeyCode.Backquote,
+  "[": monaco.KeyCode.BracketLeft,
+  "\\": monaco.KeyCode.Backslash,
+  "]": monaco.KeyCode.BracketRight,
+  "'": monaco.KeyCode.Quote,
+};
+
+// A binding as Monaco says it. Undefined for a key it has no code for, which is a
+// chord it was never going to match anyway.
+function monacoKeybinding(binding: string): number | undefined {
+  const parts = binding.split("+");
+  const key = parts.pop() ?? "";
+  let keybinding = 0;
+  for (const part of parts) {
+    const modifier = MONACO_MODIFIER[part];
+    if (modifier === undefined) return undefined;
+    keybinding |= modifier;
+  }
+
+  const named = MONACO_NAMED_KEY[key];
+  if (named !== undefined) return keybinding | named;
+  if (/^[A-Z]$/.test(key)) return keybinding | (monaco.KeyCode.KeyA + key.charCodeAt(0) - "A".charCodeAt(0));
+  if (/^[0-9]$/.test(key)) return keybinding | (monaco.KeyCode.Digit0 + key.charCodeAt(0) - "0".charCodeAt(0));
+  const functionKey = /^F([1-9]|1[0-2])$/.exec(key);
+  if (functionKey) return keybinding | (monaco.KeyCode.F1 + Number(functionKey[1]) - 1);
+  return undefined;
+}
+
+claimWindowKeys();
+subscribeShortcuts(claimWindowKeys);
 
 monaco.typescript.typescriptDefaults.setCompilerOptions({
   target: monaco.typescript.ScriptTarget.ESNext,

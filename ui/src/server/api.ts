@@ -1090,6 +1090,19 @@ export interface Configuration {
     variables: {
         [key: string]: string;
     };
+    /**
+     * Keyboard shortcut overrides, keyed by the action's own id ("run",
+     * "finder", ...) and holding one binding written in the canonical form the UI
+     * parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
+     * keeps the shortcut kaja ships, and an empty binding is an action deliberately
+     * left without one. It is configuration rather than a preference of the machine
+     * so a workspace served to a browser can state its own.
+     *
+     * @generated from protobuf field: map<string, string> shortcuts = 7
+     */
+    shortcuts: {
+        [key: string]: string;
+    };
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -4927,7 +4940,8 @@ class Configuration$Type extends MessageType<Configuration> {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
-            { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
     create(value?: PartialMessage<Configuration>): Configuration {
@@ -4935,6 +4949,7 @@ class Configuration$Type extends MessageType<Configuration> {
         message.pathPrefix = "";
         message.apps = [];
         message.variables = {};
+        message.shortcuts = {};
         if (value !== undefined)
             reflectionMergePartial<Configuration>(this, message, value);
         return message;
@@ -4952,6 +4967,9 @@ class Configuration$Type extends MessageType<Configuration> {
                     break;
                 case /* map<string, string> variables */ 6:
                     this.binaryReadMap6(message.variables, reader, options);
+                    break;
+                case /* map<string, string> shortcuts */ 7:
+                    this.binaryReadMap7(message.shortcuts, reader, options);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4980,6 +4998,22 @@ class Configuration$Type extends MessageType<Configuration> {
         }
         map[key ?? ""] = val ?? "";
     }
+    private binaryReadMap7(map: Configuration["shortcuts"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof Configuration["shortcuts"] | undefined, val: Configuration["shortcuts"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for Configuration.shortcuts");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
     internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string path_prefix = 1; */
         if (message.pathPrefix !== "")
@@ -4990,6 +5024,9 @@ class Configuration$Type extends MessageType<Configuration> {
         /* map<string, string> variables = 6; */
         for (let k of globalThis.Object.keys(message.variables))
             writer.tag(6, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.variables[k]).join();
+        /* map<string, string> shortcuts = 7; */
+        for (let k of globalThis.Object.keys(message.shortcuts))
+            writer.tag(7, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.shortcuts[k]).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
