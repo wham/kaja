@@ -14,6 +14,29 @@ function elapsed(app: App): string {
   return formatDuration(Date.now() - (app.compilation.startTime || 0));
 }
 
+// The configuration is what everything on screen waits for, and the request is
+// tiny - so it is sent as soon as the script runs, ahead of opening the storage
+// and mounting the tree, and the hook picks up the answer instead of asking again.
+let preloadedConfiguration: Promise<GetConfigurationResponse> | undefined;
+
+function fetchConfiguration(): Promise<GetConfigurationResponse> {
+  return getApiClient()
+    .getConfiguration({})
+    .then((call) => call.response);
+}
+
+export function preloadConfiguration(): void {
+  preloadedConfiguration = fetchConfiguration();
+  // Nothing has claimed it yet; a failure is reported where it is awaited.
+  preloadedConfiguration.catch(() => {});
+}
+
+function loadConfiguration(): Promise<GetConfigurationResponse> {
+  const response = preloadedConfiguration ?? fetchConfiguration();
+  preloadedConfiguration = undefined;
+  return response;
+}
+
 export function useCompilation(
   apps: App[],
   onUpdate: (apps: App[] | ((prev: App[]) => App[])) => void,
@@ -156,7 +179,7 @@ export function useCompilation(
   useEffect(() => {
     const initializeApps = async () => {
       if (apps.length === 0 && !configurationLoaded) {
-        const { response } = await client.getConfiguration({});
+        const response = await loadConfiguration();
         const configApps = response.configuration?.apps || [];
 
         if (response.configuration) {

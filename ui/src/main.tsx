@@ -10,12 +10,14 @@ import { resetPayloadArchive } from "./payloadArchive";
 import { getPersistedValue, initializeStorage } from "./storage";
 import { pruneTypeMemory } from "./typeMemory";
 import { installUiLog } from "./uiLog";
+import { preloadConfiguration } from "./useCompilation";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 
 export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";
 
 installUiLog();
+preloadConfiguration();
 
 initializeStorage().then(() => {
   pruneTypeMemory();
