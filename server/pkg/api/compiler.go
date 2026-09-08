@@ -13,6 +13,13 @@ import (
 	"github.com/wham/protoc-go/protoc"
 )
 
+// Every message type is generated without a create and a binary codec of its own,
+// leaving the runtime to drive all three off the field descriptors. That is most of
+// what a message generates, and an app is compiled and bundled where it is read - in
+// the browser - so the cost of the specialized codec is paid by the person waiting
+// for the app to open, against calls a person makes one at a time.
+const kajaParameter = "force_optimize_code_size"
+
 type Compiler struct {
 	logger *Logger
 }
@@ -113,7 +120,7 @@ func (c *Compiler) compile(sourcesDir string, protoDir string) error {
 	}
 
 	c.logger.debug("Running protoc-gen-kaja")
-	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), "")
+	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), kajaParameter)
 	if err != nil {
 		return fmt.Errorf("protoc-gen-kaja: %v", err)
 	}

@@ -46,6 +46,16 @@ mkdir -p "$RESULTS_DIR"
 
 WORKSPACE_DIR="$ROOT_DIR/workspace"
 
+# Where a run of one test in one mode writes its result. The speed run keeps the
+# plain name, so a failure reads as the test it is.
+result_name() {
+  if [ "$2" = "code_size" ]; then
+    echo "$1.$2"
+  else
+    echo "$1"
+  fi
+}
+
 # Millisecond timer helper (uses perl for portability)
 now_ms() {
   perl -MTime::HiRes=time -e 'printf "%d\n", time()*1000'
@@ -60,6 +70,14 @@ run_test() {
   local test_name="$1"
   local test_dir="${2%/}"  # Remove trailing slash if present
   local recursive="$3"
+  # Kaja ships every app generated with force_optimize_code_size, so the suite has to
+  # hold both shapes: the plugin stays a drop-in for protoc-gen-ts either way.
+  local mode="$4"
+  local mode_opt=""
+  if [ "$mode" = "code_size" ]; then
+    mode_opt="force_optimize_code_size"
+    test_name="$test_name.$mode"
+  fi
   local expected_dir="$RESULTS_DIR/$test_name/expected"
   local actual_dir="$RESULTS_DIR/$test_name/actual"
   local result_file="$RESULTS_DIR/$test_name/result.txt"
@@ -94,6 +112,7 @@ run_test() {
     --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
     --ts_out="$expected_dir" \
     --ts_opt=long_type_string \
+    ${mode_opt:+--ts_opt=$mode_opt} \
     -I. \
     $proto_basenames) 2>"$ts_error_file" || ts_ok=false
   local ts_elapsed=$(( $(now_ms) - ts_start ))
@@ -105,6 +124,7 @@ run_test() {
   (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
     --kaja_out="$actual_dir" \
+    ${mode_opt:+--kaja_opt=$mode_opt} \
     -I. \
     $proto_basenames) 2>"$kaja_error_file" || kaja_ok=false
   local kaja_elapsed=$(( $(now_ms) - kaja_start ))
@@ -184,22 +204,26 @@ for test_dir in "$TESTS_DIR"/*/; do
   if [ -d "$test_dir" ]; then
     test_name="$(basename "$test_dir")"
     # Tests that need recursive scanning due to subdirectories
+    recursive=false
     if [ "$test_name" = "000_big" ] || [ "$test_name" = "205_cross_dir_wiretype_import" ]; then
-      run_test "$test_name" "$test_dir" "true" &
-    else
-      run_test "$test_name" "$test_dir" "false" &
+      recursive=true
     fi
-    PIDS+=($!)
-    TEST_NAMES+=("$test_name")
+    for mode in speed code_size; do
+      run_test "$test_name" "$test_dir" "$recursive" "$mode" &
+      PIDS+=($!)
+      TEST_NAMES+=("$(result_name "$test_name" "$mode")")
+    done
   fi
 done
 
 for project in grpcbin quirks teams users; do
   proto_dir="$WORKSPACE_DIR/$project/proto"
   if [ -d "$proto_dir" ]; then
-    run_test "$project" "$proto_dir" "true" &
-    PIDS+=($!)
-    TEST_NAMES+=("$project")
+    for mode in speed code_size; do
+      run_test "$project" "$proto_dir" "true" "$mode" &
+      PIDS+=($!)
+      TEST_NAMES+=("$(result_name "$project" "$mode")")
+    done
   fi
 done
 
