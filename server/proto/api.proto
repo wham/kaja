@@ -600,6 +600,13 @@ message Configuration {
   // which may sit inside a longer value). Only literal values are ever sent to a
   // remote browser.
   map<string, string> variables = 6;
+  // Keyboard shortcut overrides, keyed by the action's own id ("run",
+  // "finder", ...) and holding one binding written in the canonical form the UI
+  // parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
+  // keeps the shortcut kaja ships, and an empty binding is an action deliberately
+  // left without one. It is configuration rather than a preference of the machine
+  // so a workspace served to a browser can state its own.
+  map<string, string> shortcuts = 7;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.

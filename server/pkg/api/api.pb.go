@@ -3705,7 +3705,14 @@ type Configuration struct {
 	// KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
 	// which may sit inside a longer value). Only literal values are ever sent to a
 	// remote browser.
-	Variables     map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Variables map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Keyboard shortcut overrides, keyed by the action's own id ("run",
+	// "finder", ...) and holding one binding written in the canonical form the UI
+	// parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
+	// keeps the shortcut kaja ships, and an empty binding is an action deliberately
+	// left without one. It is configuration rather than a preference of the machine
+	// so a workspace served to a browser can state its own.
+	Shortcuts     map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3757,6 +3764,13 @@ func (x *Configuration) GetApps() []*ConfigurationApp {
 func (x *Configuration) GetVariables() map[string]string {
 	if x != nil {
 		return x.Variables
+	}
+	return nil
+}
+
+func (x *Configuration) GetShortcuts() map[string]string {
+	if x != nil {
+		return x.Shortcuts
 	}
 	return nil
 }
@@ -4803,13 +4817,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xf0\x01\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xeb\x02\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
-	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x1a<\n" +
+	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
+	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
+	"\x0eShortcutsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"\x92\x02\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
@@ -4989,7 +5007,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
 	(GrpcProblemKind)(0),                // 1: GrpcProblemKind
@@ -5065,11 +5083,12 @@ var file_proto_api_proto_goTypes = []any{
 	(*UpdateConfigurationRequest)(nil),  // 71: UpdateConfigurationRequest
 	(*UpdateConfigurationResponse)(nil), // 72: UpdateConfigurationResponse
 	nil,                                 // 73: Configuration.VariablesEntry
-	nil,                                 // 74: GrpcApp.HeadersEntry
-	nil,                                 // 75: TwirpApp.HeadersEntry
-	nil,                                 // 76: OpenApiApp.HeadersEntry
-	nil,                                 // 77: OpenAiApp.HeadersEntry
-	nil,                                 // 78: McpApp.HeadersEntry
+	nil,                                 // 74: Configuration.ShortcutsEntry
+	nil,                                 // 75: GrpcApp.HeadersEntry
+	nil,                                 // 76: TwirpApp.HeadersEntry
+	nil,                                 // 77: OpenApiApp.HeadersEntry
+	nil,                                 // 78: OpenAiApp.HeadersEntry
+	nil,                                 // 79: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
 	64, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
@@ -5111,67 +5130,68 @@ var file_proto_api_proto_depIdxs = []int32{
 	61, // 36: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
 	64, // 37: Configuration.apps:type_name -> ConfigurationApp
 	73, // 38: Configuration.variables:type_name -> Configuration.VariablesEntry
-	65, // 39: ConfigurationApp.grpc:type_name -> GrpcApp
-	66, // 40: ConfigurationApp.twirp:type_name -> TwirpApp
-	67, // 41: ConfigurationApp.openapi:type_name -> OpenApiApp
-	68, // 42: ConfigurationApp.openai:type_name -> OpenAiApp
-	69, // 43: ConfigurationApp.folder:type_name -> FolderApp
-	70, // 44: ConfigurationApp.mcp:type_name -> McpApp
-	74, // 45: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	75, // 46: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	76, // 47: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	77, // 48: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	78, // 49: McpApp.headers:type_name -> McpApp.HeadersEntry
-	63, // 50: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	63, // 51: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	34, // 52: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
-	7,  // 53: Api.Compile:input_type -> CompileRequest
-	8,  // 54: Api.OpenApp:input_type -> OpenAppRequest
-	15, // 55: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	10, // 56: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	22, // 57: Api.InspectMcp:input_type -> InspectMcpRequest
-	30, // 58: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	31, // 59: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
-	71, // 60: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	35, // 61: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	36, // 62: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	39, // 63: Api.ListScripts:input_type -> ListScriptsRequest
-	41, // 64: Api.ReadScript:input_type -> ReadScriptRequest
-	43, // 65: Api.WriteScript:input_type -> WriteScriptRequest
-	45, // 66: Api.CreateScript:input_type -> CreateScriptRequest
-	47, // 67: Api.RenameScript:input_type -> RenameScriptRequest
-	49, // 68: Api.DeleteScript:input_type -> DeleteScriptRequest
-	51, // 69: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
-	53, // 70: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
-	55, // 71: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
-	57, // 72: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
-	59, // 73: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
-	27, // 74: Api.Compile:output_type -> CompileResponse
-	9,  // 75: Api.OpenApp:output_type -> OpenAppResponse
-	16, // 76: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	11, // 77: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	23, // 78: Api.InspectMcp:output_type -> InspectMcpResponse
-	32, // 79: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	32, // 80: Api.WatchConfiguration:output_type -> GetConfigurationResponse
-	72, // 81: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	37, // 82: Api.SetStoredValue:output_type -> StoredValueResponse
-	37, // 83: Api.ClearStoredValue:output_type -> StoredValueResponse
-	40, // 84: Api.ListScripts:output_type -> ListScriptsResponse
-	42, // 85: Api.ReadScript:output_type -> ReadScriptResponse
-	44, // 86: Api.WriteScript:output_type -> WriteScriptResponse
-	46, // 87: Api.CreateScript:output_type -> CreateScriptResponse
-	48, // 88: Api.RenameScript:output_type -> RenameScriptResponse
-	50, // 89: Api.DeleteScript:output_type -> DeleteScriptResponse
-	52, // 90: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
-	54, // 91: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
-	56, // 92: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
-	58, // 93: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
-	62, // 94: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
-	74, // [74:95] is the sub-list for method output_type
-	53, // [53:74] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	74, // 39: Configuration.shortcuts:type_name -> Configuration.ShortcutsEntry
+	65, // 40: ConfigurationApp.grpc:type_name -> GrpcApp
+	66, // 41: ConfigurationApp.twirp:type_name -> TwirpApp
+	67, // 42: ConfigurationApp.openapi:type_name -> OpenApiApp
+	68, // 43: ConfigurationApp.openai:type_name -> OpenAiApp
+	69, // 44: ConfigurationApp.folder:type_name -> FolderApp
+	70, // 45: ConfigurationApp.mcp:type_name -> McpApp
+	75, // 46: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	76, // 47: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	77, // 48: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	78, // 49: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	79, // 50: McpApp.headers:type_name -> McpApp.HeadersEntry
+	63, // 51: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	63, // 52: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	34, // 53: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	7,  // 54: Api.Compile:input_type -> CompileRequest
+	8,  // 55: Api.OpenApp:input_type -> OpenAppRequest
+	15, // 56: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	10, // 57: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	22, // 58: Api.InspectMcp:input_type -> InspectMcpRequest
+	30, // 59: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	31, // 60: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
+	71, // 61: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	35, // 62: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	36, // 63: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	39, // 64: Api.ListScripts:input_type -> ListScriptsRequest
+	41, // 65: Api.ReadScript:input_type -> ReadScriptRequest
+	43, // 66: Api.WriteScript:input_type -> WriteScriptRequest
+	45, // 67: Api.CreateScript:input_type -> CreateScriptRequest
+	47, // 68: Api.RenameScript:input_type -> RenameScriptRequest
+	49, // 69: Api.DeleteScript:input_type -> DeleteScriptRequest
+	51, // 70: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	53, // 71: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	55, // 72: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	57, // 73: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	59, // 74: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
+	27, // 75: Api.Compile:output_type -> CompileResponse
+	9,  // 76: Api.OpenApp:output_type -> OpenAppResponse
+	16, // 77: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	11, // 78: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	23, // 79: Api.InspectMcp:output_type -> InspectMcpResponse
+	32, // 80: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	32, // 81: Api.WatchConfiguration:output_type -> GetConfigurationResponse
+	72, // 82: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	37, // 83: Api.SetStoredValue:output_type -> StoredValueResponse
+	37, // 84: Api.ClearStoredValue:output_type -> StoredValueResponse
+	40, // 85: Api.ListScripts:output_type -> ListScriptsResponse
+	42, // 86: Api.ReadScript:output_type -> ReadScriptResponse
+	44, // 87: Api.WriteScript:output_type -> WriteScriptResponse
+	46, // 88: Api.CreateScript:output_type -> CreateScriptResponse
+	48, // 89: Api.RenameScript:output_type -> RenameScriptResponse
+	50, // 90: Api.DeleteScript:output_type -> DeleteScriptResponse
+	52, // 91: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	54, // 92: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	56, // 93: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	58, // 94: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	62, // 95: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
+	75, // [75:96] is the sub-list for method output_type
+	54, // [54:75] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -5193,7 +5213,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   72,
+			NumMessages:   73,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

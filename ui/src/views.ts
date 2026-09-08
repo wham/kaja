@@ -1,4 +1,4 @@
-import { Braces, FileCode, House, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, House, Keyboard, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
@@ -74,7 +74,12 @@ export interface McpView extends ViewBase {
   type: "mcp";
 }
 
-export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | StartView;
+// The keys the window states. It saves as you go like the variables do.
+export interface ShortcutsView extends ViewBase {
+  type: "shortcuts";
+}
+
+export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
 
 let sequence = 0;
 
@@ -181,6 +186,12 @@ export function showMcp(views: View[]): View[] {
   return show(views, { ...nextView("mcp"), type: "mcp" });
 }
 
+export function showShortcuts(views: View[]): View[] {
+  const existing = views.find((view) => view.type === "shortcuts");
+  if (existing) return visit(views, existing.id);
+  return show(views, { ...nextView("shortcuts"), type: "shortcuts" });
+}
+
 export function showCompiler(views: View[]): View[] {
   const existing = views.find((view) => view.type === "compiler");
   if (existing) return visit(views, existing.id);
@@ -239,6 +250,8 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
     case "mcp":
       return { name: "MCP server", path: "Workspace", origin: "", icon: Plug };
+    case "shortcuts":
+      return { name: "Keyboard shortcuts", path: "Workspace", origin: "", icon: Keyboard };
     case "compiler":
       return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
     // No qualifier: it is one view of its own, and the finder row saying so twice is

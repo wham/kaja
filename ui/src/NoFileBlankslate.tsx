@@ -1,6 +1,7 @@
 import { FileCode, type LucideIcon } from "lucide-react";
 import { formatDayLabel } from "./callTime";
 import { cn } from "./cn";
+import { useShortcutLabel } from "./shortcuts";
 
 export interface RecentFile {
   key: string;
@@ -33,7 +34,8 @@ interface NoFileBlankslateProps {
  * nothing yet.
  */
 export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBlankslateProps) {
-  const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
+  const finderKey = useShortcutLabel("finder");
+  const newDraftKey = useShortcutLabel("newDraft");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
@@ -60,11 +62,11 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
       )}
       <div className="flex items-center gap-3">
         <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{modifier}P</span> find a call
+          <span className="font-mono">{finderKey}</span> find a call
         </button>
         <div className="h-3 w-px bg-border" />
         <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{modifier}N</span> blank script
+          <span className="font-mono">{newDraftKey}</span> blank script
         </button>
       </div>
     </div>

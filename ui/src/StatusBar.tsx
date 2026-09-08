@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { CircleDot, GitBranch, Moon, Sun } from "lucide-react";
+import { CircleDot, GitBranch, Keyboard, Moon, Sun } from "lucide-react";
 import { IconButton } from "./components/icon-button";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
@@ -27,6 +27,7 @@ interface StatusBarProps {
   configurationLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
   onRecompile: (appName?: string) => void;
+  onShowShortcuts: () => void;
 }
 
 const FEEDBACK_URL = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
@@ -53,6 +54,7 @@ export function StatusBar({
   configurationLoaded,
   onShowCompileLog,
   onRecompile,
+  onShowShortcuts,
 }: StatusBarProps) {
   const appErrors = useAppErrors();
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
@@ -126,6 +128,18 @@ export function StatusBar({
             {zoom}%
           </button>
         )}
+        {/* Beside the flask, because both are settings about this window rather than
+            reports on it — and unlike the flask it opens a view, since a key is a
+            document of twelve rows and a popover is not where one is read. */}
+        <IconButton
+          size="xs"
+          variant="ghost"
+          tooltip="native"
+          icon={Keyboard}
+          aria-label="Keyboard shortcuts"
+          onClick={onShowShortcuts}
+          className={statusBarIconClass}
+        />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
         <IconButton
           size="xs"

@@ -5,7 +5,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, Code, FileCode, Folder, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
+import { Braces, Code, FileCode, Folder, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -81,12 +81,15 @@ import {
   showDraft,
   showMcp,
   showScript,
+  showShortcuts,
   showVariables,
   View,
   viewIdentity,
   visit,
 } from "./views";
 import { Variables, VariablesSave } from "./Variables";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
 import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
@@ -233,6 +236,10 @@ function writeSourceModel(path: string, content: string): boolean {
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
+  // The two keys the command row names. Read as labels here so rebinding one
+  // redraws the row that states it.
+  const saveAsFileLabel = useShortcutLabel("saveAsFile");
+  const editAsJsonLabel = useShortcutLabel("editAsJson");
   const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
   // Whether the workspace on the other end of the Api service may be written, which
   // is what the verbs that write a file are offered on.
@@ -840,6 +847,12 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewApps]);
 
+  // The keys the window answers to. They ride the configuration rather than this
+  // machine's storage, so a reload of the file is what rebinds them.
+  useEffect(() => {
+    setShortcutOverrides(configuration?.shortcuts);
+  }, [configuration?.shortcuts]);
+
   useEffect(() => {
     const variables = configuration?.variables ?? {};
     setVariables(variables);
@@ -936,27 +949,27 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+      if (matchesShortcut(e, "toggleSidebar")) {
         e.preventDefault();
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+      if (matchesShortcut(e, "finder")) {
         e.preventDefault();
         setFinder("previous");
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "n") {
+      if (matchesShortcut(e, "newDraft")) {
         e.preventDefault();
         onNewDraftRef.current();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      if (matchesShortcut(e, "saveAsFile")) {
         e.preventDefault();
         onRequestSaveRef.current();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+      if (matchesShortcut(e, "editAsJson")) {
         e.preventDefault();
         toggleJsonViewRef.current();
         return;
@@ -1739,7 +1752,8 @@ export function App() {
   );
 
   const currentView = views[0];
-  const jsonView = currentView?.type === "appForm" ? { showing: currentView.editMode === "json", back: "Edit as a form (⌘J)" } : undefined;
+  const jsonKey = editAsJsonLabel === "" ? "" : ` (${editAsJsonLabel})`;
+  const jsonView = currentView?.type === "appForm" ? { showing: currentView.editMode === "json", back: `Edit as a form${jsonKey}` } : undefined;
 
   const toggleJsonView = useCallback((): void => {
     const view = viewsRef.current[0];
@@ -1905,17 +1919,17 @@ export function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       // A sheet on top of the editor answers ⏎ itself.
       if (event.defaultPrevented) return;
-      if (event.key === "F5" || ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === "Enter")) {
+      if (matchesShortcut(event, "run")) {
         event.preventDefault();
         onRunCurrentTab();
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "Enter") {
+      if (matchesShortcut(event, "runWithParameters")) {
         event.preventDefault();
         onRunWithParametersRef.current();
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && (event.key === "c" || event.key === "C")) {
+      if (matchesShortcut(event, "copyDeeplink")) {
         const copy = onCopyCurrentLinkRef.current;
         // Otherwise this is the browser's own Copy and stays it.
         if (!copy) return;
@@ -2021,6 +2035,10 @@ export function App() {
     applyViews(showMcp);
   }, [applyViews]);
 
+  const onShortcutsClick = useCallback(() => {
+    applyViews(showShortcuts);
+  }, [applyViews]);
+
   const queueVariableWrite = useCallback(<T,>(write: () => PromiseLike<T>): Promise<T> => {
     const result = variableWriteChainRef.current.then(write);
     variableWriteChainRef.current = result.then(
@@ -2046,6 +2064,16 @@ export function App() {
     });
     setVariableStatus(status);
 
+    if (response.configuration) {
+      applyConfiguration(response.configuration);
+    }
+  };
+
+  const onShortcutsSave = async (shortcuts: { [key: string]: string }) => {
+    if (!configuration) {
+      return;
+    }
+    const { response } = await getApiClient().updateConfiguration({ configuration: { ...configuration, shortcuts } });
     if (response.configuration) {
       applyConfiguration(response.configuration);
     }
@@ -2132,6 +2160,9 @@ export function App() {
     if (mcpControl && !views.some((view) => view.type === "mcp")) {
       destinations.push({ key: "mcp", name: "MCP server", path: "Workspace", origin: "", icon: Plug, go: onMcpClick });
     }
+    if (!views.some((view) => view.type === "shortcuts")) {
+      destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Workspace", origin: "", icon: Keyboard, go: onShortcutsClick });
+    }
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
@@ -2161,7 +2192,20 @@ export function App() {
     }
 
     return destinations;
-  }, [apps, drafts, scripts, views, mcpControl, onDraftSelect, onScriptSelect, onMethodSelect, onVariablesClick, onMcpClick, onShowCompileLog]);
+  }, [
+    apps,
+    drafts,
+    scripts,
+    views,
+    mcpControl,
+    onDraftSelect,
+    onScriptSelect,
+    onMethodSelect,
+    onVariablesClick,
+    onMcpClick,
+    onShortcutsClick,
+    onShowCompileLog,
+  ]);
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
@@ -2192,7 +2236,7 @@ export function App() {
         >
           <SaveIcon size={12} />
           Save as file
-          <span className="font-mono text-muted-foreground">{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"}</span>
+          {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
         </button>
         <IconButton
           icon={X}
@@ -2230,7 +2274,7 @@ export function App() {
     (jsonView ? (
       <IconButton
         icon={Code}
-        aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
+        aria-label={jsonView.showing ? jsonView.back : `Edit as JSON${jsonKey}`}
         variant="ghost"
         size="sm"
         className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
@@ -2423,6 +2467,14 @@ export function App() {
                       />
                     )}
                     {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
+                    {view.type === "shortcuts" && (
+                      <KeyboardShortcuts
+                        shortcuts={configuration?.shortcuts ?? {}}
+                        canWriteFiles={canWriteFiles}
+                        readOnly={!runtime.canUpdateConfiguration}
+                        onSave={onShortcutsSave}
+                      />
+                    )}
                     {view.type === "variables" && (
                       <Variables
                         variables={configuration?.variables ?? {}}
@@ -2487,6 +2539,7 @@ export function App() {
           configurationLoaded={configurationLoaded}
           onShowCompileLog={onShowCompileLog}
           onRecompile={onRecompile}
+          onShowShortcuts={onShortcutsClick}
         />
       </div>
       {/* Naming a draft is what moves it into Files, so the sheet asks for the

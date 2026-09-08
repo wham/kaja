@@ -1082,6 +1082,19 @@ export interface Configuration {
     variables: {
         [key: string]: string;
     };
+    /**
+     * Keyboard shortcut overrides, keyed by the action's own id ("run",
+     * "finder", ...) and holding one binding written in the canonical form the UI
+     * parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
+     * keeps the shortcut kaja ships, and an empty binding is an action deliberately
+     * left without one. It is configuration rather than a preference of the machine
+     * so a workspace served to a browser can state its own.
+     *
+     * @generated from protobuf field: map<string, string> shortcuts = 7
+     */
+    shortcuts: {
+        [key: string]: string;
+    };
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -2450,7 +2463,8 @@ class Configuration$Type extends MessageType<Configuration> {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
-            { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
 }

@@ -11,6 +11,7 @@ import { buildScriptTree, FolderNode, folderNameError, resolveScriptRename, scri
 import { FileName } from "./FileName";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
+import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 
 /**
  * Scripts: one section, two labelled groups, and four rules holding them together.
@@ -108,6 +109,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [showAllDrafts, setShowAllDrafts] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
   const touch = useMediaQuery("(hover: none)");
+  const newFolderKey = useShortcutLabel("newFolder");
 
   const ordered = useMemo(() => orderDrafts(drafts), [drafts]);
   // One row per agent that has run something here, pinned above your own and outside
@@ -201,11 +203,12 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     setFolderEdit({ parent, name: "" });
   };
 
-  // ⇧⌘N makes one at the root, which is the same item the Files menu carries.
+  // The new-folder key makes one at the root, which is the same item the Files menu
+  // carries.
   useEffect(() => {
     if (!props.onCreateFolder) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "n" && event.shiftKey && (event.metaKey || event.ctrlKey)) {
+      if (matchesShortcut(event, "newFolder")) {
         event.preventDefault();
         startFolder("");
       }
@@ -448,7 +451,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           <DropdownMenuItem onSelect={() => startFolder("")}>
             <FolderPlus size={16} />
             New folder…
-            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">⇧⌘N</span>
+            {newFolderKey !== "" && <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">{newFolderKey}</span>}
           </DropdownMenuItem>
         )}
         {props.onRevealScripts && (
