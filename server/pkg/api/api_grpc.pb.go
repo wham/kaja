@@ -27,6 +27,7 @@ const (
 	Api_GetConfiguration_FullMethodName    = "/Api/GetConfiguration"
 	Api_WatchConfiguration_FullMethodName  = "/Api/WatchConfiguration"
 	Api_UpdateConfiguration_FullMethodName = "/Api/UpdateConfiguration"
+	Api_SetMcpEnabled_FullMethodName       = "/Api/SetMcpEnabled"
 	Api_SetStoredValue_FullMethodName      = "/Api/SetStoredValue"
 	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
 	Api_ListScripts_FullMethodName         = "/Api/ListScripts"
@@ -60,6 +61,10 @@ type ApiClient interface {
 	// never asked for afterwards, because the message is the new configuration.
 	WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error)
 	UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error)
+	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+	// an occasion to resend the apps and variables beside it, so the file is read again
+	// where it is written rather than travelling here and back.
+	SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error)
 	SetStoredValue(ctx context.Context, in *SetStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
@@ -175,6 +180,16 @@ func (c *apiClient) UpdateConfiguration(ctx context.Context, in *UpdateConfigura
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateConfigurationResponse)
 	err := c.cc.Invoke(ctx, Api_UpdateConfiguration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMcpEnabledResponse)
+	err := c.cc.Invoke(ctx, Api_SetMcpEnabled_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -329,6 +344,10 @@ type ApiServer interface {
 	// never asked for afterwards, because the message is the new configuration.
 	WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error
 	UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error)
+	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+	// an occasion to resend the apps and variables beside it, so the file is read again
+	// where it is written rather than travelling here and back.
+	SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error)
 	SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error)
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
@@ -374,6 +393,9 @@ func (UnimplementedApiServer) WatchConfiguration(*WatchConfigurationRequest, grp
 }
 func (UnimplementedApiServer) UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateConfiguration not implemented")
+}
+func (UnimplementedApiServer) SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMcpEnabled not implemented")
 }
 func (UnimplementedApiServer) SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetStoredValue not implemented")
@@ -560,6 +582,24 @@ func _Api_UpdateConfiguration_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).UpdateConfiguration(ctx, req.(*UpdateConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_SetMcpEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMcpEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).SetMcpEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_SetMcpEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).SetMcpEnabled(ctx, req.(*SetMcpEnabledRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -828,6 +868,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateConfiguration",
 			Handler:    _Api_UpdateConfiguration_Handler,
+		},
+		{
+			MethodName: "SetMcpEnabled",
+			Handler:    _Api_SetMcpEnabled_Handler,
 		},
 		{
 			MethodName: "SetStoredValue",

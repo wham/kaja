@@ -295,15 +295,29 @@ export function App() {
   // The endpoint and the token are this browser's address and are reported whether or
   // not the switch is on, so the MCP page names them — and every snippet stays
   // copyable — with the server off. Only `enabled` is the switch.
+  // `mcp.enabled` is the switch on both builds. On the desktop the process read it at
+  // startup and reports what it did; here it is read straight off the configuration, so
+  // every window agrees and a read-only workspace cannot be argued with.
+  const mcpEnabled = configuration?.mcp?.enabled === true;
   const mcpConnection = useMemo(() => {
     if (isWailsEnvironment()) return mcpInfo;
     if (!agentState.url || !agentState.token) return undefined;
-    return { enabled: agentState.connected, url: agentState.url, token: agentState.token, error: "" };
-  }, [mcpInfo, agentState.connected, agentState.url, agentState.token]);
+    return { enabled: mcpEnabled, url: agentState.url, token: agentState.token, error: "" };
+  }, [mcpInfo, mcpEnabled, agentState.url, agentState.token]);
+
+  // One door from the switch to the session, so the window that flipped it and the
+  // windows told by WatchConfiguration act on it the same way.
+  useEffect(() => {
+    agentSession.setSwitch(mcpEnabled);
+  }, [mcpEnabled]);
   const setMCPEnabled = useCallback((enabled: boolean) => {
     if (!isWailsEnvironment()) {
-      if (enabled) agentSession.connect();
-      else agentSession.disconnect();
+      // The write is the whole of it: the effect above acts on what comes back, exactly
+      // as it acts on what the configuration stream brings the other windows.
+      void getApiClient()
+        .setMcpEnabled({ enabled })
+        .then(({ response }) => setConfiguration((current) => (current ? { ...current, mcp: response.mcp } : current)))
+        .catch((err) => console.error(`Failed to turn the MCP server ${enabled ? "on" : "off"}: ${rpcErrorMessage(err)}`));
       return;
     }
     const request = ++mcpRequestRef.current;
@@ -361,14 +375,14 @@ export function App() {
         : !agentState.available
           ? undefined
           : {
-              enabled: agentState.connected,
+              enabled: mcpEnabled,
               attached: agentState.attached,
               onDuty: agentState.onDuty,
               error: agentState.error,
               setEnabled: setMCPEnabled,
               regenerateToken: regenerateMCPToken,
             },
-    [mcpInfo, agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled, regenerateMCPToken],
+    [mcpInfo, mcpEnabled, agentState.available, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled, regenerateMCPToken],
   );
   // The plug in the sidebar's band and the page's headline are one derivation, so the
   // two can never say different things about the same server.
@@ -2475,7 +2489,9 @@ export function App() {
                         recent={recentFiles}
                       />
                     )}
-                    {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
+                    {view.type === "mcp" && mcpControl && (
+                      <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} readOnly={!runtime.canUpdateConfiguration} />
+                    )}
                     {view.type === "shortcuts" && (
                       <KeyboardShortcuts
                         shortcuts={configuration?.shortcuts ?? {}}

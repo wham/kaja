@@ -1096,6 +1096,17 @@ export interface Configuration {
         [key: string]: string;
     };
     /**
+     * Whether this workspace offers an agent session at all. On the desktop it is the
+     * switch itself: the process reads it at startup to decide whether to open the
+     * loopback listener, and writes it back when the switch is flipped. In a browser the
+     * switch belongs to the browser, because the token does - so this is only where a
+     * browser that has never chosen starts, which is what lets a deployed workspace ship
+     * an agent session that is already on.
+     *
+     * @generated from protobuf field: McpSettings mcp = 8
+     */
+    mcp?: McpSettings;
+    /**
      * Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
      * file, which is what a workspace says by saying nothing. A relative path is
      * resolved against this file's own folder, so a checkout can carry one; an
@@ -1103,9 +1114,23 @@ export interface Configuration {
      * desktop's picker writes when the scripts are to live somewhere that syncs.
      * A folder that isn't there is not created: the default is used for that launch.
      *
-     * @generated from protobuf field: string scripts_folder = 8
+     * @generated from protobuf field: string scripts_folder = 9
      */
     scriptsFolder: string;
+}
+/**
+ * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+ * the endpoint and the token are addresses rather than configuration, so neither is
+ * written here - the desktop persists its token beside this file and a browser keeps
+ * its own.
+ *
+ * @generated from protobuf message McpSettings
+ */
+export interface McpSettings {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -1464,6 +1489,28 @@ export interface UpdateConfigurationResponse {
      * @generated from protobuf field: repeated VariableStatus variable_status = 2
      */
     variableStatus: VariableStatus[];
+}
+/**
+ * @generated from protobuf message SetMcpEnabledRequest
+ */
+export interface SetMcpEnabledRequest {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
+}
+/**
+ * @generated from protobuf message SetMcpEnabledResponse
+ */
+export interface SetMcpEnabledResponse {
+    /**
+     * What the file says now, which is what every window is about to be told by
+     * WatchConfiguration anyway - answered here so the window that asked need not wait
+     * for its own change to come back round.
+     *
+     * @generated from protobuf field: McpSettings mcp = 1
+     */
+    mcp?: McpSettings;
 }
 /**
  * @generated from protobuf enum OpenStatus
@@ -2476,7 +2523,8 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 8, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 8, name: "mcp", kind: "message", T: () => McpSettings },
+            { no: 9, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2484,6 +2532,18 @@ class Configuration$Type extends MessageType<Configuration> {
  * @generated MessageType for protobuf message Configuration
  */
 export const Configuration = new Configuration$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpSettings$Type extends MessageType<McpSettings> {
+    constructor() {
+        super("McpSettings", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpSettings
+ */
+export const McpSettings = new McpSettings$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     constructor() {
@@ -2632,6 +2692,30 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
  * @generated MessageType for protobuf message UpdateConfigurationResponse
  */
 export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledRequest$Type extends MessageType<SetMcpEnabledRequest> {
+    constructor() {
+        super("SetMcpEnabledRequest", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledRequest
+ */
+export const SetMcpEnabledRequest = new SetMcpEnabledRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledResponse$Type extends MessageType<SetMcpEnabledResponse> {
+    constructor() {
+        super("SetMcpEnabledResponse", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpSettings }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledResponse
+ */
+export const SetMcpEnabledResponse = new SetMcpEnabledResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
@@ -2644,6 +2728,7 @@ export const Api = new ServiceType("Api", [
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "SetMcpEnabled", options: {}, I: SetMcpEnabledRequest, O: SetMcpEnabledResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },

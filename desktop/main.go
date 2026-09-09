@@ -163,6 +163,13 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	a.mcpToken = a.loadOrCreateMCPToken()
 	a.mcpMu.Unlock()
 
+	// The switch itself is kaja.json's, so a workspace that had the server on comes back
+	// up with it on. Started here rather than left for the window to ask for: the window
+	// attaches to whatever is already running when it reads MCPServerInfo.
+	if a.api.McpEnabled() {
+		a.startMCPServer()
+	}
+
 	// Read here rather than in main because the bookmarks are restored before this hook
 	// runs, and a folder outside the container is reachable only once they are. On its
 	// own goroutine because showing a dialog waits on the main thread, which is the one

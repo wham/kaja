@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/evanw/esbuild v0.28.1
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
-	github.com/wham/protoc-go v0.3.1
+	github.com/wham/protoc-go v0.5.0
 	google.golang.org/grpc v1.83.1
 	google.golang.org/protobuf v1.36.12
 	sigs.k8s.io/yaml v1.6.0
