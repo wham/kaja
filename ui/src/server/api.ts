@@ -1095,6 +1095,31 @@ export interface Configuration {
     shortcuts: {
         [key: string]: string;
     };
+    /**
+     * Whether this workspace offers an agent session at all. On the desktop it is the
+     * switch itself: the process reads it at startup to decide whether to open the
+     * loopback listener, and writes it back when the switch is flipped. In a browser the
+     * switch belongs to the browser, because the token does - so this is only where a
+     * browser that has never chosen starts, which is what lets a deployed workspace ship
+     * an agent session that is already on.
+     *
+     * @generated from protobuf field: McpSettings mcp = 8
+     */
+    mcp?: McpSettings;
+}
+/**
+ * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+ * the endpoint and the token are addresses rather than configuration, so neither is
+ * written here - the desktop persists its token beside this file and a browser keeps
+ * its own.
+ *
+ * @generated from protobuf message McpSettings
+ */
+export interface McpSettings {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -2464,7 +2489,8 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 8, name: "mcp", kind: "message", T: () => McpSettings }
         ]);
     }
 }
@@ -2472,6 +2498,18 @@ class Configuration$Type extends MessageType<Configuration> {
  * @generated MessageType for protobuf message Configuration
  */
 export const Configuration = new Configuration$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpSettings$Type extends MessageType<McpSettings> {
+    constructor() {
+        super("McpSettings", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpSettings
+ */
+export const McpSettings = new McpSettings$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     constructor() {

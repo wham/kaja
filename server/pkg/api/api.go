@@ -635,6 +635,38 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}, nil
 }
 
+// McpEnabled reports whether this workspace asks for an agent session. It is read from
+// the file rather than held in memory because the file is where the switch lives: the
+// desktop reads it at startup, before there is a window to ask.
+func (s *ApiService) McpEnabled() bool {
+	return loadConfigurationFile(s.configurationPath, NewLogger()).GetMcp().GetEnabled()
+}
+
+// SetMcpEnabled writes the switch into kaja.json and leaves the rest of the file as it
+// stands. The file is read again here rather than taken from a caller: flipping the
+// switch is not an occasion to resend the apps and variables beside it. Off is written
+// as the key's absence, so a workspace that never turned it on carries nothing about it
+// - the rule the shortcut overrides are written under.
+func (s *ApiService) SetMcpEnabled(enabled bool) error {
+	if !s.canUpdateConfiguration {
+		return fmt.Errorf("updating configuration is not allowed")
+	}
+
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	if configuration.GetMcp().GetEnabled() == enabled {
+		return nil
+	}
+	if enabled {
+		configuration.Mcp = &McpSettings{Enabled: true}
+	} else {
+		configuration.Mcp = nil
+	}
+
+	slog.Info("Updating MCP server setting", "enabled", enabled)
+
+	return SaveConfiguration(s.configurationPath, configuration)
+}
+
 // SetStoredValue writes a variable's value to this machine's store, so kaja.json
 // only has to name it. The value never travels back out.
 func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequest) (*StoredValueResponse, error) {

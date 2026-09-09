@@ -607,6 +607,13 @@ message Configuration {
   // left without one. It is configuration rather than a preference of the machine
   // so a workspace served to a browser can state its own.
   map<string, string> shortcuts = 7;
+  // Whether this workspace offers an agent session at all. On the desktop it is the
+  // switch itself: the process reads it at startup to decide whether to open the
+  // loopback listener, and writes it back when the switch is flipped. In a browser the
+  // switch belongs to the browser, because the token does - so this is only where a
+  // browser that has never chosen starts, which is what lets a deployed workspace ship
+  // an agent session that is already on.
+  McpSettings mcp = 8;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.
@@ -616,6 +623,14 @@ message Configuration {
   // facts about the process, not configuration, and they live on `Runtime` now.
   reserved 4;
   reserved "system";
+}
+
+// McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+// the endpoint and the token are addresses rather than configuration, so neither is
+// written here - the desktop persists its token beside this file and a browser keeps
+// its own.
+message McpSettings {
+  bool enabled = 1;
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the

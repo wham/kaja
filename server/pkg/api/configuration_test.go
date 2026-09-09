@@ -596,3 +596,57 @@ func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
 		}
 	}
 }
+
+func TestSetMcpEnabled_RoundTrips(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kaja.json")
+	if err := os.WriteFile(path, []byte(`{"apps":[{"name":"a","grpc":{"url":"grpc://example.com:9000"}}]}`), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(path, true, "", "", nil)
+
+	if service.McpEnabled() {
+		t.Fatal("expected a configuration with no mcp block to read as off")
+	}
+
+	if err := service.SetMcpEnabled(true); err != nil {
+		t.Fatalf("SetMcpEnabled(true) failed: %v", err)
+	}
+	if !service.McpEnabled() {
+		t.Error("expected the switch to read back on")
+	}
+
+	// The apps beside it are not the switch's to touch.
+	configuration := loadConfigurationFile(path, NewLogger())
+	if len(configuration.Apps) != 1 || configuration.Apps[0].Name != "a" {
+		t.Errorf("expected the app list to survive the write, got %v", configuration.Apps)
+	}
+
+	// Off is the key's absence, so a workspace that turned it off carries nothing about it.
+	if err := service.SetMcpEnabled(false); err != nil {
+		t.Fatalf("SetMcpEnabled(false) failed: %v", err)
+	}
+	if service.McpEnabled() {
+		t.Error("expected the switch to read back off")
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read config file: %v", err)
+	}
+	if strings.Contains(string(written), "mcp") {
+		t.Errorf("expected no mcp key once turned off, got %s", written)
+	}
+}
+
+func TestSetMcpEnabled_DeniedWhenNotAllowed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kaja.json")
+	if err := os.WriteFile(path, []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(path, false, "", "", nil)
+
+	if err := service.SetMcpEnabled(true); err == nil {
+		t.Error("expected a read-only workspace to refuse the write")
+	}
+}

@@ -49,14 +49,28 @@ func (a *App) MCPServerInfo() MCPInfo {
 	return a.mcpInfoLocked()
 }
 
-// SetMCPServerEnabled starts or stops the loopback server and returns its new state.
+// SetMCPServerEnabled starts or stops the loopback server, writes the switch into
+// kaja.json so the next launch comes up the same way, and returns its new state.
 func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
 	if enabled {
 		a.startMCPServer()
 	} else {
 		a.stopMCPServer()
 	}
-	return a.MCPServerInfo()
+
+	a.mcpMu.Lock()
+	defer a.mcpMu.Unlock()
+	// What is written is what the switch actually did, not what was asked of it: a
+	// listener that refused to start is an error to report now rather than a state to
+	// come back up in and fail again.
+	if err := a.api.SetMcpEnabled(a.mcpServer != nil); err != nil {
+		slog.Error("Failed to persist the MCP server setting", "error", err)
+		// Never over the reason the server itself failed, which is the more useful of the two.
+		if a.mcpError == "" {
+			a.mcpError = fmt.Sprintf("The switch could not be written to kaja.json: %s", err)
+		}
+	}
+	return a.mcpInfoLocked()
 }
 
 // RegenerateMCPToken mints a new bearer token and moves a running session onto it.

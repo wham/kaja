@@ -153,6 +153,9 @@ class AgentSession {
   private wake?: () => void;
   private activityTimer?: number;
   private started = false;
+  // Whether this browser reached start() with nothing stored, which is the only case
+  // the workspace's own default has anything to say about.
+  private unchosen = false;
   private reconnect = RECONNECT_MS;
   // The runs this window is carrying for an agent, so one the agent gave up on can be
   // ended rather than left going with nothing waiting for it.
@@ -190,6 +193,7 @@ class AgentSession {
     // switch does.
     let stored = readStored();
     if (!stored) {
+      this.unchosen = true;
       stored = { token: newToken(), connected: false };
       writeStored(stored);
     }
@@ -207,6 +211,19 @@ class AgentSession {
     this.hostToken = token;
     this.update({ available: true });
     this.attach();
+  }
+
+  /**
+   * Where a browser that has never chosen starts, which is the whole of what kaja.json
+   * has to say about the switch here: the switch belongs to the browser because the
+   * token does, so one that has been here before keeps what it chose. It is what lets a
+   * deployed workspace ship an agent session that is already on. The desktop is not this
+   * case at all - there the file is the switch, and the process read it at startup.
+   */
+  applyWorkspaceDefault(enabled: boolean): void {
+    if (isWailsEnvironment() || !this.unchosen) return;
+    this.unchosen = false;
+    if (enabled) this.connect();
   }
 
   /** Turns the web server on, on this browser's own address, with a stream in every window. */

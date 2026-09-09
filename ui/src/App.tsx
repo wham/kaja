@@ -1048,6 +1048,9 @@ export function App() {
   const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
     if (response.configuration) {
       setConfiguration(response.configuration);
+      // Only ever consulted by a browser that has never chosen for itself; the desktop's
+      // own switch is this same setting, read by the process before there was a window.
+      agentSession.applyWorkspaceDefault(response.configuration.mcp?.enabled === true);
     }
     setVariableStatus(response.variableStatus);
     if (response.runtime) {
