@@ -1659,12 +1659,12 @@ export function App() {
   );
 
   const onRevealScripts = useCallback(() => {
-    const folder = runtime.scriptsFolder;
+    const folder = runtime.scriptsDir;
     if (!folder) return;
     desktop()
       .then((app) => app.ShowFileInFinder(folder))
       .catch(() => {});
-  }, [runtime.scriptsFolder]);
+  }, [runtime.scriptsDir]);
 
   // Choosing where the scripts are kept is the desktop's own: it needs the native
   // picker, which is also what grants a sandboxed kaja access to a folder outside its

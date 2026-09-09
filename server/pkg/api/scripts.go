@@ -73,25 +73,25 @@ func scriptsRoot(configurationPath string, configured string) (dir string, unrea
 // scriptsDir is the folder this kaja keeps its scripts in.
 func (s *ApiService) scriptsDir() string {
 	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsFolder)
+	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
 	return dir
 }
 
-// UnreachableScriptsFolder is the folder the configuration asks for that this kaja
+// UnreachableScriptsDir is the folder the configuration asks for that this kaja
 // could not use, empty where there is nothing to say. The desktop reports it once the
 // window is up, because an empty Files list otherwise gives no account of itself.
-func (s *ApiService) UnreachableScriptsFolder() string {
+func (s *ApiService) UnreachableScriptsDir() string {
 	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsFolder)
+	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
 	return unreachable
 }
 
-// SetScriptsFolder writes the folder into kaja.json, an empty one clearing it back to
+// SetScriptsDir writes the folder into kaja.json, an empty one clearing it back to
 // the folder beside it. Whoever calls it owns the clients still reading the old folder,
 // which name every script by its absolute path: the desktop reloads its window.
-func (s *ApiService) SetScriptsFolder(dir string) error {
+func (s *ApiService) SetScriptsDir(dir string) error {
 	configuration := LoadGetConfigurationResponse(s.configurationPath).Configuration
-	configuration.ScriptsFolder = dir
+	configuration.ScriptsDir = dir
 	return SaveConfiguration(s.configurationPath, configuration)
 }
 

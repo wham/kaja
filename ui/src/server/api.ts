@@ -673,9 +673,9 @@ export interface Runtime {
      * The scripts folder on the machine serving the workspace, for the one thing
      * the UI needs the folder itself for: revealing it in the system file browser.
      *
-     * @generated from protobuf field: string scripts_folder = 5
+     * @generated from protobuf field: string scripts_dir = 5
      */
-    scriptsFolder: string;
+    scriptsDir: string;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -1114,9 +1114,9 @@ export interface Configuration {
      * desktop's picker writes when the scripts are to live somewhere that syncs.
      * A folder that isn't there is not created: the default is used for that launch.
      *
-     * @generated from protobuf field: string scripts_folder = 9
+     * @generated from protobuf field: string scripts_dir = 9
      */
-    scriptsFolder: string;
+    scriptsDir: string;
 }
 /**
  * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
@@ -2154,7 +2154,7 @@ class Runtime$Type extends MessageType<Runtime> {
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2524,7 +2524,7 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 8, name: "mcp", kind: "message", T: () => McpSettings },
-            { no: 9, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 9, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }

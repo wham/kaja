@@ -174,7 +174,7 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// runs, and a folder outside the container is reachable only once they are. On its
 	// own goroutine because showing a dialog waits on the main thread, which is the one
 	// running this hook.
-	if unreachable := a.api.UnreachableScriptsFolder(); unreachable != "" {
+	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
 		go a.reportUnreachableScripts(unreachable)
 	}
 
@@ -379,7 +379,7 @@ func (a *App) openScriptsFolder(dir string) {
 		}
 	}
 
-	if err := a.api.SetScriptsFolder(dir); err != nil {
+	if err := a.api.SetScriptsDir(dir); err != nil {
 		slog.Error("Failed to record the chosen scripts folder", "path", dir, "error", err)
 		a.app.Dialog.Warning().
 			SetTitle("Kaja can't save that choice").

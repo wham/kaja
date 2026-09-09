@@ -397,7 +397,7 @@ message Runtime {
   bool variable_store_available = 4;
   // The scripts folder on the machine serving the workspace, for the one thing
   // the UI needs the folder itself for: revealing it in the system file browser.
-  string scripts_folder = 5;
+  string scripts_dir = 5;
 }
 
 // VariableStatus reports where a variable's value came from. A variable whose
@@ -624,7 +624,7 @@ message Configuration {
   // absolute path is a folder somewhere else on the machine, which is what the
   // desktop's picker writes when the scripts are to live somewhere that syncs.
   // A folder that isn't there is not created: the default is used for that launch.
-  string scripts_folder = 9;
+  string scripts_dir = 9;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.

@@ -11,7 +11,7 @@ import (
 // its own. Only the folder moves: kaja.json stays in the container, so the apps a
 // script imports are there on every launch and nothing has to be set up twice.
 //
-// The folder is named in kaja.json (`scripts_folder`) and resolved there; what stays in
+// The folder is named in kaja.json (`scripts_dir`) and resolved there; what stays in
 // the container is the sandbox bookmark, because a path is a string and access is not.
 // The picker is what mints one, which is why the whole verb is the desktop's.
 

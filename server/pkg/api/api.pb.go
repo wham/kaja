@@ -2215,7 +2215,7 @@ type Runtime struct {
 	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
 	// The scripts folder on the machine serving the workspace, for the one thing
 	// the UI needs the folder itself for: revealing it in the system file browser.
-	ScriptsFolder string `protobuf:"bytes,5,opt,name=scripts_folder,json=scriptsFolder,proto3" json:"scripts_folder,omitempty"`
+	ScriptsDir    string `protobuf:"bytes,5,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2278,9 +2278,9 @@ func (x *Runtime) GetVariableStoreAvailable() bool {
 	return false
 }
 
-func (x *Runtime) GetScriptsFolder() string {
+func (x *Runtime) GetScriptsDir() string {
 	if x != nil {
-		return x.ScriptsFolder
+		return x.ScriptsDir
 	}
 	return ""
 }
@@ -3726,7 +3726,7 @@ type Configuration struct {
 	// absolute path is a folder somewhere else on the machine, which is what the
 	// desktop's picker writes when the scripts are to live somewhere that syncs.
 	// A folder that isn't there is not created: the default is used for that launch.
-	ScriptsFolder string `protobuf:"bytes,9,opt,name=scripts_folder,json=scriptsFolder,proto3" json:"scripts_folder,omitempty"`
+	ScriptsDir    string `protobuf:"bytes,9,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3796,9 +3796,9 @@ func (x *Configuration) GetMcp() *McpSettings {
 	return nil
 }
 
-func (x *Configuration) GetScriptsFolder() string {
+func (x *Configuration) GetScriptsDir() string {
 	if x != nil {
-		return x.ScriptsFolder
+		return x.ScriptsDir
 	}
 	return ""
 }
@@ -4911,13 +4911,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
 	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
-	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xe0\x01\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xda\x01\n" +
 	"\aRuntime\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
 	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
-	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12%\n" +
-	"\x0escripts_folder\x18\x05 \x01(\tR\rscriptsFolder\"h\n" +
+	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12\x1f\n" +
+	"\vscripts_dir\x18\x05 \x01(\tR\n" +
+	"scriptsDir\"h\n" +
 	"\x0eVariableStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
 	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
@@ -4984,15 +4985,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xb2\x03\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xac\x03\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
 	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x12\x1e\n" +
-	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x12%\n" +
-	"\x0escripts_folder\x18\t \x01(\tR\rscriptsFolder\x1a<\n" +
+	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x12\x1f\n" +
+	"\vscripts_dir\x18\t \x01(\tR\n" +
+	"scriptsDir\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +

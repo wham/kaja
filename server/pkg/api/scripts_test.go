@@ -541,7 +541,7 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 
 // Only the folder moves: the configuration stays where it is, so the apps a script
 // imports are unaffected by pointing the scripts somewhere the machine syncs.
-func TestScriptsFolderNamedByTheConfiguration(t *testing.T) {
+func TestScriptsDirNamedByTheConfiguration(t *testing.T) {
 	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
 	service := NewApiService(configurationPath, false, "", "", nil)
 
@@ -560,7 +560,7 @@ func TestScriptsFolderNamedByTheConfiguration(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(shared, "seat-map.ts"), []byte("// seats"), 0644); err != nil {
 		t.Fatalf("failed to write the script: %v", err)
 	}
-	if err := service.SetScriptsFolder(shared); err != nil {
+	if err := service.SetScriptsDir(shared); err != nil {
 		t.Fatalf("failed to write the folder: %v", err)
 	}
 
@@ -575,7 +575,7 @@ func TestScriptsFolderNamedByTheConfiguration(t *testing.T) {
 		t.Errorf("expected the configuration left where it is, got %q", service.configurationPath)
 	}
 
-	if err := service.SetScriptsFolder(""); err != nil {
+	if err := service.SetScriptsDir(""); err != nil {
 		t.Fatalf("failed to clear the folder: %v", err)
 	}
 	if service.scriptsDir() != defaultScriptsRoot(configurationPath) {
