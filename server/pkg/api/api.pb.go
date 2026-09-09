@@ -3712,7 +3712,14 @@ type Configuration struct {
 	// keeps the shortcut kaja ships, and an empty binding is an action deliberately
 	// left without one. It is configuration rather than a preference of the machine
 	// so a workspace served to a browser can state its own.
-	Shortcuts     map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Shortcuts map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Whether this workspace offers an agent session at all. On the desktop it is the
+	// switch itself: the process reads it at startup to decide whether to open the
+	// loopback listener, and writes it back when the switch is flipped. In a browser the
+	// switch belongs to the browser, because the token does - so this is only where a
+	// browser that has never chosen starts, which is what lets a deployed workspace ship
+	// an agent session that is already on.
+	Mcp           *McpSettings `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3775,6 +3782,61 @@ func (x *Configuration) GetShortcuts() map[string]string {
 	return nil
 }
 
+func (x *Configuration) GetMcp() *McpSettings {
+	if x != nil {
+		return x.Mcp
+	}
+	return nil
+}
+
+// McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+// the endpoint and the token are addresses rather than configuration, so neither is
+// written here - the desktop persists its token beside this file and a browser keeps
+// its own.
+type McpSettings struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *McpSettings) Reset() {
+	*x = McpSettings{}
+	mi := &file_proto_api_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *McpSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*McpSettings) ProtoMessage() {}
+
+func (x *McpSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use McpSettings.ProtoReflect.Descriptor instead.
+func (*McpSettings) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *McpSettings) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
 // app's type. The block declares the parameters that type needs (so two types can
 // never be mixed in one app); the server flattens its scalar fields to a string map
@@ -3797,7 +3859,7 @@ type ConfigurationApp struct {
 
 func (x *ConfigurationApp) Reset() {
 	*x = ConfigurationApp{}
-	mi := &file_proto_api_proto_msgTypes[57]
+	mi := &file_proto_api_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3809,7 +3871,7 @@ func (x *ConfigurationApp) String() string {
 func (*ConfigurationApp) ProtoMessage() {}
 
 func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[57]
+	mi := &file_proto_api_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3822,7 +3884,7 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
 func (*ConfigurationApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{57}
+	return file_proto_api_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ConfigurationApp) GetName() string {
@@ -3976,7 +4038,7 @@ type GrpcApp struct {
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[58]
+	mi := &file_proto_api_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3988,7 +4050,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[58]
+	mi := &file_proto_api_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4001,7 +4063,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{58}
+	return file_proto_api_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -4114,7 +4176,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[59]
+	mi := &file_proto_api_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4126,7 +4188,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[59]
+	mi := &file_proto_api_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4139,7 +4201,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{59}
+	return file_proto_api_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -4191,7 +4253,7 @@ type OpenApiApp struct {
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[60]
+	mi := &file_proto_api_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4203,7 +4265,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[60]
+	mi := &file_proto_api_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4216,7 +4278,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{60}
+	return file_proto_api_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -4316,7 +4378,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[61]
+	mi := &file_proto_api_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4328,7 +4390,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[61]
+	mi := &file_proto_api_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4341,7 +4403,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{61}
+	return file_proto_api_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -4397,7 +4459,7 @@ type FolderApp struct {
 
 func (x *FolderApp) Reset() {
 	*x = FolderApp{}
-	mi := &file_proto_api_proto_msgTypes[62]
+	mi := &file_proto_api_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4409,7 +4471,7 @@ func (x *FolderApp) String() string {
 func (*FolderApp) ProtoMessage() {}
 
 func (x *FolderApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[62]
+	mi := &file_proto_api_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4422,7 +4484,7 @@ func (x *FolderApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FolderApp.ProtoReflect.Descriptor instead.
 func (*FolderApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{62}
+	return file_proto_api_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *FolderApp) GetPath() string {
@@ -4458,7 +4520,7 @@ type McpApp struct {
 
 func (x *McpApp) Reset() {
 	*x = McpApp{}
-	mi := &file_proto_api_proto_msgTypes[63]
+	mi := &file_proto_api_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4470,7 +4532,7 @@ func (x *McpApp) String() string {
 func (*McpApp) ProtoMessage() {}
 
 func (x *McpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[63]
+	mi := &file_proto_api_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4483,7 +4545,7 @@ func (x *McpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpApp.ProtoReflect.Descriptor instead.
 func (*McpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{63}
+	return file_proto_api_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *McpApp) GetUrl() string {
@@ -4530,7 +4592,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[64]
+	mi := &file_proto_api_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4542,7 +4604,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[64]
+	mi := &file_proto_api_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4555,7 +4617,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{64}
+	return file_proto_api_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -4576,7 +4638,7 @@ type UpdateConfigurationResponse struct {
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[65]
+	mi := &file_proto_api_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4588,7 +4650,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[65]
+	mi := &file_proto_api_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4601,7 +4663,7 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{65}
+	return file_proto_api_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
@@ -4614,6 +4676,97 @@ func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 func (x *UpdateConfigurationResponse) GetVariableStatus() []*VariableStatus {
 	if x != nil {
 		return x.VariableStatus
+	}
+	return nil
+}
+
+type SetMcpEnabledRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetMcpEnabledRequest) Reset() {
+	*x = SetMcpEnabledRequest{}
+	mi := &file_proto_api_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetMcpEnabledRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetMcpEnabledRequest) ProtoMessage() {}
+
+func (x *SetMcpEnabledRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetMcpEnabledRequest.ProtoReflect.Descriptor instead.
+func (*SetMcpEnabledRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *SetMcpEnabledRequest) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+type SetMcpEnabledResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What the file says now, which is what every window is about to be told by
+	// WatchConfiguration anyway - answered here so the window that asked need not wait
+	// for its own change to come back round.
+	Mcp           *McpSettings `protobuf:"bytes,1,opt,name=mcp,proto3" json:"mcp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetMcpEnabledResponse) Reset() {
+	*x = SetMcpEnabledResponse{}
+	mi := &file_proto_api_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetMcpEnabledResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetMcpEnabledResponse) ProtoMessage() {}
+
+func (x *SetMcpEnabledResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetMcpEnabledResponse.ProtoReflect.Descriptor instead.
+func (*SetMcpEnabledResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *SetMcpEnabledResponse) GetMcp() *McpSettings {
+	if x != nil {
+		return x.Mcp
 	}
 	return nil
 }
@@ -4817,19 +4970,22 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xeb\x02\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x8b\x03\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
-	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x1a<\n" +
+	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x12\x1e\n" +
+	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
 	"\x0eShortcutsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"\x92\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"'\n" +
+	"\vMcpSettings\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\"\x92\x02\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04grpc\x18\x02 \x01(\v2\b.GrpcAppH\x00R\x04grpc\x12!\n" +
@@ -4913,7 +5069,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\x8d\x01\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x128\n" +
-	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus*P\n" +
+	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"0\n" +
+	"\x14SetMcpEnabledRequest\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\"7\n" +
+	"\x15SetMcpEnabledResponse\x12\x1e\n" +
+	"\x03mcp\x18\x01 \x01(\v2\f.McpSettingsR\x03mcp*P\n" +
 	"\n" +
 	"OpenStatus\x12\x17\n" +
 	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
@@ -4967,8 +5127,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xf2\n" +
-	"\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xb2\v\n" +
 	"\x03Api\x12.\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
@@ -4979,6 +5138,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12M\n" +
 	"\x12WatchConfiguration\x12\x1a.WatchConfigurationRequest\x1a\x19.GetConfigurationResponse0\x01\x12P\n" +
 	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12>\n" +
+	"\rSetMcpEnabled\x12\x15.SetMcpEnabledRequest\x1a\x16.SetMcpEnabledResponse\x12>\n" +
 	"\x0eSetStoredValue\x12\x16.SetStoredValueRequest\x1a\x14.StoredValueResponse\x12B\n" +
 	"\x10ClearStoredValue\x12\x18.ClearStoredValueRequest\x1a\x14.StoredValueResponse\x128\n" +
 	"\vListScripts\x12\x13.ListScriptsRequest\x1a\x14.ListScriptsResponse\x125\n" +
@@ -5007,7 +5167,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
 	(GrpcProblemKind)(0),                // 1: GrpcProblemKind
@@ -5073,40 +5233,43 @@ var file_proto_api_proto_goTypes = []any{
 	(*VariableReferences)(nil),          // 61: VariableReferences
 	(*ScanScriptVariablesResponse)(nil), // 62: ScanScriptVariablesResponse
 	(*Configuration)(nil),               // 63: Configuration
-	(*ConfigurationApp)(nil),            // 64: ConfigurationApp
-	(*GrpcApp)(nil),                     // 65: GrpcApp
-	(*TwirpApp)(nil),                    // 66: TwirpApp
-	(*OpenApiApp)(nil),                  // 67: OpenApiApp
-	(*OpenAiApp)(nil),                   // 68: OpenAiApp
-	(*FolderApp)(nil),                   // 69: FolderApp
-	(*McpApp)(nil),                      // 70: McpApp
-	(*UpdateConfigurationRequest)(nil),  // 71: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 72: UpdateConfigurationResponse
-	nil,                                 // 73: Configuration.VariablesEntry
-	nil,                                 // 74: Configuration.ShortcutsEntry
-	nil,                                 // 75: GrpcApp.HeadersEntry
-	nil,                                 // 76: TwirpApp.HeadersEntry
-	nil,                                 // 77: OpenApiApp.HeadersEntry
-	nil,                                 // 78: OpenAiApp.HeadersEntry
-	nil,                                 // 79: McpApp.HeadersEntry
+	(*McpSettings)(nil),                 // 64: McpSettings
+	(*ConfigurationApp)(nil),            // 65: ConfigurationApp
+	(*GrpcApp)(nil),                     // 66: GrpcApp
+	(*TwirpApp)(nil),                    // 67: TwirpApp
+	(*OpenApiApp)(nil),                  // 68: OpenApiApp
+	(*OpenAiApp)(nil),                   // 69: OpenAiApp
+	(*FolderApp)(nil),                   // 70: FolderApp
+	(*McpApp)(nil),                      // 71: McpApp
+	(*UpdateConfigurationRequest)(nil),  // 72: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 73: UpdateConfigurationResponse
+	(*SetMcpEnabledRequest)(nil),        // 74: SetMcpEnabledRequest
+	(*SetMcpEnabledResponse)(nil),       // 75: SetMcpEnabledResponse
+	nil,                                 // 76: Configuration.VariablesEntry
+	nil,                                 // 77: Configuration.ShortcutsEntry
+	nil,                                 // 78: GrpcApp.HeadersEntry
+	nil,                                 // 79: TwirpApp.HeadersEntry
+	nil,                                 // 80: OpenApiApp.HeadersEntry
+	nil,                                 // 81: OpenAiApp.HeadersEntry
+	nil,                                 // 82: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	64, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	65, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
 	28, // 2: OpenAppResponse.logs:type_name -> Log
-	65, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
+	66, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
 	12, // 4: InspectGrpcResponse.server:type_name -> GrpcServer
 	14, // 5: InspectGrpcResponse.problem:type_name -> GrpcProblem
 	13, // 6: GrpcServer.services:type_name -> GrpcService
 	1,  // 7: GrpcProblem.kind:type_name -> GrpcProblemKind
-	67, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	68, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
 	17, // 9: InspectOpenApiResponse.document:type_name -> OpenApiDocument
 	21, // 10: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
 	18, // 11: OpenApiDocument.servers:type_name -> OpenApiServer
 	20, // 12: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
 	19, // 13: OpenApiServer.variables:type_name -> OpenApiServerVariable
 	2,  // 14: OpenApiProblem.kind:type_name -> OpenApiProblemKind
-	70, // 15: InspectMcpRequest.mcp:type_name -> McpApp
+	71, // 15: InspectMcpRequest.mcp:type_name -> McpApp
 	24, // 16: InspectMcpResponse.server:type_name -> McpServer
 	26, // 17: InspectMcpResponse.problem:type_name -> McpProblem
 	25, // 18: McpServer.tools:type_name -> McpTool
@@ -5128,70 +5291,74 @@ var file_proto_api_proto_depIdxs = []int32{
 	38, // 34: RenameScriptResponse.script:type_name -> Script
 	60, // 35: VariableReferences.scripts:type_name -> ScriptReference
 	61, // 36: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
-	64, // 37: Configuration.apps:type_name -> ConfigurationApp
-	73, // 38: Configuration.variables:type_name -> Configuration.VariablesEntry
-	74, // 39: Configuration.shortcuts:type_name -> Configuration.ShortcutsEntry
-	65, // 40: ConfigurationApp.grpc:type_name -> GrpcApp
-	66, // 41: ConfigurationApp.twirp:type_name -> TwirpApp
-	67, // 42: ConfigurationApp.openapi:type_name -> OpenApiApp
-	68, // 43: ConfigurationApp.openai:type_name -> OpenAiApp
-	69, // 44: ConfigurationApp.folder:type_name -> FolderApp
-	70, // 45: ConfigurationApp.mcp:type_name -> McpApp
-	75, // 46: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	76, // 47: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	77, // 48: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	78, // 49: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	79, // 50: McpApp.headers:type_name -> McpApp.HeadersEntry
-	63, // 51: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	63, // 52: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	34, // 53: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
-	7,  // 54: Api.Compile:input_type -> CompileRequest
-	8,  // 55: Api.OpenApp:input_type -> OpenAppRequest
-	15, // 56: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	10, // 57: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	22, // 58: Api.InspectMcp:input_type -> InspectMcpRequest
-	30, // 59: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	31, // 60: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
-	71, // 61: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	35, // 62: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	36, // 63: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	39, // 64: Api.ListScripts:input_type -> ListScriptsRequest
-	41, // 65: Api.ReadScript:input_type -> ReadScriptRequest
-	43, // 66: Api.WriteScript:input_type -> WriteScriptRequest
-	45, // 67: Api.CreateScript:input_type -> CreateScriptRequest
-	47, // 68: Api.RenameScript:input_type -> RenameScriptRequest
-	49, // 69: Api.DeleteScript:input_type -> DeleteScriptRequest
-	51, // 70: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
-	53, // 71: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
-	55, // 72: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
-	57, // 73: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
-	59, // 74: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
-	27, // 75: Api.Compile:output_type -> CompileResponse
-	9,  // 76: Api.OpenApp:output_type -> OpenAppResponse
-	16, // 77: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	11, // 78: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	23, // 79: Api.InspectMcp:output_type -> InspectMcpResponse
-	32, // 80: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	32, // 81: Api.WatchConfiguration:output_type -> GetConfigurationResponse
-	72, // 82: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	37, // 83: Api.SetStoredValue:output_type -> StoredValueResponse
-	37, // 84: Api.ClearStoredValue:output_type -> StoredValueResponse
-	40, // 85: Api.ListScripts:output_type -> ListScriptsResponse
-	42, // 86: Api.ReadScript:output_type -> ReadScriptResponse
-	44, // 87: Api.WriteScript:output_type -> WriteScriptResponse
-	46, // 88: Api.CreateScript:output_type -> CreateScriptResponse
-	48, // 89: Api.RenameScript:output_type -> RenameScriptResponse
-	50, // 90: Api.DeleteScript:output_type -> DeleteScriptResponse
-	52, // 91: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
-	54, // 92: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
-	56, // 93: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
-	58, // 94: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
-	62, // 95: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
-	75, // [75:96] is the sub-list for method output_type
-	54, // [54:75] is the sub-list for method input_type
-	54, // [54:54] is the sub-list for extension type_name
-	54, // [54:54] is the sub-list for extension extendee
-	0,  // [0:54] is the sub-list for field type_name
+	65, // 37: Configuration.apps:type_name -> ConfigurationApp
+	76, // 38: Configuration.variables:type_name -> Configuration.VariablesEntry
+	77, // 39: Configuration.shortcuts:type_name -> Configuration.ShortcutsEntry
+	64, // 40: Configuration.mcp:type_name -> McpSettings
+	66, // 41: ConfigurationApp.grpc:type_name -> GrpcApp
+	67, // 42: ConfigurationApp.twirp:type_name -> TwirpApp
+	68, // 43: ConfigurationApp.openapi:type_name -> OpenApiApp
+	69, // 44: ConfigurationApp.openai:type_name -> OpenAiApp
+	70, // 45: ConfigurationApp.folder:type_name -> FolderApp
+	71, // 46: ConfigurationApp.mcp:type_name -> McpApp
+	78, // 47: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	79, // 48: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	80, // 49: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	81, // 50: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	82, // 51: McpApp.headers:type_name -> McpApp.HeadersEntry
+	63, // 52: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	63, // 53: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	34, // 54: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	64, // 55: SetMcpEnabledResponse.mcp:type_name -> McpSettings
+	7,  // 56: Api.Compile:input_type -> CompileRequest
+	8,  // 57: Api.OpenApp:input_type -> OpenAppRequest
+	15, // 58: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	10, // 59: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	22, // 60: Api.InspectMcp:input_type -> InspectMcpRequest
+	30, // 61: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	31, // 62: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
+	72, // 63: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	74, // 64: Api.SetMcpEnabled:input_type -> SetMcpEnabledRequest
+	35, // 65: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	36, // 66: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	39, // 67: Api.ListScripts:input_type -> ListScriptsRequest
+	41, // 68: Api.ReadScript:input_type -> ReadScriptRequest
+	43, // 69: Api.WriteScript:input_type -> WriteScriptRequest
+	45, // 70: Api.CreateScript:input_type -> CreateScriptRequest
+	47, // 71: Api.RenameScript:input_type -> RenameScriptRequest
+	49, // 72: Api.DeleteScript:input_type -> DeleteScriptRequest
+	51, // 73: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	53, // 74: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	55, // 75: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	57, // 76: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	59, // 77: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
+	27, // 78: Api.Compile:output_type -> CompileResponse
+	9,  // 79: Api.OpenApp:output_type -> OpenAppResponse
+	16, // 80: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	11, // 81: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	23, // 82: Api.InspectMcp:output_type -> InspectMcpResponse
+	32, // 83: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	32, // 84: Api.WatchConfiguration:output_type -> GetConfigurationResponse
+	73, // 85: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	75, // 86: Api.SetMcpEnabled:output_type -> SetMcpEnabledResponse
+	37, // 87: Api.SetStoredValue:output_type -> StoredValueResponse
+	37, // 88: Api.ClearStoredValue:output_type -> StoredValueResponse
+	40, // 89: Api.ListScripts:output_type -> ListScriptsResponse
+	42, // 90: Api.ReadScript:output_type -> ReadScriptResponse
+	44, // 91: Api.WriteScript:output_type -> WriteScriptResponse
+	46, // 92: Api.CreateScript:output_type -> CreateScriptResponse
+	48, // 93: Api.RenameScript:output_type -> RenameScriptResponse
+	50, // 94: Api.DeleteScript:output_type -> DeleteScriptResponse
+	52, // 95: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	54, // 96: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	56, // 97: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	58, // 98: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	62, // 99: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
+	78, // [78:100] is the sub-list for method output_type
+	56, // [56:78] is the sub-list for method input_type
+	56, // [56:56] is the sub-list for extension type_name
+	56, // [56:56] is the sub-list for extension extendee
+	0,  // [0:56] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -5199,7 +5366,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[57].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[58].OneofWrappers = []any{
 		(*ConfigurationApp_Grpc)(nil),
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
@@ -5213,7 +5380,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   73,
+			NumMessages:   76,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
