@@ -17,6 +17,10 @@ service Api {
   // never asked for afterwards, because the message is the new configuration.
   rpc WatchConfiguration(WatchConfigurationRequest) returns (stream GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
+  // SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+  // an occasion to resend the apps and variables beside it, so the file is read again
+  // where it is written rather than travelling here and back.
+  rpc SetMcpEnabled(SetMcpEnabledRequest) returns (SetMcpEnabledResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
   rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
@@ -780,4 +784,15 @@ message UpdateConfigurationResponse {
   Configuration configuration = 1;
   // Where each variable's value came from, re-resolved against what was saved.
   repeated VariableStatus variable_status = 2;
+}
+
+message SetMcpEnabledRequest {
+  bool enabled = 1;
+}
+
+message SetMcpEnabledResponse {
+  // What the file says now, which is what every window is about to be told by
+  // WatchConfiguration anyway - answered here so the window that asked need not wait
+  // for its own change to come back round.
+  McpSettings mcp = 1;
 }

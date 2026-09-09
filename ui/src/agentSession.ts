@@ -95,10 +95,15 @@ interface Message {
   change?: AgentScriptChange;
 }
 
+/**
+ * What a browser keeps for itself, which is its address and nothing else. The switch is
+ * `mcp.enabled` in kaja.json — one answer for the workspace, so a deployed one can ship
+ * a session already on and a read-only one cannot be argued with. Earlier shapes of this
+ * key carried the switch too; the flag is read no more, so a browser that had it off
+ * follows the workspace like any other.
+ */
 interface Stored {
   token: string;
-  /** The switch. Absent in what the first shape of this key wrote, which was only ever written while on. */
-  connected?: boolean;
 }
 
 function readStored(): Stored | undefined {
@@ -119,11 +124,6 @@ function writeStored(stored: Stored): void {
     // A browser refusing storage is one the token cannot outlive a reload in; the
     // session still works for as long as this window is open.
   }
-}
-
-/** Whether the switch is on. A stored token from before there was a flag means on. */
-function isOn(stored: Stored | undefined): boolean {
-  return !!stored && stored.connected !== false;
 }
 
 // A token is 32 hex characters of the browser's own randomness, which is what the
@@ -153,9 +153,6 @@ class AgentSession {
   private wake?: () => void;
   private activityTimer?: number;
   private started = false;
-  // Whether this browser reached start() with nothing stored, which is the only case
-  // the workspace's own default has anything to say about.
-  private unchosen = false;
   private reconnect = RECONNECT_MS;
   // The runs this window is carrying for an agent, so one the agent gave up on can be
   // ended rather than left going with nothing waiting for it.
@@ -191,14 +188,10 @@ class AgentSession {
     // here rather than by turning the server on: the page names an endpoint and a
     // token from the first time it is opened, and nothing about them changes when the
     // switch does.
-    let stored = readStored();
-    if (!stored) {
-      this.unchosen = true;
-      stored = { token: newToken(), connected: false };
-      writeStored(stored);
-    }
+    if (!readStored()) writeStored({ token: newToken() });
     this.update(this.address());
-    if (isOn(stored)) this.attach();
+    // Nothing is attached here: the switch arrives with the configuration, and
+    // setSwitch is what acts on it.
   }
 
   /**
@@ -214,34 +207,23 @@ class AgentSession {
   }
 
   /**
-   * Where a browser that has never chosen starts, which is the whole of what kaja.json
-   * has to say about the switch here: the switch belongs to the browser because the
-   * token does, so one that has been here before keeps what it chose. It is what lets a
-   * deployed workspace ship an agent session that is already on. The desktop is not this
-   * case at all - there the file is the switch, and the process read it at startup.
+   * What the workspace says, applied. `mcp.enabled` is the switch and this is every
+   * window acting on it, so a change reaches the other tabs the way it reaches this one
+   * — down each window's own configuration stream — rather than through the storage
+   * event a per-browser flag needed. Off tells the server rather than leaving the
+   * session to time out: until it forgets the token, discovery would go on answering
+   * under it. The token stays either way, because it is where this browser is reached
+   * and not whether anything answers there.
    */
-  applyWorkspaceDefault(enabled: boolean): void {
-    if (isWailsEnvironment() || !this.unchosen) return;
-    this.unchosen = false;
-    if (enabled) this.connect();
-  }
-
-  /** Turns the web server on, on this browser's own address, with a stream in every window. */
-  connect(): void {
-    writeStored({ token: readStored()?.token ?? newToken(), connected: true });
-    this.attach();
-  }
-
-  /**
-   * Turns the web server off. The token stays: it is where this browser is reached, not
-   * the session, so every configuration already pasted is still pointed here and turning
-   * the switch back on needs nothing pasted again. The server is told rather than left to
-   * time the session out — until it forgets the token, discovery would go on answering
-   * under it.
-   */
-  disconnect(): void {
+  setSwitch(enabled: boolean): void {
+    if (isWailsEnvironment()) return;
+    if (enabled) {
+      this.attach();
+      return;
+    }
+    // Nothing to turn off, which is every load of a workspace that has it off.
+    if (!this.state.connected) return;
     const token = readStored()?.token;
-    if (token) writeStored({ token, connected: false });
     this.detach();
     if (token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
@@ -256,13 +238,14 @@ class AgentSession {
    */
   regenerateToken(): void {
     const previous = readStored();
+    const wasOn = this.state.connected;
     this.detach();
     if (previous?.token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous.token}` } }).catch(() => {});
     }
-    writeStored({ token: newToken(), connected: isOn(previous) });
+    writeStored({ token: newToken() });
     this.update(this.address());
-    if (isOn(previous)) this.attach();
+    if (wasOn) this.attach();
   }
 
   /** Detaches the desktop window when its loopback server is turned off. */
@@ -277,13 +260,12 @@ class AgentSession {
     void this.post("/agent-session/catalog", catalog);
   }
 
+  // A token rolled in another tab is a new address, and the stream this window holds is
+  // on the old one. The switch does not travel this way any more: it is the workspace's,
+  // and every window is told by its own configuration stream.
   private onStorage = (event: StorageEvent) => {
     if (event.key !== null && event.key !== STORAGE_KEY) return;
-    if (isOn(readStored())) {
-      this.attach();
-    } else {
-      this.detach();
-    }
+    if (this.state.connected) this.attach();
   };
 
   private async readAvailability(): Promise<void> {

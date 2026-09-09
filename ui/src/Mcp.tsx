@@ -40,7 +40,7 @@ type CopyTarget = "url" | "token" | "snippet";
  * token stay copyable while nothing is listening. What Kaja is for is said on the empty
  * state, which is the screen that has nothing else to say.
  */
-export function Mcp({ info, control, active }: { info?: McpConnection; control: McpControl; active: boolean }) {
+export function Mcp({ info, control, active, readOnly }: { info?: McpConnection; control: McpControl; active: boolean; readOnly?: boolean }) {
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState<CopyTarget>();
   const [armed, setArmed] = useState(false);
@@ -111,9 +111,12 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
             <span className={cn("min-w-0 truncate text-xs", status.tone === "destructive" ? "text-destructive" : "text-muted-foreground")}>{status.note}</span>
           )}
           <span className="flex-1" />
-          {status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
+          {/* The switch is the workspace's `mcp.enabled`, so where the workspace cannot be
+              written there is nothing to offer: the state is stated and the verbs go, the
+              rule every read-only screen is drawn under. */}
+          {!readOnly && status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
           <span className="shrink-0 text-xs text-muted-foreground">{control.enabled ? "on" : "off"}</span>
-          <Switch checked={control.enabled} onCheckedChange={(checked) => control.setEnabled(checked === true)} aria-label="Enable MCP server" />
+          {!readOnly && <Switch checked={control.enabled} onCheckedChange={(checked) => control.setEnabled(checked === true)} aria-label="Enable MCP server" />}
         </div>
         <div className="flex items-end gap-7">
           <Field label="endpoint" value={endpoint.url} lit={listening} copied={copied === "url"} onCopy={() => copy("url", endpoint.url)} />

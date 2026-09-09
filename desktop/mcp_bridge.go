@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/wham/kaja/v2/pkg/api"
 )
 
 // MCP wiring. The switchboard is pkg/agent's, the same one a deployed kaja answers an
@@ -63,7 +65,7 @@ func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
 	// What is written is what the switch actually did, not what was asked of it: a
 	// listener that refused to start is an error to report now rather than a state to
 	// come back up in and fail again.
-	if err := a.api.SetMcpEnabled(a.mcpServer != nil); err != nil {
+	if _, err := a.api.SetMcpEnabled(context.Background(), &api.SetMcpEnabledRequest{Enabled: a.mcpServer != nil}); err != nil {
 		slog.Error("Failed to persist the MCP server setting", "error", err)
 		// Never over the reason the server itself failed, which is the more useful of the two.
 		if a.mcpError == "" {

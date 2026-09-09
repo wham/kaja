@@ -643,28 +643,31 @@ func (s *ApiService) McpEnabled() bool {
 }
 
 // SetMcpEnabled writes the switch into kaja.json and leaves the rest of the file as it
-// stands. The file is read again here rather than taken from a caller: flipping the
+// stands. The file is read again here rather than taken from the request: flipping the
 // switch is not an occasion to resend the apps and variables beside it. Off is written
 // as the key's absence, so a workspace that never turned it on carries nothing about it
 // - the rule the shortcut overrides are written under.
-func (s *ApiService) SetMcpEnabled(enabled bool) error {
+func (s *ApiService) SetMcpEnabled(ctx context.Context, req *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
 	if !s.canUpdateConfiguration {
-		return fmt.Errorf("updating configuration is not allowed")
+		return nil, fmt.Errorf("updating configuration is not allowed")
 	}
 
 	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	if configuration.GetMcp().GetEnabled() == enabled {
-		return nil
-	}
-	if enabled {
-		configuration.Mcp = &McpSettings{Enabled: true}
-	} else {
-		configuration.Mcp = nil
+	if configuration.GetMcp().GetEnabled() != req.Enabled {
+		if req.Enabled {
+			configuration.Mcp = &McpSettings{Enabled: true}
+		} else {
+			configuration.Mcp = nil
+		}
+
+		slog.Info("Updating MCP server setting", "enabled", req.Enabled)
+
+		if err := SaveConfiguration(s.configurationPath, configuration); err != nil {
+			return nil, fmt.Errorf("failed to save configuration: %w", err)
+		}
 	}
 
-	slog.Info("Updating MCP server setting", "enabled", enabled)
-
-	return SaveConfiguration(s.configurationPath, configuration)
+	return &SetMcpEnabledResponse{Mcp: &McpSettings{Enabled: req.Enabled}}, nil
 }
 
 // SetStoredValue writes a variable's value to this machine's store, so kaja.json

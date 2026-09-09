@@ -609,7 +609,7 @@ func TestSetMcpEnabled_RoundTrips(t *testing.T) {
 		t.Fatal("expected a configuration with no mcp block to read as off")
 	}
 
-	if err := service.SetMcpEnabled(true); err != nil {
+	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: true}); err != nil {
 		t.Fatalf("SetMcpEnabled(true) failed: %v", err)
 	}
 	if !service.McpEnabled() {
@@ -623,7 +623,7 @@ func TestSetMcpEnabled_RoundTrips(t *testing.T) {
 	}
 
 	// Off is the key's absence, so a workspace that turned it off carries nothing about it.
-	if err := service.SetMcpEnabled(false); err != nil {
+	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: false}); err != nil {
 		t.Fatalf("SetMcpEnabled(false) failed: %v", err)
 	}
 	if service.McpEnabled() {
@@ -646,7 +646,7 @@ func TestSetMcpEnabled_DeniedWhenNotAllowed(t *testing.T) {
 
 	service := NewApiService(path, false, "", "", nil)
 
-	if err := service.SetMcpEnabled(true); err == nil {
+	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: true}); err == nil {
 		t.Error("expected a read-only workspace to refuse the write")
 	}
 }

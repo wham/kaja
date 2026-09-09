@@ -1480,6 +1480,28 @@ export interface UpdateConfigurationResponse {
     variableStatus: VariableStatus[];
 }
 /**
+ * @generated from protobuf message SetMcpEnabledRequest
+ */
+export interface SetMcpEnabledRequest {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
+}
+/**
+ * @generated from protobuf message SetMcpEnabledResponse
+ */
+export interface SetMcpEnabledResponse {
+    /**
+     * What the file says now, which is what every window is about to be told by
+     * WatchConfiguration anyway - answered here so the window that asked need not wait
+     * for its own change to come back round.
+     *
+     * @generated from protobuf field: McpSettings mcp = 1
+     */
+    mcp?: McpSettings;
+}
+/**
  * @generated from protobuf enum OpenStatus
  */
 export enum OpenStatus {
@@ -2658,6 +2680,30 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
  * @generated MessageType for protobuf message UpdateConfigurationResponse
  */
 export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledRequest$Type extends MessageType<SetMcpEnabledRequest> {
+    constructor() {
+        super("SetMcpEnabledRequest", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledRequest
+ */
+export const SetMcpEnabledRequest = new SetMcpEnabledRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledResponse$Type extends MessageType<SetMcpEnabledResponse> {
+    constructor() {
+        super("SetMcpEnabledResponse", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpSettings }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledResponse
+ */
+export const SetMcpEnabledResponse = new SetMcpEnabledResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
@@ -2670,6 +2716,7 @@ export const Api = new ServiceType("Api", [
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "SetMcpEnabled", options: {}, I: SetMcpEnabledRequest, O: SetMcpEnabledResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },
