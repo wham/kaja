@@ -1,12 +1,15 @@
 import { expect, test } from "bun:test";
 import {
-  bindingConflicts,
+  collidingActions,
   bindingFromEvent,
   eventMatchesBinding,
   formatBinding,
+  formatPartialChord,
   listedShortcuts,
   normalizeBinding,
+  recordingRefusal,
   resolveBindings,
+  scopesOverlap,
   SHORTCUTS,
   type ShortcutAction,
 } from "./shortcuts";
@@ -116,15 +119,49 @@ test("an override is read in whatever spelling the file carries", () => {
   expect(resolveBindings({ finder: "shift+mod+k" }).get("finder")).toEqual(["Mod+Shift+K"]);
 });
 
-test("two actions on one chord are reported to both", () => {
-  const conflicts = bindingConflicts(resolveBindings({ finder: "Mod+B" }));
-  expect(conflicts.get("finder")).toEqual(["toggleSidebar"]);
-  expect(conflicts.get("toggleSidebar")).toEqual(["finder"]);
-  expect(conflicts.get("run")).toBeUndefined();
+test("the chord you just pressed takes it from whoever answered to it", () => {
+  const bindings = resolveBindings({});
+  expect(collidingActions(bindings, "finder", "Mod+B")).toEqual(["toggleSidebar"]);
+  // Nothing else answers to it, so nothing is taken.
+  expect(collidingActions(bindings, "finder", "Mod+K")).toEqual([]);
+  // Removing a key takes nothing from anyone.
+  expect(collidingActions(bindings, "finder", "")).toEqual([]);
 });
 
-test("what kaja ships collides with nothing", () => {
-  expect([...bindingConflicts(resolveBindings(undefined)).keys()]).toEqual([]);
+test("scopes that cannot both be active are not a conflict", () => {
+  expect(scopesOverlap("In Files", "On a draft")).toBe(false);
+  expect(scopesOverlap("In Files", "In Files")).toBe(true);
+  expect(scopesOverlap("Anywhere", "On a file")).toBe(true);
+  // ⇧⌘N is New folder's; Save as file may hold it too, since the two are never both
+  // the thing the window is on.
+  expect(collidingActions(resolveBindings({}), "saveAsFile", "Mod+Shift+N")).toEqual([]);
+  // Whereas anything the finder holds is held everywhere.
+  expect(collidingActions(resolveBindings({}), "newFolder", "Mod+P")).toEqual(["finder"]);
+});
+
+test("a chord that cannot be a shortcut says why, and one that can says nothing", () => {
+  expect(recordingRefusal(press({ key: "n" }), true)).toContain("needs");
+  expect(recordingRefusal(press({ key: "N", shiftKey: true }), true)).toContain("needs");
+  expect(recordingRefusal(press({ key: "w", metaKey: true }), true)).toContain("belongs to the system");
+  expect(recordingRefusal(press({ key: "n", metaKey: true, ctrlKey: true }), true)).toContain("one key off a Mac");
+  // F5 is why a bare function key is allowed.
+  expect(recordingRefusal(press({ key: "F5" }), true)).toBeUndefined();
+  expect(recordingRefusal(press({ key: "k", metaKey: true }), true)).toBeUndefined();
+  // A modifier on its own is the chip filling in, not a refusal.
+  expect(recordingRefusal(press({ key: "Meta", metaKey: true }), true)).toBeUndefined();
+});
+
+test("the chip echoes what is held and says what is still missing", () => {
+  expect(formatPartialChord(press({ key: "Meta", metaKey: true, shiftKey: true }), true)).toBe("⇧⌘ …");
+  expect(formatPartialChord(press({ key: "Meta" }), true)).toBe("…");
+  expect(formatPartialChord(press({ key: "Control", ctrlKey: true }), false)).toBe("Ctrl+…");
+});
+
+test("what kaja ships takes nothing from anything else", () => {
+  const bindings = resolveBindings(undefined);
+  for (const shortcut of SHORTCUTS) {
+    for (const binding of shortcut.defaults) expect(collidingActions(bindings, shortcut.action, binding)).toEqual([]);
+  }
 });
 
 test("every action is named once and every default is canonical", () => {

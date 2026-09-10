@@ -88,7 +88,7 @@ import {
   visit,
 } from "./views";
 import { Variables, VariablesSave } from "./Variables";
-import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
 import { mcpStatusOf, type McpControl } from "./mcpState";
@@ -407,6 +407,10 @@ export function App() {
   const [newAppOpen, setNewAppOpen] = useState(false);
   // Gates switching back to the app form, so it lives beside the control that switches.
   const [viewJsonValid, setViewJsonValid] = useState(true);
+  // What Reset all should do on the shortcuts screen, reported by the screen itself:
+  // the button is the CommandRow's, like every other view-level verb, and undefined
+  // is the state where there is nothing to reset.
+  const [resetShortcuts, setResetShortcuts] = useState<ResetAllControl>();
   const viewJsonValidRef = useRef(viewJsonValid);
   viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
@@ -2290,8 +2294,19 @@ export function App() {
       onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
   ) : undefined;
+  // Every view keeps its one view-level verb here. The shortcuts screen's is Reset
+  // all, disabled rather than hidden while nothing on it differs from its default:
+  // it is the answer to "can I get back?", which has to be readable before anything
+  // is broken.
+  const resetAllButton =
+    currentView?.type === "shortcuts" && runtime.canUpdateConfiguration ? (
+      <Button variant="ghost" size="sm" disabled={resetShortcuts === undefined} onClick={() => resetShortcuts?.onReset()}>
+        Reset all
+      </Button>
+    ) : undefined;
   const action =
     runButton ??
+    resetAllButton ??
     (jsonView ? (
       <IconButton
         icon={Code}
@@ -2498,6 +2513,7 @@ export function App() {
                         canWriteFiles={canWriteFiles}
                         readOnly={!runtime.canUpdateConfiguration}
                         onSave={onShortcutsSave}
+                        onResetAllChange={setResetShortcuts}
                       />
                     )}
                     {view.type === "variables" && (
