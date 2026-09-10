@@ -7,6 +7,7 @@ import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Switch } from "./components/switch";
 import { mcpAgents, type McpEndpoint } from "./mcpAgents";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { isListening, mcpDotClass, mcpStatusOf, type McpConnection, type McpControl } from "./mcpState";
 import { desktop, isWailsEnvironment, openInBrowser } from "./wails";
 
@@ -99,101 +100,102 @@ export function Mcp({ info, control, active, readOnly }: { info?: McpConnection;
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-background px-5 py-[18px]">
-      <section aria-label="MCP server" className="flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3">
-        <div className="flex items-center gap-2">
-          {/* Held even when the glow has taken the dot's job, so the headline never steps sideways. */}
-          <span className={cn("size-[7px] shrink-0 rounded-full", mcpDotClass(status.state) ?? "bg-transparent")} />
-          <span className={cn("shrink-0 text-sm font-semibold", status.tone === "emerald" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
-            {status.headline}
-          </span>
-          {status.note && (
-            <span className={cn("min-w-0 truncate text-xs", status.tone === "destructive" ? "text-destructive" : "text-muted-foreground")}>{status.note}</span>
-          )}
-          <span className="flex-1" />
-          {/* Retry writes the switch, so it goes where the workspace cannot be written. The
-              switch itself stays and is disabled, on the exception the app form is drawn
-              under: it is the clearest statement of whether a session is offered at all,
-              and a reader who cannot find it reads the page as broken rather than as
-              settled. The label says where the answer came from, because a disabled
-              control that explains nothing is read as a fault in the page. */}
-          {!readOnly && status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {control.enabled ? "on" : "off"}
-            {readOnly && " · set in kaja.json"}
-          </span>
-          <Switch
-            checked={control.enabled}
-            disabled={readOnly}
-            onCheckedChange={(checked) => control.setEnabled(checked === true)}
-            aria-label="Enable MCP server"
-          />
-        </div>
-        <div className="flex items-end gap-7">
-          <Field label="endpoint" value={endpoint.url} lit={listening} copied={copied === "url"} onCopy={() => copy("url", endpoint.url)} />
-          <Field
-            label="token"
-            value={written ? endpoint.token : "not set"}
-            lit={listening}
-            copied={copied === "token"}
-            onCopy={written ? () => copy("token", endpoint.token) : undefined}
-          />
-          <span className="flex-1" />
-          {written && <Verb icon={RefreshCw} label={armed ? "Replaces every pasted config" : "Regenerate token"} lit={armed} onClick={regenerate} />}
-        </div>
-      </section>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {readOnly && <ReadOnlyBanner>The MCP server is set in kaja.json.</ReadOnlyBanner>}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-5 py-[18px]">
+        <section aria-label="MCP server" className="flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3">
+          <div className="flex items-center gap-2">
+            {/* Held even when the glow has taken the dot's job, so the headline never steps sideways. */}
+            <span className={cn("size-[7px] shrink-0 rounded-full", mcpDotClass(status.state) ?? "bg-transparent")} />
+            <span className={cn("shrink-0 text-sm font-semibold", status.tone === "emerald" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+              {status.headline}
+            </span>
+            {status.note && (
+              <span className={cn("min-w-0 truncate text-xs", status.tone === "destructive" ? "text-destructive" : "text-muted-foreground")}>
+                {status.note}
+              </span>
+            )}
+            <span className="flex-1" />
+            {/* Retry writes the switch, so it goes where the workspace cannot be written. The
+                switch itself stays and is disabled, on the exception the app form is drawn
+                under: it is the clearest statement of whether a session is offered at all,
+                and a reader who cannot find it reads the page as broken rather than as
+                settled. Where the answer came from is the banner's to say. */}
+            {!readOnly && status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
+            <span className="shrink-0 text-xs text-muted-foreground">{control.enabled ? "on" : "off"}</span>
+            <Switch
+              checked={control.enabled}
+              disabled={readOnly}
+              onCheckedChange={(checked) => control.setEnabled(checked === true)}
+              aria-label="Enable MCP server"
+            />
+          </div>
+          <div className="flex items-end gap-7">
+            <Field label="endpoint" value={endpoint.url} lit={listening} copied={copied === "url"} onCopy={() => copy("url", endpoint.url)} />
+            <Field
+              label="token"
+              value={written ? endpoint.token : "not set"}
+              lit={listening}
+              copied={copied === "token"}
+              onCopy={written ? () => copy("token", endpoint.token) : undefined}
+            />
+            <span className="flex-1" />
+            {written && <Verb icon={RefreshCw} label={armed ? "Replaces every pasted config" : "Regenerate token"} lit={armed} onClick={regenerate} />}
+          </div>
+        </section>
 
-      <section aria-label="Connect an agent" className="flex min-h-0 flex-1 flex-col gap-2">
-        <h2 className="m-0 shrink-0 text-xs font-semibold text-foreground">Connect an agent</h2>
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-          <nav aria-label="MCP agent" className="w-[176px] shrink-0 overflow-y-auto border-r border-border py-[5px]">
-            {mcpAgents.map((candidate, index) => (
-              <button
-                key={candidate.name}
-                type="button"
-                aria-current={index === selected}
-                onClick={() => setSelected(index)}
-                className={cn(
-                  "flex h-[26px] w-full cursor-pointer items-center border-0 px-2.5 text-left text-xs",
-                  index === selected ? "bg-accent font-semibold text-accent-foreground" : "bg-transparent text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <span className="truncate">{candidate.name}</span>
-              </button>
-            ))}
-          </nav>
+        <section aria-label="Connect an agent" className="flex min-h-0 flex-1 flex-col gap-2">
+          <h2 className="m-0 shrink-0 text-xs font-semibold text-foreground">Connect an agent</h2>
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+            <nav aria-label="MCP agent" className="w-[176px] shrink-0 overflow-y-auto border-r border-border py-[5px]">
+              {mcpAgents.map((candidate, index) => (
+                <button
+                  key={candidate.name}
+                  type="button"
+                  aria-current={index === selected}
+                  onClick={() => setSelected(index)}
+                  className={cn(
+                    "flex h-[26px] w-full cursor-pointer items-center border-0 px-2.5 text-left text-xs",
+                    index === selected ? "bg-accent font-semibold text-accent-foreground" : "bg-transparent text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  <span className="truncate">{candidate.name}</span>
+                </button>
+              ))}
+            </nav>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-4 py-3.5">
-            <div className="flex min-h-8 items-center gap-2">
-              <span className="shrink-0 truncate text-sm font-semibold text-foreground">{agent.name}</span>
-              <span className="shrink-0 rounded border border-border px-1.5 text-xs text-muted-foreground">{agent.kind}</span>
-              <span className="flex-1" />
-              {agent.install && written && (
-                <Button size="sm" onClick={install}>
-                  {agent.install.label}
-                </Button>
-              )}
-            </div>
-            <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.lead}</p>
-            <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border", !written && "opacity-45")}>
-              <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border bg-muted pl-2.5 pr-1">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{agent.path}</span>
-                {written && <Verb label={copied === "snippet" ? "Copied" : "Copy"} lit={copied === "snippet"} onClick={() => copy("snippet", snippet)} />}
-                {canReveal && (
-                  <>
-                    <span className="h-3 w-px shrink-0 bg-border" />
-                    <Verb label="Reveal" onClick={() => void desktop().then((app) => app.ShowFileInFinder(configurationPath))} />
-                  </>
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-4 py-3.5">
+              <div className="flex min-h-8 items-center gap-2">
+                <span className="shrink-0 truncate text-sm font-semibold text-foreground">{agent.name}</span>
+                <span className="shrink-0 rounded border border-border px-1.5 text-xs text-muted-foreground">{agent.kind}</span>
+                <span className="flex-1" />
+                {agent.install && written && (
+                  <Button size="sm" onClick={install}>
+                    {agent.install.label}
+                  </Button>
                 )}
               </div>
-              <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-4 py-3.5 font-mono text-xs leading-[1.75] break-words whitespace-pre-wrap text-foreground">
-                {snippet}
-              </pre>
+              <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.lead}</p>
+              <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border", !written && "opacity-45")}>
+                <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border bg-muted pl-2.5 pr-1">
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{agent.path}</span>
+                  {written && <Verb label={copied === "snippet" ? "Copied" : "Copy"} lit={copied === "snippet"} onClick={() => copy("snippet", snippet)} />}
+                  {canReveal && (
+                    <>
+                      <span className="h-3 w-px shrink-0 bg-border" />
+                      <Verb label="Reveal" onClick={() => void desktop().then((app) => app.ShowFileInFinder(configurationPath))} />
+                    </>
+                  )}
+                </div>
+                <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-4 py-3.5 font-mono text-xs leading-[1.75] break-words whitespace-pre-wrap text-foreground">
+                  {snippet}
+                </pre>
+              </div>
+              {agent.foot && <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.foot}</p>}
             </div>
-            {agent.foot && <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.foot}</p>}
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { GrpcForm } from "./GrpcForm";
 import { McpForm } from "./McpForm";
 import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
 import { formatJson } from "./formatter";
@@ -425,11 +426,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {readOnly && (
-        <div className="bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
-          Configuration is read-only. Contact your administrator for changes.
-        </div>
-      )}
+      {readOnly && <ReadOnlyBanner>Apps are configured in kaja.json.</ReadOnlyBanner>}
 
       {jsonError && <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{jsonError}</div>}
 
