@@ -64,6 +64,19 @@ export function logScriptLine(level: string, message: string): void {
 }
 
 /**
+ * The one error event that is not a failure.
+ *
+ * A ResizeObserver that observes what its own callback resizes is how every measured
+ * element here is drawn, and the spec's answer is to deliver the rest of the
+ * notifications on the next frame and tell the window it did — as an error event with
+ * no error in it. Nothing failed and nothing was lost, so it is neither a footer row
+ * nor a line in kaja.log. Chrome and WebKit word it differently, hence the prefix.
+ */
+function isResizeObserverNotice(message: string): boolean {
+  return message.startsWith("ResizeObserver loop");
+}
+
+/**
  * Catch what Kaja failed at: `console.error`, `console.warn`, and the two events that
  * carry a failure nobody caught.
  *
@@ -91,6 +104,9 @@ export function installUiLog(): void {
   window.addEventListener("error", (event) => {
     if (event.error instanceof Error) {
       send("ERROR", [event.error]);
+      return;
+    }
+    if (isResizeObserverNotice(event.message)) {
       return;
     }
     const where = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : "";

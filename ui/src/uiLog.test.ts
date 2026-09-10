@@ -9,16 +9,24 @@ function paint(): void {
   while (frames.length > 0) frames.shift()!();
 }
 
-// installUiLog hooks the window's own error events; the store is what is under test,
-// so a stub that accepts the listeners is all this needs. Installed in `beforeAll`
-// rather than at module load because several test files assign `globalThis.window` a
-// bare object of their own while they load.
+const handlers = new Map<string, (event: unknown) => void>();
+
+// installUiLog hooks the window's own error events, so the stub keeps them and `raise`
+// is what the window would have done. Installed in `beforeAll` rather than at module
+// load because several test files assign `globalThis.window` a bare object of their
+// own while they load.
 beforeAll(() => {
   const host = globalThis as { window?: { addEventListener?: unknown } };
   host.window ??= {};
-  if (typeof host.window.addEventListener !== "function") host.window.addEventListener = () => {};
+  host.window.addEventListener = (type: string, listener: (event: unknown) => void) => {
+    handlers.set(type, listener);
+  };
   installUiLog();
 });
+
+function raise(event: { message: string; error?: unknown; filename?: string; lineno?: number; colno?: number }): void {
+  handlers.get("error")!(event);
+}
 
 beforeEach(() => {
   setAppErrorSchedule((run) => frames.push(run));
@@ -37,6 +45,20 @@ describe("installUiLog", () => {
 
   it("does not record a warning, which is something Kaja carried on past", () => {
     console.warn("Failed to format typescript");
+
+    expect(getAppErrors()).toEqual([]);
+  });
+
+  it("records an error event nobody caught", () => {
+    raise({ message: "Something broke", filename: "wails://localhost/main.js", lineno: 12, colno: 3 });
+
+    expect(getAppErrors()).toHaveLength(1);
+    expect(getAppErrors()[0].message).toBe("Something broke (wails://localhost/main.js:12:3)");
+  });
+
+  it("does not record the ResizeObserver notice, which is nothing having failed", () => {
+    raise({ message: "ResizeObserver loop completed with undelivered notifications.", filename: "wails://localhost/", lineno: 0, colno: 0 });
+    raise({ message: "ResizeObserver loop limit exceeded" });
 
     expect(getAppErrors()).toEqual([]);
   });
