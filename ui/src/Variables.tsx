@@ -15,6 +15,7 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { rpcErrorMessage } from "./rpcMessage";
 import { VariableSource, VariableStatus } from "./server/api";
 import { useVariableScan, VariableScan } from "./useVariableScan";
@@ -299,16 +300,8 @@ export function Variables({
           </Blankslate.Visual>
           <Blankslate.Heading>No variables yet</Blankslate.Heading>
           <Blankslate.Description>
-            {readOnly ? (
-              <>
-                This configuration is read-only, and it names no variables. Values come from the container environment, under <code>KAJA_&lt;NAME&gt;</code>.
-              </>
-            ) : (
-              <>
-                A variable is a value you write once and reference as <code>{"${NAME}"}</code> in any app field or script. Keep it in kaja.json, or keep it on
-                this machine only.
-              </>
-            )}
+            A variable is a value you write once and reference as <code>{"${NAME}"}</code> in any app field or script.
+            {!readOnly && <> Keep it in kaja.json, or keep it on this machine only.</>}
           </Blankslate.Description>
           {!readOnly && (
             <Blankslate.PrimaryAction onClick={addRow}>
@@ -320,14 +313,6 @@ export function Variables({
       </div>
     ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-3.5">
-        {/* A read-only configuration can't be edited into shape, so the screen
-            says what to do instead of offering controls that do nothing. */}
-        {readOnly && (
-          <p className="pb-3 text-xs text-muted-foreground">
-            Values come from the container environment. Set <code>KAJA_&lt;NAME&gt;</code> to supply one.
-          </p>
-        )}
-
         {undefinedReferences.length > 0 && (
           <div className="flex shrink-0 flex-col gap-2 pb-3">
             {undefinedReferences.map((name) => (
@@ -417,6 +402,11 @@ export function Variables({
 
   return (
     <div className="flex h-full flex-col bg-background">
+      {readOnly && (
+        <ReadOnlyBanner>
+          Values come from the container environment. Set <code>KAJA_&lt;NAME&gt;</code> to supply one.
+        </ReadOnlyBanner>
+      )}
       {body}
 
       {keychainSheet && (
