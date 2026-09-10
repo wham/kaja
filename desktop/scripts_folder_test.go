@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// A folder that isn't there is refused rather than created, so an unplugged disk's
-// mount point never becomes the place scripts are written.
 func TestReadableFolderRefusesWhatIsNotAFolder(t *testing.T) {
 	dir := t.TempDir()
 	if err := readableFolder(dir); err != nil {

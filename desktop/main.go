@@ -138,9 +138,8 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
 
-	// The Files list is where the scripts folder is chosen, and the picker is the one
-	// half of it only this process can do. On their own goroutines because both end in a
-	// dialog or a reload, which wait on the main thread.
+	// On their own goroutines because both end in a dialog or a reload, which wait on
+	// the main thread.
 	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
 	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
 
@@ -170,10 +169,9 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 		a.startMCPServer()
 	}
 
-	// Read here rather than in main because the bookmarks are restored before this hook
-	// runs, and a folder outside the container is reachable only once they are. On its
-	// own goroutine because showing a dialog waits on the main thread, which is the one
-	// running this hook.
+	// Read here rather than in main because a folder outside the container is reachable
+	// only once the bookmarks are restored, which happens before this hook. On its own
+	// goroutine because a dialog waits on the main thread, which is running this hook.
 	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
 		go a.reportUnreachableScripts(unreachable)
 	}
@@ -334,9 +332,8 @@ func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
 }
 
-// chooseScriptsFolder asks for the folder to keep scripts in. The picker is also what
-// grants a sandboxed kaja access to a folder outside its container, so the bookmark
-// saved here is what makes the choice survive a restart.
+// The picker is what grants a sandboxed kaja access to a folder outside its container,
+// so the bookmark saved here is what makes the choice survive a restart.
 func (a *App) chooseScriptsFolder() {
 	dir, err := a.app.Dialog.OpenFile().
 		CanChooseFiles(false).
@@ -361,12 +358,9 @@ func (a *App) chooseScriptsFolder() {
 	a.openScriptsFolder(dir)
 }
 
-// openScriptsFolder points this kaja at a folder and reloads the window; an empty one
-// is the default folder beside kaja.json. Reloading is what the switch is: every script
+// An empty dir is the default folder beside kaja.json. It reloads because every script
 // view, console and stored run names its file by an absolute path, and the page reads
-// the folder that is now open as it starts. The apps are untouched, so nothing
-// recompiles. Drafts are the browser's and survive it, which is right, since a draft
-// has no place and so has nowhere in a folder to have been.
+// the folder that is now open as it starts.
 func (a *App) openScriptsFolder(dir string) {
 	if dir != "" {
 		if err := readableFolder(dir); err != nil {
@@ -392,9 +386,6 @@ func (a *App) openScriptsFolder(dir string) {
 	slog.Info("Opened scripts folder", "path", dir)
 }
 
-// reportUnreachableScripts says that the folder on record was not there, which is the
-// one thing about it that has to be said without being asked: the window is otherwise
-// showing an empty Files list with no account of why.
 func (a *App) reportUnreachableScripts(dir string) {
 	a.app.Dialog.Warning().
 		SetTitle("Scripts folder not found").

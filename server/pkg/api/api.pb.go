@@ -3721,11 +3721,8 @@ type Configuration struct {
 	// an agent session that is already on.
 	Mcp *McpSettings `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
 	// Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
-	// file, which is what a workspace says by saying nothing. A relative path is
-	// resolved against this file's own folder, so a checkout can carry one; an
-	// absolute path is a folder somewhere else on the machine, which is what the
-	// desktop's picker writes when the scripts are to live somewhere that syncs.
-	// A folder that isn't there is not created: the default is used for that launch.
+	// file; a relative path is resolved against this file's own folder. A folder that
+	// isn't there is not created: the default is used instead.
 	ScriptsDir    string `protobuf:"bytes,9,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
