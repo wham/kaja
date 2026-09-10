@@ -24,18 +24,58 @@ import (
 // Writing is refused where this kaja does not own the workspace it opened, which is
 // the one answer canUpdateConfiguration reports.
 
-// scriptsDir is the scripts folder beside kaja.json. It is derived from the
-// configuration path rather than from the process's working directory so the two can
-// never point at different folders. The path is absolute because it is what identifies
-// a script to the client - its console and its stored runs are keyed on it - and the
-// configuration path a server is started with is usually relative to wherever it was
-// started.
-func (s *ApiService) scriptsDir() string {
-	dir := filepath.Join(filepath.Dir(s.configurationPath), "scripts")
+// The path is absolute because it is what identifies a script to the client - its
+// console and its stored runs are keyed on it - and the configuration path a server is
+// started with is usually relative to wherever it was started.
+func defaultScriptsRoot(configurationPath string) string {
+	dir := filepath.Join(filepath.Dir(configurationPath), "scripts")
 	if absolute, err := filepath.Abs(dir); err == nil {
 		return absolute
 	}
 	return dir
+}
+
+// A folder that isn't there falls back to the default rather than being created: an
+// unplugged disk's mount point is a path that looks writable, and scripts written there
+// are ones the disk coming back would hide.
+func scriptsRoot(configurationPath string, configured string) (dir string, unreachable string) {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return defaultScriptsRoot(configurationPath), ""
+	}
+
+	dir = configured
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(filepath.Dir(configurationPath), dir)
+	}
+	if absolute, err := filepath.Abs(dir); err == nil {
+		dir = absolute
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return defaultScriptsRoot(configurationPath), dir
+	}
+	return dir, ""
+}
+
+func (s *ApiService) scriptsDir() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	return dir
+}
+
+// UnreachableScriptsDir is empty where the configured folder was usable.
+func (s *ApiService) UnreachableScriptsDir() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	return unreachable
+}
+
+// SetScriptsDir writes the folder into kaja.json, an empty one clearing it back to the
+// folder beside it.
+func (s *ApiService) SetScriptsDir(dir string) error {
+	configuration := LoadGetConfigurationResponse(s.configurationPath).Configuration
+	configuration.ScriptsDir = dir
+	return SaveConfiguration(s.configurationPath, configuration)
 }
 
 // CanWriteWorkspace reports whether this kaja may write the workspace it opened. The

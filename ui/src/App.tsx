@@ -1659,12 +1659,19 @@ export function App() {
   );
 
   const onRevealScripts = useCallback(() => {
-    const folder = runtime.scriptsFolder;
+    const folder = runtime.scriptsDir;
     if (!folder) return;
     desktop()
       .then((app) => app.ShowFileInFinder(folder))
       .catch(() => {});
-  }, [runtime.scriptsFolder]);
+  }, [runtime.scriptsDir]);
+
+  // Choosing where the scripts are kept is the desktop's own: it needs the native
+  // picker, which is also what grants a sandboxed kaja access to a folder outside its
+  // container. It rides an event rather than a bound method, the way a link and the
+  // zoom do, so the window reloads under it once the folder is open.
+  const onChooseScriptsFolder = useCallback(() => emitWailsEvent("scripts:chooseFolder"), []);
+  const onUseDefaultScriptsFolder = useCallback(() => emitWailsEvent("scripts:useDefaultFolder"), []);
 
   // A file an agent wrote is a file nobody in this window wrote, so it arrives down the
   // same stream a run does and the sidebar and any open editor are brought into step.
@@ -2366,6 +2373,8 @@ export function App() {
                     onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
                     onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
                     onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+                    onChooseScriptsFolder={isWailsEnvironment() ? onChooseScriptsFolder : undefined}
+                    onUseDefaultScriptsFolder={isWailsEnvironment() ? onUseDefaultScriptsFolder : undefined}
                   />
                 }
               />

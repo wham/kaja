@@ -93,7 +93,7 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
-	workspaceDir  string // base for resolving relative protoDir; also holds the global scripts dir
+	workspaceDir  string // base for resolving relative protoDir; also holds kaja.json
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
 	// Guarded by linkMu.
@@ -138,6 +138,11 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
 
+	// On their own goroutines because both end in a dialog or a reload, which wait on
+	// the main thread.
+	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
+	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
+
 	// The window's zoom is the webview's own, so the window asks for it here rather than
 	// drawing it itself. The buttons in the corner are the system's and are not scaled by
 	// it, so the band they are centred on is a different number of points at every zoom.
@@ -162,6 +167,13 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// attaches to whatever is already running when it reads MCPServerInfo.
 	if a.api.McpEnabled() {
 		a.startMCPServer()
+	}
+
+	// Read here rather than in main because a folder outside the container is reachable
+	// only once the bookmarks are restored, which happens before this hook. On its own
+	// goroutine because a dialog waits on the main thread, which is running this hook.
+	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
+		go a.reportUnreachableScripts(unreachable)
 	}
 
 	return nil
@@ -318,6 +330,67 @@ func (a *App) LogFromUI(level string, message string) error {
 // shouldn't have.
 func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
+}
+
+// The picker is what grants a sandboxed kaja access to a folder outside its container,
+// so the bookmark saved here is what makes the choice survive a restart.
+func (a *App) chooseScriptsFolder() {
+	dir, err := a.app.Dialog.OpenFile().
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		CanCreateDirectories(true).
+		SetTitle("Scripts Folder").
+		SetMessage("Pick the folder to keep your scripts in. Pick one this machine already syncs, such as a folder in iCloud Drive, to share them with another installation. Your apps are unaffected.").
+		SetButtonText("Use Folder").
+		PromptForSingleSelection()
+	if err != nil {
+		slog.Warn("Failed to pick a scripts folder", "error", err)
+		return
+	}
+	if dir == "" {
+		return
+	}
+	if a.bookmarkStore != nil {
+		if err := a.bookmarkStore.Save(dir, dir); err != nil {
+			slog.Warn("Failed to save bookmark", "path", dir, "error", err)
+		}
+	}
+	a.openScriptsFolder(dir)
+}
+
+// An empty dir is the default folder beside kaja.json. It reloads because every script
+// view, console and stored run names its file by an absolute path, and the page reads
+// the folder that is now open as it starts.
+func (a *App) openScriptsFolder(dir string) {
+	if dir != "" {
+		if err := readableFolder(dir); err != nil {
+			slog.Error("Failed to open the scripts folder", "path", dir, "error", err)
+			a.app.Dialog.Warning().
+				SetTitle("Kaja can't use that folder").
+				SetMessage(fmt.Sprintf("%s: %s. The scripts folder is unchanged.", dir, err)).
+				Show()
+			return
+		}
+	}
+
+	if err := a.api.SetScriptsDir(dir); err != nil {
+		slog.Error("Failed to record the chosen scripts folder", "path", dir, "error", err)
+		a.app.Dialog.Warning().
+			SetTitle("Kaja can't save that choice").
+			SetMessage(fmt.Sprintf("Writing kaja.json failed: %s. The scripts folder is unchanged.", err)).
+			Show()
+		return
+	}
+	a.window.Reload()
+
+	slog.Info("Opened scripts folder", "path", dir)
+}
+
+func (a *App) reportUnreachableScripts(dir string) {
+	a.app.Dialog.Warning().
+		SetTitle("Scripts folder not found").
+		SetMessage(fmt.Sprintf("%s isn't there, so Kaja is using its own folder instead. Nothing was changed: kaja.json still names it, and it is used again as soon as it is back.", dir)).
+		Show()
 }
 
 // OpenDirectoryDialog opens a native directory picker. On macOS it saves a
