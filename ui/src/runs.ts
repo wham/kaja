@@ -120,6 +120,9 @@ export interface RunGroup {
   unreported: FailureNotice[];
   stats: ItemStats;
   awaiting?: ConsoleItem;
+  // Calls held back by a budget. They have no rows — a call is admitted before one is
+  // written — so this is the only thing that can account for them.
+  heldCalls: number;
   // Decides the view it opens in.
   drew: boolean;
   // Stated rather than silent: the log is the audit record, so where it stops being

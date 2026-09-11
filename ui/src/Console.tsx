@@ -711,13 +711,12 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // Still going is a state of the run, not of a call: a script sleeping between two of
   // them is running, and a verdict read off the calls so far would be one the run has
   // not reached.
-  const outcome = waiting
-    ? "waiting"
-    : group.running
-      ? formatElapsed(now - group.run.startedAt)
-      : group.status === "error"
-        ? "failed"
-        : formatDuration(group.run.durationMs);
+  // A held call is admitted before its row is written, so a run whose clock is moving
+  // for one has nothing in its log to show for it. This line is what the picker lists
+  // every run of the file by, which makes it the one place a run not on screen can say
+  // what it is doing.
+  const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
+  const outcome = waiting ? "waiting" : group.running ? elapsed : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
 
   return {
     name: runName(group, groups),
