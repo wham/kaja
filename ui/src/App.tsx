@@ -20,7 +20,7 @@ import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, CellStatus, TableBlock } from "./blocks";
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
@@ -1231,6 +1231,18 @@ export function App() {
     [showFileError],
   );
 
+  // The script a deeplink names, or the news that there isn't one. A destination is a
+  // name on both doors — a link that arrived and a cell that was clicked — so it is
+  // resolved in one place and by the link grammar's own rule.
+  const findLinkedScript = useCallback(
+    (named: string): Script | undefined => {
+      const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(scriptName(candidate), named));
+      if (!script) showFileError(`No script named "${named}".`);
+      return script;
+    },
+    [showFileError],
+  );
+
   const openScriptLink = useCallback(
     (text: string) => {
       const parsed = parseScriptLink(text);
@@ -1238,22 +1250,24 @@ export function App() {
         showFileError(parsed.error);
         return;
       }
-      const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(scriptName(candidate), parsed.link.script));
-      if (!script) {
-        showFileError(`No script named "${parsed.link.script}".`);
-        return;
-      }
+      const script = findLinkedScript(parsed.link.script);
+      if (!script) return;
       // Open it first, so the question is asked over the script it is about.
       void onScriptSelect(script);
       setLinkPrompt({ script, input: parsed.link.input });
     },
-    [onScriptSelect, showFileError],
+    [findLinkedScript, onScriptSelect, showFileError],
   );
 
   const openScriptLinkRef = useRef(openScriptLink);
   openScriptLinkRef.current = openScriptLink;
 
-  const onConfirmScriptLink = useCallback(
+  /**
+   * Run a script a name reached: a deeplink the sheet confirmed, or a table cell that
+   * was clicked. The run lands in that script's console, and `presentRun` decides
+   * whether it takes the screen, since nobody pressed Run on the view it is under.
+   */
+  const runLinkedScript = useCallback(
     async (script: Script, input: { [key: string]: string }) => {
       try {
         const file = await readScriptFile(script);
@@ -1269,6 +1283,23 @@ export function App() {
       }
     },
     [apps, showFileError, reportScriptError, beginRun, markSettled],
+  );
+
+  /**
+   * A table cell naming another script, clicked. The same door a deeplink goes
+   * through, minus the sheet: that one asks first because what is on the other side of
+   * a link may not be a person, and a click is one.
+   */
+  const onRunScriptCell = useCallback(
+    (run: CellRun) => {
+      const script = findLinkedScript(run.script);
+      if (!script) return;
+      // Opened first, so the run is watched on the script it belongs to rather than
+      // reported from the one that drew the table.
+      void onScriptSelect(script);
+      void runLinkedScript(script, run.input ?? {});
+    },
+    [findLinkedScript, onScriptSelect, runLinkedScript],
   );
 
   useEffect(() => {
@@ -2556,6 +2587,7 @@ export function App() {
                       onTableView={onTableView}
                       onTablePull={onTablePull}
                       onTableCells={onTableCells}
+                      onRunScript={onRunScriptCell}
                       onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
                       presentRunId={presentRunId}
                       onPresented={() => setPresentRunId(undefined)}
@@ -2741,7 +2773,7 @@ export function App() {
           address={scriptName(linkPrompt.script)}
           parameters={Object.keys(linkPrompt.input)}
           values={linkPrompt.input}
-          onRun={(input) => void onConfirmScriptLink(linkPrompt.script, input)}
+          onRun={(input) => void runLinkedScript(linkPrompt.script, input)}
           onClose={() => setLinkPrompt(null)}
         />
       )}

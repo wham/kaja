@@ -181,8 +181,19 @@ export interface ListValue {
  *
  * An Error, thrown or returned, is a cell that stopped: it draws as "—" with the
  * message on hover, and the rest of the table carries on filling.
+ *
+ * A kaja.run(…) is the one cell that is not a value at all: it draws as a link,
+ * and clicking it runs another script.
  */
 export type Cell = unknown;
+
+/**
+ * A cell that runs another script, from kaja.run. Nothing runs when it is made —
+ * it is where the cell goes, and the click is what goes there.
+ */
+export interface RunCell {
+  readonly label: string;
+}
 
 /** A table being filled in on the run's canvas. */
 export interface Table {
@@ -341,6 +352,31 @@ export declare const kaja: {
    *   kaja.code(query, "sql");
    */
   code(code: string, language?: string): void;
+  /**
+   * A table cell that runs another script when it is clicked, with the values you
+   * give it. The same script, the same parameters and the same grammar as a
+   * deeplink; this is that link said inside the window.
+   *
+   *   kaja.table(
+   *     ["show", "sold", ""],
+   *     shows.map((show) => [show.title, show.sold, kaja.run("show-detail", { id: show.id })]),
+   *   );
+   *
+   * The cell says the script's own name unless you give it a label:
+   *
+   *   kaja.run("orders/refund", { order: order.id }, { label: "Refund" });
+   *
+   * Name the script the way a deeplink does — no extension, folders kept
+   * ("reports/churn") — and it must be a saved file, since a draft has no name to
+   * be reached by. Every value is sent as text and read there as kaja.input.<key>,
+   * so the script on the other end is an ordinary script:
+   *
+   *   const id = kaja.input.id ?? (await kaja.askStr("Which show?"));
+   *
+   * Use it for the action a row invites rather than as a way to structure work: a
+   * script calling another script's work directly is a function call, not a cell.
+   */
+  run(script: string, input?: { [key: string]: unknown }, options?: { label?: string }): RunCell;
   /**
    * Draw a table on the run's canvas and hand back a handle to fill it. Rows
    * appear as they are added, so a loop paints rather than reporting at the end.
