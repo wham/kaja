@@ -385,9 +385,10 @@ What each member is for:
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input` — what a `kaja://run/<script>?url=…&note=…` link handed this run,
   read by name (`kaja.input.url`). Every value is text, and the whole query
-  belongs to the script. Empty when the script is run any other way, so guard a
-  parameter (`kaja.input.url ?? ""`) or ask for it with `kaja.askStr` and the
-  script works from a link and from the editor alike.
+  belongs to the script. Run repeats what the file last ran with, so a parameter
+  nothing has ever carried is undefined: guard it (`kaja.input.url ?? ""`) or ask
+  for it with `kaja.askStr` and the script works from a link and from the editor
+  alike.
 - `kaja.uuidV4(): string` — a random version 4 UUID. `crypto.randomUUID()` is the
   same function.
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field

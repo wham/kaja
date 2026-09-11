@@ -281,9 +281,10 @@ export declare const kaja: {
    * name: \`kaja.input.url\`. Every value is text, and the whole query belongs
    * to the script — no parameter name is reserved.
    *
-   * Empty when the script is run from the editor, so a parameter the link
-   * didn't carry is undefined: guard it (\`kaja.input.url ?? ""\`), or ask for
-   * it with \`kaja.askStr\` and the script works both ways.
+   * Run repeats what the file last ran with, so a script keeps the values it
+   * was last given. A parameter nothing has ever carried is undefined: guard
+   * it (\`kaja.input.url ?? ""\`), or ask for it with \`kaja.askStr\` and the
+   * script works both ways.
    */
   input: { [name: string]: string };
   /**

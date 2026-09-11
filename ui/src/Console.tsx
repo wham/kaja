@@ -11,6 +11,7 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { RunLog } from "./RunLog";
+import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
 import {
@@ -553,6 +554,7 @@ interface FullScreenProps {
 Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, onViewChange, runControl, onLeave, children }: FullScreenProps) {
   const waiting = group.awaiting !== undefined;
   const time = formatClockTime(group.run.startedAt);
+  const input = runInputLabel(group.run.input);
 
   return (
     <div data-testid="console-fullscreen-view" className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -565,6 +567,11 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">
             Run {group.run.number} · {time}
           </span>
+          {input && (
+            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={input}>
+              {input}
+            </span>
+          )}
         </div>
         {waiting ? (
           <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-amber-500/[0.12] px-2">
@@ -590,9 +597,9 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           <div className="h-4 w-px bg-border" />
           {/* Running a script again used to mean leaving full screen and coming
               back, which is two gestures around the one thing this screen is
-              for. It is the command row's own button, so the caret's
-              Run-with-parameters is here too — which is how a script launched
-              from a deeplink is run again with the values it was launched with. */}
+              for. It is the command row's own button, so Run repeats the values
+              the run in this bar was launched with and the caret is where they
+              are changed. */}
           {runControl}
           {runControl && <div className="h-4 w-px bg-border" />}
           <span className="font-mono text-xs text-muted-foreground">Esc</span>
@@ -648,6 +655,13 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
           )}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
+          {/* What the run carried, because Run repeats it: the values the next press
+              will send have to be readable without opening the sheet that sets them. */}
+          {summary?.input && (
+            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={summary.input}>
+              {summary.input}
+            </span>
+          )}
           {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (
             <span className={cn("truncate font-mono text-xs", summary.waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
@@ -700,7 +714,7 @@ interface RunRowProps extends RunSummaryLine {
 
 // Memoized so the tick that counts up an in-flight run only re-renders that run's
 // row; every settled row holds a value that no longer changes.
-Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
+Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
@@ -708,7 +722,14 @@ Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, wa
       onSelect={onSelect}
     >
       {pending && !waiting ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
+      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="shrink-0 font-mono text-xs text-foreground">{name}</span>
+        {input && (
+          <span className="truncate font-mono text-xs text-muted-foreground" title={input}>
+            {input}
+          </span>
+        )}
+      </div>
       {agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
       <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
@@ -721,6 +742,8 @@ interface RunSummaryLine {
   name: string;
   // `14:03 · 1.2 s`, `13:51 · waiting`, `13:44 · failed`.
   detail?: string;
+  // `id=42 · month=2026-01`, absent on a run that carried nothing.
+  input?: string;
   dotClass: string;
   pending: boolean;
   waiting: boolean;
@@ -744,6 +767,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   return {
     name: runName(group, groups),
     detail: outcome ? `${time} · ${outcome}` : time,
+    input: runInputLabel(group.run.input),
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
     pending: group.running,
     waiting,
