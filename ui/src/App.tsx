@@ -10,7 +10,7 @@ import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
-import { Console } from "./Console";
+import { Console, RunPresentation } from "./Console";
 import { newRunId, Run } from "./runs";
 import { consoles } from "./consoles";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
@@ -421,7 +421,7 @@ export function App() {
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
   const [linkSheet, setLinkSheet] = useState<{ script: Script; parameters: string[] } | null>(null);
-  const [presentRunId, setPresentRunId] = useState<string>();
+  const [present, setPresent] = useState<RunPresentation>();
   const [runPrompt, setRunPrompt] = useState<{ fileId: string; fileName: string; parameters: string[] } | null>(null);
   const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
   const activeRunsRef = useRef(activeRuns);
@@ -1264,17 +1264,21 @@ export function App() {
 
   /**
    * Run a script a name reached: a deeplink the sheet confirmed, or a table cell that
-   * was clicked. The run lands in that script's console, and `presentRun` decides
-   * whether it takes the screen, since nobody pressed Run on the view it is under.
+   * was clicked. The run lands in that script's console, and `screen` is the one thing
+   * the two doors disagree about.
    */
   const runLinkedScript = useCallback(
-    async (script: Script, input: { [key: string]: string }) => {
+    async (script: Script, input: { [key: string]: string }, options: { open?: boolean; screen?: RunPresentation["screen"] } = {}) => {
       try {
         const file = await readScriptFile(script);
         if (!file) return;
+        // Opened from here rather than before the read, so the console is handed the
+        // file and the run it is about in one paint: a size crossing with them is then
+        // never a frame of the window it was carried from.
+        if (options.open) applyViews((views) => showScript(views, file.script, file.content));
         rememberRunInput(file.script.path, input);
         const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
-        setPresentRunId(run.id);
+        if (options.screen) setPresent({ runId: run.id, screen: options.screen });
         runScript(file.content, kaja, apps, reportScriptError(run))
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
@@ -1282,24 +1286,23 @@ export function App() {
         showFileError(`Run failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [apps, showFileError, reportScriptError, beginRun, markSettled],
+    [apps, applyViews, showFileError, reportScriptError, beginRun, markSettled],
   );
 
   /**
    * A table cell naming another script, clicked. The same door a deeplink goes
-   * through, minus the sheet: that one asks first because what is on the other side of
-   * a link may not be a person, and a click is one.
+   * through, minus the sheet and minus the screen: that one asks first because what is
+   * on the other side of a link may not be a person, and it presents because nothing
+   * about the window said a run was coming. A click is a person, in a window they are
+   * already reading at a size of their own, so the run goes on being read at it.
    */
   const onRunScriptCell = useCallback(
-    (run: CellRun) => {
+    (run: CellRun, fullScreen: boolean) => {
       const script = findLinkedScript(run.script);
       if (!script) return;
-      // Opened first, so the run is watched on the script it belongs to rather than
-      // reported from the one that drew the table.
-      void onScriptSelect(script);
-      void runLinkedScript(script, run.input ?? {});
+      void runLinkedScript(script, run.input ?? {}, { open: true, screen: fullScreen ? "keep" : undefined });
     },
-    [findLinkedScript, onScriptSelect, runLinkedScript],
+    [findLinkedScript, runLinkedScript],
   );
 
   useEffect(() => {
@@ -2589,8 +2592,8 @@ export function App() {
                       onTableCells={onTableCells}
                       onRunScript={onRunScriptCell}
                       onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
-                      presentRunId={presentRunId}
-                      onPresented={() => setPresentRunId(undefined)}
+                      present={present}
+                      onPresented={() => setPresent(undefined)}
                       runControl={runButton}
                     />
                   </div>
@@ -2773,7 +2776,7 @@ export function App() {
           address={scriptName(linkPrompt.script)}
           parameters={Object.keys(linkPrompt.input)}
           values={linkPrompt.input}
-          onRun={(input) => void runLinkedScript(linkPrompt.script, input)}
+          onRun={(input) => void runLinkedScript(linkPrompt.script, input, { screen: "take" })}
           onClose={() => setLinkPrompt(null)}
         />
       )}
