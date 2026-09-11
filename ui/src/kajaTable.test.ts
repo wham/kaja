@@ -507,3 +507,62 @@ describe("kaja.table cells", () => {
     expect(await kaja.pullCells("block-gone", [{ row: 0, column: 0 }])).toBe(false);
   });
 });
+
+// The one cell that is a destination rather than a value, and the one that survives
+// being stored: it is a script's name and a map of text, so nothing about it is held
+// on the Kaja instance and nothing about it can expire.
+describe("kaja.run", () => {
+  it("draws the script's own name and carries where it goes", () => {
+    const { kaja, only } = draw();
+    kaja.table(["id", ""], [[1, kaja.run("reports/churn", { id: 7 })]]);
+
+    expect(only().rows).toEqual([["1", "churn"]]);
+    expect(only().runs).toEqual({ 0: { 1: { script: "reports/churn", input: { id: "7" } } } });
+  });
+
+  it("takes a label, and an extension off the name", () => {
+    const { kaja, only } = draw();
+    kaja.table([""], [[kaja.run("refund.ts", { order: "a-1" }, { label: "Refund" })]]);
+
+    expect(only().rows).toEqual([["Refund"]]);
+    expect(only().runs).toEqual({ 0: { 0: { script: "refund", input: { order: "a-1" } } } });
+  });
+
+  // Every value is text, as a link's values are, so a script reads kaja.input.id
+  // without the caller spelling the conversion out.
+  it("says every value as text, and says nothing where there is none", () => {
+    const { kaja, only } = draw();
+    kaja.table([""], [[kaja.run("audit", { at: new Date("2024-03-01T00:00:00Z"), open: true })]]);
+    expect(only().runs?.[0]?.[0]).toEqual({ script: "audit", input: { at: "2024-03-01T00:00:00.000Z", open: "true" } });
+
+    const other = draw();
+    other.kaja.table([""], [[other.kaja.run("audit")]]);
+    expect(other.only().runs?.[0]?.[0]).toEqual({ script: "audit", input: undefined });
+  });
+
+  it("is one cell among the others, and a rewritten row lets its own go", () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id", "", ""]);
+    const row = table.row(1, kaja.run("detail", { id: 1 }), Promise.resolve("4.6"));
+
+    expect(only().rows).toEqual([["1", "detail", ""]]);
+    expect(only().runs).toEqual({ 0: { 1: { script: "detail", input: { id: "1" } } } });
+
+    row.update(1, "gone", "4.6");
+    expect(only().rows).toEqual([["1", "gone", "4.6"]]);
+    expect(only().runs).toBeUndefined();
+    expect(only().cells).toBeUndefined();
+  });
+
+  // A table of plain cells is stored exactly as it was before any of this existed.
+  it("leaves a table that has none untouched", () => {
+    const { kaja, only } = draw();
+    kaja.table(["id"], [[1]]);
+    expect(only().runs).toBeUndefined();
+  });
+
+  it("refuses a destination that names nothing", () => {
+    const { kaja } = draw();
+    expect(() => kaja.run("  ")).toThrow(/name the script to run/);
+  });
+});

@@ -7,15 +7,19 @@ import {
   ApproveGesture,
   AskBlock,
   Block,
+  CellRun,
   CellStatus,
   cellStatus,
   CodeBlock,
   formatCell,
   newBlockId,
   RateLimitBlock,
+  RunCell,
   TableBlock,
   TextBlock,
+  withCellRun,
   withCellStatus,
+  withoutRowRuns,
   withoutRowStatus,
   PerfBlock,
 } from "./blocks";
@@ -36,6 +40,7 @@ import { loopKey } from "./loopKey";
 import { describeSchedule, PerfBody, PerfPlan, PerfReport, perfReport, PerfSchedule, PerfTestOptions, runPerfTest } from "./perfTest";
 import { RunMetrics } from "./runStats";
 import { LogSink } from "./scriptConsole";
+import { baseName, linkName } from "./scriptLink";
 import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 import { uuidV4 } from "./uuid";
@@ -178,9 +183,10 @@ export interface Row {
 /**
  * A cell the script has, or one it is getting. A promise is work already started; a
  * function is work nobody has asked for yet. An `Error`, thrown or returned, is a
- * cell that stopped. `unknown` to TypeScript; the alias is where the rule is written.
+ * cell that stopped. A `kaja.run(…)` is a destination rather than a value at all.
+ * `unknown` to TypeScript; the alias is where the rule is written.
  */
-export type Cell = unknown | PromiseLike<unknown> | (() => unknown);
+export type Cell = unknown | PromiseLike<unknown> | (() => unknown) | RunCell;
 
 export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
 
@@ -190,6 +196,11 @@ export type RowSource = Rows | ((search: string) => Rows);
 
 export interface TableOptions {
   pageSize?: number;
+}
+
+export interface RunOptions {
+  /** What the cell says. The script's own name where nothing else is given. */
+  label?: string;
 }
 
 // The closure beside the block's `CellStatus`: the block is JSON the console
@@ -709,6 +720,23 @@ export class Kaja {
     this.#onBlockUpdate(newBlockId(), block);
   }
 
+  /**
+   * A cell that runs another script, which is the deeplink grammar said inside the
+   * window: the same verb, the same name, and the same query. Nothing runs here — this
+   * is a destination, and clicking the cell is what goes there.
+   */
+  run(script: string, input?: { [key: string]: unknown }, options?: RunOptions): RunCell {
+    const named = linkName(script.trim());
+    if (named === "") {
+      throw new Error('kaja.run: name the script to run, the way a deeplink names one: kaja.run("reports/churn", { id })');
+    }
+    // Every value is text, as a link's values are, so a script reads `kaja.input.id`
+    // without the caller having to spell the conversion out.
+    const entries = Object.entries(input ?? {}).map(([key, value]) => [key, formatCell(value)]);
+    const cell: CellRun = { script: named, input: entries.length === 0 ? undefined : Object.fromEntries(entries) };
+    return new RunCell(options?.label ?? baseName(named), cell);
+  }
+
   table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
     const blockId = newBlockId();
     const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
@@ -802,6 +830,7 @@ export class Kaja {
     // Whatever was on its way answered the row as it was, not the row being written.
     table.cells.delete(index);
     block.cells = withoutRowStatus(block, index);
+    block.runs = withoutRowRuns(block, index);
 
     const text = cells.map((cell, column) => {
       // Thrown or returned, an Error is a cell that stopped: the script had the failure,
@@ -809,6 +838,12 @@ export class Kaja {
       if (cell instanceof Error) {
         block.cells = withCellStatus(block, index, column, { error: cell.message });
         return "";
+      }
+      // A destination is already the whole of itself, so it needs nothing held beside
+      // the block: what is drawn is the label, and where it goes is in the block.
+      if (cell instanceof RunCell) {
+        block.runs = withCellRun(block, index, column, cell.run);
+        return cell.label;
       }
       if (typeof cell === "function") return this.#awaitCell(blockId, table, index, column, revision, cell as () => unknown);
       if (isThenable(cell)) return this.#awaitCell(blockId, table, index, column, revision, undefined, cell);

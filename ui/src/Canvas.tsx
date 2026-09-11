@@ -1,7 +1,21 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, PerfBlock, RateLimitBlock, TableBlock, TextBlock } from "./blocks";
+import {
+  ApproveBlock,
+  ApproveGesture,
+  AskBlock,
+  Block,
+  CellRun,
+  cellRun,
+  CellStatus,
+  cellStatus,
+  CodeBlock,
+  PerfBlock,
+  RateLimitBlock,
+  TableBlock,
+  TextBlock,
+} from "./blocks";
 import { RateLimitState } from "./rateLimit";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
@@ -66,6 +80,9 @@ interface CanvasProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
+  // A cell that runs another script. The canvas knows the destination and nothing
+  // about the scripts folder, so going there is the window's to do.
+  onRunScript: (run: CellRun) => void;
 }
 
 /**
@@ -86,6 +103,7 @@ export function Canvas({
   onTableView,
   onTablePull,
   onTableCells,
+  onRunScript,
 }: CanvasProps) {
   const drawn = group.drawn;
   const unreported = group.unreported;
@@ -141,6 +159,7 @@ export function Canvas({
             onTableView={onTableView}
             onTablePull={onTablePull}
             onTableCells={onTableCells}
+            onRunScript={onRunScript}
           />
         </div>
       ))}
@@ -245,6 +264,7 @@ interface EntryProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
+  onRunScript: (run: CellRun) => void;
 }
 
 Canvas.Entry = function ({
@@ -259,6 +279,7 @@ Canvas.Entry = function ({
   onTableView,
   onTablePull,
   onTableCells,
+  onRunScript,
 }: EntryProps) {
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
@@ -276,6 +297,7 @@ Canvas.Entry = function ({
       onTableView={onTableView}
       onTablePull={onTablePull}
       onTableCells={onTableCells}
+      onRunScript={onRunScript}
     />
   );
 };
@@ -294,6 +316,7 @@ interface BlockProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
+  onRunScript: (run: CellRun) => void;
 }
 
 Canvas.Block = function ({
@@ -309,6 +332,7 @@ Canvas.Block = function ({
   onTableView,
   onTablePull,
   onTableCells,
+  onRunScript,
 }: BlockProps) {
   switch (block.kind) {
     case "text":
@@ -316,7 +340,17 @@ Canvas.Block = function ({
     case "code":
       return <Canvas.Code block={block} />;
     case "table":
-      return <Canvas.Table id={id} block={block} view={tableViews[id] ?? NO_TABLE_VIEW} onView={onTableView} onPull={onTablePull} onCells={onTableCells} />;
+      return (
+        <Canvas.Table
+          id={id}
+          block={block}
+          view={tableViews[id] ?? NO_TABLE_VIEW}
+          onView={onTableView}
+          onPull={onTablePull}
+          onCells={onTableCells}
+          onRun={onRunScript}
+        />
+      );
     case "ask":
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
     case "approve":
@@ -457,6 +491,7 @@ interface TableProps {
   onView: (blockId: string, view: TableView) => void;
   onPull: (blockId: string, search: string, want: number) => void;
   onCells: (blockId: string, cells: CellRef[]) => void;
+  onRun: (run: CellRun) => void;
 }
 
 /**
@@ -474,7 +509,7 @@ interface TableProps {
  * can still page, and the page on screen stays, dimmed, until the next is here. Only
  * a first draw has nothing to dim, which is what the skeleton rows are for.
  */
-Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProps) {
+Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: TableProps) {
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
   const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
@@ -640,8 +675,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProp
                           column={cellIndex}
                           numeric={numeric[cellIndex]}
                           status={cellStatus(block, drawnIndices[rowIndex], cellIndex)}
+                          run={cellRun(block, drawnIndices[rowIndex], cellIndex)}
                           expired={block.expired === true}
                           onRetry={() => onCells(id, [{ row: drawnIndices[rowIndex], column: cellIndex, retry: true }])}
+                          onRun={onRun}
                         />
                       ))}
                     </tr>
@@ -696,21 +733,48 @@ interface TableCellProps {
   column: number;
   numeric: boolean;
   status?: CellStatus;
+  run?: CellRun;
   expired: boolean;
   onRetry: () => void;
+  onRun: (run: CellRun) => void;
 }
 
 /**
- * One cell, in one of three states. A waiting cell is the same bar a skeleton row
+ * One cell, in one of four states. A waiting cell is the same bar a skeleton row
  * draws; a stopped one is a dim `—` with the message on hover, because a column of
  * numbers with `429 Too Many Requests` in it stops being a column.
  *
  * Two deliberate differences from the page loader: no shimmer (cells fill one at a
  * time, which is movement enough) and no delay (the bar arrives with the row rather
  * than replacing something, so there is nothing to flash).
+ *
+ * A destination is the fourth, and the one a stored run keeps: it is a name rather
+ * than a closure, so it outlives the session that drew it and `expired` says nothing
+ * about it.
  */
-Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }: TableCellProps) {
+Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRetry, onRun }: TableCellProps) {
   const className = cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
+
+  // Underlined rather than coloured: the neutral theme's primary is the foreground
+  // in both modes, so a column of destinations would read as a column of values.
+  if (run !== undefined) {
+    return (
+      <td className={cn(className, "p-0")}>
+        <button
+          type="button"
+          data-testid="canvas-table-run"
+          className={cn(
+            "flex h-full w-full items-center truncate px-3 text-left underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground",
+            numeric && "justify-end text-right",
+          )}
+          title={`Run ${run.script}`}
+          onClick={() => onRun(run)}
+        >
+          {cell}
+        </button>
+      </td>
+    );
+  }
 
   if (status === undefined) {
     return (

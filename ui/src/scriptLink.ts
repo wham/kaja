@@ -110,7 +110,8 @@ export function scriptLinkParts(fileName: string, input?: { [key: string]: strin
   return parts;
 }
 
-function baseName(path: string): string {
+/** The last segment of a link's path: the script's own name, without its folders. */
+export function baseName(path: string): string {
   const at = path.lastIndexOf("/");
   return at === -1 ? path : path.slice(at + 1);
 }

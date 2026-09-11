@@ -35,6 +35,35 @@ export interface CellStatus {
   retry?: boolean;
 }
 
+/**
+ * A cell that runs another script: a destination, said the way a deeplink says one.
+ *
+ * It is a name and a map of text rather than anything held in memory, which is what
+ * makes it the one cell that doesn't expire — a live cell is a closure and reads back
+ * as `run to load`, while this reads back next week and still runs what it says.
+ */
+export interface CellRun {
+  /** As a deeplink spells it: no extension, folders kept (`reports/churn`). */
+  script: string;
+  /** What that script reads as `kaja.input`. Every value is text, as a link's are. */
+  input?: { [key: string]: string };
+}
+
+/**
+ * What a script puts in a cell to make it one. The label is the cell's text, so this
+ * is a value like any other wherever it lands somewhere that isn't a cell.
+ */
+export class RunCell {
+  constructor(
+    readonly label: string,
+    readonly run: CellRun,
+  ) {}
+
+  toString(): string {
+    return this.label;
+  }
+}
+
 export interface TableBlock {
   kind: "table";
   columns: string[];
@@ -63,6 +92,9 @@ export interface TableBlock {
   total?: number;
   // The call itself is in the log; this is what the table says about why it stopped.
   error?: string;
+  // The cells that run another script, sparse at both levels like `cells` and absent
+  // from a table that has none.
+  runs?: { [row: number]: { [column: number]: CellRun } };
 }
 
 /**
@@ -162,6 +194,10 @@ export function cellStatus(block: TableBlock, row: number, column: number): Cell
   return block.cells?.[row]?.[column];
 }
 
+export function cellRun(block: TableBlock, row: number, column: number): CellRun | undefined {
+  return block.runs?.[row]?.[column];
+}
+
 /**
  * The same map with one cell set, or cleared once its value is here. A new object at
  * every level, on the same rule the rows follow: the canvas compares what it was
@@ -187,6 +223,21 @@ export function withoutRowStatus(block: TableBlock, row: number): TableBlock["ce
   const cells = { ...block.cells };
   delete cells[row];
   return Object.keys(cells).length === 0 ? undefined : cells;
+}
+
+/** The destinations with one cell's set, on the same rules as the statuses above. */
+export function withCellRun(block: TableBlock, row: number, column: number, run: CellRun): TableBlock["runs"] {
+  const runs = { ...(block.runs ?? {}) };
+  runs[row] = { ...(runs[row] ?? {}), [column]: run };
+  return runs;
+}
+
+/** …and with a whole row's cleared, which is what rewriting a row does. */
+export function withoutRowRuns(block: TableBlock, row: number): TableBlock["runs"] {
+  if (block.runs?.[row] === undefined) return block.runs;
+  const runs = { ...block.runs };
+  delete runs[row];
+  return Object.keys(runs).length === 0 ? undefined : runs;
 }
 
 let sequence = 0;
@@ -244,6 +295,8 @@ export function blockLabel(block: Block): string {
 export function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
+  // A destination landing anywhere but a cell is the label it would have been drawn as.
+  if (value instanceof RunCell) return value.label;
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
   if (value instanceof Date) return value.toISOString();
   try {

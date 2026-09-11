@@ -237,6 +237,25 @@ page and reports `more: true` — if you need the whole set, write the loop and
 read it yourself. Prefer this over `.row(...)` whenever the API pages: the person
 who opens the script gets the rest without running anything.
 
+**A cell can run another script.** `kaja.run(script, input?)` is a link: the cell
+draws as the script's name and clicking it runs that script with those values,
+which is the deeplink grammar said inside the window. Nothing runs when you write
+it, and nothing runs in your own run — this is the action a row invites, for the
+person reading the table.
+
+```ts
+kaja.table(
+  ["show", "seats", ""],
+  shows.map((show) => [show.title, show.seatsAvailable, kaja.run("shows/detail", { id: show.id }, { label: "Detail" })]),
+);
+```
+
+Name the script the way a deeplink does: no extension, folders kept, and a saved
+file rather than a draft. Every value is sent as text and read on the other end as
+`kaja.input.<key>`, so the script it names is an ordinary script that takes its
+input from there. It is not a way to structure your own work — calling another
+script's work is a function call, not a cell.
+
 ## A perf test reports itself
 
 `kaja.perfTest(body, options)` runs a body on a schedule — `concurrency` virtual
@@ -346,6 +365,10 @@ What each member is for:
   (an async generator) the table pulls a page at a time as it is paged through.
   A cell can be a promise or a function rather than a value, and draws as loading
   until it arrives.
+- `kaja.run(script, input?, options?)` — a cell that runs another script with those
+  values when it is clicked. The script is named as a deeplink names one, the cell
+  says its name unless `options.label` says otherwise, and the values are read
+  there as `kaja.input.<key>`.
 - `kaja.perfTest(body, options)` — run a body on a schedule and let the run's
   Stats page report it. The numbers are drawn for you; the report it hands back
   is for judging them. See above.

@@ -1,6 +1,6 @@
 import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ApproveGesture } from "./blocks";
+import { ApproveGesture, CellRun } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { Canvas } from "./Canvas";
@@ -52,6 +52,8 @@ interface ConsoleProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
+  // What a table cell naming another script does when it is clicked.
+  onRunScript: (run: CellRun) => void;
   onClear?: () => void;
   // A run nobody pressed Run for, worth showing rather than leaving in a panel.
   // One-shot — `onPresented` is called once it has been shown, and once it is clear
@@ -79,6 +81,7 @@ export function Console({
   onTableView,
   onTablePull,
   onTableCells,
+  onRunScript,
   onClear,
   presentRunId,
   onPresented,
@@ -297,6 +300,7 @@ export function Console({
       scrollRef={canvasScroll}
       tableViews={tableViews}
       onTableView={onTableView}
+      onRunScript={onRunScript}
       onTablePull={onTablePull}
       onTableCells={onTableCells}
     />
