@@ -1,5 +1,5 @@
 import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture, CellRun } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
@@ -40,6 +40,17 @@ const MAX_VISIBLE_RUN_ROWS = 8;
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
+/**
+ * Why a run nobody pressed Run for is on screen, which is the one thing the two doors
+ * that start one disagree about. A deeplink arrives from outside the window, so its
+ * run `take`s the screen the moment it draws; a table cell was clicked inside one, so
+ * its run only `keep`s the size it was clicked at.
+ */
+export interface RunPresentation {
+  runId: string;
+  screen: "take" | "keep";
+}
+
 interface ConsoleProps {
   // The whole scope: the runs are that file's runs, and changing it swaps consoles
   // rather than reporting a new run.
@@ -52,13 +63,14 @@ interface ConsoleProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
-  // What a table cell naming another script does when it is clicked.
-  onRunScript: (run: CellRun) => void;
+  // What a table cell naming another script does when it is clicked, and the size it
+  // was clicked at.
+  onRunScript: (run: CellRun, fullScreen: boolean) => void;
   onClear?: () => void;
   // A run nobody pressed Run for, worth showing rather than leaving in a panel.
   // One-shot — `onPresented` is called once it has been shown, and once it is clear
   // it never will be.
-  presentRunId?: string;
+  present?: RunPresentation;
   onPresented?: () => void;
   // So a run can be started again from full screen rather than only from the command
   // row the canvas covers.
@@ -83,7 +95,7 @@ export function Console({
   onTableCells,
   onRunScript,
   onClear,
-  presentRunId,
+  present,
   onPresented,
   runControl,
 }: ConsoleProps) {
@@ -222,31 +234,42 @@ export function Console({
     [selectedGroup, onSelect, onViewChange],
   );
 
-  // Full screen belongs to the run you were reading.
-  useEffect(() => {
+  // Full screen belongs to the run you were reading. Before the paint rather than
+  // after it, so the file being handed over is never drawn at the size of the one
+  // before it — which is also what lets a size be carried across, below.
+  useLayoutEffect(() => {
     setFullScreen(false);
   }, [fileId]);
+
+  // A click is made at a size, and the size is part of what was clicked.
+  const onRunScriptCell = useCallback((run: CellRun) => onRunScript(run, fullScreen), [onRunScript, fullScreen]);
 
   /**
    * A run that arrived from a deeplink is shown rather than left in a panel: the moment
    * it draws, the canvas takes the window. It waits for that first block rather than
-   * opening on an empty screen, and a run that ends without drawing is dropped.
+   * opening on an empty screen, and a run that ends without drawing is dropped. A run a
+   * cell started asks for nothing of the sort — it keeps the screen it was clicked at,
+   * at once and whatever it goes on to draw, so the view is left to `defaultView` the
+   * way it is on a run you pressed Run for.
    *
-   * Declared after the two effects that clear full screen, so a fresh file's reset
-   * cannot land on top of the presentation it was opened for.
+   * Declared after the effect that clears full screen, so a fresh file's reset cannot
+   * land on top of the presentation it was opened for.
    */
-  useEffect(() => {
-    if (presentRunId === undefined) return;
-    const group = groups.find((candidate) => candidate.run.id === presentRunId);
-    const presentation = presentRun(group);
+  useLayoutEffect(() => {
+    if (present === undefined) return;
+    const group = groups.find((candidate) => candidate.run.id === present.runId);
+    const presentation = present.screen === "keep" ? (group ? "present" : "wait") : presentRun(group);
     if (presentation === "wait") return;
     if (presentation === "present" && group) {
       if (selection?.runId !== group.run.id) onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
-      enterFullScreen(defaultView(group));
+      // A carried size settles nothing else: the view is derived, so the run lands on
+      // the one it would have landed on had you pressed Run.
+      if (present.screen === "keep") setFullScreen(true);
+      else enterFullScreen(defaultView(group));
     }
     onPresented?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentRunId, file.version]);
+  }, [present, file.version]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -300,7 +323,7 @@ export function Console({
       scrollRef={canvasScroll}
       tableViews={tableViews}
       onTableView={onTableView}
-      onRunScript={onRunScript}
+      onRunScript={onRunScriptCell}
       onTablePull={onTablePull}
       onTableCells={onTableCells}
     />
