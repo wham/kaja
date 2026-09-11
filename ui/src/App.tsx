@@ -195,7 +195,6 @@ interface LiveRun {
  * not this sheet — a file already has both, so it is typed in the row it is in.
  */
 interface NameSheet {
-  title: string;
   name: string;
   folder: string;
   // The draft being named, and its code.
@@ -1405,12 +1404,12 @@ export function App() {
     const view = viewsRef.current[0];
     if (view?.type !== "draft") return;
     const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
+    if (draft && isAgentDraft(draft)) return;
     openNameSheet({
       name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
       content: view.model.getValue(),
       draftId: view.draftId,
-      title: draft && isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
     });
   }, [canWriteFiles, openNameSheet, takenNames]);
 
@@ -1421,7 +1420,6 @@ export function App() {
         folder: lastFolderRef.current,
         content: draft.code,
         draftId: draft.id,
-        title: isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
       }),
     [openNameSheet, takenNames],
   );
@@ -2285,18 +2283,24 @@ export function App() {
   }, [drafts, scripts, onDraftSelect, onScriptSelect]);
 
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
+  // An agent's buffer is a playground rather than work you are keeping, so it is the
+  // one draft with no way to a file: the sheet would ask you to name what somebody
+  // else wrote.
+  const savableDraft = currentDraft && !isAgentDraft(currentDraft) ? currentDraft : undefined;
   const fileActions =
     currentDraft && canWriteFiles ? (
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={onRequestSave}
-          className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
-        >
-          <SaveIcon size={12} />
-          Save as file
-          {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
-        </button>
+        {savableDraft && (
+          <button
+            type="button"
+            onClick={onRequestSave}
+            className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
+          >
+            <SaveIcon size={12} />
+            Save as file
+            {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
+          </button>
+        )}
         <IconButton
           icon={X}
           aria-label={`Discard ${currentDraft.title}`}
@@ -2323,7 +2327,7 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
-      onSaveAsFile={currentDraft && canWriteFiles ? onRequestSave : undefined}
+      onSaveAsFile={savableDraft && canWriteFiles ? onRequestSave : undefined}
       onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
       onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
@@ -2624,7 +2628,7 @@ export function App() {
           name is typed in the row it is in. */}
       {nameSheet && (
         <Dialog
-          title={nameSheet.title}
+          title="Save as file"
           onClose={() => {
             setNameSheet(null);
             setNameSheetError(undefined);

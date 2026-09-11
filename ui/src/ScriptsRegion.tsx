@@ -260,10 +260,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   running={props.runningFileIds?.has(draft.id)}
                   waiting={props.waitingFileIds?.has(draft.id)}
                   active={active(`draft:${draft.id}`)}
-                  canWrite={canWrite}
                   onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
                   onSelect={() => props.onDraftSelect(draft)}
-                  onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
                   onDiscard={() => props.onDiscardDraft(draft)}
                 />
               ))}
@@ -711,10 +709,8 @@ function AgentRow({
   running,
   waiting,
   active,
-  canWrite,
   onHover,
   onSelect,
-  onSaveAsFile,
   onDiscard,
 }: {
   draft: Draft;
@@ -722,9 +718,7 @@ function AgentRow({
   running?: boolean;
   waiting?: boolean;
   active: boolean;
-  canWrite: boolean;
   onHover: (on: boolean) => void;
-  onSaveAsFile: () => void;
   onSelect: () => void;
   onDiscard: () => void;
 }) {
@@ -750,7 +744,9 @@ function AgentRow({
         <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
           <Plug size={12} />
         </span>
-        <span className="flex-1 truncate" title={`${draft.agentName} is writing here: ${draft.title}`}>
+        {/* An agent's buffer is the agent's own workbench rather than something you
+            are keeping, so the name sits a shade back from your own drafts. */}
+        <span className={cn("flex-1 truncate", !current && "text-muted-foreground")} title={`${draft.agentName} is writing here: ${draft.title}`}>
           {draft.agentName}
         </span>
         <span
@@ -758,10 +754,7 @@ function AgentRow({
           style={active ? undefined : { width: TRAILING_SLOT }}
         >
           {active ? (
-            <>
-              {canWrite && <RowAction icon={Save} label={`Save what ${draft.agentName} wrote as a file`} onClick={onSaveAsFile} />}
-              <RowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={onDiscard} />
-            </>
+            <RowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={onDiscard} />
           ) : waiting ? (
             <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
           ) : running ? (
