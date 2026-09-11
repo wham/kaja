@@ -178,6 +178,24 @@ describe("RateLimiter", () => {
     expect(clock.now() - startedAt).toBe(2_000);
   });
 
+  // Admission is serialised, so only one call at a time is being paced — but every
+  // call behind it is waiting on the budget just as hard, and none of them has a row.
+  // A count that left the queue out is what let a run settle with calls still to go.
+  it("counts every call the budget is holding, queued or being paced", async () => {
+    const { limiter: it } = limiter({ perSecond: 1 });
+    expect(it.waiting).toBe(0);
+
+    const first = it.acquire();
+    const second = it.acquire();
+    const third = it.acquire();
+    expect(it.waiting).toBe(3);
+
+    await first;
+    expect(it.waiting).toBe(2);
+    await Promise.all([second, third]);
+    expect(it.waiting).toBe(0);
+  });
+
   it("stops waiting when the run is aborted", async () => {
     const { limiter: it, clock } = limiter();
     it.settle({ "x-ratelimit-remaining": "0", "x-ratelimit-reset": "600" }, false);

@@ -319,6 +319,23 @@ describe("what a run says about itself", () => {
     expect(store.file("a.ts").groups[0].status).toBe("error");
   });
 
+  // A held call is admitted before its row is written, so the log has nothing to show
+  // for it and the clock in the tail bar moves for work nothing can name. The limiter's
+  // own block is the one record of it, so the run reads the count off that.
+  it("counts the calls a budget is holding back", () => {
+    const created = start("a.ts");
+    const limit = { kind: "limit", app: "theatre", state: "held", calls: 3, held: 1, waitedMs: 900, waiting: 2 } as const;
+    store.recordBlock("a.ts", created.id, "limit-1", limit, NOW);
+    paint();
+
+    const group = store.file("a.ts").groups[0];
+    expect(group.heldCalls).toBe(2);
+
+    store.recordBlock("a.ts", created.id, "limit-1", { ...limit, state: "clear", waiting: undefined }, NOW);
+    paint();
+    expect(group.heldCalls).toBe(0);
+  });
+
   it("never reports a run read back from the store as in flight", () => {
     store.adoptStoredRuns("a.ts", { runs: [run("old", "a.ts", { stale: true })], items: [] }, NOW);
 

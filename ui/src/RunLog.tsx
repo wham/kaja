@@ -183,6 +183,7 @@ export function RunLog({
         scriptFailed={scriptFailed}
         running={group.running && !waiting}
         calls={group.calls.length}
+        held={group.heldCalls}
         elapsedMs={now - group.run.startedAt}
         rowsBelow={rowsBelow}
         failures={failures}
@@ -343,6 +344,9 @@ interface TailBarProps {
   // leaving out.
   running: boolean;
   calls: number;
+  // Calls waiting on a budget. They are not rows yet, so the count of rows above says
+  // nothing about them and the clock below looks like it is moving for nothing.
+  held: number;
   elapsedMs: number;
   rowsBelow: number;
   failures: number;
@@ -367,6 +371,7 @@ RunLog.TailBar = function ({
   scriptFailed,
   running,
   calls,
+  held,
   elapsedMs,
   rowsBelow,
   failures,
@@ -408,6 +413,7 @@ RunLog.TailBar = function ({
           <span className="text-muted-foreground">
             {calls === 1 ? "1 call" : `${calls} calls`} · {formatElapsed(elapsedMs)}
           </span>
+          {held > 0 && <span className="text-amber-600 dark:text-amber-400">{held === 1 ? "1 call held" : `${held} calls held`}</span>}
         </>
       )}
       {(state === "running" || state === "counts") && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
