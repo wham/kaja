@@ -603,12 +603,14 @@ function UnsupportedMarker({ reason }: { reason: string }) {
   );
 }
 
-// A method Kaja won't call is dimmed; one the API deprecated is struck through, the
-// mark the editor already puts on the call it writes. A strikethrough says nothing
-// about who decided it or whether the call still goes out, so the name carries the
-// sentence that does.
+// A method Kaja won't call is dimmed; one the API deprecated is dimmed and struck
+// through, the mark the editor already puts on the call it writes. Both are dimmed
+// because a line drawn across a name at full weight collides with the letterforms at
+// 13px, and the dimming was never what told the two apart: the `Ban` in the trailing
+// slot is, and so is the `+` a deprecated row keeps. A strikethrough says nothing
+// about who decided it, so the name carries the sentence that does.
 function MethodName({ name, unsupported, deprecated }: { name: string; unsupported: boolean; deprecated: boolean }) {
-  const label = <span className={cn(unsupported && "text-muted-foreground", deprecated && "line-through decoration-muted-foreground")}>{name}</span>;
+  const label = <span className={cn((unsupported || deprecated) && "text-muted-foreground", deprecated && "line-through")}>{name}</span>;
   return deprecated ? <SimpleTooltip text={DEPRECATION_NOTE}>{label}</SimpleTooltip> : label;
 }
 
