@@ -136,7 +136,10 @@ describe("defaultSecurityScheme", () => {
 
 describe("schemeLabel", () => {
   test.each([
-    [scheme({ type: "apiKey" }), "API key"],
+    [scheme({ type: "apiKey", in: "header", parameterName: "X-API-KEY" }), "Header X-API-KEY"],
+    [scheme({ type: "apiKey", in: "cookie", parameterName: "__session" }), "Cookie __session"],
+    [scheme({ type: "apiKey", in: "query", parameterName: "api_key" }), "Query ?api_key="],
+    [scheme({ type: "apiKey" }), "Header"],
     [scheme({ type: "http", scheme: "basic" }), "HTTP Basic"],
     [scheme({ type: "http", scheme: "Bearer" }), "Bearer token"],
     [scheme({ type: "http" }), "Bearer token"],
@@ -149,9 +152,9 @@ describe("schemeLabel", () => {
 });
 
 describe("schemeIdentity", () => {
-  test("names an API key where the document places it", () => {
-    expect(schemeIdentity(scheme({ key: "api_key", type: "apiKey", in: "header", parameterName: "X-API-KEY" }))).toBe("api_key · header X-API-KEY");
-    expect(schemeIdentity(scheme({ key: "api_key", type: "apiKey", in: "query", parameterName: "api_key" }))).toBe("api_key · query ?api_key=");
+  test("is the document's own name for the scheme", () => {
+    expect(schemeIdentity(scheme({ key: "api_key", type: "apiKey", in: "header", parameterName: "X-API-KEY" }))).toBe("api_key");
+    expect(schemeIdentity(scheme({ key: "CloudTokenAuth", type: "http", scheme: "bearer" }))).toBe("CloudTokenAuth");
   });
 
   test("echoes the bearer format when the document gives one", () => {
