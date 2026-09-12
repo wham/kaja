@@ -1,11 +1,12 @@
 import { ArrowDown, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
+import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { fetchRequestLine } from "./fetchCall";
+import { splitRequestLine } from "./requestLine";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { KajaTrace } from "./KajaTrace";
@@ -14,6 +15,7 @@ import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { useShortcutLabel } from "./shortcuts";
 import { LogLevel } from "./server/api";
+import { copyText } from "./clipboard";
 import { unwrapFailure, upstreamRequestLine } from "./upstream";
 
 // A fixed height is what lets the log virtualise and lets the tail bar say how many
@@ -531,15 +533,35 @@ interface PayloadPaneProps {
   onTabChange: (tab: ConsoleTab) => void;
 }
 
+// Whether anything has come back. A stream sets `output` on every message, so the
+// list is what says a streaming call has answered.
+function hasResponse(methodCall: MethodCall): boolean {
+  if (methodCall.output !== undefined || methodCall.error !== undefined) return true;
+  return methodCall.streamOutputs !== undefined && methodCall.streamOutputs.length > 0;
+}
+
+/**
+ * What the response is shown as, which is what its size is measured from: an HTTP
+ * failure is the body the API sent, a stream is its messages one after another, and
+ * anything else is the message with whatever encoding carried it taken off.
+ */
+function responsePayload(methodCall: MethodCall): { content?: unknown; rawText?: string } {
+  if (methodCall.error !== undefined) return { content: unwrapFailure(methodCall.error) };
+  if (methodCall.streamOutputs !== undefined) {
+    return { rawText: methodCall.streamOutputs.map((message) => JSON.stringify(unwrapEnvelope(methodCall.outputType, message), null, 2)).join("\n\n") };
+  }
+  return { content: unwrapEnvelope(methodCall.outputType, methodCall.output) };
+}
+
 RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const isStreaming = methodCall.streamOutputs !== undefined;
-  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
+  const answered = hasResponse(methodCall);
   const hasError = methodCall.error !== undefined;
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
   // does — not over the headers table, not while a response is still coming.
-  const showsJson = activeTab !== "headers" && !(activeTab === "response" && !hasResponse);
+  const showsJson = activeTab !== "headers" && !(activeTab === "response" && !answered);
   // A fetch carries the verb it was written with; a call kaja carried states its
   // request line beside the headers it went out with instead.
   const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : undefined;
@@ -552,28 +574,13 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
 
   // Switch to the response tab when the response arrives.
   useEffect(() => {
-    if (hasResponse && activeTab === "request") {
+    if (answered && activeTab === "request") {
       onTabChange("response");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasResponse]);
+  }, [answered]);
 
-  let content;
-  let rawText: string | undefined;
-  if (activeTab === "request") {
-    content = methodCall.input;
-  } else if (hasError) {
-    // Same rule as the response below: an HTTP failure arrives wrapped in what carried
-    // it here, and the body the API sent is the failure.
-    content = unwrapFailure(methodCall.error);
-  } else if (isStreaming) {
-    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
-  } else {
-    // An app that carries HTTP inside gRPC has to put a body protobuf has no shape for —
-    // an array, a scalar — in a field of its own. That field is the encoding, not the
-    // response, so the response is what it holds.
-    content = unwrapEnvelope(methodCall.outputType, methodCall.output);
-  }
+  const { content, rawText } = activeTab === "request" ? { content: methodCall.input, rawText: undefined } : responsePayload(methodCall);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -582,7 +589,7 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
           an empty one look the same. */}
       <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
         <RunLog.PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
-        {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
+        {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} sizeOnly={activeTab === "request"} />}
         {showsJson && (
           <div className="flex shrink-0 items-center gap-1">
             <IconButton
@@ -607,7 +614,7 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
       </div>
       {activeTab === "headers" ? (
         <RunLog.HeadersContent methodCall={methodCall} />
-      ) : activeTab === "response" && !hasResponse ? (
+      ) : activeTab === "response" && !answered ? (
         <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
       ) : (
         <>
@@ -650,15 +657,19 @@ interface ResponseSummaryProps {
   methodCall: MethodCall;
   content: unknown;
   rawText?: string;
+  // The strip describes the pane in front of you, and the row above already states
+  // what happened: on the request there is no status and no duration to have, so the
+  // size of what was sent is the whole of what only this pane knows.
+  sizeOnly?: boolean;
 }
 
 // Status colour appears here and in the call's dot, and nowhere else.
-RunLog.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
+RunLog.ResponseSummary = function ({ methodCall, content, rawText, sizeOnly }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
   const duration = formatDuration(callDurationMs(methodCall));
   // The stated time is the API's once Kaja measured it; the round trip stays a
-  // hover away, and the Headers view states the two hops apart.
+  // hover away.
   const durationTitle =
     methodCall.upstreamDurationMs !== undefined && methodCall.durationMs !== undefined
       ? `API ${formatDuration(methodCall.upstreamDurationMs)} · end to end ${formatDuration(methodCall.durationMs)}`
@@ -668,16 +679,18 @@ RunLog.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSum
 
   return (
     <div className="ml-auto flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap font-mono text-xs">
-      <span data-testid="console-status" className={cn("shrink-0 font-medium", statusClass(status))}>
-        {label}
-      </span>
-      {duration && (
+      {!sizeOnly && (
+        <span data-testid="console-status" className={cn("shrink-0 font-medium", statusClass(status))}>
+          {label}
+        </span>
+      )}
+      {!sizeOnly && duration && (
         <span title={durationTitle} className="shrink-0 tabular-nums text-muted-foreground @max-[430px]:hidden">
           {duration}
         </span>
       )}
       {size && <span className="shrink-0 tabular-nums text-muted-foreground @max-[500px]:hidden">{size}</span>}
-      {streamCount !== undefined && (
+      {!sizeOnly && streamCount !== undefined && (
         <span className="shrink-0 text-muted-foreground @max-[560px]:hidden">
           {streamCount} {streamCount === 1 ? "message" : "messages"}
         </span>
@@ -690,6 +703,10 @@ interface HeadersContentProps {
   methodCall: MethodCall;
 }
 
+// The column the key and the verb are set against: enough for "GET" and the two
+// spaces after it, which is what a wrapped request line hangs to.
+const HANGING_INDENT = 30;
+
 RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   // One panel, and it is always the API's own headers: where Kaja carried the call it
   // reports what it exchanged upstream, and where the browser called the API directly
@@ -697,55 +714,161 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   // never what a call is being read for.
   const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
   const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
-  // The request line of the upstream call, which a failure reports and the response no
-  // longer carries — so a call that succeeded reports none. A fetch states its own
-  // either way: the browser made that call, so nothing else records which one it was.
-  const upstreamRequest = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : upstreamRequestLine(methodCall.error);
+  // The request line of the upstream call. A call reports its own; a failure from
+  // before that was recorded still carries one, which is what the fallback reads.
+  // A fetch states its own either way: the browser made that call, so nothing else
+  // records which one it was.
+  const requestLine = methodCall.requestLine ?? upstreamRequestLine(methodCall.error);
   // A fetch is the direct case by construction — nothing carried it, so the transport's
   // headers below are the API's own.
   const hasUpstream =
     methodCall.http === undefined &&
-    (upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0);
+    (requestLine !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0);
   const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
-
-  const section = (title: string, headers: { [key: string]: string }) => (
-    <div className="mb-6">
-      <div className="mb-2 font-semibold text-foreground">{title}</div>
-      {Object.keys(headers).length > 0 ? (
-        <RunLog.HeadersTable headers={headers} />
-      ) : (
-        <div className="italic text-muted-foreground">No {title.toLowerCase()}</div>
-      )}
-    </div>
-  );
+  const { content, rawText } = responsePayload(methodCall);
+  const answered = hasResponse(methodCall);
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs">
-      {upstreamRequest && <div className="mb-4 break-all text-foreground">{upstreamRequest}</div>}
-      {section("Request headers", requestHeaders)}
-      {section("Response headers", responseHeaders)}
+    <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
+      <div className="grid" style={{ gridTemplateColumns: "max-content minmax(0,1fr)", columnGap: 28, rowGap: 3 }}>
+        <RunLog.HeaderGroupBar label="Request" headers={requestHeaders} size={payloadBytes(methodCall.input)} />
+        {requestLine && <RunLog.RequestLine line={requestLine} />}
+        <RunLog.HeaderRows headers={requestHeaders} />
+        <RunLog.HeaderGroupBar
+          label="Response"
+          headers={responseHeaders}
+          status={exchangeStatus(methodCall)}
+          durationMs={callDurationMs(methodCall)}
+          size={answered ? payloadBytes(content, rawText) : undefined}
+          pending={!answered}
+          className="mt-4"
+        />
+        {/* A call with no response yet keeps its bar and nothing under it: the half
+            exists, and a placeholder would be stating something nobody sent. */}
+        {answered && <RunLog.HeaderRows headers={responseHeaders} />}
+      </div>
     </div>
   );
 };
 
-interface HeadersTableProps {
+const statusToneClass: { [tone in StatusTone]: string } = {
+  success: "border-emerald-600/40 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/40 dark:text-emerald-400",
+  redirect: "border-border bg-muted text-muted-foreground",
+  error: "border-destructive bg-destructive/10 text-destructive",
+};
+
+interface HeaderGroupBarProps {
+  label: string;
   headers: { [key: string]: string };
+  status?: { code: string; reason?: string; tone: StatusTone };
+  durationMs?: number;
+  size?: number;
+  pending?: boolean;
+  className?: string;
 }
 
-RunLog.HeadersTable = function ({ headers }: HeadersTableProps) {
-  const sortedKeys = Object.keys(headers).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+/**
+ * The rule above one half of the exchange, carrying what belongs to that half and
+ * nothing the call row above already states: the status the response came with, the
+ * time it took, the bytes each way, and the copy that takes this half alone.
+ */
+RunLog.HeaderGroupBar = function ({ label, headers, status, durationMs, size, pending, className }: HeaderGroupBarProps) {
+  const [copied, setCopied] = useState(false);
+  const names = Object.keys(headers);
+
+  const copy = async () => {
+    if (!(await copyText(names.map((name) => `${name}: ${headers[name]}`).join("\n")))) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
 
   return (
-    <table className="w-full border-collapse">
-      <tbody>
-        {sortedKeys.map((key) => (
-          <tr key={key}>
-            <td className="whitespace-nowrap py-1 pr-3 align-top text-muted-foreground">{key}:</td>
-            <td className="break-all py-1 text-foreground">{headers[key]}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className={cn("mb-1.5 flex items-center gap-2.5", className)} style={{ gridColumn: "1/-1" }}>
+      <span className="shrink-0 text-[11px] uppercase tracking-[0.07em] text-muted-foreground">{label}</span>
+      {status && (
+        <span className={cn("flex h-5 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-[11px]", statusToneClass[status.tone])}>
+          <span className="font-medium">{status.code}</span>
+          {status.reason && <span>{status.reason}</span>}
+        </span>
+      )}
+      {pending && <span role="img" aria-label="Waiting for a response" className={cn("size-1.5 shrink-0 rounded-full", dotClass("pending"))} />}
+      <span className="h-px min-w-4 flex-1 bg-border" />
+      {durationMs !== undefined && <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">{formatDuration(durationMs)}</span>}
+      {size !== undefined && <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">{formatBytes(size)}</span>}
+      {names.length > 0 && (
+        <IconButton
+          icon={copied ? Check : Copy}
+          aria-label={`Copy ${label.toLowerCase()} headers`}
+          variant="ghost"
+          size="xs"
+          className="size-5 shrink-0 hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
+          onClick={copy}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * The call, with the origin and the query behind the verb and the path. Those two are
+ * what identify it; the rest is context, and dimming it is what lets the path be found
+ * in a line that wraps over three of them.
+ */
+RunLog.RequestLine = function ({ line }: { line: string }) {
+  const { method, origin, path, query } = splitRequestLine(line);
+
+  return (
+    <div className="mb-1.5 break-all" style={{ gridColumn: "1/-1", textIndent: -HANGING_INDENT, paddingLeft: HANGING_INDENT }}>
+      {method && <span className="font-medium text-foreground">{method}&nbsp;&nbsp;</span>}
+      {origin && <span className="text-muted-foreground">{origin}</span>}
+      <span className="text-foreground">{path}</span>
+      {query && <span className="text-muted-foreground">{query}</span>}
+    </div>
+  );
+};
+
+/**
+ * One row per header, names as the server sent them and in the order they arrived:
+ * the log's job is to be complete, and reordering is editorialising. Both halves are
+ * cells of the one grid, so a value starts at the same x wherever it is read.
+ */
+RunLog.HeaderRows = function ({ headers }: { headers: { [key: string]: string } }) {
+  return (
+    <>
+      {Object.keys(headers).map((name) => (
+        <RunLog.HeaderRow key={name} name={name} value={headers[name]} />
+      ))}
+    </>
+  );
+};
+
+RunLog.HeaderRow = function ({ name, value }: { name: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    if (!(await copyText(value))) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  // `contents` rather than a row of its own: the two cells belong to the pane's one
+  // grid, and only their wrapper can carry the hover the copy is revealed by.
+  return (
+    <div className="group contents">
+      <span className="text-muted-foreground">{name}</span>
+      <span className="relative break-all text-foreground">
+        {value}
+        <IconButton
+          icon={copied ? Check : Copy}
+          aria-label={`Copy ${name}`}
+          variant="ghost"
+          size="xs"
+          tooltip="native"
+          className="absolute -top-px right-0 size-5 bg-background opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:size-3.5"
+          onClick={copy}
+        />
+      </span>
+    </div>
   );
 };

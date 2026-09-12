@@ -24,8 +24,9 @@ none of which the browser ever holds.
 
 **3. Everything Kaja has to say rides beside the response, never inside it.**
 The reserved trailer **`kaja-upstream`** is one object: the duration Kaja
-measured, the headers an app exchanged (redacted), and an HTTP failure shown
-in place of the gRPC status it was tunnelled through. The client routes it
+measured, the exchange an app made — its request line, the status it was
+answered with, and the headers both ways (redacted) — and an HTTP failure
+shown in place of the gRPC status it was tunnelled through. The client routes it
 onto the call (`absorbReserved`) and never shows it as a response header.
 
 ```
@@ -121,7 +122,7 @@ The last frame is the trailer block:
 | trailer | carries |
 | --- | --- |
 | `grpc-status` · `grpc-message` | the verdict — a genuine gRPC status, or the closest mapping of an HTTP failure |
-| `kaja-upstream` | one JSON object: `durationMs`, `requestHeaders` and `responseHeaders` (`${NAME}` values redacted back out), and on a failure the whole `error` |
+| `kaja-upstream` | one JSON object: `durationMs`, the exchange (`request`, `status`, `statusText`), `requestHeaders` and `responseHeaders` (`${NAME}` values redacted back out), and on a failure the whole `error` |
 | *the server's own metadata* | a forwarded call only: what the gRPC server answered with, under its own names |
 
 - **One carrier, one name.** There is one framing, so a Twirp failure is
@@ -253,8 +254,8 @@ then app headers, then per-call header params. Then
 **`GET https://theatre.kaja.tools/shows?city=Chicago&limit=25`, made by Go**;
 the JSON answer comes back through `protojson`, strict first, then with
 unreadable members pruned. `kaja-upstream` reports the whole exchange —
-duration, request and response headers, `Bearer ${TOKEN}` where a variable
-stood.
+duration, the request line and the status it was answered with, request and
+response headers, `Bearer ${TOKEN}` where a variable stood.
 
 An upstream `>= 400` is an `apps.UpstreamError`: the whole failure rides
 under `error` in the same trailer, and the frame's `grpc-status` is only the

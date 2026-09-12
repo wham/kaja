@@ -129,6 +129,28 @@ export function scriptsWithin(scripts: Script[], folder: string): Script[] {
   return scripts.filter((script) => isWithinFolder(folder, script.folder));
 }
 
+/**
+ * The name a pasted copy takes among the names already there. Free is kept as it
+ * is, so a copy into another folder is the same file under the same name; a taken
+ * one is `churn copy.ts`, then `churn copy 2.ts`, the numbering a desktop file list
+ * gives a duplicate. A name that already ends in `copy` or `copy N` counts up rather
+ * than growing another `copy`, and a folder is the same rule with no extension.
+ */
+export function copyName(name: string, taken: string[], extension = SCRIPT_EXTENSION): string {
+  const has = new Set(taken.map((candidate) => candidate.toLowerCase()));
+  if (!has.has(name.toLowerCase())) return name;
+  const suffix = extension && name.endsWith(extension) ? extension : "";
+  const stem = name.slice(0, name.length - suffix.length);
+  const counted = /^(.*?) copy(?: (\d+))?$/.exec(stem);
+  const base = counted ? counted[1] : stem;
+  let number = counted ? Number(counted[2] ?? 1) + 1 : 1;
+  for (;;) {
+    const candidate = `${base} copy${number > 1 ? ` ${number}` : ""}${suffix}`;
+    if (!has.has(candidate.toLowerCase())) return candidate;
+    number++;
+  }
+}
+
 export function folderName(path: string): string {
   const at = path.lastIndexOf("/");
   return at === -1 ? path : path.slice(at + 1);

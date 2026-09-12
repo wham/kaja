@@ -103,6 +103,8 @@ import { Start } from "./Start";
 import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowTitle } from "./wails";
 import {
   canWriteScripts,
+  copyScriptFile,
+  copyScriptFolder,
   createScriptFile,
   createScriptFolder,
   deleteScriptFile,
@@ -1765,6 +1767,65 @@ export function App() {
     [showFileError, removeScriptFromUI],
   );
 
+  // Typed in the row, so the name has already been resolved to the folder it lands in.
+  // The file opens as it is made, empty, which is what a new file is for.
+  const onCreateScript = useCallback(
+    async (name: string, folder: string) => {
+      try {
+        const script = await createScriptFile(name, folder, "");
+        setScripts((prev) => sortScripts([...(prev ?? []), script]));
+        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+        applyViews((views) => showScript(views, script, ""));
+      } catch (err) {
+        showFileError(`New file failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [applyViews, showFileError],
+  );
+
+  // The sidebar has settled the name and the folder, so what is left is the write. The
+  // buffer is flushed first, so the copy is what is on screen rather than what disk
+  // caught up to.
+  const onCopyScript = useCallback(
+    async (script: Script, name: string, folder: string) => {
+      try {
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
+        if (open) flushScriptWrite(open);
+        const copied = await copyScriptFile(script, name, folder);
+        setScripts((prev) => sortScripts([...(prev ?? []), copied]));
+        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+      } catch (err) {
+        showFileError(`Paste failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [flushScriptWrite, showFileError],
+  );
+
+  // The disk does the copy; the sidebar mirrors it from what it already holds, the way
+  // a folder rename does, rather than listing the folder again.
+  const onCopyFolder = useCallback(
+    async (path: string, newPath: string) => {
+      try {
+        for (const view of viewsRef.current) {
+          if (view.type === "script" && isWithinFolder(path, view.script.folder)) flushScriptWrite(view);
+        }
+        const copied = await copyScriptFolder(path, newPath);
+        setScriptFolders((prev) => {
+          const added = prev.filter((folder) => isWithinFolder(path, folder)).map((folder) => copied + folder.slice(path.length));
+          return [...new Set([...prev, copied, ...added])].sort();
+        });
+        const copies = scriptsWithin(scriptsRef.current ?? [], path).map((script) => {
+          const folder = copied + script.folder.slice(path.length);
+          return { ...script, folder, path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}` };
+        });
+        setScripts((prev) => sortScripts([...(prev ?? []), ...copies]));
+      } catch (err) {
+        showFileError(`Paste failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [flushScriptWrite, showFileError],
+  );
+
   const onRevealScripts = useCallback(() => {
     const folder = runtime.scriptsDir;
     if (!folder) return;
@@ -2499,9 +2560,12 @@ export function App() {
                     onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
                     onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
                     onCopyScriptLink={(script) => void onCopyScriptLink(script)}
+                    onCreateScript={canWriteFiles ? onCreateScript : undefined}
+                    onCopyScript={canWriteFiles ? onCopyScript : undefined}
                     onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
                     onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
                     onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
+                    onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
                     onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
                     onChooseScriptsFolder={isWailsEnvironment() ? onChooseScriptsFolder : undefined}
                     onUseDefaultScriptsFolder={isWailsEnvironment() ? onUseDefaultScriptsFolder : undefined}

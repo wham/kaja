@@ -928,6 +928,31 @@ export interface DeleteScriptRequest {
 export interface DeleteScriptResponse {
 }
 /**
+ * CopyScript writes a second file under a new name, which may carry a folder. The
+ * name has to be free: a copy never lands on a file that is already there.
+ *
+ * @generated from protobuf message CopyScriptRequest
+ */
+export interface CopyScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message CopyScriptResponse
+ */
+export interface CopyScriptResponse {
+    /**
+     * @generated from protobuf field: Script script = 1
+     */
+    script?: Script;
+}
+/**
  * ListScriptFolders returns every directory under the scripts root, relative and
  * slash-separated. An empty one is in the list: it is a directory, not a UI
  * grouping, so it has no file to be inferred from.
@@ -1005,6 +1030,31 @@ export interface DeleteScriptFolderRequest {
  * @generated from protobuf message DeleteScriptFolderResponse
  */
 export interface DeleteScriptFolderResponse {
+}
+/**
+ * CopyScriptFolder copies a folder and everything filed there to a new path, which has
+ * to be free and may not be inside the folder being copied.
+ *
+ * @generated from protobuf message CopyScriptFolderRequest
+ */
+export interface CopyScriptFolderRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message CopyScriptFolderResponse
+ */
+export interface CopyScriptFolderResponse {
+    /**
+     * @generated from protobuf field: string folder = 1
+     */
+    folder: string;
 }
 /**
  * ScanScriptVariables reports which scripts reference the named variables. An
@@ -2417,6 +2467,31 @@ class DeleteScriptResponse$Type extends MessageType<DeleteScriptResponse> {
  */
 export const DeleteScriptResponse = new DeleteScriptResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptRequest$Type extends MessageType<CopyScriptRequest> {
+    constructor() {
+        super("CopyScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptRequest
+ */
+export const CopyScriptRequest = new CopyScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptResponse$Type extends MessageType<CopyScriptResponse> {
+    constructor() {
+        super("CopyScriptResponse", [
+            { no: 1, name: "script", kind: "message", T: () => Script }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptResponse
+ */
+export const CopyScriptResponse = new CopyScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ListScriptFoldersRequest$Type extends MessageType<ListScriptFoldersRequest> {
     constructor() {
         super("ListScriptFoldersRequest", []);
@@ -2509,6 +2584,31 @@ class DeleteScriptFolderResponse$Type extends MessageType<DeleteScriptFolderResp
  * @generated MessageType for protobuf message DeleteScriptFolderResponse
  */
 export const DeleteScriptFolderResponse = new DeleteScriptFolderResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptFolderRequest$Type extends MessageType<CopyScriptFolderRequest> {
+    constructor() {
+        super("CopyScriptFolderRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptFolderRequest
+ */
+export const CopyScriptFolderRequest = new CopyScriptFolderRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptFolderResponse$Type extends MessageType<CopyScriptFolderResponse> {
+    constructor() {
+        super("CopyScriptFolderResponse", [
+            { no: 1, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptFolderResponse
+ */
+export const CopyScriptFolderResponse = new CopyScriptFolderResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ScanScriptVariablesRequest$Type extends MessageType<ScanScriptVariablesRequest> {
     constructor() {
@@ -2783,9 +2883,11 @@ export const Api = new ServiceType("Api", [
     { name: "CreateScript", options: {}, I: CreateScriptRequest, O: CreateScriptResponse },
     { name: "RenameScript", options: {}, I: RenameScriptRequest, O: RenameScriptResponse },
     { name: "DeleteScript", options: {}, I: DeleteScriptRequest, O: DeleteScriptResponse },
+    { name: "CopyScript", options: {}, I: CopyScriptRequest, O: CopyScriptResponse },
     { name: "ListScriptFolders", options: {}, I: ListScriptFoldersRequest, O: ListScriptFoldersResponse },
     { name: "CreateScriptFolder", options: {}, I: CreateScriptFolderRequest, O: CreateScriptFolderResponse },
     { name: "RenameScriptFolder", options: {}, I: RenameScriptFolderRequest, O: RenameScriptFolderResponse },
     { name: "DeleteScriptFolder", options: {}, I: DeleteScriptFolderRequest, O: DeleteScriptFolderResponse },
+    { name: "CopyScriptFolder", options: {}, I: CopyScriptFolderRequest, O: CopyScriptFolderResponse },
     { name: "ScanScriptVariables", options: {}, I: ScanScriptVariablesRequest, O: ScanScriptVariablesResponse }
 ]);
