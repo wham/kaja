@@ -7,6 +7,8 @@ import { Api } from "./api";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { ScanScriptVariablesResponse } from "./api";
 import type { ScanScriptVariablesRequest } from "./api";
+import type { CopyScriptFolderResponse } from "./api";
+import type { CopyScriptFolderRequest } from "./api";
 import type { DeleteScriptFolderResponse } from "./api";
 import type { DeleteScriptFolderRequest } from "./api";
 import type { RenameScriptFolderResponse } from "./api";
@@ -15,6 +17,8 @@ import type { CreateScriptFolderResponse } from "./api";
 import type { CreateScriptFolderRequest } from "./api";
 import type { ListScriptFoldersResponse } from "./api";
 import type { ListScriptFoldersRequest } from "./api";
+import type { CopyScriptResponse } from "./api";
+import type { CopyScriptRequest } from "./api";
 import type { DeleteScriptResponse } from "./api";
 import type { DeleteScriptRequest } from "./api";
 import type { RenameScriptResponse } from "./api";
@@ -135,6 +139,10 @@ export interface IApiClient {
      */
     deleteScript(input: DeleteScriptRequest, options?: RpcOptions): UnaryCall<DeleteScriptRequest, DeleteScriptResponse>;
     /**
+     * @generated from protobuf rpc: CopyScript
+     */
+    copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse>;
+    /**
      * @generated from protobuf rpc: ListScriptFolders
      */
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse>;
@@ -150,6 +158,10 @@ export interface IApiClient {
      * @generated from protobuf rpc: DeleteScriptFolder
      */
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse>;
+    /**
+     * @generated from protobuf rpc: CopyScriptFolder
+     */
+    copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse>;
     /**
      * @generated from protobuf rpc: ScanScriptVariables
      */
@@ -296,38 +308,52 @@ export class ApiClient implements IApiClient, ServiceInfo {
         return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * @generated from protobuf rpc: CopyScript
+     */
+    copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse> {
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * @generated from protobuf rpc: ListScriptFolders
      */
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: CreateScriptFolder
      */
     createScriptFolder(input: CreateScriptFolderRequest, options?: RpcOptions): UnaryCall<CreateScriptFolderRequest, CreateScriptFolderResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: RenameScriptFolder
      */
     renameScriptFolder(input: RenameScriptFolderRequest, options?: RpcOptions): UnaryCall<RenameScriptFolderRequest, RenameScriptFolderResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: DeleteScriptFolder
      */
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: CopyScriptFolder
+     */
+    copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse> {
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ScanScriptVariables
      */
     scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this._transport, method, opt, input);
     }
 }

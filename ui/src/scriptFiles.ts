@@ -76,6 +76,12 @@ export async function deleteScriptFile(script: Script): Promise<void> {
   await getApiClient().deleteScript({ name: scriptName(script) });
 }
 
+/** Writes the file again under a name that is free, in whatever folder it names. */
+export async function copyScriptFile(script: Script, name: string, folder: string): Promise<Script> {
+  const { response } = await getApiClient().copyScript({ name: scriptName(script), newName: folder ? `${folder}/${name}` : name });
+  return toScript(response.script!);
+}
+
 export async function createScriptFolder(path: string): Promise<string> {
   const { response } = await getApiClient().createScriptFolder({ name: path });
   return response.folder;
@@ -88,6 +94,12 @@ export async function renameScriptFolder(path: string, name: string): Promise<st
 
 export async function deleteScriptFolder(path: string): Promise<void> {
   await getApiClient().deleteScriptFolder({ name: path });
+}
+
+/** Copies a folder and everything filed there to a path that is free. */
+export async function copyScriptFolder(path: string, newPath: string): Promise<string> {
+  const { response } = await getApiClient().copyScriptFolder({ name: path, newName: newPath });
+  return response.folder;
 }
 
 export interface ScriptReference {
