@@ -1,7 +1,9 @@
 import * as monaco from "monaco-editor";
+import { noSuchScript } from "./scriptLink";
+import { unresolvedRuns } from "./scriptRuns";
 
 /**
- * What the type checker says about a script nobody has open.
+ * What the editor says about a script nobody has open.
  *
  * A script is transpiled, not compiled (scriptRunner), so nothing on the run path
  * type-checks: a script with type errors runs, and a syntax error is the only thing
@@ -9,6 +11,10 @@ import * as monaco from "monaco-editor";
  * checks every script model against the generated app modules — so this asks that
  * same worker rather than standing up a second checker, which is what keeps what an
  * agent is told from disagreeing with the squiggles in the window.
+ *
+ * A `kaja.run` naming no script is the one complaint the worker cannot make, a
+ * destination being a name rather than an import. It is read from the same
+ * `unresolvedRuns` the editor marks with, for that same reason.
  */
 
 export interface ScriptDiagnostic {
@@ -35,13 +41,21 @@ const MODULE_NOT_FOUND = [2307, 2792];
 // read each other's diagnostics.
 let queue: Promise<unknown> = Promise.resolve();
 
-export function checkScript(code: string): Promise<ScriptDiagnostic[]> {
+export function checkScript(code: string, scriptNames: string[]): Promise<ScriptDiagnostic[]> {
   const checked = queue.then(
     () => diagnose(code),
     () => diagnose(code),
   );
   queue = checked.catch(() => {});
-  return checked;
+  return checked.then((diagnostics) => [...diagnostics, ...runDiagnostics(code, scriptNames)].sort((a, b) => a.line - b.line || a.column - b.column));
+}
+
+function runDiagnostics(code: string, scriptNames: string[]): ScriptDiagnostic[] {
+  return unresolvedRuns(code, scriptNames).map((reference) => {
+    const before = code.slice(0, reference.start);
+    const newline = before.lastIndexOf("\n");
+    return { line: before.split("\n").length, column: reference.start - newline, message: noSuchScript(reference.name) };
+  });
 }
 
 async function diagnose(code: string): Promise<ScriptDiagnostic[]> {

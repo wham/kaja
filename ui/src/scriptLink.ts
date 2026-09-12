@@ -74,6 +74,15 @@ export function isLinkedScript(scriptName: string, named: string): boolean {
   return !wanted.includes("/") && baseName(linkName(scriptName)) === wanted;
 }
 
+/**
+ * What a name reaching no script is told, wherever it is said: the toast a link or a
+ * clicked cell raises, and the squiggle under a `kaja.run` in the editor. One sentence,
+ * because the editor is stating the same failure the click would have.
+ */
+export function noSuchScript(named: string): string {
+  return `No script named "${named}".`;
+}
+
 /** The deeplink that runs a script. What Copy deeplink puts on the clipboard. */
 export function scriptLink(fileName: string, input?: { [key: string]: string }, base: string = linkBase()): string {
   return scriptLinkParts(fileName, input, base)
