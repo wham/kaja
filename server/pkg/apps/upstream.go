@@ -16,6 +16,13 @@ type Upstream struct {
 	// upstream, which the client shows as the API's own.
 	RequestHeaders  map[string]string `json:"requestHeaders,omitempty"`
 	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
+	// Request, Status and StatusText are the exchange those headers belong to: the
+	// request line the app made and the status it was answered with, which the client
+	// states on the two halves of its Headers view. A failure carries them on Error as
+	// well; these are what a call that succeeded has.
+	Request    string `json:"request,omitempty"`
+	Status     int    `json:"status,omitempty"`
+	StatusText string `json:"statusText,omitempty"`
 	// DurationMs is the exchange as this process measured it, which the client shows
 	// in place of its own round-trip timing. Never omitted: a call that took no
 	// measurable time is not a call nobody measured.
@@ -34,6 +41,9 @@ func UpstreamOf(report *Report) *Upstream {
 	return &Upstream{
 		RequestHeaders:  report.RequestHeaders,
 		ResponseHeaders: report.ResponseHeaders,
+		Request:         report.Request,
+		Status:          report.Status,
+		StatusText:      report.StatusText,
 		DurationMs:      report.DurationMs,
 	}
 }
@@ -44,6 +54,9 @@ func UpstreamOfError(err *UpstreamError) *Upstream {
 	return &Upstream{
 		RequestHeaders:  err.RequestHeaders,
 		ResponseHeaders: err.ResponseHeaders,
+		Request:         err.Method + " " + err.URL,
+		Status:          err.Status,
+		StatusText:      err.StatusText,
 		DurationMs:      err.DurationMs,
 		Error:           err.JSON(),
 	}

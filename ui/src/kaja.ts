@@ -1105,6 +1105,7 @@ export function runFetch(kaja: Kaja, input: RequestInfo | URL, init?: RequestIni
       service: { name: host } as Service,
       method: { name: request.method } as Method,
       http: { method: request.method, url: request.url },
+      requestLine: fetchRequestLine(request.method, request.url),
       input: request,
       requestHeaders: headers,
       timestamp: Date.now(),
@@ -1119,6 +1120,8 @@ export function runFetch(kaja: Kaja, input: RequestInfo | URL, init?: RequestIni
       const held = await holdResponse(response);
       call.durationMs = Math.round(performance.now() - startedAt);
       call.responseHeaders = readResponseHeaders(response);
+      call.responseStatus = response.status;
+      call.responseStatusText = response.statusText;
       if (response.ok) {
         // Never undefined: a call whose output is missing is a call still in flight to
         // everything that reads one, and a 200 with an empty body is neither.
@@ -1207,6 +1210,12 @@ export interface MethodCall {
   // headers above.
   upstreamRequestHeaders?: MethodCallHeaders;
   upstreamResponseHeaders?: MethodCallHeaders;
+  // The exchange those headers belong to, which the Headers view states on each half:
+  // the request line the call went out as, and the status it was answered with. A
+  // failure carries both on its error; these are what a call that succeeded has.
+  requestLine?: string;
+  responseStatus?: number;
+  responseStatusText?: string;
   // The HTTP call a script made itself, with the bare `fetch`. It has no app and no
   // generated request, so this is what says it was one — and its request line is what
   // identifies it, the way a service and a method identify every other call.

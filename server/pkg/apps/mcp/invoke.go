@@ -48,6 +48,9 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	if exchange != nil {
 		report.RequestHeaders = exchange.RequestHeaders
 		report.ResponseHeaders = exchange.ResponseHeaders
+		report.Request = exchange.Request
+		report.Status = exchange.Status
+		report.StatusText = exchange.StatusText
 	}
 	return apps.OneMessage(body, report), nil
 }
