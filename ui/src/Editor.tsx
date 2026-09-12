@@ -496,5 +496,14 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
     };
   }, [model]);
 
+  // The option is read once, when the editor is created, and a view mounts before
+  // the process has said whether it may write the workspace: a window restores its
+  // views synchronously and the answer arrives with the configuration. Without this
+  // the file that was open when the window last closed stays read-only for the
+  // session, and reopening it revisits the same editor.
+  useEffect(() => {
+    editorRef.current?.updateOptions({ readOnly });
+  }, [readOnly]);
+
   return <div ref={containerRef} className="h-full w-full bg-background" />;
 }
