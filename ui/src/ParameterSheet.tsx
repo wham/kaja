@@ -29,10 +29,12 @@ export interface ParameterSheetProps {
   address?: string;
   /** The parameters, in the order the script reads them. */
   parameters: string[];
-  /** What the fields start with. The deeplink's own values, on `arrived`. */
+  /**
+   * What the fields start with: the deeplink's own values on `arrived`, and on
+   * `run` what the file last ran with — which is what a plain Run is carrying, so
+   * the sheet that changes them has to open on them.
+   */
   values?: { [key: string]: string };
-  /** What this file was last run with, offered rather than applied. */
-  lastRun?: { [key: string]: string };
   /** Absent on `copy`, whose exit is the clipboard. */
   onRun?: (input: { [key: string]: string }) => void;
   onClose: () => void;
@@ -45,7 +47,7 @@ export interface ParameterSheetProps {
  * scrolls on focus, and stays correctable right up to the run. Rendering an incoming
  * value as mono text is what used to push a pasted URL through the side of the dialog.
  */
-export function ParameterSheet({ door, fileName, address, parameters, values, lastRun, onRun, onClose }: ParameterSheetProps) {
+export function ParameterSheet({ door, fileName, address, parameters, values, onRun, onClose }: ParameterSheetProps) {
   const [entered, setEntered] = useState<{ [key: string]: string }>(() => values ?? {});
   const [copied, setCopied] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -101,11 +103,6 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [submit]);
 
-  // Offered only where it says something the fields don't: values from a run this file
-  // actually made, that aren't already what is typed.
-  const offerLastRun =
-    door === "run" && lastRun !== undefined && parameters.some((key) => (lastRun[key] ?? "") !== "" && (lastRun[key] ?? "") !== (entered[key] ?? ""));
-
   return (
     <Dialog
       title={<SheetTitle door={door} fileName={fileName} />}
@@ -145,20 +142,9 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
 
         {parameters.length > 0 && (
           <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs font-medium text-muted-foreground">Parameters</span>
-                <span className="text-xs text-muted-foreground opacity-75">{door === "arrived" ? "from the deeplink" : "read from the script"}</span>
-              </div>
-              {offerLastRun && (
-                <button
-                  type="button"
-                  className="shrink-0 text-xs text-muted-foreground underline hover:text-foreground"
-                  onClick={() => setEntered((previous) => ({ ...previous, ...lastRun }))}
-                >
-                  Use last run&rsquo;s values
-                </button>
-              )}
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Parameters</span>
+              <span className="text-xs text-muted-foreground opacity-75">{door === "arrived" ? "from the deeplink" : "read from the script"}</span>
             </div>
             <div className="grid grid-cols-4 items-center gap-3">
               {parameters.map((key, index) => (
@@ -250,8 +236,8 @@ function Guidance({ door, parameters }: { door: ParameterDoor; parameters: strin
   }
   return (
     <>
-      Sets <span className="font-mono">{parameters.length === 1 ? `kaja.input.${parameters[0]}` : "kaja.input"}</span> for this run only. Blank behaves exactly
-      like a plain Run.
+      Sets <span className="font-mono">{parameters.length === 1 ? `kaja.input.${parameters[0]}` : "kaja.input"}</span> for this run and for the plain Runs after
+      it. Clearing a field is what takes its value back off.
     </>
   );
 }

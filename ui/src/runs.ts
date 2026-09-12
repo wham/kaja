@@ -25,6 +25,10 @@ export interface Run {
   startedAt: number;
   // Absent means a person did. A console holds runs of both.
   origin?: "agent";
+  // What the run's `kaja.input` held, absent where it held nothing. The run is
+  // where the values are stated, because Run repeats the last run's: what the
+  // next press will carry has to be readable before it is pressed.
+  input?: { [key: string]: string };
   // Wall time for the whole script, which differs from the sum of the calls when they
   // run concurrently.
   durationMs?: number;

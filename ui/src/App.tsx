@@ -116,7 +116,7 @@ import {
 import { hasScriptLink, isLinkedScript, parseScriptLink } from "./scriptLink";
 import { readInputKeys } from "./scriptInputs";
 import { useInputKeys } from "./useInputKeys";
-import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
+import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
 import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
@@ -542,7 +542,8 @@ export function App() {
       controller?: AbortController,
       options?: { origin?: Run["origin"]; input?: { [key: string]: string }; collect?: RunCollector },
     ): LiveRun => {
-      const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin };
+      const input = options?.input !== undefined && Object.keys(options.input).length > 0 ? options.input : undefined;
+      const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin, input };
       consoles.startRun(run, run.startedAt);
 
       const collect = options?.collect;
@@ -1822,6 +1823,10 @@ export function App() {
   toggleJsonViewRef.current = toggleJsonView;
   const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
   const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
+  // Read rather than depended on: the keys move with the buffer, and Run is not a new
+  // function every time a parameter is typed.
+  const inputKeysRef = useRef(inputKeys);
+  inputKeysRef.current = inputKeys;
 
   const onRunCurrentTab = useCallback(
     (input?: { [key: string]: string }) => {
@@ -1837,8 +1842,11 @@ export function App() {
       const controller = new AbortController();
       const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
       const fileId = view.type === "script" ? view.script.path : view.draftId;
-      if (input) rememberRunInput(fileId, input);
-      const { run, kaja } = beginRun(title, fileId, controller, input ? { input } : undefined);
+      // The sheet's values where it asked, and otherwise the last run's: Run repeats
+      // what the file last ran with, whichever door wrote it.
+      const carried = input ?? repeatInput(lastRunInput(fileId), inputKeysRef.current);
+      if (carried) rememberRunInput(fileId, carried);
+      const { run, kaja } = beginRun(title, fileId, controller, carried ? { input: carried } : undefined);
       // A live table draws its first page itself, and those calls are the run's.
       runScript(code, kaja, apps, reportScriptError(run), controller.signal)
         .then(() => kaja.settleTables())
@@ -2798,7 +2806,7 @@ export function App() {
           door="run"
           fileName={runPrompt.fileName}
           parameters={runPrompt.parameters}
-          lastRun={lastRunInput(runPrompt.fileId)}
+          values={lastRunInput(runPrompt.fileId)}
           onRun={(input) => onRunCurrentTab(input)}
           onClose={() => setRunPrompt(null)}
         />
