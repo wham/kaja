@@ -898,6 +898,17 @@ export function App() {
       const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
       setConfiguration(newConfiguration);
 
+      // The app is open on the server under the name it had, and the name is the whole
+      // of how a call finds it - so a rename the server has not been told about is an
+      // app every call is refused by until something recompiles it. Sent from here
+      // rather than from the effect below, which waits for a render: the surface is
+      // remapped rather than recompiled, so nothing else is going to reopen the app.
+      for (const [oldName, newName] of renames) {
+        void getApiClient()
+          .renameApp({ oldName, newName })
+          .response.catch((err) => console.error(`Failed to rename the open app ${oldName} to ${newName}: ${rpcErrorMessage(err)}`));
+      }
+
       setApps((prevApps) => syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables).updatedApps);
 
       // Handed to an effect rather than done here: the renamed app's own models are

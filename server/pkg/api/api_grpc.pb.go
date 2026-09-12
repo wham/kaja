@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Api_Compile_FullMethodName             = "/Api/Compile"
 	Api_OpenApp_FullMethodName             = "/Api/OpenApp"
+	Api_RenameApp_FullMethodName           = "/Api/RenameApp"
 	Api_InspectOpenApi_FullMethodName      = "/Api/InspectOpenApi"
 	Api_InspectGrpc_FullMethodName         = "/Api/InspectGrpc"
 	Api_InspectMcp_FullMethodName          = "/Api/InspectMcp"
@@ -54,6 +55,7 @@ type ApiClient interface {
 	// the generated sources and the stub.
 	Compile(ctx context.Context, in *CompileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CompileResponse], error)
 	OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grpc.CallOption) (*OpenAppResponse, error)
+	RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error)
 	InspectOpenApi(ctx context.Context, in *InspectOpenApiRequest, opts ...grpc.CallOption) (*InspectOpenApiResponse, error)
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
 	InspectMcp(ctx context.Context, in *InspectMcpRequest, opts ...grpc.CallOption) (*InspectMcpResponse, error)
@@ -115,6 +117,16 @@ func (c *apiClient) OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grp
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OpenAppResponse)
 	err := c.cc.Invoke(ctx, Api_OpenApp_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenameAppResponse)
+	err := c.cc.Invoke(ctx, Api_RenameApp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -359,6 +371,7 @@ type ApiServer interface {
 	// the generated sources and the stub.
 	Compile(*CompileRequest, grpc.ServerStreamingServer[CompileResponse]) error
 	OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error)
+	RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error)
 	InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error)
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
 	InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error)
@@ -401,6 +414,9 @@ func (UnimplementedApiServer) Compile(*CompileRequest, grpc.ServerStreamingServe
 }
 func (UnimplementedApiServer) OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenApp not implemented")
+}
+func (UnimplementedApiServer) RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameApp not implemented")
 }
 func (UnimplementedApiServer) InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InspectOpenApi not implemented")
@@ -513,6 +529,24 @@ func _Api_OpenApp_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).OpenApp(ctx, req.(*OpenAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_RenameApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).RenameApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_RenameApp_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).RenameApp(ctx, req.(*RenameAppRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -916,6 +950,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OpenApp",
 			Handler:    _Api_OpenApp_Handler,
+		},
+		{
+			MethodName: "RenameApp",
+			Handler:    _Api_RenameApp_Handler,
 		},
 		{
 			MethodName: "InspectOpenApi",

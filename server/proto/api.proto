@@ -8,6 +8,7 @@ service Api {
   // the generated sources and the stub.
   rpc Compile(CompileRequest) returns (stream CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
+  rpc RenameApp(RenameAppRequest) returns (RenameAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
@@ -65,6 +66,19 @@ message OpenAppResponse {
   // protos), which Compile resolves against the workspace.
   string proto_dir = 3;
 }
+
+// RenameApp follows an app's rename into the open apps. An app is addressed by its
+// own name, so a rename leaves the instance opened under the old one unreachable and
+// every call answered with "not open". Its parameters are untouched - that is what
+// makes it a rename rather than a different app - so the open app is moved to the new
+// name rather than reopened, which is the same thing the window does with the surface
+// it has already compiled.
+message RenameAppRequest {
+  string old_name = 1;
+  string new_name = 2;
+}
+
+message RenameAppResponse {}
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -
 // reflecting the server, or reading the proto directory - without creating the
