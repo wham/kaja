@@ -24,7 +24,7 @@ import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, Cel
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
-import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
+import { appHeaders, appType, buildApp, getAppType } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import {
   appendCall,
@@ -45,6 +45,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
+import { appModulesMoved, appNeedsRecompile, appReferencesChangedVariable, detectAppRenames } from "./appRenames";
 import { AgentRun, AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -95,7 +96,7 @@ import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
-import { setVariables, variableReferences } from "./variableExpansion";
+import { setVariables } from "./variableExpansion";
 import { appVariableUses } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
@@ -149,16 +150,6 @@ const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
 const subscribeConsoleFlags = (notify: () => void) => consoles.subscribeFlags(notify);
 const consoleFlagsVersion = () => consoles.flagsVersion();
-
-// Headers are excluded: they are forwarded per request, not a creation parameter.
-function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
-  return appType(a) !== appType(b) || JSON.stringify(appParameters(a)) !== JSON.stringify(appParameters(b));
-}
-
-// Parameters are expanded when the app is opened, so a changed ${NAME} forces a recompile too.
-function appReferencesChangedVariable(app: ConfigurationApp, previous: { [key: string]: string }, next: { [key: string]: string }): boolean {
-  return Object.values(appParameters(app)).some((value) => variableReferences(value).some((name) => previous[name] !== next[name]));
-}
 
 function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
   const originalName = app.configuration.name;
@@ -414,6 +405,9 @@ export function App() {
   viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
+  // One-shot signal that a configuration write moved the modules a script imports: what
+  // it renamed, and whether anything an import resolves against moved at all.
+  const [appsMoved, setAppsMoved] = useState<{ renames: Map<string, string>; modulesMoved: boolean }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
   const [compileLogExpandApp, setCompileLogExpandApp] = useState<{ name: string }>();
   // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
@@ -431,7 +425,7 @@ export function App() {
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
-  // refreshOpenScriptEditors) or text that just came off disk, not a user edit —
+  // revalidateOpenEditors) or text that just came off disk, not a user edit —
   // skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
   // Pending debounced writes of draft text back to the store, keyed by draft id.
@@ -742,19 +736,21 @@ export function App() {
     });
   }, []);
 
-  // TypeScript caches "cannot find module" for service imports resolved before their
-  // backing source models existed, and never clears it on its own. Poke the editors
-  // with an identity edit — not setValue, which would lose undo history — and
-  // suppress the auto-save it would otherwise trigger.
-  const refreshOpenScriptEditors = useCallback(() => {
+  // TypeScript resolves a script's imports once and revalidates only when that script's
+  // own text changes, so a module appearing or going away under it moves nothing: an
+  // import of an app that has just been renamed away stays green, and one that was red
+  // before its app compiled stays red. Poke every editor with an identity edit — not
+  // setValue, which would lose undo history — and suppress the auto-save it would
+  // otherwise trigger. A draft's write-back is gated on the editor having focus, so
+  // only a script view needs suppressing.
+  const revalidateOpenEditors = useCallback(() => {
     viewsRef.current.forEach((view) => {
-      if (view.type === "script") {
-        // onDidChangeContent fires synchronously within pushEditOperations, so bracketing
-        // the poke leaves the set empty afterwards.
-        suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
-        suppressScriptSave.current.delete(view.id);
-      }
+      if (view.type !== "draft" && view.type !== "script") return;
+      // onDidChangeContent fires synchronously within pushEditOperations, so bracketing
+      // the poke leaves the set empty afterwards.
+      suppressScriptSave.current.add(view.id);
+      view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
+      suppressScriptSave.current.delete(view.id);
     });
   }, []);
 
@@ -763,7 +759,7 @@ export function App() {
       newConfiguration: Configuration,
       prevApps: AppModel[],
       previousVariables: { [key: string]: string },
-    ): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
+    ): { updatedApps: AppModel[]; removedNames: Set<string> } => {
       const updatedApps: AppModel[] = [];
       const newVariables = newConfiguration.variables ?? {};
       const newApps = newConfiguration.apps || [];
@@ -771,20 +767,22 @@ export function App() {
       const prevByName = new Map(prevApps.map((p) => [p.configuration.name, p]));
 
       const orphans = prevApps.filter((p) => !newConfigByName.has(p.configuration.name));
-      const newcomerConfigs = newApps.filter((a) => !prevByName.has(a.name));
 
-      // An orphan and a newcomer with the same type+parameters are the same backing
-      // service renamed, so the compiled app can be remapped instead of recompiled.
+      // An orphan and a newcomer describing the same server are that app renamed, so the
+      // compiled app is remapped rather than recompiled. It is the same rule the scripts
+      // are followed by, asked here of what is compiled rather than of the file.
       const renameMap = new Map<string, AppModel>(); // newName -> oldApp
-      for (const newcomer of newcomerConfigs) {
-        const matchingOrphan = orphans.find(
-          (orphan) => !appNeedsRecompile(orphan.configuration, newcomer) && !appReferencesChangedVariable(newcomer, previousVariables, newVariables),
-        );
-        if (matchingOrphan && !renameMap.has(newcomer.name)) {
-          renameMap.set(newcomer.name, matchingOrphan);
-          const idx = orphans.indexOf(matchingOrphan);
-          if (idx !== -1) orphans.splice(idx, 1);
-        }
+      for (const [oldName, newName] of detectAppRenames(
+        prevApps.map((p) => p.configuration),
+        newApps,
+        previousVariables,
+        newVariables,
+      )) {
+        const orphan = prevByName.get(oldName);
+        if (!orphan) continue;
+        renameMap.set(newName, orphan);
+        const idx = orphans.indexOf(orphan);
+        if (idx !== -1) orphans.splice(idx, 1);
       }
 
       for (const newConfig of newApps) {
@@ -818,45 +816,106 @@ export function App() {
         disposeMonacoModelsForApp(orphan.configuration.name);
       }
 
-      const renames = new Map<string, string>();
-      for (const [newName, oldApp] of renameMap) {
-        renames.set(oldApp.configuration.name, newName);
-      }
-
-      return { updatedApps, removedNames, renames };
+      return { updatedApps, removedNames };
     },
     [disposeMonacoModelsForApp, createMonacoModelsForApp],
   );
 
+  /**
+   * Follow an app's rename into the scripts. An app is addressed by its name, so a
+   * rename leaves every import of it naming nothing — the whole of what a script had to
+   * say about that app was the name. So the drafts, the open buffers and the files on
+   * disk are rewritten to the new one. Only a rename is followed: a draft isn't bound to
+   * an app, so deleting one leaves the draft alone, and there is nothing to rewrite it
+   * to. A file the workspace won't let us write is left as it is, red and correctable.
+   */
+  const followAppRenames = useCallback(
+    async (renames: Map<string, string>) => {
+      const remap = (code: string) => {
+        let next = code;
+        for (const [oldName, newName] of renames) next = remapEditorCode(next, oldName, newName);
+        return next;
+      };
+
+      // Nothing here is work: the code, the generated form it is compared against and the
+      // qualifier all move together, so a browsing buffer stays untouched and unswept and
+      // the pile does not reorder under the cursor.
+      applyDrafts((list) =>
+        list.map((draft) => {
+          const code = remap(draft.code);
+          const generatedCode = remap(draft.generatedCode);
+          const originAppName = draft.originAppName === undefined ? undefined : (renames.get(draft.originAppName) ?? draft.originAppName);
+          if (code === draft.code && generatedCode === draft.generatedCode && originAppName === draft.originAppName) return draft;
+          return { ...draft, code, generatedCode, originAppName };
+        }),
+      );
+
+      const openScripts = new Set<string>();
+      for (const view of viewsRef.current) {
+        if (view.type !== "draft" && view.type !== "script") continue;
+        if (view.type === "script") openScripts.add(view.script.path);
+        const value = view.model.getValue();
+        const next = remap(value);
+        if (next === value) continue;
+        // An edit rather than setValue, so undo history survives, and the disk write is
+        // made here rather than left to the debounce a poke is supposed to skip.
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        suppressScriptSave.current.delete(view.id);
+        if (view.type === "script" && canWriteFiles) {
+          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+        }
+      }
+
+      if (!canWriteFiles) return;
+      for (const script of scriptsRef.current ?? []) {
+        if (openScripts.has(script.path)) continue;
+        try {
+          const file = await readScriptFile(script);
+          if (!file) continue;
+          const next = remap(file.content);
+          if (next === file.content) continue;
+          await writeScriptFile(script, next);
+        } catch (err) {
+          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
+        }
+      }
+    },
+    [applyDrafts, canWriteFiles, showFileError],
+  );
+
   const applyConfiguration = useCallback(
     (newConfiguration: Configuration) => {
-      const previousVariables = configurationRef.current?.variables ?? {};
+      const previousConfiguration = configurationRef.current;
+      const previousVariables = previousConfiguration?.variables ?? {};
+      const previousApps = previousConfiguration?.apps ?? [];
+      const newApps = newConfiguration.apps ?? [];
+      // Read off the file rather than off what is compiled, so the answer is the same
+      // whichever of the two the write reaches first.
+      const renames = detectAppRenames(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
+      const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
       setConfiguration(newConfiguration);
 
-      setApps((prevApps) => {
-        const { updatedApps, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
+      setApps((prevApps) => syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables).updatedApps);
 
-        // Only a rename is followed: a draft isn't bound to an app, so deleting one
-        // leaves the draft alone.
-        if (renames.size > 0) {
-          viewsRef.current.forEach((view) => {
-            if (view.type !== "draft") return;
-            let value = view.model.getValue();
-            for (const [oldName, newName] of renames) {
-              value = remapEditorCode(value, oldName, newName);
-            }
-            if (value !== view.model.getValue()) {
-              view.model.setValue(value);
-              updateDraft(view.draftId, (draft) => ({ ...draft, code: value }));
-            }
-          });
-        }
-
-        return updatedApps;
-      });
+      // Handed to an effect rather than done here: the renamed app's own models are
+      // written by the updater above, which React runs at the next render, so a buffer
+      // rewritten now would name a module that does not exist yet.
+      if (renames.size > 0 || modulesMoved) {
+        setAppsMoved({ renames, modulesMoved });
+      }
     },
-    [syncAppsFromConfiguration, updateDraft],
+    [syncAppsFromConfiguration],
   );
+
+  useEffect(() => {
+    if (!appsMoved) return;
+    setAppsMoved(undefined);
+    if (appsMoved.renames.size > 0) void followAppRenames(appsMoved.renames);
+    // The models an import resolves against have moved, and the editors holding them
+    // will not notice on their own.
+    if (appsMoved.modulesMoved) revalidateOpenEditors();
+  }, [appsMoved, followAppRenames, revalidateOpenEditors]);
 
   useEffect(() => {
     if (configurationRef.current) {
@@ -1053,7 +1112,7 @@ export function App() {
     // A source model appearing after a script's own model does not retroactively clear
     // its stale "cannot find module" error, so poke the open editors.
     if (sourceModelsChanged) {
-      refreshOpenScriptEditors();
+      revalidateOpenEditors();
     }
 
     const allCompiled = updatedApps.every((p) => p.compilation.status === "success");
@@ -2164,7 +2223,6 @@ export function App() {
     const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
     if (response.configuration) {
       applyConfiguration(response.configuration);
-      refreshOpenDraftEditors();
     }
   };
 
