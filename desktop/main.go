@@ -340,7 +340,7 @@ func (a *App) chooseScriptsFolder() {
 		CanChooseDirectories(true).
 		CanCreateDirectories(true).
 		SetTitle("Scripts Folder").
-		SetMessage("Pick the folder to keep your scripts in. Pick one this machine already syncs, such as a folder in iCloud Drive, to share them with another installation. Your apps are unaffected.").
+		SetMessage("Where to keep your scripts.").
 		SetButtonText("Use Folder").
 		PromptForSingleSelection()
 	if err != nil {
