@@ -344,7 +344,7 @@ export function Variables({
         )}
 
         <div className="flex h-[26px] shrink-0 items-center gap-3 px-1 text-xs text-muted-foreground">
-          <span className="w-[168px]">Name</span>
+          <span className="w-[216px]">Name</span>
           {readOnly && <span className="w-[104px]">Source</span>}
           <span className="flex-1">Value</span>
           <span className="w-[132px]">Used by</span>
@@ -528,7 +528,7 @@ function VariableRowEditor({
             }
           }}
           placeholder="API_BASE_URL"
-          className="w-[168px] shrink-0 border-transparent bg-transparent px-2.5 font-mono text-xs shadow-none hover:border-input focus-visible:border-input"
+          className="w-[216px] shrink-0 border-transparent bg-transparent px-2.5 font-mono text-xs shadow-none hover:border-input focus-visible:border-input"
         />
 
         {/* The source picker is welded to the value it describes: one control
@@ -605,7 +605,7 @@ function VariableRowEditor({
 // column, which is what says it belongs to that field rather than to the row.
 function RowCaption({ children }: { children: ReactNode }) {
   return (
-    <div className="text-xs text-muted-foreground" style={{ paddingLeft: 180 }}>
+    <div className="text-xs text-muted-foreground" style={{ paddingLeft: 228 }}>
       {children}
     </div>
   );
@@ -813,7 +813,7 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-3 border-t border-border px-1 text-xs">
-      <span className="w-[168px] shrink-0 truncate px-2.5 font-mono">{row.key}</span>
+      <span className="w-[216px] shrink-0 truncate px-2.5 font-mono">{row.key}</span>
       <span className="w-[104px] shrink-0 text-muted-foreground">{SOURCE_LABEL[kind]}</span>
       <span className="min-w-0 flex-1 truncate">
         {kind === "value" ? (
