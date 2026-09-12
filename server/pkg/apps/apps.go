@@ -206,6 +206,23 @@ func (m *Manager) Open(name string, appType string, parameters map[string]string
 	return protoDir, nil
 }
 
+// Rename moves the instance open under oldName to newName, which is what following
+// an app's rename into the registry is: a rename leaves the app's parameters alone —
+// that is what makes it a rename rather than a different app — so the instance open
+// under the old name is the right one and only the address it answers to has moved.
+// Renaming a name nothing is open under is not a failure: two windows watching one
+// file both follow the same rename, and the second one has nothing left to move.
+func (m *Manager) Rename(oldName string, newName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	instance, ok := m.instances[oldName]
+	if !ok || oldName == newName {
+		return
+	}
+	delete(m.instances, oldName)
+	m.instances[newName] = instance
+}
+
 // Invoke routes a call to the app registered under name.
 func (m *Manager) Invoke(ctx context.Context, name string, call *Call) (Stream, error) {
 	m.mu.Lock()

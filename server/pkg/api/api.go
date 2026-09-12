@@ -273,6 +273,21 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	}, nil
 }
 
+// RenameApp follows an app's rename into the open apps, so the instance keeps
+// answering under the name every call now carries. The window remaps the surface it
+// has already compiled rather than compiling it again, and this is the other half of
+// that: without it the app is open under a name nothing asks for any more and every
+// call is refused until something recompiles it.
+func (s *ApiService) RenameApp(ctx context.Context, req *RenameAppRequest) (*RenameAppResponse, error) {
+	if req.OldName == "" || req.NewName == "" {
+		return nil, fmt.Errorf("old_name and new_name are required")
+	}
+
+	s.apps.Rename(req.OldName, req.NewName)
+
+	return &RenameAppResponse{}, nil
+}
+
 // AppConnection is how a grpc app reaches its upstream: the credential it sends
 // with every call, and the transport security it uses. Both are read from
 // kaja.json when the call is made rather than held from Open, so replacing a

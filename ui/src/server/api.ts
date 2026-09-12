@@ -49,6 +49,31 @@ export interface OpenAppResponse {
     protoDir: string;
 }
 /**
+ * RenameApp follows an app's rename into the open apps. An app is addressed by its
+ * own name, so a rename leaves the instance opened under the old one unreachable and
+ * every call answered with "not open". Its parameters are untouched - that is what
+ * makes it a rename rather than a different app - so the open app is moved to the new
+ * name rather than reopened, which is the same thing the window does with the surface
+ * it has already compiled.
+ *
+ * @generated from protobuf message RenameAppRequest
+ */
+export interface RenameAppRequest {
+    /**
+     * @generated from protobuf field: string old_name = 1
+     */
+    oldName: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message RenameAppResponse
+ */
+export interface RenameAppResponse {
+}
+/**
  * InspectGrpc reads the service surface a grpc app *would* be opened with -
  * reflecting the server, or reading the proto directory - without creating the
  * app, so the New gRPC app form can fill itself in from what answered. The app
@@ -1810,6 +1835,29 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
  */
 export const OpenAppResponse = new OpenAppResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class RenameAppRequest$Type extends MessageType<RenameAppRequest> {
+    constructor() {
+        super("RenameAppRequest", [
+            { no: 1, name: "old_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameAppRequest
+ */
+export const RenameAppRequest = new RenameAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameAppResponse$Type extends MessageType<RenameAppResponse> {
+    constructor() {
+        super("RenameAppResponse", []);
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameAppResponse
+ */
+export const RenameAppResponse = new RenameAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class InspectGrpcRequest$Type extends MessageType<InspectGrpcRequest> {
     constructor() {
         super("InspectGrpcRequest", [
@@ -2719,6 +2767,7 @@ export const SetMcpEnabledResponse = new SetMcpEnabledResponse$Type();
 export const Api = new ServiceType("Api", [
     { name: "Compile", serverStreaming: true, options: {}, I: CompileRequest, O: CompileResponse },
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
+    { name: "RenameApp", options: {}, I: RenameAppRequest, O: RenameAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
