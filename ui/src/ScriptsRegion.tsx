@@ -1,5 +1,22 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronRight, Ellipsis, ExternalLink, Folder, FolderPlus, Link2, Pencil, Plug, Save, Trash2, X, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  ClipboardPaste,
+  Copy,
+  Ellipsis,
+  ExternalLink,
+  FilePlus,
+  Folder,
+  FolderPlus,
+  Link2,
+  Pencil,
+  Plug,
+  Save,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -7,7 +24,19 @@ import { Spinner } from "./components/spinner";
 import { Script } from "./apps";
 import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
-import { buildScriptTree, FolderNode, folderNameError, resolveScriptRename, scriptNameParts, scriptRenameError, TreeNode, visibleRows } from "./scriptTree";
+import {
+  buildScriptTree,
+  copyName,
+  FolderNode,
+  folderName,
+  folderNameError,
+  isWithinFolder,
+  resolveScriptRename,
+  scriptNameParts,
+  scriptRenameError,
+  TreeNode,
+  visibleRows,
+} from "./scriptTree";
 import { FileName } from "./FileName";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
@@ -35,6 +64,8 @@ import { matchesShortcut, useShortcutLabel } from "./shortcuts";
  *
  * Moving a file is dragging its row. The tree is already a picture of where a file can
  * go, so a menu item opening a folder picker was that picture drawn a second time.
+ * Copying one is the other gesture a desktop file list has, Copy on the row and Paste
+ * on the place, held in a clipboard of the region's own.
  */
 
 // The base indent of a row inside a group, so the group's label and its rows share a
@@ -95,9 +126,13 @@ export interface ScriptsRegionProps {
   onCopyScriptLink?: (script: Script) => void;
   // Inline, because the row is a real row from the first keystroke: you can see where
   // it lands while you type.
+  onCreateScript?: (name: string, folder: string) => Promise<void>;
   onCreateFolder?: (path: string) => Promise<void>;
   onRenameFolder?: (path: string, name: string) => Promise<void>;
   onDeleteFolder?: (path: string) => void;
+  // Paste, with the name and the place settled by the row it was pasted on.
+  onCopyScript?: (script: Script, name: string, folder: string) => Promise<void>;
+  onCopyFolder?: (path: string, newPath: string) => Promise<void>;
   onRevealScripts?: () => void;
   // Where the scripts are kept, which is the one thing about the list that is a
   // question about the folder rather than about what is filed in it.
@@ -129,7 +164,11 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   // A real row from the first keystroke. Making a folder, renaming one and renaming a
   // file are all the same row, so the interaction is learned once.
   const [folderEdit, setFolderEdit] = useState<{ parent: string; path?: string; name: string } | null>(null);
+  const [fileEdit, setFileEdit] = useState<{ folder: string } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // What Copy took, held here rather than on the system clipboard: a row is not text,
+  // and what Paste needs is the row. One slot, so a second Copy replaces the first.
+  const [clipboard, setClipboard] = useState<{ kind: "file"; script: Script } | { kind: "folder"; path: string } | null>(null);
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const [draftMenu, setDraftMenu] = useState<{ draft: Draft; top: number; left: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ path: string; top: number; left: number } | null>(null);
@@ -201,10 +240,52 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     if (dropped && dropped.script.folder !== folder) props.onMoveScript?.(dropped.script, folder);
   };
 
-  const startFolder = (parent: string) => {
+  const openFolder = (path: string) => {
     setFilesOpen(true);
-    if (parent) setOpenFolders((open) => (open.includes(parent) ? open : [...open, parent]));
+    if (path) setOpenFolders((open) => (open.includes(path) ? open : [...open, path]));
+  };
+
+  const startFolder = (parent: string) => {
+    openFolder(parent);
     setFolderEdit({ parent, name: "" });
+  };
+
+  const startFile = (folder: string) => {
+    openFolder(folder);
+    setFileEdit({ folder });
+  };
+
+  // A copied row that has since been renamed or deleted is nothing to paste, so the
+  // clipboard is read against the list rather than trusted.
+  const held = useMemo(() => {
+    if (!clipboard) return null;
+    if (clipboard.kind === "file") return scripts.some((script) => script.path === clipboard.script.path) ? clipboard : null;
+    return folders.includes(clipboard.path) || scripts.some((script) => isWithinFolder(clipboard.path, script.folder)) ? clipboard : null;
+  }, [clipboard, scripts, folders]);
+
+  // A folder pasted into itself would be copying what it is still writing, so that
+  // place offers no Paste rather than a refusal after the click.
+  const canPasteInto = (folder: string) => {
+    if (!held) return false;
+    if (held.kind === "file") return props.onCopyScript !== undefined;
+    return props.onCopyFolder !== undefined && !isWithinFolder(held.path, folder);
+  };
+
+  // The name is settled here, against the names already in the folder, so the write
+  // is one call and a collision on disk is the race it names rather than the rule.
+  const pasteInto = async (folder: string) => {
+    if (!held) return;
+    openFolder(folder);
+    if (held.kind === "file") {
+      const name = copyName(
+        held.script.name,
+        scripts.filter((script) => script.folder === folder).map((script) => script.name),
+      );
+      await props.onCopyScript?.(held.script, name, folder);
+    } else {
+      const name = copyName(folderName(held.path), childFolderNames(tree, folder), "");
+      await props.onCopyFolder?.(held.path, folder ? `${folder}/${name}` : name);
+    }
   };
 
   // The new-folder key makes one at the root, which is the same item the Files menu
@@ -308,7 +389,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         onDragOver={(event) => onDragOverFolder(event, "")}
         onDrop={(event) => onDropInFolder(event, "")}
         action={
-          canWrite && (props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder)
+          canWrite && (props.onCreateScript || props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder)
             ? { icon: Ellipsis, label: "Actions for Files", onClick: (event) => setFilesMenu({ top: event.clientY, left: event.clientX }) }
             : undefined
         }
@@ -330,7 +411,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   open={openFolders.includes(node.path)}
                   editing={folderEdit?.path === node.path}
                   active={active(`folder:${node.path}`)}
-                  hasMenu={canWrite && props.onCreateFolder !== undefined}
+                  hasMenu={canWrite && (props.onCreateFolder !== undefined || props.onCreateScript !== undefined || props.onCopyFolder !== undefined)}
                   dropping={drag?.folder === node.path}
                   onDragOver={(event) => onDragOverFolder(event, node.path, node.path)}
                   onDrop={(event) => onDropInFolder(event, node.path)}
@@ -357,6 +438,18 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                       setFolderEdit(null);
                     }}
                     onCancel={() => setFolderEdit(null)}
+                  />
+                )}
+                {fileEdit?.folder === node.path && (
+                  <NewFileRow
+                    depth={node.depth + 1}
+                    folder={node.path}
+                    scripts={scripts}
+                    onCommit={async (name, folder) => {
+                      await props.onCreateScript?.(name, folder);
+                      setFileEdit(null);
+                    }}
+                    onCancel={() => setFileEdit(null)}
                   />
                 )}
               </Fragment>
@@ -415,12 +508,24 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
               onCancel={() => setFolderEdit(null)}
             />
           )}
+          {fileEdit?.folder === "" && (
+            <NewFileRow
+              depth={0}
+              folder=""
+              scripts={scripts}
+              onCommit={async (name, folder) => {
+                await props.onCreateScript?.(name, folder);
+                setFileEdit(null);
+              }}
+              onCancel={() => setFileEdit(null)}
+            />
+          )}
           {/* Zero files wants a line of instruction rather than a blank space:
               this is the one screen that can say where files come from. It states
               the rule and stops — there is no action to offer, since a file only
               exists once a draft is saved, and a full sentence would weigh more
               than the rows it sits among. */}
-          {scripts.length === 0 && folders.length === 0 && !folderEdit && (
+          {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
             <li role="treeitem">
               <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
                 {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
@@ -448,61 +553,113 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         </DropdownMenuItem>
       </CursorMenu>
 
+      {/* The Files header is the row that means the top level, so its menu makes and
+          pastes there. */}
       <CursorMenu at={filesMenu} onClose={() => setFilesMenu(null)}>
-        {props.onCreateFolder && (
-          <DropdownMenuItem onSelect={() => startFolder("")}>
-            <FolderPlus size={16} />
-            New folder…
-            {newFolderKey !== "" && <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">{newFolderKey}</span>}
-          </DropdownMenuItem>
-        )}
-        {props.onRevealScripts && (
-          <DropdownMenuItem onSelect={props.onRevealScripts}>
-            <ExternalLink size={16} />
-            Reveal in Finder
-          </DropdownMenuItem>
-        )}
-        {props.onChooseScriptsFolder && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={props.onChooseScriptsFolder}>
-              <Folder size={16} />
-              Scripts folder…
-            </DropdownMenuItem>
-            {props.onUseDefaultScriptsFolder && (
-              <DropdownMenuItem onSelect={props.onUseDefaultScriptsFolder}>
-                <Folder size={16} />
-                Use default folder
-              </DropdownMenuItem>
-            )}
-          </>
-        )}
+        <MenuGroups
+          groups={[
+            [
+              props.onCreateScript && (
+                <DropdownMenuItem key="file" onSelect={() => startFile("")}>
+                  <FilePlus size={16} />
+                  New file…
+                </DropdownMenuItem>
+              ),
+              props.onCreateFolder && (
+                <DropdownMenuItem key="folder" onSelect={() => startFolder("")}>
+                  <FolderPlus size={16} />
+                  New folder…
+                  {newFolderKey !== "" && <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">{newFolderKey}</span>}
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              canPasteInto("") && (
+                <DropdownMenuItem key="paste" onSelect={() => void pasteInto("")}>
+                  <ClipboardPaste size={16} />
+                  Paste
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              props.onRevealScripts && (
+                <DropdownMenuItem key="reveal" onSelect={props.onRevealScripts}>
+                  <ExternalLink size={16} />
+                  Reveal in Finder
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              props.onChooseScriptsFolder && (
+                <DropdownMenuItem key="choose" onSelect={props.onChooseScriptsFolder}>
+                  <Folder size={16} />
+                  Scripts folder…
+                </DropdownMenuItem>
+              ),
+              props.onChooseScriptsFolder && props.onUseDefaultScriptsFolder && (
+                <DropdownMenuItem key="default" onSelect={props.onUseDefaultScriptsFolder}>
+                  <Folder size={16} />
+                  Use default folder
+                </DropdownMenuItem>
+              ),
+            ],
+          ]}
+        />
       </CursorMenu>
 
       <CursorMenu at={folderMenu} onClose={() => setFolderMenu(null)}>
-        {props.onCreateFolder && (
-          <DropdownMenuItem onSelect={() => folderMenu && startFolder(folderMenu.path)}>
-            <FolderPlus size={16} />
-            New folder…
-          </DropdownMenuItem>
-        )}
-        {props.onRenameFolder && (
-          <DropdownMenuItem
-            onSelect={() => {
-              if (!folderMenu) return;
-              setFolderEdit({ parent: folderMenu.path, path: folderMenu.path, name: folderMenu.path.split("/").pop() ?? "" });
-            }}
-          >
-            <Pencil size={16} />
-            Rename
-          </DropdownMenuItem>
-        )}
-        {props.onDeleteFolder && (
-          <DropdownMenuItem variant="danger" onSelect={() => folderMenu && props.onDeleteFolder?.(folderMenu.path)}>
-            <Trash2 size={16} />
-            Delete folder
-          </DropdownMenuItem>
-        )}
+        <MenuGroups
+          groups={[
+            [
+              props.onCreateScript && (
+                <DropdownMenuItem key="file" onSelect={() => folderMenu && startFile(folderMenu.path)}>
+                  <FilePlus size={16} />
+                  New file…
+                </DropdownMenuItem>
+              ),
+              props.onCreateFolder && (
+                <DropdownMenuItem key="folder" onSelect={() => folderMenu && startFolder(folderMenu.path)}>
+                  <FolderPlus size={16} />
+                  New folder…
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              props.onCopyFolder && (
+                <DropdownMenuItem key="copy" onSelect={() => folderMenu && setClipboard({ kind: "folder", path: folderMenu.path })}>
+                  <Copy size={16} />
+                  Copy
+                </DropdownMenuItem>
+              ),
+              folderMenu !== null && canPasteInto(folderMenu.path) && (
+                <DropdownMenuItem key="paste" onSelect={() => folderMenu && void pasteInto(folderMenu.path)}>
+                  <ClipboardPaste size={16} />
+                  Paste
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              props.onRenameFolder && (
+                <DropdownMenuItem
+                  key="rename"
+                  onSelect={() => {
+                    if (!folderMenu) return;
+                    setFolderEdit({ parent: folderMenu.path, path: folderMenu.path, name: folderMenu.path.split("/").pop() ?? "" });
+                  }}
+                >
+                  <Pencil size={16} />
+                  Rename
+                </DropdownMenuItem>
+              ),
+              props.onDeleteFolder && (
+                <DropdownMenuItem key="delete" variant="danger" onSelect={() => folderMenu && props.onDeleteFolder?.(folderMenu.path)}>
+                  <Trash2 size={16} />
+                  Delete folder
+                </DropdownMenuItem>
+              ),
+            ],
+          ]}
+        />
       </CursorMenu>
 
       <CursorMenu at={draftMenu} onClose={() => setDraftMenu(null)}>
@@ -524,33 +681,56 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         {/* No Save and no Revert: a file is already on disk and stays there as
             you type. And there is no route from here into Drafts either — that
             group is for things that have never had a name. */}
-        {/* A script's address outside Kaja — paste it into a launcher, a
-            Shortcut, a shell. "Deeplink" is what a launcher on the other end of
-            it calls the same object, and it names one specific thing where
-            "link" names a browser URL, a file alias and a share sheet too. It
-            opens a sheet rather than copying straight to the clipboard: the URL
-            is worth reading before it leaves, and the parameters are worth
-            filling in while it is being built. */}
-        {props.onCopyScriptLink && (
-          <DropdownMenuItem onSelect={() => scriptMenu && props.onCopyScriptLink?.(scriptMenu.script)}>
-            <Link2 size={16} />
-            Copy deeplink…
-          </DropdownMenuItem>
-        )}
-        {props.onRenameScript && (
-          <DropdownMenuItem onSelect={() => scriptMenu && setRenaming(scriptMenu.script.path)}>
-            <Pencil size={16} />
-            Rename
-          </DropdownMenuItem>
-        )}
-        {/* The only action in the sidebar that removes something from disk, and
-            the only one in text-destructive. */}
-        {props.onDeleteScript && (
-          <DropdownMenuItem variant="danger" onSelect={() => scriptMenu && props.onDeleteScript?.(scriptMenu.script)}>
-            <Trash2 size={16} />
-            Delete file
-          </DropdownMenuItem>
-        )}
+        <MenuGroups
+          groups={[
+            [
+              props.onCopyScript && (
+                <DropdownMenuItem key="copy" onSelect={() => scriptMenu && setClipboard({ kind: "file", script: scriptMenu.script })}>
+                  <Copy size={16} />
+                  Copy
+                </DropdownMenuItem>
+              ),
+              // A file row names the folder holding it, the way it does for a drop.
+              scriptMenu !== null && canPasteInto(scriptMenu.script.folder) && (
+                <DropdownMenuItem key="paste" onSelect={() => scriptMenu && void pasteInto(scriptMenu.script.folder)}>
+                  <ClipboardPaste size={16} />
+                  Paste
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              /* A script's address outside Kaja — paste it into a launcher, a
+                 Shortcut, a shell. "Deeplink" is what a launcher on the other end of
+                 it calls the same object, and it names one specific thing where
+                 "link" names a browser URL, a file alias and a share sheet too. It
+                 opens a sheet rather than copying straight to the clipboard: the URL
+                 is worth reading before it leaves, and the parameters are worth
+                 filling in while it is being built. */
+              props.onCopyScriptLink && (
+                <DropdownMenuItem key="deeplink" onSelect={() => scriptMenu && props.onCopyScriptLink?.(scriptMenu.script)}>
+                  <Link2 size={16} />
+                  Copy deeplink…
+                </DropdownMenuItem>
+              ),
+            ],
+            [
+              props.onRenameScript && (
+                <DropdownMenuItem key="rename" onSelect={() => scriptMenu && setRenaming(scriptMenu.script.path)}>
+                  <Pencil size={16} />
+                  Rename
+                </DropdownMenuItem>
+              ),
+              // The only action in the sidebar that removes something from disk, and
+              // the only one in text-destructive.
+              props.onDeleteScript && (
+                <DropdownMenuItem key="delete" variant="danger" onSelect={() => scriptMenu && props.onDeleteScript?.(scriptMenu.script)}>
+                  <Trash2 size={16} />
+                  Delete file
+                </DropdownMenuItem>
+              ),
+            ],
+          ]}
+        />
       </CursorMenu>
     </nav>
   );
@@ -909,6 +1089,43 @@ function NewFolderRow({
 }
 
 /**
+ * A new file is the rename field with nothing to rename yet: the whole filename, the
+ * stem selected, checked against the folder it is being made in, and a `/` files it
+ * deeper the way a rename does.
+ */
+function NewFileRow({
+  depth,
+  folder,
+  scripts,
+  onCommit,
+  onCancel,
+}: {
+  depth: number;
+  folder: string;
+  scripts: Script[];
+  onCommit: (name: string, folder: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const initial = "untitled.ts";
+  return (
+    <li role="treeitem">
+      <NameField
+        indent={ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT}
+        initial={initial}
+        label="File name"
+        select={scriptNameParts(initial).base.length}
+        error={(name) => scriptRenameError(name, folder, scripts)}
+        onCommit={async (typed) => {
+          const target = resolveScriptRename(folder, typed);
+          if (target) await onCommit(target.name, target.folder);
+        }}
+        onCancel={onCancel}
+      />
+    </li>
+  );
+}
+
+/**
  * A folder's name is typed in the row itself, so you can see where it lands as you
  * type it.
  */
@@ -1213,6 +1430,25 @@ function CursorMenu({
           {children}
         </DropdownMenuContent>
       </DropdownMenu>
+    </>
+  );
+}
+
+/**
+ * A menu's groups, with a separator between the groups that have anything in them.
+ * Every item here is conditional on a handler, so which groups exist is decided at
+ * the menu rather than by each item knowing its neighbours.
+ */
+function MenuGroups({ groups }: { groups: React.ReactNode[][] }) {
+  const present = groups.map((group) => group.filter(Boolean)).filter((group) => group.length > 0);
+  return (
+    <>
+      {present.map((group, index) => (
+        <Fragment key={index}>
+          {index > 0 && <DropdownMenuSeparator />}
+          {group}
+        </Fragment>
+      ))}
     </>
   );
 }

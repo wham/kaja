@@ -29,10 +29,12 @@ service Api {
   rpc CreateScript(CreateScriptRequest) returns (CreateScriptResponse);
   rpc RenameScript(RenameScriptRequest) returns (RenameScriptResponse);
   rpc DeleteScript(DeleteScriptRequest) returns (DeleteScriptResponse);
+  rpc CopyScript(CopyScriptRequest) returns (CopyScriptResponse);
   rpc ListScriptFolders(ListScriptFoldersRequest) returns (ListScriptFoldersResponse);
   rpc CreateScriptFolder(CreateScriptFolderRequest) returns (CreateScriptFolderResponse);
   rpc RenameScriptFolder(RenameScriptFolderRequest) returns (RenameScriptFolderResponse);
   rpc DeleteScriptFolder(DeleteScriptFolderRequest) returns (DeleteScriptFolderResponse);
+  rpc CopyScriptFolder(CopyScriptFolderRequest) returns (CopyScriptFolderResponse);
   rpc ScanScriptVariables(ScanScriptVariablesRequest) returns (ScanScriptVariablesResponse);
 }
 
@@ -517,6 +519,17 @@ message DeleteScriptRequest {
 
 message DeleteScriptResponse {}
 
+// CopyScript writes a second file under a new name, which may carry a folder. The
+// name has to be free: a copy never lands on a file that is already there.
+message CopyScriptRequest {
+  string name = 1;
+  string new_name = 2;
+}
+
+message CopyScriptResponse {
+  Script script = 1;
+}
+
 // ListScriptFolders returns every directory under the scripts root, relative and
 // slash-separated. An empty one is in the list: it is a directory, not a UI
 // grouping, so it has no file to be inferred from.
@@ -553,6 +566,17 @@ message DeleteScriptFolderRequest {
 }
 
 message DeleteScriptFolderResponse {}
+
+// CopyScriptFolder copies a folder and everything filed there to a new path, which has
+// to be free and may not be inside the folder being copied.
+message CopyScriptFolderRequest {
+  string name = 1;
+  string new_name = 2;
+}
+
+message CopyScriptFolderResponse {
+  string folder = 1;
+}
 
 // ScanScriptVariables reports which scripts reference the named variables. An
 // app's references are read out of the configuration the client already holds;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
 import {
   buildScriptTree,
+  copyName,
   folderNameError,
   folderPaths,
   isWithinFolder,
@@ -81,6 +82,34 @@ describe("scriptsWithin", () => {
     expect(scriptsWithin(scripts, "billing").map((s) => s.name)).toEqual(["invoices.ts", "january.ts"]);
     expect(scriptsWithin(scripts, "billing/2024").map((s) => s.name)).toEqual(["january.ts"]);
     expect(scriptsWithin(scripts, "reports")).toEqual([]);
+  });
+});
+
+describe("copyName", () => {
+  it("keeps a name that is free", () => {
+    expect(copyName("churn.ts", ["usage.ts"])).toBe("churn.ts");
+  });
+
+  it("numbers a taken name the way a desktop file list does", () => {
+    expect(copyName("churn.ts", ["churn.ts"])).toBe("churn copy.ts");
+    expect(copyName("churn.ts", ["churn.ts", "churn copy.ts"])).toBe("churn copy 2.ts");
+    expect(copyName("churn.ts", ["churn.ts", "churn copy.ts", "churn copy 2.ts"])).toBe("churn copy 3.ts");
+  });
+
+  it("counts a copy up rather than copying the copy", () => {
+    expect(copyName("churn copy.ts", ["churn.ts", "churn copy.ts"])).toBe("churn copy 2.ts");
+    expect(copyName("churn copy 2.ts", ["churn copy 2.ts"])).toBe("churn copy 3.ts");
+    expect(copyName("churn copy 2.ts", ["churn copy 2.ts", "churn copy 3.ts"])).toBe("churn copy 4.ts");
+  });
+
+  it("ignores case, since the disk may", () => {
+    expect(copyName("Churn.ts", ["churn.ts"])).toBe("Churn copy.ts");
+  });
+
+  it("names a folder the same way, with no extension to keep", () => {
+    expect(copyName("reports", ["reports"], "")).toBe("reports copy");
+    expect(copyName("reports", ["reports", "reports copy"], "")).toBe("reports copy 2");
+    expect(copyName("reports", ["billing"], "")).toBe("reports");
   });
 });
 
