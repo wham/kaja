@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { barFraction, callErrorCode, formatDuration } from "./callFormat";
+import { barFraction, callErrorCode, exchangeStatus, formatDuration } from "./callFormat";
 import { MethodCall } from "./kaja";
 
 function failed(error: unknown): MethodCall {
@@ -51,5 +51,46 @@ describe("formatDuration", () => {
   it("loses a decimal place once the numbers get long", () => {
     expect(formatDuration(1200)).toBe("1.20 s");
     expect(formatDuration(161_000)).toBe("161.0 s");
+  });
+});
+
+describe("exchangeStatus", () => {
+  it("reads the status a call that succeeded was answered with", () => {
+    expect(exchangeStatus({ responseStatus: 200, responseStatusText: "OK" } as MethodCall)).toEqual({ code: "200", reason: "OK", tone: "success" });
+  });
+
+  it("reads the status off a failure that carries its own", () => {
+    expect(exchangeStatus(failed({ status: 401, statusText: "Unauthorized", request: "GET https://api.example.com/x" }))).toEqual({
+      code: "401",
+      reason: "Unauthorized",
+      tone: "error",
+    });
+  });
+
+  // The exchange answered, and the row above says the call failed. Showing the 200 it
+  // arrived with is what makes the pane the report of the exchange rather than of the
+  // call — it is also the whole explanation of an unreadable response.
+  it("states the success a response kaja could not read arrived with", () => {
+    expect(exchangeStatus(failed({ responseStatus: 200, responseStatusText: "OK", message: "not the shape the spec declares" }))).toEqual({
+      code: "200",
+      reason: "OK",
+      tone: "success",
+    });
+  });
+
+  it("reads a redirect as neither", () => {
+    expect(exchangeStatus({ responseStatus: 302, responseStatusText: "Found" } as MethodCall)?.tone).toBe("redirect");
+  });
+
+  it("falls back on the gRPC status where there is no status line to read", () => {
+    expect(exchangeStatus(failed({ code: "UNAUTHENTICATED" }))).toEqual({ code: "UNAUTHENTICATED", tone: "error" });
+  });
+
+  it("has nothing to state for a call through an app that speaks no HTTP", () => {
+    expect(exchangeStatus({} as MethodCall)).toBeUndefined();
+  });
+
+  it("leaves out a reason phrase the status has none of", () => {
+    expect(exchangeStatus({ responseStatus: 204, responseStatusText: "" } as MethodCall)).toEqual({ code: "204", reason: undefined, tone: "success" });
   });
 });

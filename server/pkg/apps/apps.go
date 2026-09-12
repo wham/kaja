@@ -129,6 +129,14 @@ type Report struct {
 	// upstream hop leaves them empty.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	// Request, Status and StatusText are the upstream exchange the Headers view states
+	// around those headers: the request line the app made and the status it was
+	// answered with. A failure carries the same three on its UpstreamError, so these
+	// are what a call that succeeded has instead — nothing else records them. An app
+	// with no upstream hop leaves them empty.
+	Request    string
+	Status     int
+	StatusText string
 	// DurationMs is the wall-clock time of the call as this process measured it — the
 	// upstream exchange plus the app's own encode/decode, and nothing of the trip
 	// between the UI and here. Stamped by ApiService.InvokeApp, the one door every
