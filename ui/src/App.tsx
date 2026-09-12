@@ -59,7 +59,7 @@ import { NewAppDialog } from "./NewAppDialog";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
-import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
+import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
@@ -116,7 +116,8 @@ import {
   renameScriptFolder,
   writeScriptFile,
 } from "./scriptFiles";
-import { hasScriptLink, isLinkedScript, parseScriptLink } from "./scriptLink";
+import { hasScriptLink, isLinkedScript, linkName, noSuchScript, parseScriptLink } from "./scriptLink";
+import { remapRunReferences } from "./scriptRuns";
 import { readInputKeys } from "./scriptInputs";
 import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./runInput";
@@ -207,6 +208,18 @@ function sortScripts(scripts: Script[]): Script[] {
 interface RunCollector {
   calls: MethodCall[];
   blocks: Map<string, Block>;
+}
+
+// A name within the scripts folder, split back into the pair a listing carries.
+function scriptNameParts(name: string): { name: string; folder: string } {
+  const at = name.lastIndexOf("/");
+  return at === -1 ? { name, folder: "" } : { name: name.slice(at + 1), folder: name.slice(0, at) };
+}
+
+// The names a `kaja.run` reaches a listing's scripts by, which is how a deeplink spells
+// them: no extension, folders kept.
+function runDestinations(scripts: Script[]): string[] {
+  return scripts.map((script) => linkName(scriptName(script)));
 }
 
 // writeSourceModel backs a generated module with a Monaco model, reporting whether
@@ -980,6 +993,13 @@ export function App() {
     setValueCompletionApps(apps);
   }, [apps]);
 
+  // What a `kaja.run` can reach: offered inside the quotes, and marked where a name
+  // reaches nothing. Undefined until the folder has been listed, so a window reading it
+  // says nothing rather than saying every destination is broken.
+  useEffect(() => {
+    setRunDestinations(scripts && runDestinations(scripts));
+  }, [scripts]);
+
   // The window's zoom is the webview's own, so it is the process behind it that is asked
   // for it. What is said here is what the layout measures against it: the room the band
   // leaves the macOS window buttons, which the zoom never scales.
@@ -1309,7 +1329,7 @@ export function App() {
   const findLinkedScript = useCallback(
     (named: string): Script | undefined => {
       const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(scriptName(candidate), named));
-      if (!script) showFileError(`No script named "${named}".`);
+      if (!script) showFileError(noSuchScript(named));
       return script;
     },
     [showFileError],
@@ -1546,7 +1566,7 @@ export function App() {
     // job, so it costs the run no time. Nothing here waits on it to decide anything —
     // a type error is reported, not refused, exactly as pressing Run in the window
     // leaves one to the person who wrote it.
-    const checking = checkScript(code);
+    const checking = checkScript(code, runDestinations(scriptsRef.current ?? []));
 
     const draft = path ? undefined : agentDraftRef.current(code, client || "Agent");
     const fileId = path || draft?.id;
@@ -1595,6 +1615,71 @@ export function App() {
     );
     return () => window.clearTimeout(timer);
   }, []);
+
+  /**
+   * A renamed script, followed into every `kaja.run` that named it — each draft, each
+   * open buffer and each file on disk, the rule a renamed app is already followed under
+   * (followAppRenames). A destination is the script's name and nothing else, so a rename
+   * is the one edit that leaves a cell pointing at nothing, and the window is the one
+   * place that knows both names.
+   *
+   * A deeplink outside Kaja is what the address is meant to outlive, which is why it
+   * carries no extension and is not followed. A cell inside the workspace can be.
+   */
+  const followScriptRenames = useCallback(
+    async (renames: Map<string, string>) => {
+      if (renames.size === 0) return;
+      const remap = (code: string) => remapRunReferences(code, renames);
+
+      // Nothing here is work: the code and the generated form it is compared against move
+      // together, so a browsing buffer stays untouched, unswept and takeable over.
+      applyDrafts((list) =>
+        list.map((draft) => {
+          const code = remap(draft.code);
+          const generatedCode = remap(draft.generatedCode);
+          if (code === draft.code && generatedCode === draft.generatedCode) return draft;
+          return { ...draft, code, generatedCode };
+        }),
+      );
+
+      const openScripts = new Set<string>();
+      for (const view of viewsRef.current) {
+        if (view.type !== "draft" && view.type !== "script") continue;
+        if (view.type === "script") openScripts.add(view.script.path);
+        const value = view.model.getValue();
+        const next = remap(value);
+        if (next === value) continue;
+        // An edit rather than setValue, so undo history survives, and the disk write is
+        // made here rather than left to the debounce a poke is supposed to skip.
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        suppressScriptSave.current.delete(view.id);
+        if (view.type === "script" && canWriteFiles) {
+          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+        }
+      }
+
+      if (!canWriteFiles) return;
+      // The listing has not caught up with the rename being followed — a state write is
+      // not a read — so the names are moved here as well, and every file is opened under
+      // the name it is filed as now rather than the one it was.
+      for (const script of scriptsRef.current ?? []) {
+        if (openScripts.has(script.path)) continue;
+        const moved = renames.get(scriptName(script));
+        const filed = moved === undefined ? script : { ...script, ...scriptNameParts(moved) };
+        try {
+          const file = await readScriptFile(filed);
+          if (!file) continue;
+          const next = remap(file.content);
+          if (next === file.content) continue;
+          await writeScriptFile(filed, next);
+        } catch (err) {
+          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
+        }
+      }
+    },
+    [applyDrafts, canWriteFiles, showFileError],
+  );
 
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
@@ -1654,13 +1739,15 @@ export function App() {
         // the buffer rather than what disk caught up to.
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
         if (open) flushScriptWrite(open);
-        applyScriptRename(script.path, await renameScriptFile(script, name, folder));
+        const renamed = await renameScriptFile(script, name, folder);
+        applyScriptRename(script.path, renamed);
         if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+        await followScriptRenames(new Map([[scriptName(script), scriptName(renamed)]]));
       } catch (err) {
         showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, flushScriptWrite, showFileError],
+    [applyScriptRename, followScriptRenames, flushScriptWrite, showFileError],
   );
 
   // Dropped on a folder row, so the destination is settled and there is nothing to type:
@@ -1672,12 +1759,14 @@ export function App() {
       try {
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
         if (open) flushScriptWrite(open);
-        applyScriptRename(script.path, await renameScriptFile(script, script.name, folder));
+        const moved = await renameScriptFile(script, script.name, folder);
+        applyScriptRename(script.path, moved);
+        await followScriptRenames(new Map([[scriptName(script), scriptName(moved)]]));
       } catch (err) {
         showFileError(`Move failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, flushScriptWrite, showFileError],
+    [applyScriptRename, followScriptRenames, flushScriptWrite, showFileError],
   );
 
   const removeScriptFromUI = useCallback(
@@ -1733,20 +1822,26 @@ export function App() {
         setScriptFolders((prev) =>
           prev.map((folder) => (folder === path ? moved : folder.startsWith(path + "/") ? moved + folder.slice(path.length) : folder)).sort(),
         );
+        // The whole folder moved at once, so the destinations are followed once rather
+        // than per file: a script in the folder naming another one in it would otherwise
+        // be rewritten by the first rename and read again by the second.
+        const renames = new Map<string, string>();
         for (const script of scriptsRef.current ?? []) {
           if (!isWithinFolder(path, script.folder)) continue;
           const folder = moved + script.folder.slice(path.length);
+          renames.set(scriptName(script), `${folder}/${script.name}`);
           applyScriptRename(script.path, {
             ...script,
             folder,
             path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}`,
           });
         }
+        await followScriptRenames(renames);
       } catch (err) {
         showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, showFileError],
+    [applyScriptRename, followScriptRenames, showFileError],
   );
 
   // A folder is a place, so deleting one deletes what is filed there — the files
@@ -1866,11 +1961,17 @@ export function App() {
         consumeAgentDraft(script, change.content ?? "");
         break;
       }
-      case "rename":
+      case "rename": {
         if (change.oldPath) {
-          applyScriptRename(change.oldPath, { path: change.path, name: change.name ?? "", folder: change.folder ?? "" });
+          // A rename is followed whoever made it, so an agent's is followed the way the
+          // sidebar's is.
+          const before = (scriptsRef.current ?? []).find((script) => script.path === change.oldPath);
+          const renamed: Script = { path: change.path, name: change.name ?? "", folder: change.folder ?? "" };
+          applyScriptRename(change.oldPath, renamed);
+          if (before) void followScriptRenames(new Map([[scriptName(before), scriptName(renamed)]]));
         }
         break;
+      }
       case "delete":
         removeScriptFromUI(change.path);
         break;
