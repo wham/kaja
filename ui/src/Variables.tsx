@@ -92,6 +92,12 @@ export function shouldAdoptIncomingVariables(
   submitted: { [key: string]: string } | undefined,
   editedSinceSubmission: boolean,
 ): boolean {
+  // A push carrying what the table already holds is not a change to adopt. Writing
+  // the file is what makes the watcher send one, so every save comes back as an echo
+  // a moment later - and adopting it re-sorts the rows under whoever is typing in
+  // one, which is the row you just added swapping places with the one it now sorts
+  // before, taking your cursor with it.
+  if (sameVariables(current, incoming)) return false;
   const acknowledgingSubmission = submitted !== undefined && sameVariables(incoming, submitted);
   return sameVariables(current, previous) && !(editedSinceSubmission && acknowledgingSubmission);
 }
