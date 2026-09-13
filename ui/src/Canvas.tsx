@@ -32,6 +32,7 @@ import {
   pendingCells,
   pullNeeded,
   searchesLocally,
+  searchRefused,
   tableSummary,
   tableWindow,
   TableView,
@@ -535,6 +536,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
   const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
   const numeric = numericColumns(drawn, block.columns.length);
+  const refused = searchRefused(block);
 
   useEffect(() => {
     if (needed) onPull(id, search, want);
@@ -559,12 +561,19 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
           which is what a pointer wants and what a 12px glyph never was. */}
       {controls && (
         <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2">
-          <div className="flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring">
+          <div
+            className={cn(
+              "flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring",
+              refused && "cursor-not-allowed opacity-60",
+            )}
+            title={refused ? "Run to search" : undefined}
+          >
             <Search size={13} className="shrink-0 text-muted-foreground" />
             <input
               data-testid="canvas-table-search"
-              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-              placeholder={searchesLocally(block) ? "Search rows" : "Search"}
+              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+              placeholder={refused ? "Run to search" : searchesLocally(block) ? "Search rows" : "Search"}
+              disabled={refused}
               value={view.search}
               // A new search is a new set, so it is read from the first page.
               onChange={(event) => onView(id, { page: 0, search: event.target.value })}
