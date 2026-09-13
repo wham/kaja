@@ -64,7 +64,7 @@ export function logScriptLine(level: string, message: string): void {
 }
 
 /**
- * The one error event that is not a failure.
+ * The first of the two notices that report no failure.
  *
  * A ResizeObserver that observes what its own callback resizes is how every measured
  * element here is drawn, and the spec's answer is to deliver the rest of the
@@ -74,6 +74,23 @@ export function logScriptLine(level: string, message: string): void {
  */
 function isResizeObserverNotice(message: string): boolean {
   return message.startsWith("ResizeObserver loop");
+}
+
+const CANCELED = "Canceled";
+
+/**
+ * The second, and it arrives as a rejection.
+ *
+ * The editor drops work whose answer nobody wants any more — a completion superseded
+ * by the next keystroke, a sticky-scroll model by the next scroll — by rejecting with
+ * a cancellation, and one that reaches the window is that same abandonment arriving a
+ * frame later with nobody left to read it. Nothing failed, so it is neither a footer
+ * row nor a line in kaja.log; what it did light was a ring of `Canceled: Canceled`
+ * rows over a session in which nothing had gone wrong. The shape is Monaco's own
+ * reading of one (`isCancellationError`): the name and the message are both `Canceled`.
+ */
+function isCancellation(reason: unknown): boolean {
+  return reason instanceof Error && reason.name === CANCELED && reason.message === CANCELED;
 }
 
 /**
@@ -103,7 +120,7 @@ export function installUiLog(): void {
 
   window.addEventListener("error", (event) => {
     if (event.error instanceof Error) {
-      send("ERROR", [event.error]);
+      if (!isCancellation(event.error)) send("ERROR", [event.error]);
       return;
     }
     if (isResizeObserverNotice(event.message)) {
@@ -113,6 +130,9 @@ export function installUiLog(): void {
     send("ERROR", [`${event.message}${where}`]);
   });
   window.addEventListener("unhandledrejection", (event) => {
+    if (isCancellation(event.reason)) {
+      return;
+    }
     send("ERROR", [event.reason]);
   });
 }
