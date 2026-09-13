@@ -160,19 +160,46 @@ Rows land one at a time, so the canvas fills as the loop runs rather than after
 it. `run_script` reports what you drew — each block's kind, and a table's columns
 and row count — so you can check the output landed.
 
-**The rest of how to write one is in `describe_type "kaja"`**: `.row(...)` hands
-back a handle whose `.update(...)` rewrites that row, `.column(name)` adds a
-column, `.total(count)` states how big the whole result set is, a cell can be a
-promise or a function rather than a value, and the rows can be handed over as a
-source the table pages and searches itself. That declaration is the TypeScript
-the editor checks a script against, so it cannot be out of date with the runtime
-— read it there rather than working from what you remember of this page.
+**A row can be rewritten after it is drawn**, which is how a summary table is
+built: `.row(...)` hands back a handle, and `.update(...)` takes the same cells
+in the same order. Write the row when the work starts and update it when it
+finishes, rather than waiting until the end and drawing the table once.
 
-Three things about a table are this page's rather than the declaration's:
+```ts
+const table = kaja.table(["show", "seats", "status"]);
+await Promise.all(
+  shows.map(async (show) => {
+    const row = table.row(show.title, show.seatsAvailable, "checking…");
+    const seating = await Seating.GetAvailability({ showId: show.id });
+    row.update(show.title, seating.available, seating.available > 0 ? "on sale" : "sold out");
+  }),
+);
+```
 
-- **Prefer a source over pushing rows whenever the API pages.** Hand
-  `kaja.table` an async generator and the person who opens the script gets the
-  rest of the rows by paging, without running anything.
+**A table can page and search itself**, which is what to write whenever the API
+pages: hand it the rows instead of pushing them, and the person who opens the
+script gets the rest by paging, without running anything.
+
+```ts
+kaja.table(["id", "title", "seats"], async function* (search) {
+  for (let pageToken = ""; ; ) {
+    const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
+    yield* page.items.map((show) => [show.id, show.title, show.seatsAvailable]);
+    if (!(pageToken = page.nextPageToken)) return;
+  }
+});
+```
+
+**Everything else about a table is in `describe_type "kaja"`** — `.column(name)`,
+`.total(count)` for the number an API reports beside a page, what declaring that
+`search` parameter does and what happens without it, a cell handed over as a
+promise or a function, how a failed one draws, and `kaja.run(...)` for a cell that
+runs another script. That declaration is the TypeScript the editor checks a
+script against, so it cannot be out of date with the runtime; read it there
+rather than working from what you remember of this page.
+
+Two things about a table are this page's rather than the declaration's:
+
 - **Nobody is paging your run.** A source draws its first page and `run_script`
   reports `more: true`; a function cell past that page is never called in your
   run. Use a promise rather than a function for a value that has to be in the
