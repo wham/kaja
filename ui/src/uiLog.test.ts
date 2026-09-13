@@ -28,6 +28,18 @@ function raise(event: { message: string; error?: unknown; filename?: string; lin
   handlers.get("error")!(event);
 }
 
+function reject(reason: unknown): void {
+  handlers.get("unhandledrejection")!({ reason });
+}
+
+// What Monaco rejects with when it drops work nobody is waiting for: the name and the
+// message are both `Canceled`, which is the whole of `isCancellationError`.
+function cancellation(): Error {
+  const error = new Error("Canceled");
+  error.name = error.message;
+  return error;
+}
+
 beforeEach(() => {
   setAppErrorSchedule((run) => frames.push(run));
   paint();
@@ -61,6 +73,26 @@ describe("installUiLog", () => {
     raise({ message: "ResizeObserver loop limit exceeded" });
 
     expect(getAppErrors()).toEqual([]);
+  });
+
+  it("records a rejection nobody caught", () => {
+    reject(new Error("Persisting the view failed"));
+
+    expect(getAppErrors()).toHaveLength(1);
+    expect(getAppErrors()[0].message).toContain("Persisting the view failed");
+  });
+
+  it("does not record a cancellation, which is the editor dropping work nobody wanted", () => {
+    reject(cancellation());
+    raise({ message: "Canceled: Canceled", error: cancellation() });
+
+    expect(getAppErrors()).toEqual([]);
+  });
+
+  it("still records an error that only says Canceled, which is a failure with a short name", () => {
+    reject(new Error("Canceled"));
+
+    expect(getAppErrors()).toHaveLength(1);
   });
 });
 
