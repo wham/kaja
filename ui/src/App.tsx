@@ -1360,7 +1360,7 @@ export function App() {
    * the two doors disagree about.
    */
   const runLinkedScript = useCallback(
-    async (script: Script, input: { [key: string]: string }, options: { open?: boolean; screen?: RunPresentation["screen"] } = {}) => {
+    async (script: Script, input: { [key: string]: string }, options: { open?: boolean; screen?: RunPresentation["screen"]; fullScreen?: boolean } = {}) => {
       try {
         const file = await readScriptFile(script);
         if (!file) return;
@@ -1370,7 +1370,7 @@ export function App() {
         if (options.open) applyViews((views) => showScript(views, file.script, file.content));
         rememberRunInput(file.script.path, input);
         const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
-        if (options.screen) setPresent({ runId: run.id, screen: options.screen });
+        if (options.screen) setPresent({ runId: run.id, screen: options.screen, fullScreen: options.fullScreen });
         runScript(file.content, kaja, apps, reportScriptError(run))
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
@@ -1387,12 +1387,17 @@ export function App() {
    * on the other side of a link may not be a person, and it presents because nothing
    * about the window said a run was coming. A click is a person, in a window they are
    * already reading at a size of their own, so the run goes on being read at it.
+   *
+   * It is presented whatever that size is. A run arriving takes the console, but the
+   * console can only tell one from a file being handed over when the file is the one
+   * it was already on — and a cell click is both at once, so a second click sat behind
+   * the run the first one left on screen.
    */
   const onRunScriptCell = useCallback(
     (run: CellRun, fullScreen: boolean) => {
       const script = findLinkedScript(run.script);
       if (!script) return;
-      void runLinkedScript(script, run.input ?? {}, { open: true, screen: fullScreen ? "keep" : undefined });
+      void runLinkedScript(script, run.input ?? {}, { open: true, screen: "keep", fullScreen });
     },
     [findLinkedScript, runLinkedScript],
   );
