@@ -50,6 +50,12 @@ const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foregr
 export interface RunPresentation {
   runId: string;
   screen: "take" | "keep";
+  /**
+   * The size the click was made at, which `keep` restores. A panel is as much a size
+   * as the screen is, so a click made at one presents too — without that the run is
+   * started and never shown, and the console goes on drawing the run before it.
+   */
+  fullScreen?: boolean;
 }
 
 interface ConsoleProps {
@@ -265,7 +271,7 @@ export function Console({
       if (selection?.runId !== group.run.id) onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
       // A carried size settles nothing else: the view is derived, so the run lands on
       // the one it would have landed on had you pressed Run.
-      if (present.screen === "keep") setFullScreen(true);
+      if (present.screen === "keep") setFullScreen(present.fullScreen === true);
       else enterFullScreen(defaultView(group));
     }
     onPresented?.();
