@@ -160,101 +160,25 @@ Rows land one at a time, so the canvas fills as the loop runs rather than after
 it. `run_script` reports what you drew — each block's kind, and a table's columns
 and row count — so you can check the output landed.
 
-**A row can be rewritten after it is drawn**, which is how a summary table is
-built: `.row(...)` hands back a handle, and `.update(...)` takes the same cells
-in the same order. Write the row when the work starts and update it when it
-finishes, rather than waiting until the end and drawing the table once.
+**The rest of how to write one is in `describe_type "kaja"`**: `.row(...)` hands
+back a handle whose `.update(...)` rewrites that row, `.column(name)` adds a
+column, `.total(count)` states how big the whole result set is, a cell can be a
+promise or a function rather than a value, and the rows can be handed over as a
+source the table pages and searches itself. That declaration is the TypeScript
+the editor checks a script against, so it cannot be out of date with the runtime
+— read it there rather than working from what you remember of this page.
 
-```ts
-const table = kaja.table(["show", "seats", "status"]);
-await Promise.all(
-  shows.map(async (show) => {
-    const row = table.row(show.title, show.seatsAvailable, "checking…");
-    const seating = await Seating.GetAvailability({ showId: show.id });
-    row.update(show.title, seating.available, seating.available > 0 ? "on sale" : "sold out");
-  }),
-);
-```
+Three things about a table are this page's rather than the declaration's:
 
-A row is only ever the whole of itself, so pass every cell, not just the one that
-changed; fewer cells than columns leaves the rest blank. `table.column(name)`
-adds a column if the run turns out to need one, and the rows already drawn grow a
-blank cell for it.
-
-**A cell can be a value you do not have yet.** Hand the table a promise where a
-value would go and the row is drawn with everything it already has, with that one
-cell loading until it lands — which is what to write when part of a row comes
-from a second call:
-
-```ts
-const seating = Seating.GetAvailability({ showIds: shows.map((show) => show.id) });
-for (const show of shows) {
-  table.row(show.id, show.title, seating.then((s) => s.byShow[show.id].available));
-}
-```
-
-A **function** instead of a promise is work nobody has asked for yet: it is
-called when its row is drawn, so rows past the first page cost nothing until
-someone pages to them, and a failed one can be retried from the canvas. Nobody is
-paging your run, so a function past the first page is never called in it — use a
-promise when the value has to be in the run you are reporting. A cell that fails
-draws as `—` with the message on hover, and the rest of the table carries on.
-
-**A table can page and search itself.** Hand it the rows instead of pushing
-them, and it gets a search box and a pager for free — an array is drawn as it is,
-and a function is pulled a page at a time, only when the person reading it pages
-past what has been loaded:
-
-```ts
-kaja.table(["id", "title", "seats"], async function* (search) {
-  for (let pageToken = ""; ; ) {
-    const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
-    yield* page.items.map((show) => [show.id, show.title, show.seatsAvailable]);
-    if (!(pageToken = page.nextPageToken)) return;
-  }
-});
-```
-
-Declare the `search` parameter and the search box is handed to your source, which
-is started again for each new search; leave it out and the box filters the rows
-already loaded. **If the API reports a total, hand it on** — the table counts the
-rows it has and nothing else, so `1–50 of 2,431` is a number only your source
-knows:
-
-```ts
-const customers = kaja.table(["key", "name"], async function* () {
-  for (let page = 1; ; page++) {
-    const result = await Customers.ListCustomers({ page });
-    customers.total(result.totalCount);
-    yield* result.items.map((customer) => [customer.key, customer.name]);
-  }
-});
-```
-
-A source paging a cursor has no total and says nothing; the table then reports
-what it has loaded and that there is more. **Nobody is paging your run**, so `run_script` draws the first
-page and reports `more: true` — if you need the whole set, write the loop and
-read it yourself. Prefer this over `.row(...)` whenever the API pages: the person
-who opens the script gets the rest without running anything.
-
-**A cell can run another script.** `kaja.run(script, input?)` is a link: the cell
-draws as the script's name and clicking it runs that script with those values,
-which is the deeplink grammar said inside the window. Nothing runs when you write
-it, and nothing runs in your own run — this is the action a row invites, for the
-person reading the table.
-
-```ts
-kaja.table(
-  ["show", "seats", ""],
-  shows.map((show) => [show.title, show.seatsAvailable, kaja.run("shows/detail", { id: show.id }, { label: "Detail" })]),
-);
-```
-
-Name the script the way a deeplink does: no extension, folders kept, and a saved
-file rather than a draft. Every value is sent as text and read on the other end as
-`kaja.input.<key>`, so the script it names is an ordinary script that takes its
-input from there. It is not a way to structure your own work — calling another
-script's work is a function call, not a cell.
+- **Prefer a source over pushing rows whenever the API pages.** Hand
+  `kaja.table` an async generator and the person who opens the script gets the
+  rest of the rows by paging, without running anything.
+- **Nobody is paging your run.** A source draws its first page and `run_script`
+  reports `more: true`; a function cell past that page is never called in your
+  run. Use a promise rather than a function for a value that has to be in the
+  run you are reporting, and write the loop yourself if you need the whole set.
+- **`kaja.run(...)` runs nothing in your run.** It is the action a row invites,
+  for the person reading the table.
 
 ## A perf test reports itself
 
@@ -358,13 +282,10 @@ What each member is for:
 
 - `kaja.text(text)`, `kaja.code(code, language?)` — draw a line or a snippet on
   the canvas.
-- `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
-  appends to it and hands back a row whose `.update(...cells)` rewrites it,
-  `.column(name)` adds a column, and `.total(count)` states how many rows the
-  whole result set holds when the API says. `rows` can be an array, or a source
-  (an async generator) the table pulls a page at a time as it is paged through.
-  A cell can be a promise or a function rather than a value, and draws as loading
-  until it arrives.
+- `kaja.table(columns, rows?)` — draw a table. Rows appear as they are added and
+  can be rewritten once the work behind them finishes, a cell can be a promise
+  the table waits for, and rows handed over as a source are paged and searched by
+  the table itself. See above, and the declaration.
 - `kaja.run(script, input?, options?)` — a cell that runs another script with those
   values when it is clicked. The script is named as a deeplink names one, the cell
   says its name unless `options.label` says otherwise, and the values are read
