@@ -543,40 +543,6 @@ go_to "MCP server" "$PRODUCT_NAME"
 pause 1
 shot 09-agent
 
-# -- 10  A run that stops and asks ---------------------------------------------
-
-# The last two beats are the only ones that answer rather than navigate. Every
-# shot above is of a screen the app can be sent to; a question and a call held
-# back are states a *run* parks in, and the only way to the second is through
-# the first — so this run walks itself down its own script, one answer at a
-# time. They are last because a beat that types into a run is the most fragile
-# thing here: a slow concierge leaves the shot on the question before it, and
-# nothing after it is spoiled.
-say "10  A question on the canvas"
-go_to "a-night-out.ts" "a-night-out.ts - $PRODUCT_NAME"
-run_script
-pause "$WAIT_RUN"
-full_screen
-shot 10-ask
-
-# -- 11  The call it holds back ------------------------------------------------
-
-# ⏎ takes the city the cursor is already on; the other two answers are typed.
-# The run then asks the concierge what to see and where to sit, and parks a
-# second time on kaja.approve — which is where this stops. Nothing here presses
-# Approve, so the demo photographs a booking it never sends.
-say "11  A call waiting to be approved"
-press 'key code 36'
-act '        keystroke "something funny"'
-pause "$WAIT_UI"
-press 'key code 36'
-act '        keystroke "2"'
-pause "$WAIT_UI"
-press 'key code 36'
-pause "$WAIT_RUN"
-shot 11-approve
-full_screen
-
 say "Done"
 note "$(ls "$OUT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ') screenshots in $OUT_DIR"
 note "Look at them before you upload: every beat waits by the clock, so a slow API"
