@@ -21,8 +21,9 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
+import { SimpleTooltip } from "./components/tooltip";
 import { Script } from "./apps";
-import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
+import { BROWSING_NOTE, isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
 import {
   buildScriptTree,
@@ -854,16 +855,7 @@ function DraftRow({
           }
         }}
       >
-        {/* A draft still exactly as it was generated is a browsing buffer, and
-            the next call you pick takes it over — a rule you could otherwise
-            only learn by being surprised by it, so the row is dimmed. */}
-        <span
-          title={browsing ? "Browsing. The next call you pick takes this over" : undefined}
-          className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}
-        >
-          {name}
-          {qualifier && <span className="ml-1.5 text-muted-foreground opacity-70">{qualifier}</span>}
-        </span>
+        <DraftName name={name} qualifier={qualifier} browsing={browsing} current={current} />
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={active}>
           {active && (
             <>
@@ -876,6 +868,21 @@ function DraftRow({
       </div>
     </li>
   );
+}
+
+// A draft still exactly as it was generated holds nothing you wrote, so the row is
+// dimmed and the name carries the sentence saying what that costs — a rule you could
+// otherwise only learn by being surprised by it. The dimmed row in the tree below is
+// annotated the same way, and the trigger is the name rather than the row so a draft
+// arrowed onto does not answer a question nobody asked.
+function DraftName({ name, qualifier, browsing, current }: { name: string; qualifier?: string; browsing: boolean; current: boolean }) {
+  const label = (
+    <span className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}>
+      {name}
+      {qualifier && <span className="ml-1.5 text-muted-foreground opacity-70">{qualifier}</span>}
+    </span>
+  );
+  return browsing ? <SimpleTooltip text={BROWSING_NOTE}>{label}</SimpleTooltip> : label;
 }
 
 /**

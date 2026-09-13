@@ -56,6 +56,12 @@ export function createDraft(code: string, originAppName: string | undefined, now
   };
 }
 
+// The dimming says the row holds nothing of yours; what it leaves open is what
+// becomes of it, which is the one thing the note says. "Replaces" rather than takes
+// over, the internal verb, because appending to a draft is the neighbouring gesture
+// and the sentence has to be unmistakably not that.
+export const BROWSING_NOTE = "The next call you pick replaces this.";
+
 // Untouched means still exactly what was generated, and never run.
 export function isUntouched(draft: Draft): boolean {
   return !draft.ran && draft.code === draft.generatedCode;
