@@ -119,6 +119,7 @@ import {
 import { hasScriptLink, isLinkedScript, linkName, noSuchScript, parseScriptLink } from "./scriptLink";
 import { remapRunReferences } from "./scriptRuns";
 import { readInputKeys } from "./scriptInputs";
+import { setScriptListing, setScriptSource } from "./scriptParameters";
 import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
@@ -485,7 +486,9 @@ export function App() {
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
-      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+      const content = view.model.getValue();
+      setScriptSource(scriptName(view.script), content);
+      writeScriptFile(view.script, content).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
     },
     [canWriteFiles, showFileError],
   );
@@ -997,6 +1000,9 @@ export function App() {
   // reaches nothing. Undefined until the folder has been listed, so a window reading it
   // says nothing rather than saying every destination is broken.
   useEffect(() => {
+    // The listing is what says which scripts exist, so it is told first: the marking
+    // right after it is also what asks for the parameters of the ones on screen.
+    setScriptListing(scripts);
     setRunDestinations(scripts && runDestinations(scripts));
   }, [scripts]);
 
@@ -1450,7 +1456,11 @@ export function App() {
             id,
             setTimeout(() => {
               scriptSaveTimers.current.delete(id);
-              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+              const content = model.getValue();
+              // A parameter added to this script is one its callers may name, so what was
+              // written is what the editor checks the next `kaja.run` against.
+              setScriptSource(scriptName(script), content);
+              writeScriptFile(script, content).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
             }, 500),
           );
         }),
@@ -1948,6 +1958,7 @@ export function App() {
       case "write": {
         const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === change.path);
         const content = change.content ?? "";
+        if (change.name !== undefined) setScriptSource(scriptName({ name: change.name, folder: change.folder ?? "" }), content);
         if (view?.type === "script" && view.model.getValue() !== content) {
           // Apply as an edit rather than setValue so undo history survives, and record it as
           // saved — an agent's write is a save.
@@ -1963,6 +1974,7 @@ export function App() {
         const script: Script = { path: change.path, name: change.name ?? "", folder: change.folder ?? "" };
         setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? sortScripts([...prev, script]) : prev));
         if (script.folder) setScriptFolders((prev) => (prev.includes(script.folder) ? prev : [...prev, script.folder].sort()));
+        setScriptSource(scriptName(script), change.content ?? "");
         consumeAgentDraft(script, change.content ?? "");
         break;
       }

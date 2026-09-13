@@ -195,6 +195,14 @@ export interface RunCell {
   readonly label: string;
 }
 
+/**
+ * What the script a kaja.run names reads as kaja.input. \`KajaScripts\` is written
+ * out of the scripts folder, so naming a key the script never reads is an error
+ * where it is written. A script Kaja has not read, and one that reads keys it
+ * doesn't name, takes any key.
+ */
+type KajaRunInput<Script extends string> = Script extends keyof KajaScripts ? KajaScripts[Script] : { [key: string]: unknown };
+
 /** A table being filled in on the run's canvas. */
 export interface Table {
   /**
@@ -376,8 +384,12 @@ export declare const kaja: {
    *
    * Use it for the action a row invites rather than as a way to structure work: a
    * script calling another script's work directly is a function call, not a cell.
+   *
+   * The parameters are checked against what the named script reads, so a key it
+   * never looks at is an error where it is written rather than a value that
+   * silently arrives nowhere.
    */
-  run(script: string, input?: { [key: string]: unknown }, options?: { label?: string }): RunCell;
+  run<Script extends string>(script: Script, input?: KajaRunInput<Script>, options?: { label?: string }): RunCell;
   /**
    * Draw a table on the run's canvas and hand back a handle to fill it. Rows
    * appear as they are added, so a loop paints rather than reporting at the end.

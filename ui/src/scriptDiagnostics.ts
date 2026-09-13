@@ -1,6 +1,7 @@
 import * as monaco from "monaco-editor";
 import { noSuchScript } from "./scriptLink";
-import { unresolvedRuns } from "./scriptRuns";
+import { demandScriptParameters } from "./scriptParameters";
+import { readRunReferences, RunReference, unresolvedIn } from "./scriptRuns";
 
 /**
  * What the editor says about a script nobody has open.
@@ -14,7 +15,10 @@ import { unresolvedRuns } from "./scriptRuns";
  *
  * A `kaja.run` naming no script is the one complaint the worker cannot make, a
  * destination being a name rather than an import. It is read from the same
- * `unresolvedRuns` the editor marks with, for that same reason.
+ * `unresolvedRuns` the editor marks with, for that same reason. What a destination
+ * *takes* the worker does make, against a declaration read off the folder as it is
+ * asked for — so this waits for the destinations it names rather than reporting on
+ * whichever of them the window happened to have read.
  */
 
 export interface ScriptDiagnostic {
@@ -42,16 +46,20 @@ const MODULE_NOT_FOUND = [2307, 2792];
 let queue: Promise<unknown> = Promise.resolve();
 
 export function checkScript(code: string, scriptNames: string[]): Promise<ScriptDiagnostic[]> {
+  const references = readRunReferences(code);
+  const known = demandScriptParameters(references.map((reference) => reference.name)).catch(() => {});
   const checked = queue.then(
-    () => diagnose(code),
-    () => diagnose(code),
+    () => known.then(() => diagnose(code)),
+    () => known.then(() => diagnose(code)),
   );
   queue = checked.catch(() => {});
-  return checked.then((diagnostics) => [...diagnostics, ...runDiagnostics(code, scriptNames)].sort((a, b) => a.line - b.line || a.column - b.column));
+  return checked.then((diagnostics) =>
+    [...diagnostics, ...runDiagnostics(references, code, scriptNames)].sort((a, b) => a.line - b.line || a.column - b.column),
+  );
 }
 
-function runDiagnostics(code: string, scriptNames: string[]): ScriptDiagnostic[] {
-  return unresolvedRuns(code, scriptNames).map((reference) => {
+function runDiagnostics(references: RunReference[], code: string, scriptNames: string[]): ScriptDiagnostic[] {
+  return unresolvedIn(references, scriptNames).map((reference) => {
     const before = code.slice(0, reference.start);
     const newline = before.lastIndexOf("\n");
     return { line: before.split("\n").length, column: reference.start - newline, message: noSuchScript(reference.name) };
