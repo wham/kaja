@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TableBlock } from "./blocks";
-import { bodyMinHeight, cellsKey, hasControls, numericColumns, pendingCells, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
+import { bodyMinHeight, cellsKey, hasControls, numericColumns, pendingCells, pullNeeded, searchRefused, tableSummary, tableWindow, totalOf } from "./tableView";
 
 function table(rows: number, extra: Partial<TableBlock> = {}): TableBlock {
   return {
@@ -246,6 +246,17 @@ describe("hasControls", () => {
   it("is true for a table that can still grow, or could have", () => {
     expect(hasControls(table(3, { live: true }))).toBe(true);
     expect(hasControls(table(3, { expired: true }))).toBe(true);
+  });
+});
+
+describe("searchRefused", () => {
+  it("refuses a search bound for a source that is gone", () => {
+    expect(searchRefused(table(3, { live: false, expired: true, serverSearch: true }))).toBe(true);
+  });
+
+  it("keeps a local filter, expired or not", () => {
+    expect(searchRefused(table(3, { live: false, expired: true }))).toBe(false);
+    expect(searchRefused(table(3, { live: true, serverSearch: true }))).toBe(false);
   });
 });
 
