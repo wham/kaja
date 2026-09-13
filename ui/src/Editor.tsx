@@ -8,7 +8,9 @@ import { kajaModuleDeclaration } from "./kajaModule";
 import { codeFontSize } from "./monacoTheme";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { noSuchScript } from "./scriptLink";
-import { runNameAt, unresolvedRuns } from "./scriptRuns";
+import { runInputDeclaration } from "./scriptInputs";
+import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
+import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { ScalarValue } from "./typeMemory";
 import { suggestValues } from "./valueCompletions";
 
@@ -147,6 +149,24 @@ export function registerKajaModule(variableNames: string[]): void {
 
 registerKajaModule([]);
 
+// What each script in the folder takes, as a declaration file so the global it declares
+// is in scope in `ts:/kaja.ts` and in every script. A model rather than an extra lib for
+// the reason the kaja module is one: this is how the editor's own program is written.
+const RUN_INPUTS_URI = "ts:/kaja-scripts.d.ts";
+
+function registerRunInputs(declaration: string): void {
+  const uri = monaco.Uri.parse(RUN_INPUTS_URI);
+  const existing = monaco.editor.getModel(uri);
+  if (!existing) {
+    monaco.editor.createModel(declaration, "typescript", uri);
+  } else if (existing.getValue() !== declaration) {
+    existing.setValue(declaration);
+  }
+}
+
+registerRunInputs(runInputDeclaration([]));
+subscribeScriptParameters(() => registerRunInputs(runInputDeclaration(knownScriptInputs())));
+
 const KAJA_IMPORT_COMMAND = "kaja.addImport";
 const KAJA_IMPORT_LINE = 'import { kaja } from "kaja";\n';
 
@@ -252,7 +272,12 @@ const MIGHT_RUN = /\.run\s*\(/;
 export function markRuns(model: monaco.editor.ITextModel): void {
   if (model.isDisposed() || model.getLanguageId() !== "typescript") return;
   const code = model.getValue();
-  const unresolved = runDestinations && MIGHT_RUN.test(code) ? unresolvedRuns(code, runDestinations) : [];
+  const references = MIGHT_RUN.test(code) ? readRunReferences(code) : [];
+  // The destinations on screen are the ones worth knowing the parameters of, and this
+  // is the one pass that has read them. What comes back rewrites the declaration the
+  // editor checks a `kaja.run`'s input against.
+  if (references.length > 0) void demandScriptParameters(references.map((reference) => reference.name));
+  const unresolved = runDestinations ? unresolvedIn(references, runDestinations) : [];
   monaco.editor.setModelMarkers(
     model,
     RUN_MARKER_OWNER,
