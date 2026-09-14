@@ -27,6 +27,13 @@ export type ShortcutAction =
 
 export type ShortcutGroup = "Window" | "Scripts" | "Running";
 
+/**
+ * Where a row applies, in the app's own nouns and no others. It is a closed set
+ * because the scope column is read down rather than across: two rows saying the same
+ * thing in two wordings read as two different answers.
+ */
+export type ShortcutScope = "Anywhere" | "In a run" | "In the console" | "In Files" | "On a draft" | "On a file" | "In app settings";
+
 export interface ShortcutDefinition {
   action: ShortcutAction;
   label: string;
@@ -34,9 +41,10 @@ export interface ShortcutDefinition {
   // What the window answers to with nothing configured. More than one only where a
   // key from somewhere else is honoured beside kaja's own, which is F5 for Run.
   defaults: string[];
-  // Where the action is: a row that says only its name reads as a key that works
-  // wherever you are, which most of these are not.
-  where?: string;
+  // Stated on every row, `Anywhere` included: an empty cell would have to mean
+  // global, and a cell that means something by being empty is one you have to be
+  // told about.
+  scope: ShortcutScope;
   // The verb this key presses writes a file, so it is not there at all on a workspace
   // that is served read-only — the same rule that takes Save as file off the command
   // row rather than disabling it.
@@ -51,18 +59,18 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = ["Window", "Scripts", "Running"]
  * nobody chose in the first place.
  */
 export const SHORTCUTS: ShortcutDefinition[] = [
-  { action: "finder", label: "Find a call, file or view", group: "Window", defaults: ["Mod+P"] },
-  { action: "toggleSidebar", label: "Show or hide the sidebar", group: "Window", defaults: ["Mod+B"] },
-  { action: "fullScreenRun", label: "Full-screen run", group: "Window", defaults: ["Mod+Shift+F"], where: "In a run" },
-  { action: "newDraft", label: "New script", group: "Scripts", defaults: ["Mod+N"] },
-  { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], where: "In Files", writesFiles: true },
-  { action: "saveAsFile", label: "Save as file", group: "Scripts", defaults: ["Mod+S"], where: "On a draft", writesFiles: true },
-  { action: "copyDeeplink", label: "Copy deeplink", group: "Scripts", defaults: ["Mod+Shift+C"], where: "On a file" },
-  { action: "editAsJson", label: "Edit as JSON", group: "Scripts", defaults: ["Mod+J"], where: "In app settings" },
-  { action: "run", label: "Run", group: "Running", defaults: ["Mod+Enter", "F5"] },
-  { action: "runWithParameters", label: "Run with parameters", group: "Running", defaults: ["Mod+Shift+Enter"] },
-  { action: "previousRun", label: "Previous run", group: "Running", defaults: ["Ctrl+ArrowUp"] },
-  { action: "nextRun", label: "Next run", group: "Running", defaults: ["Ctrl+ArrowDown"] },
+  { action: "finder", label: "Find a call, file or view", group: "Window", defaults: ["Mod+P"], scope: "Anywhere" },
+  { action: "toggleSidebar", label: "Show or hide the sidebar", group: "Window", defaults: ["Mod+B"], scope: "Anywhere" },
+  { action: "fullScreenRun", label: "Full-screen run", group: "Window", defaults: ["Mod+Shift+F"], scope: "In a run" },
+  { action: "newDraft", label: "New script", group: "Scripts", defaults: ["Mod+N"], scope: "Anywhere" },
+  { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], scope: "In Files", writesFiles: true },
+  { action: "saveAsFile", label: "Save as file", group: "Scripts", defaults: ["Mod+S"], scope: "On a draft", writesFiles: true },
+  { action: "copyDeeplink", label: "Copy deeplink", group: "Scripts", defaults: ["Mod+Shift+C"], scope: "On a file" },
+  { action: "editAsJson", label: "Edit as JSON", group: "Scripts", defaults: ["Mod+J"], scope: "In app settings" },
+  { action: "run", label: "Run", group: "Running", defaults: ["Mod+Enter", "F5"], scope: "Anywhere" },
+  { action: "runWithParameters", label: "Run with parameters", group: "Running", defaults: ["Mod+Shift+Enter"], scope: "Anywhere" },
+  { action: "previousRun", label: "Previous run", group: "Running", defaults: ["Ctrl+ArrowUp"], scope: "Anywhere" },
+  { action: "nextRun", label: "Next run", group: "Running", defaults: ["Ctrl+ArrowDown"], scope: "Anywhere" },
 ];
 
 const DEFINITION = new Map(SHORTCUTS.map((shortcut) => [shortcut.action, shortcut]));
@@ -272,26 +280,74 @@ export function resolveBindings(overrides: { [key: string]: string } | undefined
 }
 
 /**
- * Two actions on one chord, which is a shortcut that does whichever of the two the
- * window happens to ask about first. Reported per action, naming the other.
+ * Two scopes are in each other's way when both can be active at the moment a key is
+ * pressed. `In Files` and `On a draft` can hold one chord between them and neither is
+ * ambiguous; anything sharing a scope with `Anywhere` is.
  */
-export function bindingConflicts(bindings: Map<ShortcutAction, string[]>): Map<ShortcutAction, ShortcutAction[]> {
-  const byBinding = new Map<string, ShortcutAction[]>();
-  for (const [action, list] of bindings) {
-    for (const binding of list) {
-      byBinding.set(binding, [...(byBinding.get(binding) ?? []), action]);
-    }
-  }
+export function scopesOverlap(a: ShortcutScope, b: ShortcutScope): boolean {
+  return a === "Anywhere" || b === "Anywhere" || a === b;
+}
 
-  const conflicts = new Map<ShortcutAction, ShortcutAction[]>();
-  for (const actions of byBinding.values()) {
-    if (actions.length < 2) continue;
-    for (const action of actions) {
-      const others = actions.filter((candidate) => candidate !== action);
-      conflicts.set(action, [...(conflicts.get(action) ?? []), ...others]);
-    }
+/**
+ * Who else answers to this chord where the recording row would. The chord you just
+ * pressed wins and these are what it takes it from, which is why this is asked at the
+ * moment one is recorded rather than reported as a state the screen carries.
+ */
+export function collidingActions(bindings: Map<ShortcutAction, string[]>, action: ShortcutAction, binding: string): ShortcutAction[] {
+  if (!binding) return [];
+  const scope = shortcutDefinition(action).scope;
+  const taken: ShortcutAction[] = [];
+  for (const [other, list] of bindings) {
+    if (other === action || !list.includes(binding)) continue;
+    if (scopesOverlap(scope, shortcutDefinition(other).scope)) taken.push(other);
   }
-  return conflicts;
+  return taken;
+}
+
+// Chords the host takes before the page is offered them. The list is short on
+// purpose: a chord kaja itself ships is evidently one that arrives, and refusing a
+// chord that would in fact work is a worse answer than accepting one that won't.
+const RESERVED_CHORDS = new Set(["Mod+W", "Mod+Q", "Mod+Tab", "Mod+Space"]);
+
+/**
+ * Why the chord just pressed cannot be this row's, or undefined where it can. The
+ * recorder states it and goes on listening: a refusal is something to correct with
+ * the keyboard you are already holding, not a reason to close the recorder.
+ */
+export function recordingRefusal(event: KeyboardEvent, mac = isMacPlatform()): string | undefined {
+  const key = eventKey(event);
+  if (key === undefined) return undefined;
+  const held = eventModifiers(event, mac);
+  if (held.has("Mod") && held.has("Ctrl")) return "⌃ and ⌘ are one key off a Mac, so a shortcut cannot hold both.";
+  if (!FUNCTION_KEY.test(key) && (held.size === 0 || (held.size === 1 && held.has("Shift")))) {
+    return mac ? "A shortcut needs ⌘, ⌥ or ⌃. Hold one and press a key." : "A shortcut needs Ctrl or Alt. Hold one and press a key.";
+  }
+  const binding = normalizeBinding([...held, key].join("+"));
+  if (binding === undefined) return "That is not a chord Kaja can listen for.";
+  if (RESERVED_CHORDS.has(binding)) return `${formatBinding(binding, mac)} belongs to the system, so Kaja never sees it.`;
+  return undefined;
+}
+
+// The part of the chord that is still missing, which is what makes the chip a
+// question rather than a value.
+const PENDING_KEY = "…";
+
+/**
+ * The chord as far as it has been heard: the modifiers being held, with the key still
+ * to come. Nothing is held yet reads as the ellipsis alone, so letting the modifiers
+ * go empties the chip rather than committing what you let go of.
+ */
+export function formatPartialChord(event: KeyboardEvent, mac = isMacPlatform()): string {
+  const held = eventModifiers(event, mac);
+  if (held.size === 0) return PENDING_KEY;
+  if (mac) {
+    return (
+      MAC_MODIFIER_ORDER.filter((modifier) => held.has(modifier))
+        .map((modifier) => MAC_MODIFIER_SYMBOL[modifier])
+        .join("") + ` ${PENDING_KEY}`
+    );
+  }
+  return [...MODIFIERS.filter((modifier) => held.has(modifier)).map((modifier) => OTHER_MODIFIER_LABEL[modifier]), PENDING_KEY].join("+");
 }
 
 // The overrides the window is running, kept beside the configuration the way the

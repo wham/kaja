@@ -49,6 +49,31 @@ export interface OpenAppResponse {
     protoDir: string;
 }
 /**
+ * RenameApp follows an app's rename into the open apps. An app is addressed by its
+ * own name, so a rename leaves the instance opened under the old one unreachable and
+ * every call answered with "not open". Its parameters are untouched - that is what
+ * makes it a rename rather than a different app - so the open app is moved to the new
+ * name rather than reopened, which is the same thing the window does with the surface
+ * it has already compiled.
+ *
+ * @generated from protobuf message RenameAppRequest
+ */
+export interface RenameAppRequest {
+    /**
+     * @generated from protobuf field: string old_name = 1
+     */
+    oldName: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message RenameAppResponse
+ */
+export interface RenameAppResponse {
+}
+/**
  * InspectGrpc reads the service surface a grpc app *would* be opened with -
  * reflecting the server, or reading the proto directory - without creating the
  * app, so the New gRPC app form can fill itself in from what answered. The app
@@ -673,9 +698,9 @@ export interface Runtime {
      * The scripts folder on the machine serving the workspace, for the one thing
      * the UI needs the folder itself for: revealing it in the system file browser.
      *
-     * @generated from protobuf field: string scripts_folder = 5
+     * @generated from protobuf field: string scripts_dir = 5
      */
-    scriptsFolder: string;
+    scriptsDir: string;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -903,6 +928,31 @@ export interface DeleteScriptRequest {
 export interface DeleteScriptResponse {
 }
 /**
+ * CopyScript writes a second file under a new name, which may carry a folder. The
+ * name has to be free: a copy never lands on a file that is already there.
+ *
+ * @generated from protobuf message CopyScriptRequest
+ */
+export interface CopyScriptRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message CopyScriptResponse
+ */
+export interface CopyScriptResponse {
+    /**
+     * @generated from protobuf field: Script script = 1
+     */
+    script?: Script;
+}
+/**
  * ListScriptFolders returns every directory under the scripts root, relative and
  * slash-separated. An empty one is in the list: it is a directory, not a UI
  * grouping, so it has no file to be inferred from.
@@ -980,6 +1030,31 @@ export interface DeleteScriptFolderRequest {
  * @generated from protobuf message DeleteScriptFolderResponse
  */
 export interface DeleteScriptFolderResponse {
+}
+/**
+ * CopyScriptFolder copies a folder and everything filed there to a new path, which has
+ * to be free and may not be inside the folder being copied.
+ *
+ * @generated from protobuf message CopyScriptFolderRequest
+ */
+export interface CopyScriptFolderRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string new_name = 2
+     */
+    newName: string;
+}
+/**
+ * @generated from protobuf message CopyScriptFolderResponse
+ */
+export interface CopyScriptFolderResponse {
+    /**
+     * @generated from protobuf field: string folder = 1
+     */
+    folder: string;
 }
 /**
  * ScanScriptVariables reports which scripts reference the named variables. An
@@ -1095,6 +1170,39 @@ export interface Configuration {
     shortcuts: {
         [key: string]: string;
     };
+    /**
+     * Whether this workspace offers an agent session at all. On the desktop it is the
+     * switch itself: the process reads it at startup to decide whether to open the
+     * loopback listener, and writes it back when the switch is flipped. In a browser the
+     * switch belongs to the browser, because the token does - so this is only where a
+     * browser that has never chosen starts, which is what lets a deployed workspace ship
+     * an agent session that is already on.
+     *
+     * @generated from protobuf field: McpSettings mcp = 8
+     */
+    mcp?: McpSettings;
+    /**
+     * Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
+     * file; a relative path is resolved against this file's own folder. A folder that
+     * isn't there is not created: the default is used instead.
+     *
+     * @generated from protobuf field: string scripts_dir = 9
+     */
+    scriptsDir: string;
+}
+/**
+ * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+ * the endpoint and the token are addresses rather than configuration, so neither is
+ * written here - the desktop persists its token beside this file and a browser keeps
+ * its own.
+ *
+ * @generated from protobuf message McpSettings
+ */
+export interface McpSettings {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -1455,6 +1563,28 @@ export interface UpdateConfigurationResponse {
     variableStatus: VariableStatus[];
 }
 /**
+ * @generated from protobuf message SetMcpEnabledRequest
+ */
+export interface SetMcpEnabledRequest {
+    /**
+     * @generated from protobuf field: bool enabled = 1
+     */
+    enabled: boolean;
+}
+/**
+ * @generated from protobuf message SetMcpEnabledResponse
+ */
+export interface SetMcpEnabledResponse {
+    /**
+     * What the file says now, which is what every window is about to be told by
+     * WatchConfiguration anyway - answered here so the window that asked need not wait
+     * for its own change to come back round.
+     *
+     * @generated from protobuf field: McpSettings mcp = 1
+     */
+    mcp?: McpSettings;
+}
+/**
  * @generated from protobuf enum OpenStatus
  */
 export enum OpenStatus {
@@ -1754,6 +1884,29 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
  * @generated MessageType for protobuf message OpenAppResponse
  */
 export const OpenAppResponse = new OpenAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameAppRequest$Type extends MessageType<RenameAppRequest> {
+    constructor() {
+        super("RenameAppRequest", [
+            { no: 1, name: "old_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameAppRequest
+ */
+export const RenameAppRequest = new RenameAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RenameAppResponse$Type extends MessageType<RenameAppResponse> {
+    constructor() {
+        super("RenameAppResponse", []);
+    }
+}
+/**
+ * @generated MessageType for protobuf message RenameAppResponse
+ */
+export const RenameAppResponse = new RenameAppResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class InspectGrpcRequest$Type extends MessageType<InspectGrpcRequest> {
     constructor() {
@@ -2096,7 +2249,7 @@ class Runtime$Type extends MessageType<Runtime> {
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "scripts_folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2314,6 +2467,31 @@ class DeleteScriptResponse$Type extends MessageType<DeleteScriptResponse> {
  */
 export const DeleteScriptResponse = new DeleteScriptResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptRequest$Type extends MessageType<CopyScriptRequest> {
+    constructor() {
+        super("CopyScriptRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptRequest
+ */
+export const CopyScriptRequest = new CopyScriptRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptResponse$Type extends MessageType<CopyScriptResponse> {
+    constructor() {
+        super("CopyScriptResponse", [
+            { no: 1, name: "script", kind: "message", T: () => Script }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptResponse
+ */
+export const CopyScriptResponse = new CopyScriptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ListScriptFoldersRequest$Type extends MessageType<ListScriptFoldersRequest> {
     constructor() {
         super("ListScriptFoldersRequest", []);
@@ -2407,6 +2585,31 @@ class DeleteScriptFolderResponse$Type extends MessageType<DeleteScriptFolderResp
  */
 export const DeleteScriptFolderResponse = new DeleteScriptFolderResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptFolderRequest$Type extends MessageType<CopyScriptFolderRequest> {
+    constructor() {
+        super("CopyScriptFolderRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptFolderRequest
+ */
+export const CopyScriptFolderRequest = new CopyScriptFolderRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CopyScriptFolderResponse$Type extends MessageType<CopyScriptFolderResponse> {
+    constructor() {
+        super("CopyScriptFolderResponse", [
+            { no: 1, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message CopyScriptFolderResponse
+ */
+export const CopyScriptFolderResponse = new CopyScriptFolderResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ScanScriptVariablesRequest$Type extends MessageType<ScanScriptVariablesRequest> {
     constructor() {
         super("ScanScriptVariablesRequest", [
@@ -2464,7 +2667,9 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 8, name: "mcp", kind: "message", T: () => McpSettings },
+            { no: 9, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2472,6 +2677,18 @@ class Configuration$Type extends MessageType<Configuration> {
  * @generated MessageType for protobuf message Configuration
  */
 export const Configuration = new Configuration$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpSettings$Type extends MessageType<McpSettings> {
+    constructor() {
+        super("McpSettings", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpSettings
+ */
+export const McpSettings = new McpSettings$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     constructor() {
@@ -2620,18 +2837,44 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
  * @generated MessageType for protobuf message UpdateConfigurationResponse
  */
 export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledRequest$Type extends MessageType<SetMcpEnabledRequest> {
+    constructor() {
+        super("SetMcpEnabledRequest", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledRequest
+ */
+export const SetMcpEnabledRequest = new SetMcpEnabledRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetMcpEnabledResponse$Type extends MessageType<SetMcpEnabledResponse> {
+    constructor() {
+        super("SetMcpEnabledResponse", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpSettings }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetMcpEnabledResponse
+ */
+export const SetMcpEnabledResponse = new SetMcpEnabledResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
 export const Api = new ServiceType("Api", [
     { name: "Compile", serverStreaming: true, options: {}, I: CompileRequest, O: CompileResponse },
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
+    { name: "RenameApp", options: {}, I: RenameAppRequest, O: RenameAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "SetMcpEnabled", options: {}, I: SetMcpEnabledRequest, O: SetMcpEnabledResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },
@@ -2640,9 +2883,11 @@ export const Api = new ServiceType("Api", [
     { name: "CreateScript", options: {}, I: CreateScriptRequest, O: CreateScriptResponse },
     { name: "RenameScript", options: {}, I: RenameScriptRequest, O: RenameScriptResponse },
     { name: "DeleteScript", options: {}, I: DeleteScriptRequest, O: DeleteScriptResponse },
+    { name: "CopyScript", options: {}, I: CopyScriptRequest, O: CopyScriptResponse },
     { name: "ListScriptFolders", options: {}, I: ListScriptFoldersRequest, O: ListScriptFoldersResponse },
     { name: "CreateScriptFolder", options: {}, I: CreateScriptFolderRequest, O: CreateScriptFolderResponse },
     { name: "RenameScriptFolder", options: {}, I: RenameScriptFolderRequest, O: RenameScriptFolderResponse },
     { name: "DeleteScriptFolder", options: {}, I: DeleteScriptFolderRequest, O: DeleteScriptFolderResponse },
+    { name: "CopyScriptFolder", options: {}, I: CopyScriptFolderRequest, O: CopyScriptFolderResponse },
     { name: "ScanScriptVariables", options: {}, I: ScanScriptVariablesRequest, O: ScanScriptVariablesResponse }
 ]);

@@ -322,6 +322,90 @@ func TestFoldersAreDirectories(t *testing.T) {
 	}
 }
 
+// A copy is a second file: the original stays, the name has to be free, and a folder
+// in the new name is made on the way.
+func TestCopyScript(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "reports/churn.ts", "// body")
+
+	copied, err := service.CopyScript(ctx, &CopyScriptRequest{Name: "reports/churn.ts", NewName: "reports/churn copy.ts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copied.Script.Name != "churn copy.ts" || copied.Script.Folder != "reports" || copied.Script.Content != "// body" {
+		t.Fatalf("copied %+v", copied.Script)
+	}
+	if _, err := service.ReadScript(ctx, &ReadScriptRequest{Name: "reports/churn.ts"}); err != nil {
+		t.Fatalf("the original is gone: %v", err)
+	}
+	if _, err := service.CopyScript(ctx, &CopyScriptRequest{Name: "reports/churn.ts", NewName: "reports/churn copy.ts"}); err == nil {
+		t.Fatalf("a copy landed on a file that was already there")
+	}
+	elsewhere, err := service.CopyScript(ctx, &CopyScriptRequest{Name: "reports/churn.ts", NewName: "archive/2024/churn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elsewhere.Script.Folder != "archive/2024" || elsewhere.Script.Name != "churn.ts" {
+		t.Fatalf("copied %+v", elsewhere.Script)
+	}
+	if _, err := service.CopyScript(ctx, &CopyScriptRequest{Name: "reports/churn.ts", NewName: "../outside.ts"}); err == nil {
+		t.Fatalf("a path leaving the scripts root was accepted")
+	}
+}
+
+// A folder copy takes the whole subtree, empty folders included, and refuses to land
+// inside the folder it is copying.
+func TestCopyScriptFolder(t *testing.T) {
+	service := writableWorkspace(t)
+	ctx := context.Background()
+	createScript(t, service, "reports/churn.ts", "// churn")
+	createScript(t, service, "reports/weekly/usage.ts", "// usage")
+	if _, err := service.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "reports/empty"}); err != nil {
+		t.Fatal(err)
+	}
+
+	copied, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports", NewName: "archive/reports copy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copied.Folder != "archive/reports copy" {
+		t.Fatalf("copied to %q", copied.Folder)
+	}
+	for name, content := range map[string]string{"archive/reports copy/churn.ts": "// churn", "archive/reports copy/weekly/usage.ts": "// usage"} {
+		read, err := service.ReadScript(ctx, &ReadScriptRequest{Name: name})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if read.Script.Content != content {
+			t.Errorf("%s = %q", name, read.Script.Content)
+		}
+	}
+	folders, err := service.ListScriptFolders(ctx, &ListScriptFoldersRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(folders.Folders, ",") != "archive,archive/reports copy,archive/reports copy/empty,archive/reports copy/weekly,reports,reports/empty,reports/weekly" {
+		t.Fatalf("folders = %q", folders.Folders)
+	}
+
+	if _, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports", NewName: "archive/reports copy"}); err == nil {
+		t.Fatalf("a copy landed on a folder that was already there")
+	}
+	if _, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports", NewName: "reports/weekly/reports"}); err == nil {
+		t.Fatalf("a folder was copied into itself")
+	}
+	if _, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports", NewName: "reports"}); err == nil {
+		t.Fatalf("a folder was copied onto itself")
+	}
+	if _, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports/churn.ts", NewName: "churn"}); err == nil {
+		t.Fatalf("a file was accepted as a folder")
+	}
+	if _, err := service.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "missing", NewName: "copy"}); err == nil {
+		t.Fatalf("a folder that isn't there was copied")
+	}
+}
+
 // Renaming and moving are one operation, because a file's path is its name.
 func TestRenameScriptMoves(t *testing.T) {
 	service := writableWorkspace(t)
@@ -521,6 +605,8 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 	_, writes["CreateScriptFolder"] = served.CreateScriptFolder(ctx, &CreateScriptFolderRequest{Name: "billing"})
 	_, writes["RenameScriptFolder"] = served.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "reports", NewName: "billing"})
 	_, writes["DeleteScriptFolder"] = served.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "reports"})
+	_, writes["CopyScript"] = served.CopyScript(ctx, &CopyScriptRequest{Name: "reports/churn.ts", NewName: "reports/churn copy.ts"})
+	_, writes["CopyScriptFolder"] = served.CopyScriptFolder(ctx, &CopyScriptFolderRequest{Name: "reports", NewName: "reports copy"})
 	for verb, err := range writes {
 		if !errors.Is(err, ErrScriptsReadOnly) {
 			t.Errorf("%s answered %v, want the read-only refusal", verb, err)
@@ -536,5 +622,82 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 	}
 	if read.Script.Content != "// body" {
 		t.Errorf("a refused write landed anyway: %q", read.Script.Content)
+	}
+}
+
+// Only the folder moves: the configuration stays where it is, so the apps a script
+// imports are unaffected by pointing the scripts somewhere the machine syncs.
+func TestScriptsDirNamedByTheConfiguration(t *testing.T) {
+	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
+	service := NewApiService(configurationPath, false, "", "", nil)
+
+	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
+	if err != nil {
+		t.Fatalf("failed to list scripts: %v", err)
+	}
+	if len(response.Scripts) != 1 || response.Scripts[0].Name != "programme.ts" {
+		t.Fatalf("expected the folder beside kaja.json, got %v", response.Scripts)
+	}
+
+	shared := filepath.Join(t.TempDir(), "scripts")
+	if err := os.MkdirAll(shared, 0755); err != nil {
+		t.Fatalf("failed to create the folder: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(shared, "seat-map.ts"), []byte("// seats"), 0644); err != nil {
+		t.Fatalf("failed to write the script: %v", err)
+	}
+	if err := service.SetScriptsDir(shared); err != nil {
+		t.Fatalf("failed to write the folder: %v", err)
+	}
+
+	response, err = service.ListScripts(context.Background(), &ListScriptsRequest{})
+	if err != nil {
+		t.Fatalf("failed to list scripts: %v", err)
+	}
+	if len(response.Scripts) != 1 || response.Scripts[0].Name != "seat-map.ts" {
+		t.Fatalf("expected the named folder's script, got %v", response.Scripts)
+	}
+	if service.configurationPath != configurationPath {
+		t.Errorf("expected the configuration left where it is, got %q", service.configurationPath)
+	}
+
+	if err := service.SetScriptsDir(""); err != nil {
+		t.Fatalf("failed to clear the folder: %v", err)
+	}
+	if service.scriptsDir() != defaultScriptsRoot(configurationPath) {
+		t.Errorf("expected the default folder back, got %q", service.scriptsDir())
+	}
+}
+
+// A relative folder is resolved against kaja.json's own folder, so a checkout can
+// carry one; an absolute one names a folder elsewhere on this machine.
+func TestScriptsRootResolvesWhatTheConfigurationNames(t *testing.T) {
+	dir := t.TempDir()
+	configurationPath := filepath.Join(dir, "kaja.json")
+
+	if root, unreachable := scriptsRoot(configurationPath, ""); root != defaultScriptsRoot(configurationPath) || unreachable != "" {
+		t.Errorf("expected the folder beside kaja.json, got %q and %q", root, unreachable)
+	}
+
+	relative := filepath.Join(dir, "shared")
+	if err := os.MkdirAll(relative, 0755); err != nil {
+		t.Fatalf("failed to create the folder: %v", err)
+	}
+	if root, unreachable := scriptsRoot(configurationPath, "shared"); root != relative || unreachable != "" {
+		t.Errorf("expected %q, got %q and %q", relative, root, unreachable)
+	}
+
+	absolute := t.TempDir()
+	if root, unreachable := scriptsRoot(configurationPath, absolute); root != absolute || unreachable != "" {
+		t.Errorf("expected %q, got %q and %q", absolute, root, unreachable)
+	}
+
+	// A folder that isn't there falls back to the default and says which one it could
+	// not reach. The name is left in the file, so an unplugged disk coming back is all
+	// it takes for the folder to be used again.
+	gone := filepath.Join(dir, "elsewhere")
+	root, unreachable := scriptsRoot(configurationPath, gone)
+	if root != defaultScriptsRoot(configurationPath) || unreachable != gone {
+		t.Errorf("expected the fallback and the folder it could not reach, got %q and %q", root, unreachable)
 	}
 }

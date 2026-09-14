@@ -81,7 +81,13 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	if err != nil {
 		return nil, err
 	}
-	return apps.OneMessage(out, &apps.Report{RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}), nil
+	return apps.OneMessage(out, &apps.Report{
+		RequestHeaders:  reqHeaders,
+		ResponseHeaders: respHeaders,
+		Request:         http.MethodPost + " " + in.endpoint,
+		Status:          status,
+		StatusText:      http.StatusText(status),
+	}), nil
 }
 
 // The optional sampling fields come back as pointers because an unset one is

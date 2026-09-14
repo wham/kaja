@@ -22,6 +22,9 @@ function absorbReserved(methodCall: MethodCall, key: string, value: unknown): bo
   if (upstream) {
     methodCall.upstreamRequestHeaders = upstream.requestHeaders;
     methodCall.upstreamResponseHeaders = upstream.responseHeaders;
+    methodCall.requestLine = upstream.request;
+    methodCall.responseStatus = upstream.status;
+    methodCall.responseStatusText = upstream.statusText;
     methodCall.upstreamDurationMs = upstream.durationMs;
   }
   return true;

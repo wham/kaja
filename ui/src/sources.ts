@@ -93,11 +93,45 @@ export function remapSourcesToNewName(sources: Sources, oldName: string, newName
   });
 }
 
+/**
+ * Follow an app's rename into a script's imports. An import names the app by its bare
+ * name, or by one of its module paths under it, so both are rewritten; a specifier that
+ * merely starts with the same letters is not. Only the specifier is spliced, never the
+ * text around it, so whatever the author wrote keeps its formatting.
+ */
 export function remapEditorCode(editorCode: string, oldName: string, newName: string): string {
-  // Replace import paths that reference the old app name
-  // e.g. import { Foo } from "oldName/path" -> import { Foo } from "newName/path"
-  const importRegex = new RegExp(`from "${oldName}/`, "g");
-  return editorCode.replace(importRegex, `from "${newName}/`);
+  const file = ts.createSourceFile("script.ts", editorCode, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const specifiers: ts.StringLiteral[] = [];
+
+  const visit = (node: ts.Node) => {
+    const specifier = moduleSpecifierOf(node);
+    if (specifier && (specifier.text === oldName || specifier.text.startsWith(oldName + "/"))) {
+      specifiers.push(specifier);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+
+  let code = editorCode;
+  // Back to front, so an earlier edit cannot move a later one's positions.
+  for (const specifier of specifiers.reverse()) {
+    const start = specifier.getStart(file);
+    const quote = code[start];
+    code = code.slice(0, start) + quote + newName + specifier.text.slice(oldName.length) + quote + code.slice(specifier.end);
+  }
+  return code;
+}
+
+// The module a node names, in each of the ways a script can name one.
+function moduleSpecifierOf(node: ts.Node): ts.StringLiteral | undefined {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+    return node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier : undefined;
+  }
+  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    const [argument] = node.arguments;
+    return argument && ts.isStringLiteral(argument) ? argument : undefined;
+  }
+  return undefined;
 }
 
 export function findEnum(sources: Sources, object: any): [string, Source] | undefined {

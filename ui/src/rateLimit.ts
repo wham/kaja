@@ -233,6 +233,11 @@ export class RateLimiter {
    * is a real error in the log rather than a run that never ends.
    */
   acquire(signal?: AbortSignal): Promise<void> {
+    // Counted here rather than inside the turn: admission is serialised, so a call
+    // queued behind the gate is waiting on the budget exactly as the one being paced
+    // is, and neither has a row yet. Both are work the run must not settle without.
+    this.waiting++;
+    this.#onChange();
     const turn = this.#gate.then(() => this.#take(signal));
     // The queue is chained on a settled promise rather than on this one: a turn that
     // somehow rejects must not wedge every call behind it for the rest of the run.
@@ -240,28 +245,25 @@ export class RateLimiter {
       () => {},
       () => {},
     );
-    return turn;
+    return turn.finally(() => {
+      this.waiting--;
+      this.#onChange();
+    });
   }
 
   async #take(signal?: AbortSignal): Promise<void> {
     const startedAt = this.#now();
-    this.waiting++;
-    this.#onChange();
-    try {
-      for (;;) {
-        // Stop is about the run, not the budget: a run being aborted stops waiting and
-        // lets its call go, where the transport's own abort finishes the job.
-        if (signal?.aborted) break;
-        const now = this.#now();
-        const waited = now - startedAt;
-        if (waited >= this.#maxWaitMs) break;
-        const delay = this.#delayAt(now);
-        if (delay <= 0) break;
-        await this.#sleep(Math.min(delay, DRAW_MS, this.#maxWaitMs - waited));
-        this.#onChange();
-      }
-    } finally {
-      this.waiting--;
+    for (;;) {
+      // Stop is about the run, not the budget: a run being aborted stops waiting and
+      // lets its call go, where the transport's own abort finishes the job.
+      if (signal?.aborted) break;
+      const now = this.#now();
+      const waited = now - startedAt;
+      if (waited >= this.#maxWaitMs) break;
+      const delay = this.#delayAt(now);
+      if (delay <= 0) break;
+      await this.#sleep(Math.min(delay, DRAW_MS, this.#maxWaitMs - waited));
+      this.#onChange();
     }
 
     const waited = this.#now() - startedAt;

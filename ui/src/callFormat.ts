@@ -1,4 +1,5 @@
 import { MethodCall } from "./kaja";
+import { upstreamStatus } from "./upstream";
 import { RunStatus } from "./runs";
 
 /**
@@ -42,6 +43,32 @@ export function formatBytes(bytes?: number): string | undefined {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * The status of the exchange itself, which the Headers view states on the response's
+ * own half: the code the API answered with, the reason phrase beside it, and how it
+ * reads. It is the exchange rather than the call, so a response kaja could not make
+ * sense of still reports the 200 it arrived with — the row above says the call failed.
+ *
+ * An app that speaks no HTTP has no status line at all, so what it reports is the
+ * gRPC status it failed with, and a successful call through one has nothing to state.
+ */
+export function exchangeStatus(methodCall: MethodCall): { code: string; reason?: string; tone: StatusTone } | undefined {
+  const http = methodCall.responseStatus ?? upstreamStatus(methodCall.error)?.code;
+  if (http !== undefined) {
+    const reason = methodCall.responseStatus !== undefined ? methodCall.responseStatusText : upstreamStatus(methodCall.error)?.text;
+    return { code: String(http), reason: reason === "" ? undefined : reason, tone: httpTone(http) };
+  }
+  const code = methodCall.error?.code;
+  return typeof code === "string" && code.length > 0 && code.length <= 24 ? { code, tone: "error" } : undefined;
+}
+
+export type StatusTone = "success" | "redirect" | "error";
+
+function httpTone(status: number): StatusTone {
+  if (status >= 400) return "error";
+  return status >= 300 ? "redirect" : "success";
 }
 
 export function statusClass(status: RunStatus): string {

@@ -10,7 +10,7 @@ import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
-import { Console } from "./Console";
+import { Console, RunPresentation } from "./Console";
 import { newRunId, Run } from "./runs";
 import { consoles } from "./consoles";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
@@ -20,11 +20,11 @@ import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, CellStatus, TableBlock } from "./blocks";
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
-import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
+import { appHeaders, appType, buildApp, getAppType } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import {
   appendCall,
@@ -45,6 +45,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
+import { appModulesMoved, appNeedsRecompile, appReferencesChangedVariable, detectAppRenames } from "./appRenames";
 import { AgentRun, AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -58,7 +59,7 @@ import { NewAppDialog } from "./NewAppDialog";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
-import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
+import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
@@ -88,20 +89,22 @@ import {
   visit,
 } from "./views";
 import { Variables, VariablesSave } from "./Variables";
-import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
 import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
-import { setVariables, variableReferences } from "./variableExpansion";
+import { setVariables } from "./variableExpansion";
 import { appVariableUses } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
 import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowTitle } from "./wails";
 import {
   canWriteScripts,
+  copyScriptFile,
+  copyScriptFolder,
   createScriptFile,
   createScriptFolder,
   deleteScriptFile,
@@ -113,10 +116,12 @@ import {
   renameScriptFolder,
   writeScriptFile,
 } from "./scriptFiles";
-import { hasScriptLink, isLinkedScript, parseScriptLink } from "./scriptLink";
+import { hasScriptLink, isLinkedScript, linkName, noSuchScript, parseScriptLink } from "./scriptLink";
+import { remapRunReferences } from "./scriptRuns";
 import { readInputKeys } from "./scriptInputs";
+import { setScriptListing, setScriptSource } from "./scriptParameters";
 import { useInputKeys } from "./useInputKeys";
-import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
+import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
 import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
@@ -149,16 +154,6 @@ const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
 const subscribeConsoleFlags = (notify: () => void) => consoles.subscribeFlags(notify);
 const consoleFlagsVersion = () => consoles.flagsVersion();
-
-// Headers are excluded: they are forwarded per request, not a creation parameter.
-function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
-  return appType(a) !== appType(b) || JSON.stringify(appParameters(a)) !== JSON.stringify(appParameters(b));
-}
-
-// Parameters are expanded when the app is opened, so a changed ${NAME} forces a recompile too.
-function appReferencesChangedVariable(app: ConfigurationApp, previous: { [key: string]: string }, next: { [key: string]: string }): boolean {
-  return Object.values(appParameters(app)).some((value) => variableReferences(value).some((name) => previous[name] !== next[name]));
-}
 
 function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
   const originalName = app.configuration.name;
@@ -195,7 +190,6 @@ interface LiveRun {
  * not this sheet — a file already has both, so it is typed in the row it is in.
  */
 interface NameSheet {
-  title: string;
   name: string;
   folder: string;
   // The draft being named, and its code.
@@ -215,6 +209,18 @@ function sortScripts(scripts: Script[]): Script[] {
 interface RunCollector {
   calls: MethodCall[];
   blocks: Map<string, Block>;
+}
+
+// A name within the scripts folder, split back into the pair a listing carries.
+function scriptNameParts(name: string): { name: string; folder: string } {
+  const at = name.lastIndexOf("/");
+  return at === -1 ? { name, folder: "" } : { name: name.slice(at + 1), folder: name.slice(0, at) };
+}
+
+// The names a `kaja.run` reaches a listing's scripts by, which is how a deeplink spells
+// them: no extension, folders kept.
+function runDestinations(scripts: Script[]): string[] {
+  return scripts.map((script) => linkName(scriptName(script)));
 }
 
 // writeSourceModel backs a generated module with a Monaco model, reporting whether
@@ -295,15 +301,29 @@ export function App() {
   // The endpoint and the token are this browser's address and are reported whether or
   // not the switch is on, so the MCP page names them — and every snippet stays
   // copyable — with the server off. Only `enabled` is the switch.
+  // `mcp.enabled` is the switch on both builds. On the desktop the process read it at
+  // startup and reports what it did; here it is read straight off the configuration, so
+  // every window agrees and a read-only workspace cannot be argued with.
+  const mcpEnabled = configuration?.mcp?.enabled === true;
   const mcpConnection = useMemo(() => {
     if (isWailsEnvironment()) return mcpInfo;
     if (!agentState.url || !agentState.token) return undefined;
-    return { enabled: agentState.connected, url: agentState.url, token: agentState.token, error: "" };
-  }, [mcpInfo, agentState.connected, agentState.url, agentState.token]);
+    return { enabled: mcpEnabled, url: agentState.url, token: agentState.token, error: "" };
+  }, [mcpInfo, mcpEnabled, agentState.url, agentState.token]);
+
+  // One door from the switch to the session, so the window that flipped it and the
+  // windows told by WatchConfiguration act on it the same way.
+  useEffect(() => {
+    agentSession.setSwitch(mcpEnabled);
+  }, [mcpEnabled]);
   const setMCPEnabled = useCallback((enabled: boolean) => {
     if (!isWailsEnvironment()) {
-      if (enabled) agentSession.connect();
-      else agentSession.disconnect();
+      // The write is the whole of it: the effect above acts on what comes back, exactly
+      // as it acts on what the configuration stream brings the other windows.
+      void getApiClient()
+        .setMcpEnabled({ enabled })
+        .then(({ response }) => setConfiguration((current) => (current ? { ...current, mcp: response.mcp } : current)))
+        .catch((err) => console.error(`Failed to turn the MCP server ${enabled ? "on" : "off"}: ${rpcErrorMessage(err)}`));
       return;
     }
     const request = ++mcpRequestRef.current;
@@ -361,14 +381,14 @@ export function App() {
         : !agentState.available
           ? undefined
           : {
-              enabled: agentState.connected,
+              enabled: mcpEnabled,
               attached: agentState.attached,
               onDuty: agentState.onDuty,
               error: agentState.error,
               setEnabled: setMCPEnabled,
               regenerateToken: regenerateMCPToken,
             },
-    [mcpInfo, agentState.available, agentState.connected, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled, regenerateMCPToken],
+    [mcpInfo, mcpEnabled, agentState.available, agentState.attached, agentState.onDuty, agentState.error, setMCPEnabled, regenerateMCPToken],
   );
   // The plug in the sidebar's band and the page's headline are one derivation, so the
   // two can never say different things about the same server.
@@ -393,17 +413,24 @@ export function App() {
   const [newAppOpen, setNewAppOpen] = useState(false);
   // Gates switching back to the app form, so it lives beside the control that switches.
   const [viewJsonValid, setViewJsonValid] = useState(true);
+  // What Reset all should do on the shortcuts screen, reported by the screen itself:
+  // the button is the CommandRow's, like every other view-level verb, and undefined
+  // is the state where there is nothing to reset.
+  const [resetShortcuts, setResetShortcuts] = useState<ResetAllControl>();
   const viewJsonValidRef = useRef(viewJsonValid);
   viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
+  // One-shot signal that a configuration write moved the modules a script imports: what
+  // it renamed, and whether anything an import resolves against moved at all.
+  const [appsMoved, setAppsMoved] = useState<{ renames: Map<string, string>; modulesMoved: boolean }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
   const [compileLogExpandApp, setCompileLogExpandApp] = useState<{ name: string }>();
   // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
   const [linkSheet, setLinkSheet] = useState<{ script: Script; parameters: string[] } | null>(null);
-  const [presentRunId, setPresentRunId] = useState<string>();
+  const [present, setPresent] = useState<RunPresentation>();
   const [runPrompt, setRunPrompt] = useState<{ fileId: string; fileName: string; parameters: string[] } | null>(null);
   const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
   const activeRunsRef = useRef(activeRuns);
@@ -414,7 +441,7 @@ export function App() {
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
-  // refreshOpenScriptEditors) or text that just came off disk, not a user edit —
+  // revalidateOpenEditors) or text that just came off disk, not a user edit —
   // skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
   // Pending debounced writes of draft text back to the store, keyed by draft id.
@@ -459,7 +486,9 @@ export function App() {
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
-      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+      const content = view.model.getValue();
+      setScriptSource(scriptName(view.script), content);
+      writeScriptFile(view.script, content).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
     },
     [canWriteFiles, showFileError],
   );
@@ -525,7 +554,8 @@ export function App() {
       controller?: AbortController,
       options?: { origin?: Run["origin"]; input?: { [key: string]: string }; collect?: RunCollector },
     ): LiveRun => {
-      const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin };
+      const input = options?.input !== undefined && Object.keys(options.input).length > 0 ? options.input : undefined;
+      const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin, input };
       consoles.startRun(run, run.startedAt);
 
       const collect = options?.collect;
@@ -724,19 +754,21 @@ export function App() {
     });
   }, []);
 
-  // TypeScript caches "cannot find module" for service imports resolved before their
-  // backing source models existed, and never clears it on its own. Poke the editors
-  // with an identity edit — not setValue, which would lose undo history — and
-  // suppress the auto-save it would otherwise trigger.
-  const refreshOpenScriptEditors = useCallback(() => {
+  // TypeScript resolves a script's imports once and revalidates only when that script's
+  // own text changes, so a module appearing or going away under it moves nothing: an
+  // import of an app that has just been renamed away stays green, and one that was red
+  // before its app compiled stays red. Poke every editor with an identity edit — not
+  // setValue, which would lose undo history — and suppress the auto-save it would
+  // otherwise trigger. A draft's write-back is gated on the editor having focus, so
+  // only a script view needs suppressing.
+  const revalidateOpenEditors = useCallback(() => {
     viewsRef.current.forEach((view) => {
-      if (view.type === "script") {
-        // onDidChangeContent fires synchronously within pushEditOperations, so bracketing
-        // the poke leaves the set empty afterwards.
-        suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
-        suppressScriptSave.current.delete(view.id);
-      }
+      if (view.type !== "draft" && view.type !== "script") return;
+      // onDidChangeContent fires synchronously within pushEditOperations, so bracketing
+      // the poke leaves the set empty afterwards.
+      suppressScriptSave.current.add(view.id);
+      view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
+      suppressScriptSave.current.delete(view.id);
     });
   }, []);
 
@@ -745,7 +777,7 @@ export function App() {
       newConfiguration: Configuration,
       prevApps: AppModel[],
       previousVariables: { [key: string]: string },
-    ): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
+    ): { updatedApps: AppModel[]; removedNames: Set<string> } => {
       const updatedApps: AppModel[] = [];
       const newVariables = newConfiguration.variables ?? {};
       const newApps = newConfiguration.apps || [];
@@ -753,20 +785,22 @@ export function App() {
       const prevByName = new Map(prevApps.map((p) => [p.configuration.name, p]));
 
       const orphans = prevApps.filter((p) => !newConfigByName.has(p.configuration.name));
-      const newcomerConfigs = newApps.filter((a) => !prevByName.has(a.name));
 
-      // An orphan and a newcomer with the same type+parameters are the same backing
-      // service renamed, so the compiled app can be remapped instead of recompiled.
+      // An orphan and a newcomer describing the same server are that app renamed, so the
+      // compiled app is remapped rather than recompiled. It is the same rule the scripts
+      // are followed by, asked here of what is compiled rather than of the file.
       const renameMap = new Map<string, AppModel>(); // newName -> oldApp
-      for (const newcomer of newcomerConfigs) {
-        const matchingOrphan = orphans.find(
-          (orphan) => !appNeedsRecompile(orphan.configuration, newcomer) && !appReferencesChangedVariable(newcomer, previousVariables, newVariables),
-        );
-        if (matchingOrphan && !renameMap.has(newcomer.name)) {
-          renameMap.set(newcomer.name, matchingOrphan);
-          const idx = orphans.indexOf(matchingOrphan);
-          if (idx !== -1) orphans.splice(idx, 1);
-        }
+      for (const [oldName, newName] of detectAppRenames(
+        prevApps.map((p) => p.configuration),
+        newApps,
+        previousVariables,
+        newVariables,
+      )) {
+        const orphan = prevByName.get(oldName);
+        if (!orphan) continue;
+        renameMap.set(newName, orphan);
+        const idx = orphans.indexOf(orphan);
+        if (idx !== -1) orphans.splice(idx, 1);
       }
 
       for (const newConfig of newApps) {
@@ -800,45 +834,117 @@ export function App() {
         disposeMonacoModelsForApp(orphan.configuration.name);
       }
 
-      const renames = new Map<string, string>();
-      for (const [newName, oldApp] of renameMap) {
-        renames.set(oldApp.configuration.name, newName);
-      }
-
-      return { updatedApps, removedNames, renames };
+      return { updatedApps, removedNames };
     },
     [disposeMonacoModelsForApp, createMonacoModelsForApp],
   );
 
+  /**
+   * Follow an app's rename into the scripts. An app is addressed by its name, so a
+   * rename leaves every import of it naming nothing — the whole of what a script had to
+   * say about that app was the name. So the drafts, the open buffers and the files on
+   * disk are rewritten to the new one. Only a rename is followed: a draft isn't bound to
+   * an app, so deleting one leaves the draft alone, and there is nothing to rewrite it
+   * to. A file the workspace won't let us write is left as it is, red and correctable.
+   */
+  const followAppRenames = useCallback(
+    async (renames: Map<string, string>) => {
+      const remap = (code: string) => {
+        let next = code;
+        for (const [oldName, newName] of renames) next = remapEditorCode(next, oldName, newName);
+        return next;
+      };
+
+      // Nothing here is work: the code, the generated form it is compared against and the
+      // qualifier all move together, so a browsing buffer stays untouched and unswept and
+      // the pile does not reorder under the cursor.
+      applyDrafts((list) =>
+        list.map((draft) => {
+          const code = remap(draft.code);
+          const generatedCode = remap(draft.generatedCode);
+          const originAppName = draft.originAppName === undefined ? undefined : (renames.get(draft.originAppName) ?? draft.originAppName);
+          if (code === draft.code && generatedCode === draft.generatedCode && originAppName === draft.originAppName) return draft;
+          return { ...draft, code, generatedCode, originAppName };
+        }),
+      );
+
+      const openScripts = new Set<string>();
+      for (const view of viewsRef.current) {
+        if (view.type !== "draft" && view.type !== "script") continue;
+        if (view.type === "script") openScripts.add(view.script.path);
+        const value = view.model.getValue();
+        const next = remap(value);
+        if (next === value) continue;
+        // An edit rather than setValue, so undo history survives, and the disk write is
+        // made here rather than left to the debounce a poke is supposed to skip.
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        suppressScriptSave.current.delete(view.id);
+        if (view.type === "script" && canWriteFiles) {
+          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+        }
+      }
+
+      if (!canWriteFiles) return;
+      for (const script of scriptsRef.current ?? []) {
+        if (openScripts.has(script.path)) continue;
+        try {
+          const file = await readScriptFile(script);
+          if (!file) continue;
+          const next = remap(file.content);
+          if (next === file.content) continue;
+          await writeScriptFile(script, next);
+        } catch (err) {
+          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
+        }
+      }
+    },
+    [applyDrafts, canWriteFiles, showFileError],
+  );
+
   const applyConfiguration = useCallback(
     (newConfiguration: Configuration) => {
-      const previousVariables = configurationRef.current?.variables ?? {};
+      const previousConfiguration = configurationRef.current;
+      const previousVariables = previousConfiguration?.variables ?? {};
+      const previousApps = previousConfiguration?.apps ?? [];
+      const newApps = newConfiguration.apps ?? [];
+      // Read off the file rather than off what is compiled, so the answer is the same
+      // whichever of the two the write reaches first.
+      const renames = detectAppRenames(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
+      const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
       setConfiguration(newConfiguration);
 
-      setApps((prevApps) => {
-        const { updatedApps, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
+      // The app is open on the server under the name it had, and the name is the whole
+      // of how a call finds it - so a rename the server has not been told about is an
+      // app every call is refused by until something recompiles it. Sent from here
+      // rather than from the effect below, which waits for a render: the surface is
+      // remapped rather than recompiled, so nothing else is going to reopen the app.
+      for (const [oldName, newName] of renames) {
+        void getApiClient()
+          .renameApp({ oldName, newName })
+          .response.catch((err) => console.error(`Failed to rename the open app ${oldName} to ${newName}: ${rpcErrorMessage(err)}`));
+      }
 
-        // Only a rename is followed: a draft isn't bound to an app, so deleting one
-        // leaves the draft alone.
-        if (renames.size > 0) {
-          viewsRef.current.forEach((view) => {
-            if (view.type !== "draft") return;
-            let value = view.model.getValue();
-            for (const [oldName, newName] of renames) {
-              value = remapEditorCode(value, oldName, newName);
-            }
-            if (value !== view.model.getValue()) {
-              view.model.setValue(value);
-              updateDraft(view.draftId, (draft) => ({ ...draft, code: value }));
-            }
-          });
-        }
+      setApps((prevApps) => syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables).updatedApps);
 
-        return updatedApps;
-      });
+      // Handed to an effect rather than done here: the renamed app's own models are
+      // written by the updater above, which React runs at the next render, so a buffer
+      // rewritten now would name a module that does not exist yet.
+      if (renames.size > 0 || modulesMoved) {
+        setAppsMoved({ renames, modulesMoved });
+      }
     },
-    [syncAppsFromConfiguration, updateDraft],
+    [syncAppsFromConfiguration],
   );
+
+  useEffect(() => {
+    if (!appsMoved) return;
+    setAppsMoved(undefined);
+    if (appsMoved.renames.size > 0) void followAppRenames(appsMoved.renames);
+    // The models an import resolves against have moved, and the editors holding them
+    // will not notice on their own.
+    if (appsMoved.modulesMoved) revalidateOpenEditors();
+  }, [appsMoved, followAppRenames, revalidateOpenEditors]);
 
   useEffect(() => {
     if (configurationRef.current) {
@@ -889,6 +995,16 @@ export function App() {
   useEffect(() => {
     setValueCompletionApps(apps);
   }, [apps]);
+
+  // What a `kaja.run` can reach: offered inside the quotes, and marked where a name
+  // reaches nothing. Undefined until the folder has been listed, so a window reading it
+  // says nothing rather than saying every destination is broken.
+  useEffect(() => {
+    // The listing is what says which scripts exist, so it is told first: the marking
+    // right after it is also what asks for the parameters of the ones on screen.
+    setScriptListing(scripts);
+    setRunDestinations(scripts && runDestinations(scripts));
+  }, [scripts]);
 
   // The window's zoom is the webview's own, so it is the process behind it that is asked
   // for it. What is said here is what the layout measures against it: the room the band
@@ -1035,7 +1151,7 @@ export function App() {
     // A source model appearing after a script's own model does not retroactively clear
     // its stale "cannot find module" error, so poke the open editors.
     if (sourceModelsChanged) {
-      refreshOpenScriptEditors();
+      revalidateOpenEditors();
     }
 
     const allCompiled = updatedApps.every((p) => p.compilation.status === "success");
@@ -1213,6 +1329,18 @@ export function App() {
     [showFileError],
   );
 
+  // The script a deeplink names, or the news that there isn't one. A destination is a
+  // name on both doors — a link that arrived and a cell that was clicked — so it is
+  // resolved in one place and by the link grammar's own rule.
+  const findLinkedScript = useCallback(
+    (named: string): Script | undefined => {
+      const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(scriptName(candidate), named));
+      if (!script) showFileError(noSuchScript(named));
+      return script;
+    },
+    [showFileError],
+  );
+
   const openScriptLink = useCallback(
     (text: string) => {
       const parsed = parseScriptLink(text);
@@ -1220,29 +1348,35 @@ export function App() {
         showFileError(parsed.error);
         return;
       }
-      const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(scriptName(candidate), parsed.link.script));
-      if (!script) {
-        showFileError(`No script named "${parsed.link.script}".`);
-        return;
-      }
+      const script = findLinkedScript(parsed.link.script);
+      if (!script) return;
       // Open it first, so the question is asked over the script it is about.
       void onScriptSelect(script);
       setLinkPrompt({ script, input: parsed.link.input });
     },
-    [onScriptSelect, showFileError],
+    [findLinkedScript, onScriptSelect, showFileError],
   );
 
   const openScriptLinkRef = useRef(openScriptLink);
   openScriptLinkRef.current = openScriptLink;
 
-  const onConfirmScriptLink = useCallback(
-    async (script: Script, input: { [key: string]: string }) => {
+  /**
+   * Run a script a name reached: a deeplink the sheet confirmed, or a table cell that
+   * was clicked. The run lands in that script's console, and `screen` is the one thing
+   * the two doors disagree about.
+   */
+  const runLinkedScript = useCallback(
+    async (script: Script, input: { [key: string]: string }, options: { open?: boolean; screen?: RunPresentation["screen"]; fullScreen?: boolean } = {}) => {
       try {
         const file = await readScriptFile(script);
         if (!file) return;
+        // Opened from here rather than before the read, so the console is handed the
+        // file and the run it is about in one paint: a size crossing with them is then
+        // never a frame of the window it was carried from.
+        if (options.open) applyViews((views) => showScript(views, file.script, file.content));
         rememberRunInput(file.script.path, input);
         const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
-        setPresentRunId(run.id);
+        if (options.screen) setPresent({ runId: run.id, screen: options.screen, fullScreen: options.fullScreen });
         runScript(file.content, kaja, apps, reportScriptError(run))
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
@@ -1250,7 +1384,28 @@ export function App() {
         showFileError(`Run failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [apps, showFileError, reportScriptError, beginRun, markSettled],
+    [apps, applyViews, showFileError, reportScriptError, beginRun, markSettled],
+  );
+
+  /**
+   * A table cell naming another script, clicked. The same door a deeplink goes
+   * through, minus the sheet and minus the screen: that one asks first because what is
+   * on the other side of a link may not be a person, and it presents because nothing
+   * about the window said a run was coming. A click is a person, in a window they are
+   * already reading at a size of their own, so the run goes on being read at it.
+   *
+   * It is presented whatever that size is. A run arriving takes the console, but the
+   * console can only tell one from a file being handed over when the file is the one
+   * it was already on — and a cell click is both at once, so a second click sat behind
+   * the run the first one left on screen.
+   */
+  const onRunScriptCell = useCallback(
+    (run: CellRun, fullScreen: boolean) => {
+      const script = findLinkedScript(run.script);
+      if (!script) return;
+      void runLinkedScript(script, run.input ?? {}, { open: true, screen: "keep", fullScreen });
+    },
+    [findLinkedScript, runLinkedScript],
   );
 
   useEffect(() => {
@@ -1301,7 +1456,11 @@ export function App() {
             id,
             setTimeout(() => {
               scriptSaveTimers.current.delete(id);
-              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+              const content = model.getValue();
+              // A parameter added to this script is one its callers may name, so what was
+              // written is what the editor checks the next `kaja.run` against.
+              setScriptSource(scriptName(script), content);
+              writeScriptFile(script, content).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
             }, 500),
           );
         }),
@@ -1353,12 +1512,12 @@ export function App() {
     const view = viewsRef.current[0];
     if (view?.type !== "draft") return;
     const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
+    if (draft && isAgentDraft(draft)) return;
     openNameSheet({
       name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
       content: view.model.getValue(),
       draftId: view.draftId,
-      title: draft && isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
     });
   }, [canWriteFiles, openNameSheet, takenNames]);
 
@@ -1369,7 +1528,6 @@ export function App() {
         folder: lastFolderRef.current,
         content: draft.code,
         draftId: draft.id,
-        title: isAgentDraft(draft) ? `Save what ${draft.agentName} wrote as a file` : "Save as file",
       }),
     [openNameSheet, takenNames],
   );
@@ -1423,7 +1581,7 @@ export function App() {
     // job, so it costs the run no time. Nothing here waits on it to decide anything —
     // a type error is reported, not refused, exactly as pressing Run in the window
     // leaves one to the person who wrote it.
-    const checking = checkScript(code);
+    const checking = checkScript(code, runDestinations(scriptsRef.current ?? []));
 
     const draft = path ? undefined : agentDraftRef.current(code, client || "Agent");
     const fileId = path || draft?.id;
@@ -1472,6 +1630,71 @@ export function App() {
     );
     return () => window.clearTimeout(timer);
   }, []);
+
+  /**
+   * A renamed script, followed into every `kaja.run` that named it — each draft, each
+   * open buffer and each file on disk, the rule a renamed app is already followed under
+   * (followAppRenames). A destination is the script's name and nothing else, so a rename
+   * is the one edit that leaves a cell pointing at nothing, and the window is the one
+   * place that knows both names.
+   *
+   * A deeplink outside Kaja is what the address is meant to outlive, which is why it
+   * carries no extension and is not followed. A cell inside the workspace can be.
+   */
+  const followScriptRenames = useCallback(
+    async (renames: Map<string, string>) => {
+      if (renames.size === 0) return;
+      const remap = (code: string) => remapRunReferences(code, renames);
+
+      // Nothing here is work: the code and the generated form it is compared against move
+      // together, so a browsing buffer stays untouched, unswept and takeable over.
+      applyDrafts((list) =>
+        list.map((draft) => {
+          const code = remap(draft.code);
+          const generatedCode = remap(draft.generatedCode);
+          if (code === draft.code && generatedCode === draft.generatedCode) return draft;
+          return { ...draft, code, generatedCode };
+        }),
+      );
+
+      const openScripts = new Set<string>();
+      for (const view of viewsRef.current) {
+        if (view.type !== "draft" && view.type !== "script") continue;
+        if (view.type === "script") openScripts.add(view.script.path);
+        const value = view.model.getValue();
+        const next = remap(value);
+        if (next === value) continue;
+        // An edit rather than setValue, so undo history survives, and the disk write is
+        // made here rather than left to the debounce a poke is supposed to skip.
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        suppressScriptSave.current.delete(view.id);
+        if (view.type === "script" && canWriteFiles) {
+          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+        }
+      }
+
+      if (!canWriteFiles) return;
+      // The listing has not caught up with the rename being followed — a state write is
+      // not a read — so the names are moved here as well, and every file is opened under
+      // the name it is filed as now rather than the one it was.
+      for (const script of scriptsRef.current ?? []) {
+        if (openScripts.has(script.path)) continue;
+        const moved = renames.get(scriptName(script));
+        const filed = moved === undefined ? script : { ...script, ...scriptNameParts(moved) };
+        try {
+          const file = await readScriptFile(filed);
+          if (!file) continue;
+          const next = remap(file.content);
+          if (next === file.content) continue;
+          await writeScriptFile(filed, next);
+        } catch (err) {
+          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
+        }
+      }
+    },
+    [applyDrafts, canWriteFiles, showFileError],
+  );
 
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
@@ -1531,13 +1754,15 @@ export function App() {
         // the buffer rather than what disk caught up to.
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
         if (open) flushScriptWrite(open);
-        applyScriptRename(script.path, await renameScriptFile(script, name, folder));
+        const renamed = await renameScriptFile(script, name, folder);
+        applyScriptRename(script.path, renamed);
         if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+        await followScriptRenames(new Map([[scriptName(script), scriptName(renamed)]]));
       } catch (err) {
         showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, flushScriptWrite, showFileError],
+    [applyScriptRename, followScriptRenames, flushScriptWrite, showFileError],
   );
 
   // Dropped on a folder row, so the destination is settled and there is nothing to type:
@@ -1549,12 +1774,14 @@ export function App() {
       try {
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
         if (open) flushScriptWrite(open);
-        applyScriptRename(script.path, await renameScriptFile(script, script.name, folder));
+        const moved = await renameScriptFile(script, script.name, folder);
+        applyScriptRename(script.path, moved);
+        await followScriptRenames(new Map([[scriptName(script), scriptName(moved)]]));
       } catch (err) {
         showFileError(`Move failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, flushScriptWrite, showFileError],
+    [applyScriptRename, followScriptRenames, flushScriptWrite, showFileError],
   );
 
   const removeScriptFromUI = useCallback(
@@ -1610,20 +1837,26 @@ export function App() {
         setScriptFolders((prev) =>
           prev.map((folder) => (folder === path ? moved : folder.startsWith(path + "/") ? moved + folder.slice(path.length) : folder)).sort(),
         );
+        // The whole folder moved at once, so the destinations are followed once rather
+        // than per file: a script in the folder naming another one in it would otherwise
+        // be rewritten by the first rename and read again by the second.
+        const renames = new Map<string, string>();
         for (const script of scriptsRef.current ?? []) {
           if (!isWithinFolder(path, script.folder)) continue;
           const folder = moved + script.folder.slice(path.length);
+          renames.set(scriptName(script), `${folder}/${script.name}`);
           applyScriptRename(script.path, {
             ...script,
             folder,
             path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}`,
           });
         }
+        await followScriptRenames(renames);
       } catch (err) {
         showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, showFileError],
+    [applyScriptRename, followScriptRenames, showFileError],
   );
 
   // A folder is a place, so deleting one deletes what is filed there — the files
@@ -1644,13 +1877,79 @@ export function App() {
     [showFileError, removeScriptFromUI],
   );
 
+  // Typed in the row, so the name has already been resolved to the folder it lands in.
+  // The file opens as it is made, empty, which is what a new file is for.
+  const onCreateScript = useCallback(
+    async (name: string, folder: string) => {
+      try {
+        const script = await createScriptFile(name, folder, "");
+        setScripts((prev) => sortScripts([...(prev ?? []), script]));
+        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+        applyViews((views) => showScript(views, script, ""));
+      } catch (err) {
+        showFileError(`New file failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [applyViews, showFileError],
+  );
+
+  // The sidebar has settled the name and the folder, so what is left is the write. The
+  // buffer is flushed first, so the copy is what is on screen rather than what disk
+  // caught up to.
+  const onCopyScript = useCallback(
+    async (script: Script, name: string, folder: string) => {
+      try {
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
+        if (open) flushScriptWrite(open);
+        const copied = await copyScriptFile(script, name, folder);
+        setScripts((prev) => sortScripts([...(prev ?? []), copied]));
+        if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
+      } catch (err) {
+        showFileError(`Paste failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [flushScriptWrite, showFileError],
+  );
+
+  // The disk does the copy; the sidebar mirrors it from what it already holds, the way
+  // a folder rename does, rather than listing the folder again.
+  const onCopyFolder = useCallback(
+    async (path: string, newPath: string) => {
+      try {
+        for (const view of viewsRef.current) {
+          if (view.type === "script" && isWithinFolder(path, view.script.folder)) flushScriptWrite(view);
+        }
+        const copied = await copyScriptFolder(path, newPath);
+        setScriptFolders((prev) => {
+          const added = prev.filter((folder) => isWithinFolder(path, folder)).map((folder) => copied + folder.slice(path.length));
+          return [...new Set([...prev, copied, ...added])].sort();
+        });
+        const copies = scriptsWithin(scriptsRef.current ?? [], path).map((script) => {
+          const folder = copied + script.folder.slice(path.length);
+          return { ...script, folder, path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}` };
+        });
+        setScripts((prev) => sortScripts([...(prev ?? []), ...copies]));
+      } catch (err) {
+        showFileError(`Paste failed: ${rpcErrorMessage(err)}`);
+      }
+    },
+    [flushScriptWrite, showFileError],
+  );
+
   const onRevealScripts = useCallback(() => {
-    const folder = runtime.scriptsFolder;
+    const folder = runtime.scriptsDir;
     if (!folder) return;
     desktop()
       .then((app) => app.ShowFileInFinder(folder))
       .catch(() => {});
-  }, [runtime.scriptsFolder]);
+  }, [runtime.scriptsDir]);
+
+  // Choosing where the scripts are kept is the desktop's own: it needs the native
+  // picker, which is also what grants a sandboxed kaja access to a folder outside its
+  // container. It rides an event rather than a bound method, the way a link and the
+  // zoom do, so the window reloads under it once the folder is open.
+  const onChooseScriptsFolder = useCallback(() => emitWailsEvent("scripts:chooseFolder"), []);
+  const onUseDefaultScriptsFolder = useCallback(() => emitWailsEvent("scripts:useDefaultFolder"), []);
 
   // A file an agent wrote is a file nobody in this window wrote, so it arrives down the
   // same stream a run does and the sidebar and any open editor are brought into step.
@@ -1659,6 +1958,7 @@ export function App() {
       case "write": {
         const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === change.path);
         const content = change.content ?? "";
+        if (change.name !== undefined) setScriptSource(scriptName({ name: change.name, folder: change.folder ?? "" }), content);
         if (view?.type === "script" && view.model.getValue() !== content) {
           // Apply as an edit rather than setValue so undo history survives, and record it as
           // saved — an agent's write is a save.
@@ -1674,14 +1974,21 @@ export function App() {
         const script: Script = { path: change.path, name: change.name ?? "", folder: change.folder ?? "" };
         setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? sortScripts([...prev, script]) : prev));
         if (script.folder) setScriptFolders((prev) => (prev.includes(script.folder) ? prev : [...prev, script.folder].sort()));
+        setScriptSource(scriptName(script), change.content ?? "");
         consumeAgentDraft(script, change.content ?? "");
         break;
       }
-      case "rename":
+      case "rename": {
         if (change.oldPath) {
-          applyScriptRename(change.oldPath, { path: change.path, name: change.name ?? "", folder: change.folder ?? "" });
+          // A rename is followed whoever made it, so an agent's is followed the way the
+          // sidebar's is.
+          const before = (scriptsRef.current ?? []).find((script) => script.path === change.oldPath);
+          const renamed: Script = { path: change.path, name: change.name ?? "", folder: change.folder ?? "" };
+          applyScriptRename(change.oldPath, renamed);
+          if (before) void followScriptRenames(new Map([[scriptName(before), scriptName(renamed)]]));
         }
         break;
+      }
       case "delete":
         removeScriptFromUI(change.path);
         break;
@@ -1765,6 +2072,10 @@ export function App() {
   toggleJsonViewRef.current = toggleJsonView;
   const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
   const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
+  // Read rather than depended on: the keys move with the buffer, and Run is not a new
+  // function every time a parameter is typed.
+  const inputKeysRef = useRef(inputKeys);
+  inputKeysRef.current = inputKeys;
 
   const onRunCurrentTab = useCallback(
     (input?: { [key: string]: string }) => {
@@ -1780,8 +2091,11 @@ export function App() {
       const controller = new AbortController();
       const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
       const fileId = view.type === "script" ? view.script.path : view.draftId;
-      if (input) rememberRunInput(fileId, input);
-      const { run, kaja } = beginRun(title, fileId, controller, input ? { input } : undefined);
+      // The sheet's values where it asked, and otherwise the last run's: Run repeats
+      // what the file last ran with, whichever door wrote it.
+      const carried = input ?? repeatInput(lastRunInput(fileId), inputKeysRef.current);
+      if (carried) rememberRunInput(fileId, carried);
+      const { run, kaja } = beginRun(title, fileId, controller, carried ? { input: carried } : undefined);
       // A live table draws its first page itself, and those calls are the run's.
       runScript(code, kaja, apps, reportScriptError(run), controller.signal)
         .then(() => kaja.settleTables())
@@ -2099,7 +2413,6 @@ export function App() {
     const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
     if (response.configuration) {
       applyConfiguration(response.configuration);
-      refreshOpenDraftEditors();
     }
   };
 
@@ -2226,18 +2539,24 @@ export function App() {
   }, [drafts, scripts, onDraftSelect, onScriptSelect]);
 
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
+  // An agent's buffer is a playground rather than work you are keeping, so it is the
+  // one draft with no way to a file: the sheet would ask you to name what somebody
+  // else wrote.
+  const savableDraft = currentDraft && !isAgentDraft(currentDraft) ? currentDraft : undefined;
   const fileActions =
     currentDraft && canWriteFiles ? (
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={onRequestSave}
-          className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
-        >
-          <SaveIcon size={12} />
-          Save as file
-          {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
-        </button>
+        {savableDraft && (
+          <button
+            type="button"
+            onClick={onRequestSave}
+            className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
+          >
+            <SaveIcon size={12} />
+            Save as file
+            {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
+          </button>
+        )}
         <IconButton
           icon={X}
           aria-label={`Discard ${currentDraft.title}`}
@@ -2264,13 +2583,24 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
-      onSaveAsFile={currentDraft && canWriteFiles ? onRequestSave : undefined}
+      onSaveAsFile={savableDraft && canWriteFiles ? onRequestSave : undefined}
       onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
       onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
   ) : undefined;
+  // Every view keeps its one view-level verb here. The shortcuts screen's is Reset
+  // all, disabled rather than hidden while nothing on it differs from its default:
+  // it is the answer to "can I get back?", which has to be readable before anything
+  // is broken.
+  const resetAllButton =
+    currentView?.type === "shortcuts" && runtime.canUpdateConfiguration ? (
+      <Button variant="ghost" size="sm" disabled={resetShortcuts === undefined} onClick={() => resetShortcuts?.onReset()}>
+        Reset all
+      </Button>
+    ) : undefined;
   const action =
     runButton ??
+    resetAllButton ??
     (jsonView ? (
       <IconButton
         icon={Code}
@@ -2348,10 +2678,15 @@ export function App() {
                     onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
                     onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
                     onCopyScriptLink={(script) => void onCopyScriptLink(script)}
+                    onCreateScript={canWriteFiles ? onCreateScript : undefined}
+                    onCopyScript={canWriteFiles ? onCopyScript : undefined}
                     onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
                     onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
                     onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
+                    onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
                     onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+                    onChooseScriptsFolder={isWailsEnvironment() ? onChooseScriptsFolder : undefined}
+                    onUseDefaultScriptsFolder={isWailsEnvironment() ? onUseDefaultScriptsFolder : undefined}
                   />
                 }
               />
@@ -2466,13 +2801,16 @@ export function App() {
                         recent={recentFiles}
                       />
                     )}
-                    {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
+                    {view.type === "mcp" && mcpControl && (
+                      <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} readOnly={!runtime.canUpdateConfiguration} />
+                    )}
                     {view.type === "shortcuts" && (
                       <KeyboardShortcuts
                         shortcuts={configuration?.shortcuts ?? {}}
                         canWriteFiles={canWriteFiles}
                         readOnly={!runtime.canUpdateConfiguration}
                         onSave={onShortcutsSave}
+                        onResetAllChange={setResetShortcuts}
                       />
                     )}
                     {view.type === "variables" && (
@@ -2515,9 +2853,10 @@ export function App() {
                       onTableView={onTableView}
                       onTablePull={onTablePull}
                       onTableCells={onTableCells}
+                      onRunScript={onRunScriptCell}
                       onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
-                      presentRunId={presentRunId}
-                      onPresented={() => setPresentRunId(undefined)}
+                      present={present}
+                      onPresented={() => setPresent(undefined)}
                       runControl={runButton}
                     />
                   </div>
@@ -2548,7 +2887,7 @@ export function App() {
           name is typed in the row it is in. */}
       {nameSheet && (
         <Dialog
-          title={nameSheet.title}
+          title="Save as file"
           onClose={() => {
             setNameSheet(null);
             setNameSheetError(undefined);
@@ -2700,7 +3039,7 @@ export function App() {
           address={scriptName(linkPrompt.script)}
           parameters={Object.keys(linkPrompt.input)}
           values={linkPrompt.input}
-          onRun={(input) => void onConfirmScriptLink(linkPrompt.script, input)}
+          onRun={(input) => void runLinkedScript(linkPrompt.script, input, { screen: "take" })}
           onClose={() => setLinkPrompt(null)}
         />
       )}
@@ -2718,7 +3057,7 @@ export function App() {
           door="run"
           fileName={runPrompt.fileName}
           parameters={runPrompt.parameters}
-          lastRun={lastRunInput(runPrompt.fileId)}
+          values={lastRunInput(runPrompt.fileId)}
           onRun={(input) => onRunCurrentTab(input)}
           onClose={() => setRunPrompt(null)}
         />

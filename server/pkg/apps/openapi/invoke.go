@@ -89,7 +89,13 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	if err != nil {
 		return nil, err
 	}
-	return apps.OneMessage(body, &apps.Report{RequestHeaders: ex.requestHeaders, ResponseHeaders: ex.responseHeaders}), nil
+	return apps.OneMessage(body, &apps.Report{
+		RequestHeaders:  ex.requestHeaders,
+		ResponseHeaders: ex.responseHeaders,
+		Request:         ex.verb + " " + ex.url,
+		Status:          ex.status,
+		StatusText:      http.StatusText(ex.status),
+	}), nil
 }
 
 // exchange is the upstream HTTP call a method transcoded to together with what came

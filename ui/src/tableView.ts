@@ -38,6 +38,15 @@ export function searchesLocally(block: TableBlock): boolean {
   return block.serverSearch !== true;
 }
 
+/**
+ * A search that went to the source has nowhere to go once the source is gone: the
+ * page was reloaded and the closure went with it. The box is refused rather than left
+ * to take text nothing answers. A local filter is over rows still here, so it stays.
+ */
+export function searchRefused(block: TableBlock): boolean {
+  return block.expired === true && !searchesLocally(block);
+}
+
 // Cells are already formatted to strings by the time they reach a block, so there
 // is one rule.
 export function matchesSearch(row: string[], search: string): boolean {

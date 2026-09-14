@@ -129,6 +129,14 @@ type Report struct {
 	// upstream hop leaves them empty.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	// Request, Status and StatusText are the upstream exchange the Headers view states
+	// around those headers: the request line the app made and the status it was
+	// answered with. A failure carries the same three on its UpstreamError, so these
+	// are what a call that succeeded has instead — nothing else records them. An app
+	// with no upstream hop leaves them empty.
+	Request    string
+	Status     int
+	StatusText string
 	// DurationMs is the wall-clock time of the call as this process measured it — the
 	// upstream exchange plus the app's own encode/decode, and nothing of the trip
 	// between the UI and here. Stamped by ApiService.InvokeApp, the one door every
@@ -204,6 +212,23 @@ func (m *Manager) Open(name string, appType string, parameters map[string]string
 		return opened.ProtoDir, nil
 	}
 	return protoDir, nil
+}
+
+// Rename moves the instance open under oldName to newName, which is what following
+// an app's rename into the registry is: a rename leaves the app's parameters alone —
+// that is what makes it a rename rather than a different app — so the instance open
+// under the old name is the right one and only the address it answers to has moved.
+// Renaming a name nothing is open under is not a failure: two windows watching one
+// file both follow the same rename, and the second one has nothing left to move.
+func (m *Manager) Rename(oldName string, newName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	instance, ok := m.instances[oldName]
+	if !ok || oldName == newName {
+		return
+	}
+	delete(m.instances, oldName)
+	m.instances[newName] = instance
 }
 
 // Invoke routes a call to the app registered under name.

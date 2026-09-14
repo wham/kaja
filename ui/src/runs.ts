@@ -25,6 +25,10 @@ export interface Run {
   startedAt: number;
   // Absent means a person did. A console holds runs of both.
   origin?: "agent";
+  // What the run's `kaja.input` held, absent where it held nothing. The run is
+  // where the values are stated, because Run repeats the last run's: what the
+  // next press will carry has to be readable before it is pressed.
+  input?: { [key: string]: string };
   // Wall time for the whole script, which differs from the sum of the calls when they
   // run concurrently.
   durationMs?: number;
@@ -120,6 +124,9 @@ export interface RunGroup {
   unreported: FailureNotice[];
   stats: ItemStats;
   awaiting?: ConsoleItem;
+  // Calls held back by a budget. They have no rows — a call is admitted before one is
+  // written — so this is the only thing that can account for them.
+  heldCalls: number;
   // Decides the view it opens in.
   drew: boolean;
   // Stated rather than silent: the log is the audit record, so where it stops being
