@@ -25,6 +25,7 @@ function absorbReserved(methodCall: MethodCall, key: string, value: unknown): bo
     methodCall.requestLine = upstream.request;
     methodCall.responseStatus = upstream.status;
     methodCall.responseStatusText = upstream.statusText;
+    methodCall.notices = upstream.notices;
     methodCall.upstreamDurationMs = upstream.durationMs;
   }
   return true;

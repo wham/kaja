@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -61,6 +62,9 @@ type Exchange struct {
 	Request    string
 	Status     int
 	StatusText string
+	// Notices are what the server said while it was working: the progress and log
+	// notifications it sent on the response stream ahead of the response itself.
+	Notices []string
 }
 
 // Call sends one JSON-RPC request and returns the result object. The `_meta`
@@ -322,7 +326,8 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 
 	// A JSON-RPC error may arrive under a 4xx status, so the body is read before
 	// the status is judged.
-	result, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), payload)
+	result, notices, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), payload)
+	exchange.Notices = notices
 	if rpcErr != nil {
 		return nil, exchange, rpcErr
 	}
@@ -341,12 +346,13 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 
 // decodeResponse reads the JSON-RPC message out of a response body, which is
 // either a single JSON object or an SSE stream whose last data event carries the
-// response.
-func decodeResponse(contentType string, payload []byte) (json.RawMessage, *jsonRPCError, error) {
+// response, and what the server said on the way there.
+func decodeResponse(contentType string, payload []byte) (json.RawMessage, []string, *jsonRPCError, error) {
+	var notices []string
 	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
-		payload = lastSSEData(payload)
+		payload, notices = readSSE(payload)
 		if payload == nil {
-			return nil, nil, fmt.Errorf("the event stream carried no response")
+			return nil, notices, nil, fmt.Errorf("the event stream carried no response")
 		}
 	}
 	var envelope struct {
@@ -354,25 +360,34 @@ func decodeResponse(contentType string, payload []byte) (json.RawMessage, *jsonR
 		Error  *jsonRPCError   `json:"error"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(payload), &envelope); err != nil {
-		return nil, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
+		return nil, notices, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
 	}
 	if envelope.Error != nil {
-		return nil, envelope.Error, nil
+		return nil, notices, envelope.Error, nil
 	}
 	if envelope.Result == nil {
-		return nil, nil, fmt.Errorf("the response carried neither a result nor an error")
+		return nil, notices, nil, fmt.Errorf("the response carried neither a result nor an error")
 	}
-	return envelope.Result, nil, nil
+	return envelope.Result, notices, nil, nil
 }
 
-// lastSSEData returns the data of the last SSE event in the stream, which is
-// where the final response sits. Notifications sent ahead of it (progress, log
-// messages) are passed over: kaja has nowhere to put them mid-call.
-func lastSSEData(payload []byte) []byte {
+// readSSE reads a response stream: the data of the last event carrying the
+// response, and a line for each notification the server sent ahead of it. Those
+// notifications are what a slow call has to say about itself while it is being
+// made, and a call that says nothing for a minute is indistinguishable from one
+// that failed.
+func readSSE(payload []byte) ([]byte, []string) {
+	// A notice rides in the same trailer the exchange does, so a server that logs
+	// in a loop must not be what pushes the failure out of it.
+	const (
+		noticeLimit = 50
+		noticeChars = 500
+	)
 	scanner := bufio.NewScanner(bytes.NewReader(payload))
 	scanner.Buffer(make([]byte, 0, 64*1024), 32<<20)
 
 	var last []byte
+	var notices []string
 	var current []string
 	flush := func() {
 		if len(current) == 0 {
@@ -382,6 +397,13 @@ func lastSSEData(payload []byte) []byte {
 		current = nil
 		if isJSONRPCResponse(data) {
 			last = data
+			return
+		}
+		if notice := noticeOf(data); notice != "" && len(notices) < noticeLimit {
+			if len(notice) > noticeChars {
+				notice = notice[:noticeChars] + "…"
+			}
+			notices = append(notices, notice)
 		}
 	}
 	for scanner.Scan() {
@@ -396,7 +418,84 @@ func lastSSEData(payload []byte) []byte {
 		}
 	}
 	flush()
-	return last
+	return last, notices
+}
+
+// noticeOf renders one notification as the line the call reports it as. Only the
+// two the specification scopes to the request are read: a log message and a
+// progress report are about the call being made, and anything else on the stream
+// is about the server rather than about this call.
+func noticeOf(data []byte) string {
+	var message struct {
+		Method string `json:"method"`
+		Params struct {
+			Level    string          `json:"level"`
+			Logger   string          `json:"logger"`
+			Data     json.RawMessage `json:"data"`
+			Message  string          `json:"message"`
+			Progress float64         `json:"progress"`
+			Total    *float64        `json:"total"`
+		} `json:"params"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(data), &message) != nil {
+		return ""
+	}
+	params := message.Params
+	switch message.Method {
+	case "notifications/message":
+		parts := []string{}
+		if params.Level != "" {
+			parts = append(parts, params.Level)
+		}
+		if params.Logger != "" {
+			parts = append(parts, params.Logger)
+		}
+		text := noticeText(params.Data)
+		if text == "" {
+			text = "(no message)"
+		}
+		if len(parts) == 0 {
+			return text
+		}
+		return strings.Join(parts, " ") + ": " + text
+	case "notifications/progress":
+		if params.Message == "" && params.Total == nil && params.Progress == 0 {
+			// A count of nothing towards no total: the server has said it is
+			// working, which is what the running indicator already says.
+			return ""
+		}
+		measure := trimFloat(params.Progress)
+		if params.Total != nil {
+			measure += "/" + trimFloat(*params.Total)
+		}
+		if params.Message != "" {
+			return params.Message + " (" + measure + ")"
+		}
+		return measure
+	}
+	return ""
+}
+
+// noticeText is a log notification's data as one line. A string is the line; a
+// structure the server chose to log is its own JSON, which is more than a
+// placeholder saying something was logged.
+func noticeText(data json.RawMessage) string {
+	if len(data) == 0 {
+		return ""
+	}
+	var text string
+	if json.Unmarshal(data, &text) == nil {
+		return strings.TrimSpace(text)
+	}
+	var compact bytes.Buffer
+	if json.Compact(&compact, data) != nil {
+		return ""
+	}
+	return compact.String()
+}
+
+func trimFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 // isJSONRPCResponse reports whether an SSE event's data is a response rather

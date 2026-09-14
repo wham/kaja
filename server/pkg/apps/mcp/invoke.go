@@ -51,6 +51,7 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		report.Request = exchange.Request
 		report.Status = exchange.Status
 		report.StatusText = exchange.StatusText
+		report.Notices = exchange.Notices
 	}
 	return apps.OneMessage(body, report), nil
 }
@@ -163,6 +164,7 @@ func withExchange(err error, exchange *Exchange) error {
 	var upstream *apps.UpstreamError
 	if asUpstream(err, &upstream) && upstream.RequestHeaders == nil {
 		upstream.WithHeaders(exchange.RequestHeaders, exchange.ResponseHeaders)
+		upstream.Notices = exchange.Notices
 	}
 	return err
 }

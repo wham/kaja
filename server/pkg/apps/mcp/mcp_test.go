@@ -93,7 +93,8 @@ func (f *fakeServer) write(w http.ResponseWriter, id, result, rpcError string) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		// A notification ahead of the response, which the client must step over.
 		fmt.Fprint(w, ":\r\n\r\n")
-		fmt.Fprint(w, "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{}}\n\n")
+		fmt.Fprint(w, "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\","+
+			"\"params\":{\"progressToken\":1,\"progress\":1,\"total\":2,\"message\":\"Reading\"}}\n\n")
 		fmt.Fprint(w, "event: message\ndata: "+payload+"\n\n")
 		return
 	}
@@ -555,6 +556,7 @@ type invoked struct {
 	Body            []byte
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	Notices         []string
 }
 
 func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
@@ -570,6 +572,7 @@ func invoke(in *instance, method string, request []byte, headers map[string]stri
 	if report := stream.Report(); report != nil {
 		result.RequestHeaders = report.RequestHeaders
 		result.ResponseHeaders = report.ResponseHeaders
+		result.Notices = report.Notices
 	}
 	return result, nil
 }
@@ -689,5 +692,23 @@ func TestLegacyServerIsSentNoMirroredHeaders(t *testing.T) {
 	call := fake.asked("tools/call")
 	if _, ok := call.Headers["Mcp-Param-Region"]; ok {
 		t.Error("expected no Mcp-Param-Region header")
+	}
+}
+
+// A server that streams its answer may say something on the way there. A call
+// that reports nothing for a minute is indistinguishable from one that failed,
+// so what it said rides back with the exchange that carried it.
+func TestReportsWhatTheServerSaidWhileWorking(t *testing.T) {
+	fake, endpoint := modernServer(t, nil)
+	fake.sse = true
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if len(result.Notices) == 0 {
+		t.Fatal("expected the call to report what the server said")
 	}
 }

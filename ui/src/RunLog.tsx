@@ -728,6 +728,9 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
   const { content, rawText } = responsePayload(methodCall);
   const answered = hasResponse(methodCall);
+  // What the server said while it was working, which reached us between the request
+  // and the response and is stated where it happened.
+  const notices = methodCall.notices ?? [];
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
@@ -735,6 +738,16 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
         <RunLog.HeaderGroupBar label="Request" headers={requestHeaders} size={payloadBytes(methodCall.input)} />
         {requestLine && <RunLog.RequestLine line={requestLine} />}
         <RunLog.HeaderRows headers={requestHeaders} />
+        {notices.length > 0 && (
+          <>
+            <RunLog.HeaderGroupBar label="Notices" headers={{}} className="mt-4" />
+            {notices.map((notice, index) => (
+              <span key={index} className="whitespace-pre-wrap break-all text-foreground" style={{ gridColumn: "1/-1" }}>
+                {notice}
+              </span>
+            ))}
+          </>
+        )}
         <RunLog.HeaderGroupBar
           label="Response"
           headers={responseHeaders}
