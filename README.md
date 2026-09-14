@@ -6,12 +6,12 @@
   <sub><b>macOS · Docker</b></sub>
 </p>
 
-<h3 align="center">A canvas for your APIs</h3>
+<h3 align="center">The API client built for you and your agents.</h3>
 
 <p align="center">
-  An API client like Postman or Bruno, except your agent writes the payloads.
+  Connect gRPC, OpenAPI, or MCP. Explore APIs yourself, or let an agent write and run typed scripts.
   <br/>
-  Kaja draws the flow, and you can inspect every call.
+  Every request stays visible and inspectable.
 </p>
 
 <p align="center">
