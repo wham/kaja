@@ -79,9 +79,43 @@ func toolDefinitions(canWrite bool) []map[string]interface{} {
 	return kept
 }
 
+// reads annotates a tool that only looks: at the catalog, or at a file. The hints are
+// advice a client displays and kaja decides nothing on - a gate that actually stopped
+// a write would belong at the one door every call goes through.
+func reads() map[string]interface{} {
+	return map[string]interface{}{"readOnlyHint": true, "openWorldHint": false}
+}
+
+// writes annotates a tool that changes the workspace. destructive is whether it can
+// take something away - overwriting a file's contents does, filing a new one does not
+// - and idempotent whether saying it twice says it once.
+func writes(destructive, idempotent bool) map[string]interface{} {
+	return map[string]interface{}{
+		"readOnlyHint":    false,
+		"destructiveHint": destructive,
+		"idempotentHint":  idempotent,
+		"openWorldHint":   false,
+	}
+}
+
+// runHints annotates run_script, which is the one tool whose reach is the script's
+// rather than its own: a script calls the workspace's apps, so what it touches is
+// whatever they touch, and it is not this tool's to claim otherwise.
+func runHints() map[string]interface{} {
+	return map[string]interface{}{
+		"readOnlyHint":    false,
+		"destructiveHint": true,
+		"idempotentHint":  false,
+		"openWorldHint":   true,
+	}
+}
+
 func allToolDefinitions() []map[string]interface{} {
 	str := func(desc string) map[string]interface{} {
 		return map[string]interface{}{"type": "string", "description": desc}
+	}
+	num := func(desc string) map[string]interface{} {
+		return map[string]interface{}{"type": "number", "description": desc}
 	}
 	obj := func(props map[string]interface{}, required ...string) map[string]interface{} {
 		schema := map[string]interface{}{"type": "object", "properties": props}
@@ -90,9 +124,14 @@ func allToolDefinitions() []map[string]interface{} {
 		}
 		return schema
 	}
+	array := func(items map[string]interface{}, desc string) map[string]interface{} {
+		return map[string]interface{}{"type": "array", "items": items, "description": desc}
+	}
 	return []map[string]interface{}{
 		{
-			"name": "list_services",
+			"name":        "list_services",
+			"title":       "List services",
+			"annotations": reads(),
 			"description": "Index of everything a script can call: every app, service and method, each method's request and response type, " +
 				"and whether calling it reads or writes. Start here, then use describe_method for the one you want. " +
 				"Filter with app, service or search to keep the answer small on a large API.",
@@ -103,7 +142,9 @@ func allToolDefinitions() []map[string]interface{} {
 			}),
 		},
 		{
-			"name": "describe_method",
+			"name":        "describe_method",
+			"title":       "Describe method",
+			"annotations": reads(),
 			"description": "Everything needed to call one method: its TypeScript signature, the declarations of every type that signature " +
 				"names (transitively), whether the call reads or writes, and a call to start from. " +
 				"This is the generated code a script is checked against, so it is the whole answer - there is nothing else to read.",
@@ -112,7 +153,9 @@ func allToolDefinitions() []map[string]interface{} {
 			}, "method"),
 		},
 		{
-			"name": "describe_type",
+			"name":        "describe_type",
+			"title":       "Describe type",
+			"annotations": reads(),
 			"description": "The TypeScript declaration of one type, with everything it references. " +
 				"Use it when describe_method had to cut a large type short, or to look a type up on its own. " +
 				"Ask for \"kaja\" to get the runtime object a script writes its output with - the canvas verbs " +
@@ -124,16 +167,22 @@ func allToolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "list_scripts",
+			"title":       "List scripts",
+			"annotations": reads(),
 			"description": "List the saved Kaja scripts: each one's name, the folder it is filed in, and its path.",
 			"inputSchema": obj(map[string]interface{}{}),
 		},
 		{
 			"name":        "read_script",
+			"title":       "Read script",
+			"annotations": reads(),
 			"description": "Read the full contents of a script by its path.",
 			"inputSchema": obj(map[string]interface{}{"path": str("Path of the script, as returned by list_scripts.")}, "path"),
 		},
 		{
 			"name":        "write_script",
+			"title":       "Write script",
+			"annotations": writes(true, true),
 			"description": "Overwrite the contents of an existing script identified by its path. " + writtenNote + " " + commentsNote,
 			"inputSchema": obj(map[string]interface{}{
 				"path":    str("Path of the script to overwrite, as returned by list_scripts."),
@@ -141,7 +190,9 @@ func allToolDefinitions() []map[string]interface{} {
 			}, "path", "content"),
 		},
 		{
-			"name": "create_script",
+			"name":        "create_script",
+			"title":       "Create script",
+			"annotations": writes(false, false),
 			"description": "Create a new script. Fails if one with the same name already exists. " +
 				"Scripts live in folders: name a folder in the path to file it there, and the folder is created if it doesn't exist. " +
 				writtenNote + " " + commentsNote,
@@ -152,6 +203,8 @@ func allToolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "rename_script",
+			"title":       "Rename script",
+			"annotations": writes(false, false),
 			"description": "Rename a script, or move it into another folder — on disk those are one operation, because a file's path is its name.",
 			"inputSchema": obj(map[string]interface{}{
 				"path":     str("Path of the script to rename, as returned by list_scripts."),
@@ -160,11 +213,15 @@ func allToolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "delete_script",
+			"title":       "Delete script",
+			"annotations": writes(true, true),
 			"description": "Delete a script by its path.",
 			"inputSchema": obj(map[string]interface{}{"path": str("Path of the script to delete, as returned by list_scripts.")}, "path"),
 		},
 		{
-			"name": "run_script",
+			"name":        "run_script",
+			"title":       "Run script",
+			"annotations": runHints(),
 			"description": "Run a script and return its console output, what it drew on the run's canvas, and every RPC it made with a typed verdict on each. " +
 				"Provide either path (a saved script) or code (an inline snippet). " +
 				"Inline code is not hidden: it runs in a draft in the user's own sidebar, pinned at the top of Drafts and labelled with your name, " +
@@ -175,6 +232,41 @@ func allToolDefinitions() []map[string]interface{} {
 			"inputSchema": obj(map[string]interface{}{
 				"path": str("Path of a saved script to run, as returned by list_scripts."),
 				"code": str("Inline TypeScript to run instead of a saved script."),
+			}),
+			// The same run the text content renders, in the shape a caller parses. Nothing
+			// here is required: a run that was refused before it started reports the refusal
+			// and no structure at all.
+			"outputSchema": obj(map[string]interface{}{
+				"script": str("The script that ran, by path, or \"inline script\"."),
+				"calls": array(obj(map[string]interface{}{
+					"label":      str("The app, service and method called, or the request line of a fetch."),
+					"durationMs": num("How long the call took."),
+					"request":    map[string]interface{}{"description": "What was sent, or a note in its place where it was too large to report."},
+					"response":   map[string]interface{}{"description": "What came back, or a note in its place where it was too large to report."},
+					"failure": obj(map[string]interface{}{
+						"kind":    str("What kind of failure it was, which is what says whether a different request would help."),
+						"message": str("What the service said."),
+						"status":  num("The HTTP status, where the call was one."),
+						"code":    str("The gRPC status code, where the call was one."),
+						"advice":  str("What to do about a failure of this kind."),
+					}),
+				}), "Every RPC the script made, in the order it made them."),
+				"console": array(str("One line the script printed."), "What the script printed."),
+				"blocks": array(obj(map[string]interface{}{
+					"kind":    str("text, code, table, an ask, approve or perfTest."),
+					"label":   str("What the block was titled, where it carries one."),
+					"columns": array(str("A column name."), "A table's columns."),
+					"rows":    num("How many rows a table drew."),
+					"pending": num("Cells that never landed. Nobody is there to draw the rest of a table for you."),
+					"failed":  num("Cells that failed to load."),
+				}), "What the script drew on the run's canvas. The contents are not echoed: you wrote them."),
+				"diagnostics": array(obj(map[string]interface{}{
+					"line":    num("Line the error is on."),
+					"column":  num("Column the error is on."),
+					"message": str("What the checker said."),
+				}), "The script's type errors. None of them stopped the run, and all of them are red in the file a person opens."),
+				"stopped":  str("Where the script stopped, if it did. A rejected call does not stop a script."),
+				"returned": map[string]interface{}{"description": "What the script returned, which does nothing: a script is a body of statements."},
 			}),
 		},
 	}
@@ -332,7 +424,11 @@ func (s *Server) runScript(ctx context.Context, path, code, caller string) map[s
 		result.MethodCalls[i].Input = compactJSON(result.MethodCalls[i].Input)
 		result.MethodCalls[i].Output = compactJSON(result.MethodCalls[i].Output)
 	}
-	return textToolResult(renderRun(label, result))
+	// Both halves of the same run: the text is what a client with no structured
+	// content is left with, and it is the one a person reads in a transcript.
+	answer := textToolResult(renderRun(label, result))
+	answer["structuredContent"] = reportRun(label, result)
+	return answer
 }
 
 // textToolResult wraps plain text in the MCP tool-result shape.
