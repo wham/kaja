@@ -1,8 +1,3 @@
-// The whole movie catalog, a page at a time.
-//
-// The rows are an async generator, so the table only fetches a page when you
-// page into it — a thousand films, and one call to start with.
-
 import { kaja } from "kaja";
 import { Theatre } from "theatre/service";
 
