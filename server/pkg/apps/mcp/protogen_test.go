@@ -303,6 +303,9 @@ func TestEncodeHeaderValue(t *testing.T) {
 		"Hello, 世界":    "=?base64?SGVsbG8sIOS4lueVjA==?=",
 		" padded ":     "=?base64?IHBhZGRlZCA=?=",
 		"line1\nline2": "=?base64?bGluZTEKbGluZTI=?=",
+		// A plain value that reads as the sentinel is encoded too, or a server
+		// would decode what was never encoded.
+		"=?base64?literal?=": "=?base64?PT9iYXNlNjQ/bGl0ZXJhbD89?=",
 	}
 	for value, want := range tests {
 		if got := encodeHeaderValue(value); got != want {

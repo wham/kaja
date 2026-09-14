@@ -18,6 +18,9 @@ type binding struct {
 	kind   string
 	method string
 	name   string
+	// headerParams are the tool's `x-mcp-header` parameters, mirrored into the
+	// request's headers when the call is made.
+	headerParams []HeaderParam
 }
 
 // generated is the output of converting a server's surface: the proto file text,
@@ -142,7 +145,7 @@ func (g *generator) addTools(tools []Tool) {
 		service.rpcs = append(service.rpcs, &rpcDef{
 			name: method, input: requestName, output: response.name, doc: toolDoc(tool),
 		})
-		g.bindings[protoPackage+"."+service.name+"/"+method] = &binding{kind: "tool", method: "tools/call", name: tool.Name}
+		g.bindings[protoPackage+"."+service.name+"/"+method] = &binding{kind: "tool", method: "tools/call", name: tool.Name, headerParams: tool.HeaderParams}
 	}
 }
 

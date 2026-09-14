@@ -35,7 +35,7 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		return nil, err
 	}
 
-	result, exchange, err := in.client.Call(method.binding.method, params, call.Headers)
+	result, exchange, err := in.client.Call(method.binding.method, params, call.Headers, mirroredValues(method.binding.headerParams, arguments))
 	if err != nil {
 		return nil, withExchange(err, exchange)
 	}

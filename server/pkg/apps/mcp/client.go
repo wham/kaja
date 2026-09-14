@@ -66,17 +66,22 @@ type Exchange struct {
 // Call sends one JSON-RPC request and returns the result object. The `_meta`
 // request metadata (modern) or the `initialize` handshake (legacy) is applied
 // here, so callers only ever name a method and its params.
-func (c *Client) Call(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
+//
+// mirrored is the tool's `x-mcp-header` parameters and their values, keyed by
+// the name portion of the `Mcp-Param-{Name}` header each travels under. The
+// transport decides whether they are sent, since the era decides whether the
+// server expects them at all.
+func (c *Client) Call(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
 	if err := c.ensureEra(); err != nil {
 		return nil, nil, err
 	}
-	return c.send(method, params, extra)
+	return c.send(method, params, extra, mirrored)
 }
 
 // send issues one request in the era already settled on, re-running a legacy
 // handshake once if the server has forgotten the session.
-func (c *Client) send(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
-	result, exchange, err := c.attempt(method, params, extra)
+func (c *Client) send(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
+	result, exchange, err := c.attempt(method, params, extra, mirrored)
 	if err == nil {
 		return result, exchange, nil
 	}
@@ -94,7 +99,7 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 		if err := c.handshake(); err != nil {
 			return nil, nil, err
 		}
-		return c.attempt(method, params, extra)
+		return c.attempt(method, params, extra, mirrored)
 	}
 
 	// A server that rejects the version names the ones it has; retry on the best
@@ -108,7 +113,7 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 			if err := c.ensureEra(); err != nil {
 				return nil, nil, err
 			}
-			return c.attempt(method, params, extra)
+			return c.attempt(method, params, extra, mirrored)
 		}
 	}
 	return nil, exchange, err
@@ -135,7 +140,7 @@ func (c *Client) ensureEra() error {
 		return c.handshake()
 	}
 
-	result, _, err := c.attempt("server/discover", nil, nil)
+	result, _, err := c.attempt("server/discover", nil, nil, nil)
 	if err == nil {
 		c.mu.Lock()
 		c.handshook, c.greeting = true, result
@@ -189,7 +194,7 @@ func (c *Client) handshake() error {
 		"protocolVersion": version,
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": clientName, "version": "2"},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -216,13 +221,13 @@ func (c *Client) handshake() error {
 	// The handshake is only complete once the server has been told so. It is a
 	// notification, so nothing is expected back and a server that refuses it is
 	// not worth failing the whole app over.
-	_, _, _ = c.attempt("notifications/initialized", nil, nil)
+	_, _, _ = c.attempt("notifications/initialized", nil, nil, nil)
 	return nil
 }
 
 // attempt performs one HTTP POST carrying one JSON-RPC message. A notification
 // (a method with no id) returns no result.
-func (c *Client) attempt(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
+func (c *Client) attempt(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
 	notification := strings.HasPrefix(method, "notifications/")
 
 	c.mu.Lock()
@@ -283,6 +288,12 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 		request.Header.Set("Mcp-Method", method)
 		if name := routedName(params); name != "" {
 			request.Header.Set("Mcp-Name", encodeHeaderValue(name))
+		}
+		// A mirrored parameter is the server's own instruction about its tool, so
+		// it is written last: a header configured under the same name would send
+		// an intermediary somewhere the body does not agree with.
+		for name, value := range mirrored {
+			request.Header.Set(headerParamPrefix+name, encodeHeaderValue(value))
 		}
 	}
 
