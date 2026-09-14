@@ -6,6 +6,10 @@ import { variableReferences } from "./variableExpansion";
 export const AUTH_NONE = "none";
 export const AUTH_BEARER = "bearer";
 export const AUTH_APIKEY = "apikey";
+// The credential nobody types: Kaja signs in to the server and keeps what the
+// authorization server issued, renewing it as it expires. It is a bearer token on the
+// wire like the one above, and everything about where it came from is Kaja's.
+export const AUTH_OAUTH = "oauth";
 
 // The header an API key travels under when the app doesn't name one.
 export const DEFAULT_API_KEY_NAME = "X-API-Key";

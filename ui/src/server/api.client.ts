@@ -41,6 +41,10 @@ import type { UpdateConfigurationRequest } from "./api";
 import type { WatchConfigurationRequest } from "./api";
 import type { GetConfigurationResponse } from "./api";
 import type { GetConfigurationRequest } from "./api";
+import type { ForgetMcpAuthorizationResponse } from "./api";
+import type { ForgetMcpAuthorizationRequest } from "./api";
+import type { AuthorizeMcpResponse } from "./api";
+import type { AuthorizeMcpRequest } from "./api";
 import type { InspectMcpResponse } from "./api";
 import type { InspectMcpRequest } from "./api";
 import type { InspectGrpcResponse } from "./api";
@@ -88,6 +92,18 @@ export interface IApiClient {
      * @generated from protobuf rpc: InspectMcp
      */
     inspectMcp(input: InspectMcpRequest, options?: RpcOptions): UnaryCall<InspectMcpRequest, InspectMcpResponse>;
+    /**
+     * AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
+     * a browser in the middle of it: the first message carries the page to open,
+     * and the last one says how it went once the server has sent the person back.
+     *
+     * @generated from protobuf rpc: AuthorizeMcp
+     */
+    authorizeMcp(input: AuthorizeMcpRequest, options?: RpcOptions): ServerStreamingCall<AuthorizeMcpRequest, AuthorizeMcpResponse>;
+    /**
+     * @generated from protobuf rpc: ForgetMcpAuthorization
+     */
+    forgetMcpAuthorization(input: ForgetMcpAuthorizationRequest, options?: RpcOptions): UnaryCall<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse>;
     /**
      * @generated from protobuf rpc: GetConfiguration
      */
@@ -229,10 +245,28 @@ export class ApiClient implements IApiClient, ServiceInfo {
         return stackIntercept<InspectMcpRequest, InspectMcpResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
+     * a browser in the middle of it: the first message carries the page to open,
+     * and the last one says how it went once the server has sent the person back.
+     *
+     * @generated from protobuf rpc: AuthorizeMcp
+     */
+    authorizeMcp(input: AuthorizeMcpRequest, options?: RpcOptions): ServerStreamingCall<AuthorizeMcpRequest, AuthorizeMcpResponse> {
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        return stackIntercept<AuthorizeMcpRequest, AuthorizeMcpResponse>("serverStreaming", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ForgetMcpAuthorization
+     */
+    forgetMcpAuthorization(input: ForgetMcpAuthorizationRequest, options?: RpcOptions): UnaryCall<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse> {
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * @generated from protobuf rpc: GetConfiguration
      */
     getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetConfigurationRequest, GetConfigurationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -243,14 +277,14 @@ export class ApiClient implements IApiClient, ServiceInfo {
      * @generated from protobuf rpc: WatchConfiguration
      */
     watchConfiguration(input: WatchConfigurationRequest, options?: RpcOptions): ServerStreamingCall<WatchConfigurationRequest, GetConfigurationResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<WatchConfigurationRequest, GetConfigurationResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: UpdateConfiguration
      */
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
-        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -261,112 +295,112 @@ export class ApiClient implements IApiClient, ServiceInfo {
      * @generated from protobuf rpc: SetMcpEnabled
      */
     setMcpEnabled(input: SetMcpEnabledRequest, options?: RpcOptions): UnaryCall<SetMcpEnabledRequest, SetMcpEnabledResponse> {
-        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetMcpEnabledRequest, SetMcpEnabledResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: SetStoredValue
      */
     setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ClearStoredValue
      */
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ListScripts
      */
     listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ReadScript
      */
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: WriteScript
      */
     writeScript(input: WriteScriptRequest, options?: RpcOptions): UnaryCall<WriteScriptRequest, WriteScriptResponse> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: CreateScript
      */
     createScript(input: CreateScriptRequest, options?: RpcOptions): UnaryCall<CreateScriptRequest, CreateScriptResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: RenameScript
      */
     renameScript(input: RenameScriptRequest, options?: RpcOptions): UnaryCall<RenameScriptRequest, RenameScriptResponse> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: DeleteScript
      */
     deleteScript(input: DeleteScriptRequest, options?: RpcOptions): UnaryCall<DeleteScriptRequest, DeleteScriptResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: CopyScript
      */
     copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ListScriptFolders
      */
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: CreateScriptFolder
      */
     createScriptFolder(input: CreateScriptFolderRequest, options?: RpcOptions): UnaryCall<CreateScriptFolderRequest, CreateScriptFolderResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: RenameScriptFolder
      */
     renameScriptFolder(input: RenameScriptFolderRequest, options?: RpcOptions): UnaryCall<RenameScriptFolderRequest, RenameScriptFolderResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: DeleteScriptFolder
      */
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: CopyScriptFolder
      */
     copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ScanScriptVariables
      */
     scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this._transport, method, opt, input);
     }
 }

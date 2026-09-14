@@ -419,7 +419,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}); problem == nil || problem.Kind != ProblemUnauthorized {
+		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemUnauthorized {
 			t.Fatalf("problem = %v, want unauthorized", problem)
 		}
 	})
@@ -429,7 +429,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			fmt.Fprint(w, "<html><body>hello</body></html>")
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL}); problem == nil || problem.Kind != ProblemNotMCP {
+		if _, problem := Inspect(map[string]string{"url": server.URL}, nil); problem == nil || problem.Kind != ProblemNotMCP {
 			t.Fatalf("problem = %v, want notMcp", problem)
 		}
 	})
@@ -441,13 +441,13 @@ func TestInspectClassifiesFailures(t *testing.T) {
 		}}
 		server := httptest.NewServer(fake.handler())
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}); problem == nil || problem.Kind != ProblemEmpty {
+		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemEmpty {
 			t.Fatalf("problem = %v, want empty", problem)
 		}
 	})
 
 	t.Run("no endpoint", func(t *testing.T) {
-		if _, problem := Inspect(map[string]string{"url": "  "}); problem == nil || problem.Kind != ProblemTarget {
+		if _, problem := Inspect(map[string]string{"url": "  "}, nil); problem == nil || problem.Kind != ProblemTarget {
 			t.Fatalf("problem = %v, want target", problem)
 		}
 	})
@@ -455,7 +455,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 
 func TestInspectReadsTheSurface(t *testing.T) {
 	_, endpoint := modernServer(t, nil)
-	surface, problem := Inspect(map[string]string{"url": endpoint})
+	surface, problem := Inspect(map[string]string{"url": endpoint}, nil)
 	if problem != nil {
 		t.Fatalf("Inspect: %v", problem)
 	}

@@ -28,8 +28,11 @@ import (
 type Client struct {
 	endpoint string
 	http     *http.Client
-	// headers the app sends with every request, credential included.
-	headers map[string]string
+	// credential is what the app sends with every request. It is asked for per
+	// request rather than held, because an OAuth token renews itself: a token
+	// replaced between two calls has to reach the second one without the app
+	// being opened again.
+	credential func() (map[string]string, error)
 
 	mu sync.Mutex
 	// version is the protocol version settled on, legacy whether the handshake
@@ -47,8 +50,11 @@ type Client struct {
 
 // NewClient builds a client for an MCP endpoint. It performs no I/O: the era and
 // the protocol version are settled by the first call.
-func NewClient(endpoint string, headers map[string]string, httpClient *http.Client) *Client {
-	return &Client{endpoint: endpoint, http: httpClient, headers: headers, version: ProtocolVersion}
+func NewClient(endpoint string, credential func() (map[string]string, error), httpClient *http.Client) *Client {
+	if credential == nil {
+		credential = func() (map[string]string, error) { return nil, nil }
+	}
+	return &Client{endpoint: endpoint, http: httpClient, credential: credential, version: ProtocolVersion}
 }
 
 // Exchange is what one JSON-RPC call exchanged with the server, surfaced in the
@@ -269,9 +275,13 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 	if err != nil {
 		return nil, nil, fmt.Errorf("building %s request: %w", method, err)
 	}
+	headers, err := c.credential()
+	if err != nil {
+		return nil, nil, err
+	}
 	// The app's own headers are the more specific instruction: a header written
 	// out by hand outranks the credential kaja derived.
-	for name, value := range c.headers {
+	for name, value := range headers {
 		request.Header.Set(name, value)
 	}
 	for name, value := range extra {

@@ -124,6 +124,8 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "auth", label: "Authentication", type: "text", optional: true },
       { key: "token", label: "Token or API key", type: "text", optional: true },
       { key: "apiKeyName", label: "Header name", type: "text", optional: true },
+      { key: "clientId", label: "OAuth client ID", type: "text", optional: true },
+      { key: "scope", label: "OAuth scopes", type: "text", optional: true },
     ],
     demo: {
       label: "try the DeepWiki demo server",
