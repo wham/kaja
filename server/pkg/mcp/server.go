@@ -16,15 +16,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 )
-
-// protocolVersion is the MCP revision this server implements. When a client
-// announces a different version we echo back our own and let it decide.
-const protocolVersion = "2025-06-18"
 
 //go:embed guide.md
 var guide string
@@ -152,14 +150,13 @@ const streamKeepalive = 15 * time.Second
 // the client's job once a server has issued one.
 const sessionHeader = "Mcp-Session-Id"
 
-// metaClientInfo is where the revision that dropped the handshake carries the
-// client's identity: on every request, in params._meta.
-const metaClientInfo = "io.modelcontextprotocol/clientInfo"
-
 // Server is the MCP HTTP handler.
 type Server struct {
-	bridge   Bridge
-	token    string
+	bridge Bridge
+	token  string
+	// version is what this kaja reports itself as, which is the only thing about the
+	// server that the process it runs in has to supply.
+	version  string
 	streamed bool
 
 	mu       sync.Mutex
@@ -175,10 +172,16 @@ type Server struct {
 	pinned   map[string]string
 }
 
-// NewServer builds a server. token guards every request via a bearer header;
-// it must be non-empty.
-func NewServer(bridge Bridge, token string) *Server {
-	return &Server{bridge: bridge, token: token, sessions: map[string]string{}, pinned: map[string]string{}}
+// NewServer builds a server. token guards every request via a bearer header; it must
+// be non-empty. version is the running kaja's own, reported as this server's.
+func NewServer(bridge Bridge, token, version string) *Server {
+	return &Server{
+		bridge:   bridge,
+		token:    token,
+		version:  version,
+		sessions: map[string]string{},
+		pinned:   map[string]string{},
+	}
 }
 
 // Streamed answers over SSE whenever the client says it accepts one, so a slow
@@ -197,8 +200,9 @@ type rpcRequest struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 type rpcResponse struct {
@@ -224,6 +228,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !SameSiteOrigin(r) {
+		// A page cannot be allowed to drive this endpoint just because it resolved a
+		// name to the loopback address the agent reaches it on. The bearer token blunts
+		// that on its own; the specification asks for the Origin to be checked anyway,
+		// and it is the cheaper of the two guards.
+		http.Error(w, "forbidden origin", http.StatusForbidden)
+		return
+	}
 	if !s.authorized(r) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -237,6 +249,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caller := s.identify(w, r, req)
+	modern, rerr := s.era(req)
 
 	// An agent's calls arrive in bursts, so the request is marked from the moment it
 	// lands until it is answered and the UI holds the mark a little longer.
@@ -251,19 +264,91 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.streamed && acceptsEventStream(r) {
-		s.respondStreamed(w, r, req, caller)
+	if rerr != nil {
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: rerr})
 		return
 	}
 
-	result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
+	// A method this server does not answer is a 404 rather than an error under a 200,
+	// which is what lets a client tell "no such method" from "the call failed" without
+	// reading the body - and it is settled before anything is written, because a
+	// streamed answer has already sent its status by the time a handler runs.
+	handle := s.handlerFor(req.Method)
+	if handle == nil {
+		w.WriteHeader(http.StatusNotFound)
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{
+			Code:    codeMethodNotFound,
+			Message: fmt.Sprintf("unknown method %q", req.Method),
+		}})
+		return
+	}
+
+	if s.streamed && acceptsEventStream(r) {
+		s.respondStreamed(w, r, req, handle, caller, modern)
+		return
+	}
+
+	writeRPC(w, s.answer(r.Context(), req, handle, caller, modern))
+}
+
+// answer runs one handler and frames what it produced for the era it was asked in.
+func (s *Server) answer(ctx context.Context, req rpcRequest, handle handlerFunc, caller string, modern bool) rpcResponse {
 	resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
+	result, rerr := handle(ctx, req.Params, caller)
 	if rerr != nil {
 		resp.Error = rerr
-	} else {
-		resp.Result = result
+		return resp
 	}
-	writeRPC(w, resp)
+	resp.Result = complete(result, modern, s.version)
+	return resp
+}
+
+// era reads which revision this request is written in, which is the whole of what the
+// modern one needs: it carries its version in `_meta`, so nothing about the client is
+// held between requests. A version this server does not speak is refused with the
+// ones it does, since a client that cannot tell why it was refused has nothing to
+// retry with. `server/discover` is modern whatever it carries - it is the one method
+// only that era defines - and `initialize` is legacy for the same reason.
+func (s *Server) era(req rpcRequest) (bool, *rpcError) {
+	version := metaString(req.Params, metaProtocolVersion)
+	if version != "" && !supportsVersion(version) {
+		return false, &rpcError{
+			Code:    codeUnsupportedProtocolVersion,
+			Message: fmt.Sprintf("unsupported protocol version %q", version),
+			Data:    map[string]interface{}{"supported": supportedVersions},
+		}
+	}
+	if req.Method == "initialize" {
+		return false, nil
+	}
+	return modernVersions[version] || req.Method == "server/discover", nil
+}
+
+// SameSiteOrigin is the DNS-rebinding guard: a request with no Origin is a process
+// rather than a page and is let through, and a page is let through only where it is
+// this server's own or a local one.
+//
+// It is exported because the check has to come before the token is read, and on the
+// web the token is read by the door in front of this one: refusing a bad origin only
+// after the token has been looked up tells a cross-origin page which tokens are real.
+func SameSiteOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	if strings.EqualFold(parsed.Host, r.Host) {
+		return true
+	}
+	host := parsed.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func acceptsEventStream(r *http.Request) bool {
@@ -273,18 +358,11 @@ func acceptsEventStream(r *http.Request) bool {
 // respondStreamed answers over SSE, which Streamable HTTP allows for any request.
 // The answer is the same JSON-RPC response in one event; what it buys is the comment
 // line sent while it is still being produced.
-func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest, caller string) {
+func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpcRequest, handle handlerFunc, caller string, modern bool) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		// Nothing can be flushed, so a stream would be buffered into a single write anyway.
-		result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
-		resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
-		if rerr != nil {
-			resp.Error = rerr
-		} else {
-			resp.Result = result
-		}
-		writeRPC(w, resp)
+		writeRPC(w, s.answer(r.Context(), req, handle, caller, modern))
 		return
 	}
 
@@ -293,14 +371,9 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	type answer struct {
-		result interface{}
-		err    *rpcError
-	}
-	done := make(chan answer, 1)
+	done := make(chan rpcResponse, 1)
 	go func() {
-		result, rerr := s.dispatch(r.Context(), req.Method, req.Params, caller)
-		done <- answer{result: result, err: rerr}
+		done <- s.answer(r.Context(), req, handle, caller, modern)
 	}()
 
 	ticker := time.NewTicker(streamKeepalive)
@@ -312,13 +385,7 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 		case <-ticker.C:
 			fmt.Fprint(w, ": keepalive\n\n")
 			flusher.Flush()
-		case a := <-done:
-			resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
-			if a.err != nil {
-				resp.Error = a.err
-			} else {
-				resp.Result = a.result
-			}
+		case resp := <-done:
 			// json.Marshal never emits a raw newline, so the response is always the single data
 			// line SSE needs it to be.
 			body, err := json.Marshal(resp)
@@ -349,38 +416,82 @@ func (s *Server) authorized(r *http.Request) bool {
 	return subtleEqual(strings.TrimPrefix(h, prefix), s.token)
 }
 
-func (s *Server) dispatch(ctx context.Context, method string, params json.RawMessage, caller string) (interface{}, *rpcError) {
+// handlerFunc answers one method. Every handler takes the same three things so the
+// list below can be one lookup rather than a switch that also decides the status.
+type handlerFunc func(ctx context.Context, params json.RawMessage, caller string) (interface{}, *rpcError)
+
+// handlerFor is the one list of methods this server answers. A method with no handler
+// is a 404, which is why this is a lookup rather than a switch with a default in it.
+func (s *Server) handlerFor(method string) handlerFunc {
+	plain := func(answer func() (interface{}, *rpcError)) handlerFunc {
+		return func(context.Context, json.RawMessage, string) (interface{}, *rpcError) { return answer() }
+	}
+	withParams := func(answer func(json.RawMessage) (interface{}, *rpcError)) handlerFunc {
+		return func(_ context.Context, params json.RawMessage, _ string) (interface{}, *rpcError) {
+			return answer(params)
+		}
+	}
 	switch method {
+	case "server/discover":
+		return plain(func() (interface{}, *rpcError) { return s.handleDiscover(), nil })
 	case "initialize":
-		return s.handleInitialize(params), nil
+		return withParams(func(params json.RawMessage) (interface{}, *rpcError) { return s.handleInitialize(params), nil })
 	case "ping":
-		return map[string]interface{}{}, nil
+		return plain(func() (interface{}, *rpcError) { return map[string]interface{}{}, nil })
 	case "tools/list":
-		return map[string]interface{}{"tools": toolDefinitions(s.bridge.CanWriteScripts())}, nil
+		return plain(func() (interface{}, *rpcError) { return s.handleToolsList(), nil })
 	case "tools/call":
-		return s.handleToolCall(ctx, params, caller)
+		return s.handleToolCall
 	case "resources/list":
-		return s.handleResourcesList()
+		return plain(s.handleResourcesList)
 	case "resources/read":
-		return s.handleResourceRead(params)
-	default:
-		return nil, &rpcError{Code: codeMethodNotFound, Message: fmt.Sprintf("unknown method %q", method)}
+		return withParams(s.handleResourceRead)
+	}
+	return nil
+}
+
+// capabilities is what this server serves, in both eras: the tools and the two
+// resources, and nothing that asks anything of the client.
+func capabilities() map[string]interface{} {
+	return map[string]interface{}{
+		"tools":     map[string]interface{}{},
+		"resources": map[string]interface{}{},
 	}
 }
 
+// handleDiscover is the modern era's opening, and it replaces the handshake rather
+// than preceding one: it names every revision this server speaks, so a client that
+// reached it with the wrong one has the answer without a second round trip.
+func (s *Server) handleDiscover() interface{} {
+	return cacheable(map[string]interface{}{
+		"supportedVersions": supportedVersions,
+		"capabilities":      capabilities(),
+		"instructions":      guide,
+	}, staticTTL)
+}
+
+// handleInitialize answers the handshake era. The version a client asked for is
+// echoed where this server speaks it, because that is what the client is about to
+// write its requests in; anything else is answered with the newest one it could have
+// meant, and the client decides whether to go on.
 func (s *Server) handleInitialize(params json.RawMessage) interface{} {
-	return map[string]interface{}{
-		"protocolVersion": protocolVersion,
-		"capabilities": map[string]interface{}{
-			"tools":     map[string]interface{}{},
-			"resources": map[string]interface{}{},
-		},
-		"serverInfo": map[string]interface{}{
-			"name":    "kaja-scripts",
-			"version": "0.1.0",
-		},
-		"instructions": guide,
+	version := legacyProtocolVersion
+	var asked struct {
+		ProtocolVersion string `json:"protocolVersion"`
 	}
+	if json.Unmarshal(params, &asked) == nil && supportsVersion(asked.ProtocolVersion) && !modernVersions[asked.ProtocolVersion] {
+		version = asked.ProtocolVersion
+	}
+	return map[string]interface{}{
+		"protocolVersion": version,
+		"capabilities":    capabilities(),
+		"serverInfo":      implementation(s.version),
+		"instructions":    guide,
+	}
+}
+
+func (s *Server) handleToolsList() interface{} {
+	return cacheable(map[string]interface{}{"tools": toolDefinitions(s.bridge.CanWriteScripts())}, workspaceTTL)
 }
 
 // identify is who this request is from, which is the whole of what gives an agent a
@@ -420,15 +531,10 @@ func (s *Server) identify(w http.ResponseWriter, r *http.Request, req rpcRequest
 // for a person, since a draft's row is where this ends up.
 func announcedName(params json.RawMessage, key string) string {
 	fields := map[string]json.RawMessage{}
-	if json.Unmarshal(params, &fields) != nil {
-		return ""
-	}
 	if key == metaClientInfo {
-		meta := map[string]json.RawMessage{}
-		if json.Unmarshal(fields["_meta"], &meta) != nil {
-			return ""
-		}
-		fields = meta
+		fields = metaFields(params)
+	} else if json.Unmarshal(params, &fields) != nil {
+		return ""
 	}
 	var announced struct {
 		Title string `json:"title"`
@@ -441,6 +547,29 @@ func announcedName(params json.RawMessage, key string) string {
 		return title
 	}
 	return strings.TrimSpace(announced.Name)
+}
+
+// metaFields is the request metadata a modern request carries, which is where that
+// era puts everything the handshake used to say once.
+func metaFields(params json.RawMessage) map[string]json.RawMessage {
+	fields := map[string]json.RawMessage{}
+	if json.Unmarshal(params, &fields) != nil {
+		return nil
+	}
+	meta := map[string]json.RawMessage{}
+	if json.Unmarshal(fields["_meta"], &meta) != nil {
+		return nil
+	}
+	return meta
+}
+
+// metaString reads one string out of the request metadata.
+func metaString(params json.RawMessage, key string) string {
+	var value string
+	if json.Unmarshal(metaFields(params)[key], &value) != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 // pin records the handshake and answers with the session this name is known by.

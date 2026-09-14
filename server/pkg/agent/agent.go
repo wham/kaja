@@ -325,6 +325,7 @@ const (
 type Registry struct {
 	scripts  Scripts
 	delivery Delivery
+	version  string
 
 	mu       sync.Mutex
 	sessions map[string]*Session
@@ -332,9 +333,10 @@ type Registry struct {
 
 // NewRegistry builds the registry. scripts is how this process reads and writes the
 // workspace's scripts folder: it owns the disk, and the window is only ever asked to
-// run source.
-func NewRegistry(scripts Scripts, delivery Delivery) *Registry {
-	return &Registry{scripts: scripts, delivery: delivery, sessions: map[string]*Session{}}
+// run source. version is the running kaja's own, which every session reports as its
+// MCP server's.
+func NewRegistry(scripts Scripts, delivery Delivery, version string) *Registry {
+	return &Registry{scripts: scripts, delivery: delivery, version: version, sessions: map[string]*Session{}}
 }
 
 // Open makes a session without a window attached. It is what the desktop does with the
@@ -360,7 +362,7 @@ func (r *Registry) Open(token string) (*Session, error) {
 	}
 	// The bridge is bound to the session and the server to the bridge, so a request
 	// carrying this token can only ever reach this browser.
-	session.server = mcp.NewServer(&bridge{session: session}, token)
+	session.server = mcp.NewServer(&bridge{session: session}, token, r.version)
 	if r.delivery == Streamed {
 		session.server = session.server.Streamed()
 	}

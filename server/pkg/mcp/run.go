@@ -132,15 +132,7 @@ func renderCall(index int, call MethodCallLog) string {
 	if call.Failure != nil {
 		status = call.Failure.Kind
 	}
-	where := call.Service + "." + call.Method
-	if call.Http != "" {
-		// A fetch is named by the request it made: there is no service and no method,
-		// and the URL is the whole of what the agent asked for.
-		where = call.Http
-	} else if call.App != "" {
-		where = call.App + " " + where
-	}
-	fmt.Fprintf(&b, "  %d. %s  %s", index, where, status)
+	fmt.Fprintf(&b, "  %d. %s  %s", index, callLabel(call), status)
 	if call.DurationMs > 0 {
 		fmt.Fprintf(&b, "  %.0f ms", call.DurationMs)
 	}
@@ -162,6 +154,20 @@ func renderCall(index int, call MethodCallLog) string {
 		fmt.Fprintf(&b, "     response %s\n", truncate(string(call.Output)))
 	}
 	return b.String()
+}
+
+// callLabel is what a call is named by, in the text report and the structured one
+// alike. A fetch is named by the request it made: there is no service and no method,
+// and the URL is the whole of what the agent asked for.
+func callLabel(call MethodCallLog) string {
+	if call.Http != "" {
+		return call.Http
+	}
+	where := call.Service + "." + call.Method
+	if call.App != "" {
+		where = call.App + " " + where
+	}
+	return where
 }
 
 func renderBlock(index int, block BlockLog) string {
@@ -221,4 +227,80 @@ func compactJSON(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	return json.RawMessage(buf.Bytes())
+}
+
+// RunReport is run_script's structured answer: the same run renderRun writes out, in
+// the shape a caller parses rather than reads. Both are sent, because the text is
+// what a client with no structured content is left with and what a person reads in a
+// transcript - so the two are built from the same values and cut by the same caps,
+// and neither can say something the other doesn't.
+type RunReport struct {
+	Script      string          `json:"script"`
+	Calls       []ReportedCall  `json:"calls,omitempty"`
+	Console     []string        `json:"console,omitempty"`
+	Blocks      []BlockLog      `json:"blocks,omitempty"`
+	Diagnostics []Diagnostic    `json:"diagnostics,omitempty"`
+	Stopped     string          `json:"stopped,omitempty"`
+	Returned    json.RawMessage `json:"returned,omitempty"`
+}
+
+// ReportedCall is one call the script made. The failure carries the advice the text
+// report prints under it, since that is the half of a classification a caller acts on.
+type ReportedCall struct {
+	Label      string           `json:"label"`
+	DurationMs float64          `json:"durationMs,omitempty"`
+	Request    json.RawMessage  `json:"request,omitempty"`
+	Response   json.RawMessage  `json:"response,omitempty"`
+	Failure    *ReportedFailure `json:"failure,omitempty"`
+}
+
+type ReportedFailure struct {
+	CallFailure
+	Advice string `json:"advice,omitempty"`
+}
+
+// reportRun shapes a run into the structured report. Everything it drops, it drops
+// where renderRun drops it too.
+func reportRun(label string, result RunResult) RunReport {
+	report := RunReport{Script: label, Stopped: result.Error, Blocks: result.Blocks}
+
+	if len(result.Result) > 0 && string(result.Result) != "null" {
+		report.Returned = payload(result.Result)
+	}
+	report.Console = result.Console
+	if len(report.Console) > maxConsoleLines {
+		report.Console = report.Console[:maxConsoleLines]
+	}
+	report.Diagnostics = result.Diagnostics
+	if len(report.Diagnostics) > maxDiagnostics {
+		report.Diagnostics = report.Diagnostics[:maxDiagnostics]
+	}
+	for _, call := range result.MethodCalls {
+		reported := ReportedCall{
+			Label:      callLabel(call),
+			DurationMs: call.DurationMs,
+			Request:    payload(call.Input),
+			Response:   payload(call.Output),
+		}
+		if call.Failure != nil {
+			reported.Failure = &ReportedFailure{CallFailure: *call.Failure, Advice: failureAdvice[call.Failure.Kind]}
+		}
+		report.Calls = append(report.Calls, reported)
+	}
+	return report
+}
+
+// payload is a request or response as the structured report carries it. A payload
+// past the cap is replaced rather than cut: JSON sliced in half is not JSON, and a
+// caller that cannot parse the report has lost the calls that were under it too.
+func payload(raw json.RawMessage) json.RawMessage {
+	if len(raw) <= maxPayload {
+		return raw
+	}
+	note := fmt.Sprintf("… %d bytes, too large to report. console.log the part you need.", len(raw))
+	quoted, err := json.Marshal(note)
+	if err != nil {
+		return nil
+	}
+	return quoted
 }
