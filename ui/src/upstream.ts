@@ -16,6 +16,12 @@ export const UPSTREAM_TRAILER = "kaja-upstream";
 export interface Upstream {
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;
+  // The exchange those headers belong to: the request line the app made and the status
+  // it was answered with. A failure carries them on `error` as well; these are what a
+  // call that succeeded has, and nothing else on it records them.
+  request?: string;
+  status?: number;
+  statusText?: string;
   durationMs?: number;
   // The HTTP failure itself, shown in place of the gRPC error the call was tunnelled
   // through.
@@ -63,6 +69,9 @@ export function parseUpstream(value: unknown): Upstream | undefined {
   return {
     requestHeaders: headersOf(object.requestHeaders),
     responseHeaders: headersOf(object.responseHeaders),
+    request: typeof object.request === "string" && object.request !== "" ? object.request : undefined,
+    status: statusOf(object.status),
+    statusText: typeof object.statusText === "string" && object.statusText !== "" ? object.statusText : undefined,
     durationMs: durationOf(object.durationMs),
     error: object.error && typeof object.error === "object" && !Array.isArray(object.error) ? (object.error as UpstreamFailure) : undefined,
   };
@@ -75,6 +84,13 @@ function headersOf(value: unknown): MethodCallHeaders | undefined {
     headers[name] = String(headerValue);
   }
   return headers;
+}
+
+// An HTTP status is a positive number; anything else reads as an exchange that never
+// reported one, which is what an app with no upstream hop already looks like.
+function statusOf(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return undefined;
+  return value;
 }
 
 // A duration is a non-negative number of milliseconds and nothing else — a mangled one
@@ -121,4 +137,17 @@ export function upstreamRequestLine(error: unknown): string | undefined {
   if (!error || typeof error !== "object") return undefined;
   const request = (error as { request?: unknown }).request;
   return typeof request === "string" && request !== "" ? request : undefined;
+}
+
+// upstreamStatus is the HTTP status a failure was answered with, under whichever of
+// the two names carries it: a refused call reports it as `status`, and a response kaja
+// could not read reports the same answer under `responseStatus` so the call is not
+// labelled by a success code. The Headers view states the exchange, so both are it.
+export function upstreamStatus(error: unknown): { code: number; text?: string } | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const failure = error as { status?: unknown; statusText?: unknown; responseStatus?: unknown; responseStatusText?: unknown };
+  const code = typeof failure.status === "number" ? failure.status : failure.responseStatus;
+  if (typeof code !== "number" || code <= 0) return undefined;
+  const text = typeof failure.status === "number" ? failure.statusText : failure.responseStatusText;
+  return { code, text: typeof text === "string" && text !== "" ? text : undefined };
 }

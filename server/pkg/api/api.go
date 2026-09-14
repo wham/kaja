@@ -273,6 +273,21 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	}, nil
 }
 
+// RenameApp follows an app's rename into the open apps, so the instance keeps
+// answering under the name every call now carries. The window remaps the surface it
+// has already compiled rather than compiling it again, and this is the other half of
+// that: without it the app is open under a name nothing asks for any more and every
+// call is refused until something recompiles it.
+func (s *ApiService) RenameApp(ctx context.Context, req *RenameAppRequest) (*RenameAppResponse, error) {
+	if req.OldName == "" || req.NewName == "" {
+		return nil, fmt.Errorf("old_name and new_name are required")
+	}
+
+	s.apps.Rename(req.OldName, req.NewName)
+
+	return &RenameAppResponse{}, nil
+}
+
 // AppConnection is how a grpc app reaches its upstream: the credential it sends
 // with every call, and the transport security it uses. Both are read from
 // kaja.json when the call is made rather than held from Open, so replacing a
@@ -565,7 +580,7 @@ func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 		GitRef:                 s.gitRef,
 		BuildNumber:            s.buildNumber,
 		VariableStoreAvailable: s.variableStoreAvailable(),
-		ScriptsFolder:          s.scriptsDir(),
+		ScriptsDir:             s.scriptsDir(),
 	}
 
 	// The variables travel as kaja.json writes them - a literal value, or the
@@ -633,6 +648,41 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 		Configuration:  req.Configuration,
 		VariableStatus: NewResolver(req.Configuration.Variables, s.variableStore).Statuses(),
 	}, nil
+}
+
+// McpEnabled reports whether this workspace asks for an agent session. It is read from
+// the file rather than held in memory because the file is where the switch lives: the
+// desktop reads it at startup, before there is a window to ask.
+func (s *ApiService) McpEnabled() bool {
+	return loadConfigurationFile(s.configurationPath, NewLogger()).GetMcp().GetEnabled()
+}
+
+// SetMcpEnabled writes the switch into kaja.json and leaves the rest of the file as it
+// stands. The file is read again here rather than taken from the request: flipping the
+// switch is not an occasion to resend the apps and variables beside it. Off is written
+// as the key's absence, so a workspace that never turned it on carries nothing about it
+// - the rule the shortcut overrides are written under.
+func (s *ApiService) SetMcpEnabled(ctx context.Context, req *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
+	if !s.canUpdateConfiguration {
+		return nil, fmt.Errorf("updating configuration is not allowed")
+	}
+
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	if configuration.GetMcp().GetEnabled() != req.Enabled {
+		if req.Enabled {
+			configuration.Mcp = &McpSettings{Enabled: true}
+		} else {
+			configuration.Mcp = nil
+		}
+
+		slog.Info("Updating MCP server setting", "enabled", req.Enabled)
+
+		if err := SaveConfiguration(s.configurationPath, configuration); err != nil {
+			return nil, fmt.Errorf("failed to save configuration: %w", err)
+		}
+	}
+
+	return &SetMcpEnabledResponse{Mcp: &McpSettings{Enabled: req.Enabled}}, nil
 }
 
 // SetStoredValue writes a variable's value to this machine's store, so kaja.json

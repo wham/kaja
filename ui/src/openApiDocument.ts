@@ -151,10 +151,13 @@ export function defaultSecurityScheme(document: OpenApiDocument): string {
   return document.securitySchemes.find((scheme) => scheme.type !== "mutualTLS")?.key ?? NO_CREDENTIALS;
 }
 
+// schemeLabel says how the credential travels. An apiKey scheme is not labelled
+// "API key": that is also what an API calls the credential its dashboard hands you,
+// so the row is read as the one taking it whatever it is really carrying.
 export function schemeLabel(scheme: OpenApiSecurityScheme): string {
   switch (scheme.type) {
     case "apiKey":
-      return "API key";
+      return apiKeyLabel(scheme);
     case "oauth2":
       return "OAuth 2.0";
     case "openIdConnect":
@@ -172,13 +175,15 @@ export function schemeLabel(scheme: OpenApiSecurityScheme): string {
   }
 }
 
+function apiKeyLabel(scheme: OpenApiSecurityScheme): string {
+  if (scheme.in === "query") return scheme.parameterName ? `Query ?${scheme.parameterName}=` : "Query parameter";
+  if (scheme.in === "cookie") return scheme.parameterName ? `Cookie ${scheme.parameterName}` : "Cookie";
+  return scheme.parameterName ? `Header ${scheme.parameterName}` : "Header";
+}
+
 // schemeIdentity is how the scheme is written in the document, so the user can
-// recognise it from their API dashboard.
+// recognise it from their API dashboard. Where it travels is the label's.
 export function schemeIdentity(scheme: OpenApiSecurityScheme): string {
-  if (scheme.type === "apiKey") {
-    const placement = scheme.in === "query" ? `query ?${scheme.parameterName}=` : `${scheme.in || "header"} ${scheme.parameterName}`;
-    return `${scheme.key} · ${placement}`;
-  }
   if (scheme.type === "http" && scheme.bearerFormat) {
     return `${scheme.key} · ${scheme.bearerFormat}`;
   }

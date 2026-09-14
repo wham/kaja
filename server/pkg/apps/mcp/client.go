@@ -55,6 +55,12 @@ func NewClient(endpoint string, headers map[string]string, httpClient *http.Clie
 type Exchange struct {
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	// Request and Status are the HTTP call under the JSON-RPC one, which the Headers
+	// view states around those headers. A call that never reached the server has the
+	// request line and no status.
+	Request    string
+	Status     int
+	StatusText string
 }
 
 // Call sends one JSON-RPC request and returns the result object. The `_meta`
@@ -283,11 +289,17 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 	requestHeaders := apps.SurfaceHeaders(request.Header)
 	response, err := c.http.Do(request)
 	if err != nil {
-		return nil, &Exchange{RequestHeaders: requestHeaders}, fmt.Errorf("calling %s: %w", c.endpoint, err)
+		return nil, &Exchange{RequestHeaders: requestHeaders, Request: http.MethodPost + " " + c.endpoint}, fmt.Errorf("calling %s: %w", c.endpoint, err)
 	}
 	defer response.Body.Close()
 
-	exchange := &Exchange{RequestHeaders: requestHeaders, ResponseHeaders: apps.SurfaceHeaders(response.Header)}
+	exchange := &Exchange{
+		RequestHeaders:  requestHeaders,
+		ResponseHeaders: apps.SurfaceHeaders(response.Header),
+		Request:         http.MethodPost + " " + c.endpoint,
+		Status:          response.StatusCode,
+		StatusText:      http.StatusText(response.StatusCode),
+	}
 	payload, err := io.ReadAll(io.LimitReader(response.Body, 32<<20))
 	if err != nil {
 		return nil, exchange, fmt.Errorf("reading %s response: %w", method, err)

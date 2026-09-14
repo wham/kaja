@@ -7,6 +7,10 @@ import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
 import { codeFontSize } from "./monacoTheme";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
+import { noSuchScript } from "./scriptLink";
+import { runInputDeclaration } from "./scriptInputs";
+import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
+import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { ScalarValue } from "./typeMemory";
 import { suggestValues } from "./valueCompletions";
 
@@ -145,6 +149,24 @@ export function registerKajaModule(variableNames: string[]): void {
 
 registerKajaModule([]);
 
+// What each script in the folder takes, as a declaration file so the global it declares
+// is in scope in `ts:/kaja.ts` and in every script. A model rather than an extra lib for
+// the reason the kaja module is one: this is how the editor's own program is written.
+const RUN_INPUTS_URI = "ts:/kaja-scripts.d.ts";
+
+function registerRunInputs(declaration: string): void {
+  const uri = monaco.Uri.parse(RUN_INPUTS_URI);
+  const existing = monaco.editor.getModel(uri);
+  if (!existing) {
+    monaco.editor.createModel(declaration, "typescript", uri);
+  } else if (existing.getValue() !== declaration) {
+    existing.setValue(declaration);
+  }
+}
+
+registerRunInputs(runInputDeclaration([]));
+subscribeScriptParameters(() => registerRunInputs(runInputDeclaration(knownScriptInputs())));
+
 const KAJA_IMPORT_COMMAND = "kaja.addImport";
 const KAJA_IMPORT_LINE = 'import { kaja } from "kaja";\n';
 
@@ -216,6 +238,99 @@ let valueCompletionApps: App[] = [];
 export function setValueCompletionApps(apps: App[]): void {
   valueCompletionApps = apps;
 }
+
+/**
+ * The scripts a `kaja.run` can reach, as a link spells them. Kept in sync from App.tsx
+ * as the folder is listed and written.
+ *
+ * Undefined until it has been listed, which is the one state worth telling apart: a
+ * window that has not read the folder yet would otherwise say every destination in it
+ * reaches nothing.
+ */
+let runDestinations: string[] | undefined;
+
+export function setRunDestinations(names: string[] | undefined): void {
+  runDestinations = names;
+  for (const model of monaco.editor.getModels()) markRuns(model);
+}
+
+const RUN_MARKER_OWNER = "kaja.run";
+
+const RUN_MARK_MS = 300;
+
+// A model that cannot be holding one is not parsed. Every model is walked again
+// whenever the listing moves, and a generated app module is large.
+const MIGHT_RUN = /\.run\s*\(/;
+
+/**
+ * The squiggle under a destination that reaches nothing — the failure a click on the
+ * cell would have raised, said where the name is written instead of where it is
+ * pressed. It stops nothing: a script is transpiled rather than compiled, so the rest
+ * of it runs exactly as it did, which is the same thing Run already does with a type
+ * error.
+ */
+export function markRuns(model: monaco.editor.ITextModel): void {
+  if (model.isDisposed() || model.getLanguageId() !== "typescript") return;
+  const code = model.getValue();
+  const references = MIGHT_RUN.test(code) ? readRunReferences(code) : [];
+  // The destinations on screen are the ones worth knowing the parameters of, and this
+  // is the one pass that has read them. What comes back rewrites the declaration the
+  // editor checks a `kaja.run`'s input against.
+  if (references.length > 0) void demandScriptParameters(references.map((reference) => reference.name));
+  const unresolved = runDestinations ? unresolvedIn(references, runDestinations) : [];
+  monaco.editor.setModelMarkers(
+    model,
+    RUN_MARKER_OWNER,
+    unresolved.map((reference) => {
+      const start = model.getPositionAt(reference.start);
+      const end = model.getPositionAt(reference.end);
+      return {
+        severity: monaco.MarkerSeverity.Error,
+        message: noSuchScript(reference.name),
+        startLineNumber: start.lineNumber,
+        startColumn: start.column,
+        endLineNumber: end.lineNumber,
+        endColumn: end.column,
+      };
+    }),
+  );
+}
+
+// A destination is a name rather than a handle, so the names are the whole of what the
+// editor can offer. The list offered and the list the marker checks against are one
+// list, so what completion writes is what resolves.
+monaco.languages.registerCompletionItemProvider("typescript", {
+  triggerCharacters: ['"', "'", "/"],
+  provideCompletionItems(model, position) {
+    const destinations = runDestinations;
+    if (!destinations || destinations.length === 0) {
+      return { suggestions: [] };
+    }
+    const code = model.getValue();
+    if (!MIGHT_RUN.test(code)) {
+      return { suggestions: [] };
+    }
+    const reference = runNameAt(code, model.getOffsetAt(position));
+    if (!reference) {
+      return { suggestions: [] };
+    }
+
+    const start = model.getPositionAt(reference.start);
+    const end = model.getPositionAt(reference.end);
+    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
+    return {
+      suggestions: destinations.map((name, index) => ({
+        label: name,
+        kind: monaco.languages.CompletionItemKind.File,
+        insertText: name,
+        filterText: name,
+        // The listing's own order, which is the order the sidebar is read in.
+        sortText: String(index).padStart(4, "0"),
+        range,
+      })),
+    };
+  },
+});
 
 function truncate(text: string): string {
   return text.length > 60 ? text.slice(0, 59) + "…" : text;
@@ -385,6 +500,22 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
+  // A destination is checked as it is written. The pause is what keeps a name being
+  // typed from going red between two keystrokes; a change to the listing marks every
+  // model at once (setRunDestinations), so this is only about this buffer's own text.
+  useEffect(() => {
+    markRuns(model);
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const subscription = model.onDidChangeContent(() => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => markRuns(model), RUN_MARK_MS);
+    });
+    return () => {
+      if (pending) clearTimeout(pending);
+      subscription.dispose();
+    };
+  }, [model]);
+
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -495,6 +626,15 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
       editorRef.current = null;
     };
   }, [model]);
+
+  // The option is read once, when the editor is created, and a view mounts before
+  // the process has said whether it may write the workspace: a window restores its
+  // views synchronously and the answer arrives with the configuration. Without this
+  // the file that was open when the window last closed stays read-only for the
+  // session, and reopening it revisits the same editor.
+  useEffect(() => {
+    editorRef.current?.updateOptions({ readOnly });
+  }, [readOnly]);
 
   return <div ref={containerRef} className="h-full w-full bg-background" />;
 }

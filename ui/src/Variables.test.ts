@@ -13,4 +13,14 @@ describe("shouldAdoptIncomingVariables", () => {
   it("adopts the acknowledged save when nothing was edited after it started", () => {
     expect(shouldAdoptIncomingVariables({ A: "saved" }, { A: "old" }, { A: "saved" }, { A: "saved" }, false)).toBe(false);
   });
+
+  // The watcher sends the file back after every save, so the table is told its own
+  // content a moment after writing it. Adopting that re-sorts the rows.
+  it("keeps the table's order when the push carries what it already holds", () => {
+    expect(shouldAdoptIncomingVariables({ A: "1", B: "2" }, { A: "1", B: "2" }, { A: "1", B: "2" }, undefined, false)).toBe(false);
+  });
+
+  it("keeps a row being added when the push carries what the table already holds", () => {
+    expect(shouldAdoptIncomingVariables({ A: "1" }, { A: "1" }, { A: "1" }, undefined, false)).toBe(false);
+  });
 });

@@ -2,7 +2,7 @@
 # Walk the installed Kaja through its own story and photograph each screen, at
 # the size the Mac App Store takes.
 #
-#   scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N]
+#   scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N] [--zoom PERCENT]
 #
 # It drives the *shipped* app — /Applications/Kaja.app, the one the App Store
 # installed — because that is the build the screenshots are for. That app reads
@@ -57,6 +57,18 @@ SLOW=1
 WINDOW_WIDTH=1440
 WINDOW_HEIGHT=900
 
+# The window is zoomed before the first shot, because every picture taken here
+# is read smaller than it was taken: a store listing shows it at a fraction of
+# the size and the website crops a corner of it into a column. At 100% the
+# 13px type of the tree is a smear at either; at 125% the same window holds a
+# quarter fewer CSS pixels and every glyph is a quarter more of them, which is
+# the difference between a picture of text and text. It is the window's own zoom
+# (zoom.ts), so the layout reflows as it would for anyone who pressed ⌘+, and
+# the ladder here is that file's, because the zoom is reached by pressing ⌘+
+# from 100% one step at a time and the count of presses is read off it.
+ZOOM=125
+ZOOM_STEPS=(50 67 75 80 90 100 110 125 150 175 200 250 300)
+
 # What a run costs is the API's business, not this script's, and nothing the app
 # does is observable from out here except its window title — so the beats that
 # wait for a call wait by the clock. --slow multiplies all of them.
@@ -75,6 +87,7 @@ usage: scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N]
   --app PATH  the bundle to drive (default: $APP_PATH)
   --keep      leave the demo workspace in place instead of restoring yours
   --slow N    multiply every wait by N, for a slow machine or a slow network
+  --zoom N    the window's zoom, a step of the ladder in ui/src/zoom.ts (default: $ZOOM)
 USAGE
     exit 1
 }
@@ -85,6 +98,7 @@ while [ $# -gt 0 ]; do
         --app) APP_PATH="${2:-}"; shift 2 ;;
         --keep) KEEP_WORKSPACE=true; shift ;;
         --slow) SLOW="${2:-}"; shift 2 ;;
+        --zoom) ZOOM="${2:-}"; shift 2 ;;
         -h|--help) usage ;;
         *) echo "error: unknown argument '$1'" >&2; usage ;;
     esac
@@ -94,6 +108,17 @@ say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 warn() { printf '  \033[33mwarning:\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+zoom_presses() {
+    local step count=0 found=false
+    for step in "${ZOOM_STEPS[@]}"; do
+        if [ "$found" = true ]; then count=$((count + 1)); fi
+        if [ "$step" = "$ZOOM" ] && [ "$ZOOM" -ge 100 ]; then echo "$count"; return; fi
+        if [ "$step" = 100 ]; then found=true; fi
+    done
+    return 1
+}
+ZOOM_PRESSES="$(zoom_presses)" || die "--zoom takes 100 or a step above it on the ladder: ${ZOOM_STEPS[*]}"
 
 # Every sleep in the script, so --slow reaches all of them.
 pause() { sleep "$(echo "$1 $SLOW" | awk '{ print $1 * $2 }')"; }
@@ -393,6 +418,15 @@ pause "$WAIT_UI"
 placed="$(window_rect)"
 [ "${placed#*,*,}" = "$WINDOW_WIDTH,$WINDOW_HEIGHT" ] ||
     warn "the window is ${placed#*,*,} rather than ${WINDOW_WIDTH}×${WINDOW_HEIGHT}; the display may be too small."
+
+# ⌘= rather than ⌘+, which on a US layout is ⌘⇧= and read as a different chord.
+# The zoom is persisted with the theme, so it survives the reload below.
+if [ "$ZOOM_PRESSES" -gt 0 ]; then
+    say "Zooming to $ZOOM%"
+    for ((i = 0; i < ZOOM_PRESSES; i++)); do
+        press 'keystroke "=" using command down'
+    done
+fi
 
 # -- 01  A workspace with nothing in it ----------------------------------------
 

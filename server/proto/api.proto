@@ -8,6 +8,7 @@ service Api {
   // the generated sources and the stub.
   rpc Compile(CompileRequest) returns (stream CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
+  rpc RenameApp(RenameAppRequest) returns (RenameAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
@@ -17,6 +18,10 @@ service Api {
   // never asked for afterwards, because the message is the new configuration.
   rpc WatchConfiguration(WatchConfigurationRequest) returns (stream GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
+  // SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+  // an occasion to resend the apps and variables beside it, so the file is read again
+  // where it is written rather than travelling here and back.
+  rpc SetMcpEnabled(SetMcpEnabledRequest) returns (SetMcpEnabledResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
   rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
@@ -25,10 +30,12 @@ service Api {
   rpc CreateScript(CreateScriptRequest) returns (CreateScriptResponse);
   rpc RenameScript(RenameScriptRequest) returns (RenameScriptResponse);
   rpc DeleteScript(DeleteScriptRequest) returns (DeleteScriptResponse);
+  rpc CopyScript(CopyScriptRequest) returns (CopyScriptResponse);
   rpc ListScriptFolders(ListScriptFoldersRequest) returns (ListScriptFoldersResponse);
   rpc CreateScriptFolder(CreateScriptFolderRequest) returns (CreateScriptFolderResponse);
   rpc RenameScriptFolder(RenameScriptFolderRequest) returns (RenameScriptFolderResponse);
   rpc DeleteScriptFolder(DeleteScriptFolderRequest) returns (DeleteScriptFolderResponse);
+  rpc CopyScriptFolder(CopyScriptFolderRequest) returns (CopyScriptFolderResponse);
   rpc ScanScriptVariables(ScanScriptVariablesRequest) returns (ScanScriptVariablesResponse);
 }
 
@@ -59,6 +66,19 @@ message OpenAppResponse {
   // protos), which Compile resolves against the workspace.
   string proto_dir = 3;
 }
+
+// RenameApp follows an app's rename into the open apps. An app is addressed by its
+// own name, so a rename leaves the instance opened under the old one unreachable and
+// every call answered with "not open". Its parameters are untouched - that is what
+// makes it a rename rather than a different app - so the open app is moved to the new
+// name rather than reopened, which is the same thing the window does with the surface
+// it has already compiled.
+message RenameAppRequest {
+  string old_name = 1;
+  string new_name = 2;
+}
+
+message RenameAppResponse {}
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -
 // reflecting the server, or reading the proto directory - without creating the
@@ -393,7 +413,7 @@ message Runtime {
   bool variable_store_available = 4;
   // The scripts folder on the machine serving the workspace, for the one thing
   // the UI needs the folder itself for: revealing it in the system file browser.
-  string scripts_folder = 5;
+  string scripts_dir = 5;
 }
 
 // VariableStatus reports where a variable's value came from. A variable whose
@@ -513,6 +533,17 @@ message DeleteScriptRequest {
 
 message DeleteScriptResponse {}
 
+// CopyScript writes a second file under a new name, which may carry a folder. The
+// name has to be free: a copy never lands on a file that is already there.
+message CopyScriptRequest {
+  string name = 1;
+  string new_name = 2;
+}
+
+message CopyScriptResponse {
+  Script script = 1;
+}
+
 // ListScriptFolders returns every directory under the scripts root, relative and
 // slash-separated. An empty one is in the list: it is a directory, not a UI
 // grouping, so it has no file to be inferred from.
@@ -549,6 +580,17 @@ message DeleteScriptFolderRequest {
 }
 
 message DeleteScriptFolderResponse {}
+
+// CopyScriptFolder copies a folder and everything filed there to a new path, which has
+// to be free and may not be inside the folder being copied.
+message CopyScriptFolderRequest {
+  string name = 1;
+  string new_name = 2;
+}
+
+message CopyScriptFolderResponse {
+  string folder = 1;
+}
 
 // ScanScriptVariables reports which scripts reference the named variables. An
 // app's references are read out of the configuration the client already holds;
@@ -607,6 +649,17 @@ message Configuration {
   // left without one. It is configuration rather than a preference of the machine
   // so a workspace served to a browser can state its own.
   map<string, string> shortcuts = 7;
+  // Whether this workspace offers an agent session at all. On the desktop it is the
+  // switch itself: the process reads it at startup to decide whether to open the
+  // loopback listener, and writes it back when the switch is flipped. In a browser the
+  // switch belongs to the browser, because the token does - so this is only where a
+  // browser that has never chosen starts, which is what lets a deployed workspace ship
+  // an agent session that is already on.
+  McpSettings mcp = 8;
+  // Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
+  // file; a relative path is resolved against this file's own folder. A folder that
+  // isn't there is not created: the default is used instead.
+  string scripts_dir = 9;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.
@@ -616,6 +669,14 @@ message Configuration {
   // facts about the process, not configuration, and they live on `Runtime` now.
   reserved 4;
   reserved "system";
+}
+
+// McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
+// the endpoint and the token are addresses rather than configuration, so neither is
+// written here - the desktop persists its token beside this file and a browser keeps
+// its own.
+message McpSettings {
+  bool enabled = 1;
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -765,4 +826,15 @@ message UpdateConfigurationResponse {
   Configuration configuration = 1;
   // Where each variable's value came from, re-resolved against what was saved.
   repeated VariableStatus variable_status = 2;
+}
+
+message SetMcpEnabledRequest {
+  bool enabled = 1;
+}
+
+message SetMcpEnabledResponse {
+  // What the file says now, which is what every window is about to be told by
+  // WatchConfiguration anyway - answered here so the window that asked need not wait
+  // for its own change to come back round.
+  McpSettings mcp = 1;
 }

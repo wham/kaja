@@ -21,12 +21,14 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Api_Compile_FullMethodName             = "/Api/Compile"
 	Api_OpenApp_FullMethodName             = "/Api/OpenApp"
+	Api_RenameApp_FullMethodName           = "/Api/RenameApp"
 	Api_InspectOpenApi_FullMethodName      = "/Api/InspectOpenApi"
 	Api_InspectGrpc_FullMethodName         = "/Api/InspectGrpc"
 	Api_InspectMcp_FullMethodName          = "/Api/InspectMcp"
 	Api_GetConfiguration_FullMethodName    = "/Api/GetConfiguration"
 	Api_WatchConfiguration_FullMethodName  = "/Api/WatchConfiguration"
 	Api_UpdateConfiguration_FullMethodName = "/Api/UpdateConfiguration"
+	Api_SetMcpEnabled_FullMethodName       = "/Api/SetMcpEnabled"
 	Api_SetStoredValue_FullMethodName      = "/Api/SetStoredValue"
 	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
 	Api_ListScripts_FullMethodName         = "/Api/ListScripts"
@@ -35,10 +37,12 @@ const (
 	Api_CreateScript_FullMethodName        = "/Api/CreateScript"
 	Api_RenameScript_FullMethodName        = "/Api/RenameScript"
 	Api_DeleteScript_FullMethodName        = "/Api/DeleteScript"
+	Api_CopyScript_FullMethodName          = "/Api/CopyScript"
 	Api_ListScriptFolders_FullMethodName   = "/Api/ListScriptFolders"
 	Api_CreateScriptFolder_FullMethodName  = "/Api/CreateScriptFolder"
 	Api_RenameScriptFolder_FullMethodName  = "/Api/RenameScriptFolder"
 	Api_DeleteScriptFolder_FullMethodName  = "/Api/DeleteScriptFolder"
+	Api_CopyScriptFolder_FullMethodName    = "/Api/CopyScriptFolder"
 	Api_ScanScriptVariables_FullMethodName = "/Api/ScanScriptVariables"
 )
 
@@ -51,6 +55,7 @@ type ApiClient interface {
 	// the generated sources and the stub.
 	Compile(ctx context.Context, in *CompileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CompileResponse], error)
 	OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grpc.CallOption) (*OpenAppResponse, error)
+	RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error)
 	InspectOpenApi(ctx context.Context, in *InspectOpenApiRequest, opts ...grpc.CallOption) (*InspectOpenApiResponse, error)
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
 	InspectMcp(ctx context.Context, in *InspectMcpRequest, opts ...grpc.CallOption) (*InspectMcpResponse, error)
@@ -60,6 +65,10 @@ type ApiClient interface {
 	// never asked for afterwards, because the message is the new configuration.
 	WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error)
 	UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error)
+	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+	// an occasion to resend the apps and variables beside it, so the file is read again
+	// where it is written rather than travelling here and back.
+	SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error)
 	SetStoredValue(ctx context.Context, in *SetStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
@@ -68,10 +77,12 @@ type ApiClient interface {
 	CreateScript(ctx context.Context, in *CreateScriptRequest, opts ...grpc.CallOption) (*CreateScriptResponse, error)
 	RenameScript(ctx context.Context, in *RenameScriptRequest, opts ...grpc.CallOption) (*RenameScriptResponse, error)
 	DeleteScript(ctx context.Context, in *DeleteScriptRequest, opts ...grpc.CallOption) (*DeleteScriptResponse, error)
+	CopyScript(ctx context.Context, in *CopyScriptRequest, opts ...grpc.CallOption) (*CopyScriptResponse, error)
 	ListScriptFolders(ctx context.Context, in *ListScriptFoldersRequest, opts ...grpc.CallOption) (*ListScriptFoldersResponse, error)
 	CreateScriptFolder(ctx context.Context, in *CreateScriptFolderRequest, opts ...grpc.CallOption) (*CreateScriptFolderResponse, error)
 	RenameScriptFolder(ctx context.Context, in *RenameScriptFolderRequest, opts ...grpc.CallOption) (*RenameScriptFolderResponse, error)
 	DeleteScriptFolder(ctx context.Context, in *DeleteScriptFolderRequest, opts ...grpc.CallOption) (*DeleteScriptFolderResponse, error)
+	CopyScriptFolder(ctx context.Context, in *CopyScriptFolderRequest, opts ...grpc.CallOption) (*CopyScriptFolderResponse, error)
 	ScanScriptVariables(ctx context.Context, in *ScanScriptVariablesRequest, opts ...grpc.CallOption) (*ScanScriptVariablesResponse, error)
 }
 
@@ -106,6 +117,16 @@ func (c *apiClient) OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grp
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OpenAppResponse)
 	err := c.cc.Invoke(ctx, Api_OpenApp_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenameAppResponse)
+	err := c.cc.Invoke(ctx, Api_RenameApp_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +196,16 @@ func (c *apiClient) UpdateConfiguration(ctx context.Context, in *UpdateConfigura
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateConfigurationResponse)
 	err := c.cc.Invoke(ctx, Api_UpdateConfiguration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMcpEnabledResponse)
+	err := c.cc.Invoke(ctx, Api_SetMcpEnabled_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +292,16 @@ func (c *apiClient) DeleteScript(ctx context.Context, in *DeleteScriptRequest, o
 	return out, nil
 }
 
+func (c *apiClient) CopyScript(ctx context.Context, in *CopyScriptRequest, opts ...grpc.CallOption) (*CopyScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CopyScriptResponse)
+	err := c.cc.Invoke(ctx, Api_CopyScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) ListScriptFolders(ctx context.Context, in *ListScriptFoldersRequest, opts ...grpc.CallOption) (*ListScriptFoldersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListScriptFoldersResponse)
@@ -301,6 +342,16 @@ func (c *apiClient) DeleteScriptFolder(ctx context.Context, in *DeleteScriptFold
 	return out, nil
 }
 
+func (c *apiClient) CopyScriptFolder(ctx context.Context, in *CopyScriptFolderRequest, opts ...grpc.CallOption) (*CopyScriptFolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CopyScriptFolderResponse)
+	err := c.cc.Invoke(ctx, Api_CopyScriptFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) ScanScriptVariables(ctx context.Context, in *ScanScriptVariablesRequest, opts ...grpc.CallOption) (*ScanScriptVariablesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ScanScriptVariablesResponse)
@@ -320,6 +371,7 @@ type ApiServer interface {
 	// the generated sources and the stub.
 	Compile(*CompileRequest, grpc.ServerStreamingServer[CompileResponse]) error
 	OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error)
+	RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error)
 	InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error)
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
 	InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error)
@@ -329,6 +381,10 @@ type ApiServer interface {
 	// never asked for afterwards, because the message is the new configuration.
 	WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error
 	UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error)
+	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
+	// an occasion to resend the apps and variables beside it, so the file is read again
+	// where it is written rather than travelling here and back.
+	SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error)
 	SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error)
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
@@ -337,10 +393,12 @@ type ApiServer interface {
 	CreateScript(context.Context, *CreateScriptRequest) (*CreateScriptResponse, error)
 	RenameScript(context.Context, *RenameScriptRequest) (*RenameScriptResponse, error)
 	DeleteScript(context.Context, *DeleteScriptRequest) (*DeleteScriptResponse, error)
+	CopyScript(context.Context, *CopyScriptRequest) (*CopyScriptResponse, error)
 	ListScriptFolders(context.Context, *ListScriptFoldersRequest) (*ListScriptFoldersResponse, error)
 	CreateScriptFolder(context.Context, *CreateScriptFolderRequest) (*CreateScriptFolderResponse, error)
 	RenameScriptFolder(context.Context, *RenameScriptFolderRequest) (*RenameScriptFolderResponse, error)
 	DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error)
+	CopyScriptFolder(context.Context, *CopyScriptFolderRequest) (*CopyScriptFolderResponse, error)
 	ScanScriptVariables(context.Context, *ScanScriptVariablesRequest) (*ScanScriptVariablesResponse, error)
 }
 
@@ -356,6 +414,9 @@ func (UnimplementedApiServer) Compile(*CompileRequest, grpc.ServerStreamingServe
 }
 func (UnimplementedApiServer) OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenApp not implemented")
+}
+func (UnimplementedApiServer) RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameApp not implemented")
 }
 func (UnimplementedApiServer) InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InspectOpenApi not implemented")
@@ -374,6 +435,9 @@ func (UnimplementedApiServer) WatchConfiguration(*WatchConfigurationRequest, grp
 }
 func (UnimplementedApiServer) UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateConfiguration not implemented")
+}
+func (UnimplementedApiServer) SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMcpEnabled not implemented")
 }
 func (UnimplementedApiServer) SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetStoredValue not implemented")
@@ -399,6 +463,9 @@ func (UnimplementedApiServer) RenameScript(context.Context, *RenameScriptRequest
 func (UnimplementedApiServer) DeleteScript(context.Context, *DeleteScriptRequest) (*DeleteScriptResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteScript not implemented")
 }
+func (UnimplementedApiServer) CopyScript(context.Context, *CopyScriptRequest) (*CopyScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CopyScript not implemented")
+}
 func (UnimplementedApiServer) ListScriptFolders(context.Context, *ListScriptFoldersRequest) (*ListScriptFoldersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListScriptFolders not implemented")
 }
@@ -410,6 +477,9 @@ func (UnimplementedApiServer) RenameScriptFolder(context.Context, *RenameScriptF
 }
 func (UnimplementedApiServer) DeleteScriptFolder(context.Context, *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteScriptFolder not implemented")
+}
+func (UnimplementedApiServer) CopyScriptFolder(context.Context, *CopyScriptFolderRequest) (*CopyScriptFolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CopyScriptFolder not implemented")
 }
 func (UnimplementedApiServer) ScanScriptVariables(context.Context, *ScanScriptVariablesRequest) (*ScanScriptVariablesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ScanScriptVariables not implemented")
@@ -459,6 +529,24 @@ func _Api_OpenApp_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).OpenApp(ctx, req.(*OpenAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_RenameApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).RenameApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_RenameApp_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).RenameApp(ctx, req.(*RenameAppRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -560,6 +648,24 @@ func _Api_UpdateConfiguration_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).UpdateConfiguration(ctx, req.(*UpdateConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_SetMcpEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMcpEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).SetMcpEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_SetMcpEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).SetMcpEnabled(ctx, req.(*SetMcpEnabledRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -708,6 +814,24 @@ func _Api_DeleteScript_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_CopyScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CopyScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).CopyScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_CopyScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).CopyScript(ctx, req.(*CopyScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Api_ListScriptFolders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListScriptFoldersRequest)
 	if err := dec(in); err != nil {
@@ -780,6 +904,24 @@ func _Api_DeleteScriptFolder_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_CopyScriptFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CopyScriptFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).CopyScriptFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_CopyScriptFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).CopyScriptFolder(ctx, req.(*CopyScriptFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Api_ScanScriptVariables_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ScanScriptVariablesRequest)
 	if err := dec(in); err != nil {
@@ -810,6 +952,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Api_OpenApp_Handler,
 		},
 		{
+			MethodName: "RenameApp",
+			Handler:    _Api_RenameApp_Handler,
+		},
+		{
 			MethodName: "InspectOpenApi",
 			Handler:    _Api_InspectOpenApi_Handler,
 		},
@@ -828,6 +974,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateConfiguration",
 			Handler:    _Api_UpdateConfiguration_Handler,
+		},
+		{
+			MethodName: "SetMcpEnabled",
+			Handler:    _Api_SetMcpEnabled_Handler,
 		},
 		{
 			MethodName: "SetStoredValue",
@@ -862,6 +1012,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Api_DeleteScript_Handler,
 		},
 		{
+			MethodName: "CopyScript",
+			Handler:    _Api_CopyScript_Handler,
+		},
+		{
 			MethodName: "ListScriptFolders",
 			Handler:    _Api_ListScriptFolders_Handler,
 		},
@@ -876,6 +1030,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteScriptFolder",
 			Handler:    _Api_DeleteScriptFolder_Handler,
+		},
+		{
+			MethodName: "CopyScriptFolder",
+			Handler:    _Api_CopyScriptFolder_Handler,
 		},
 		{
 			MethodName: "ScanScriptVariables",

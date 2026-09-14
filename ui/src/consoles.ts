@@ -64,6 +64,8 @@ class Group implements RunGroup {
   // There are a handful in a run at most, so the one it is parked on is found rather
   // than tracked.
   readonly #asked: ConsoleItem[] = [];
+  // One per app the script asked for a budget on, so the same rule applies.
+  readonly #limits: ConsoleItem[] = [];
   /**
    * A counter over everything that happens in the run, which is the whole of how "was
    * this failure reported" is answered: a failed call remembers where it settled, the
@@ -115,6 +117,15 @@ class Group implements RunGroup {
     return this.#asked.find((item) => item.block !== undefined && isAwaitingUser(item.block));
   }
 
+  /**
+   * Calls this run is holding back to stay inside a budget. A held call is admitted
+   * before its row is written — that is what keeps it out of the log and out of the
+   * percentiles — so without this the run has work nothing on screen can account for.
+   */
+  get heldCalls(): number {
+    return this.#limits.reduce((waiting, item) => waiting + (item.block?.kind === "limit" ? (item.block.waiting ?? 0) : 0), 0);
+  }
+
   append(item: ConsoleItem): boolean {
     if (this.items.length >= MAX_ITEMS_PER_RUN) {
       this.dropped++;
@@ -130,6 +141,7 @@ class Group implements RunGroup {
       this.drew = true;
     }
     if (item.block !== undefined && isAwaitingUser(item.block)) this.#asked.push(item);
+    if (item.block?.kind === "limit") this.#limits.push(item);
     this.stats.add(item);
     this.strip.add(item);
     this.metrics.add(item);

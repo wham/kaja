@@ -107,5 +107,11 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		return nil, apps.NewUpstreamError(http.MethodPost, endpoint, resp.StatusCode, body).WithHeaders(requestHeaders, responseHeaders)
 	}
 
-	return apps.OneMessage(body, &apps.Report{RequestHeaders: requestHeaders, ResponseHeaders: responseHeaders}), nil
+	return apps.OneMessage(body, &apps.Report{
+		RequestHeaders:  requestHeaders,
+		ResponseHeaders: responseHeaders,
+		Request:         http.MethodPost + " " + endpoint,
+		Status:          resp.StatusCode,
+		StatusText:      http.StatusText(resp.StatusCode),
+	}), nil
 }

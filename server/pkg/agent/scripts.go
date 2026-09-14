@@ -144,7 +144,10 @@ func relativeScriptName(folder string, name string) string {
 	return folder + "/" + name
 }
 
+// The window is told the absolute path, because that is what it keys an open editor,
+// a console and a sidebar row on. The relative name is the agent's, and Script() is
+// where the change is read back as one.
 func change(action string, oldPath string, script *api.Script) ScriptChange {
 	info := scriptInfo(script)
-	return ScriptChange{Action: action, OldPath: oldPath, Path: info.Path, Name: info.Name, Folder: info.Folder, Content: info.Content}
+	return ScriptChange{Action: action, OldPath: oldPath, Path: info.RunPath, Name: info.Name, Folder: info.Folder, Content: info.Content}
 }

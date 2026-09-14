@@ -134,4 +134,21 @@ describe("blocks in the store", () => {
     const loaded = deserializeFile(serializeFile([run], items, NOW));
     expect(loaded.items[0].block).toEqual({ kind: "approve", method: "Shows.CreateShow", request: "{}", decision: "rejected" });
   });
+
+  // A live source is a closure and reads back expired; a destination is a name, so it
+  // comes back whole and the cell still runs what it says.
+  it("keeps a cell's destination where a live source is let go", () => {
+    const items: ConsoleItem[] = [
+      {
+        id: "b1",
+        runId: "r1",
+        timestamp: NOW,
+        block: { kind: "table", columns: ["id", ""], rows: [["ac_1", "audit"]], live: true, runs: { 0: { 1: { script: "audit", input: { id: "ac_1" } } } } },
+      },
+    ];
+    const loaded = deserializeFile(serializeFile([run], items, NOW));
+    const block = loaded.items[0].block;
+    expect(block?.kind === "table" && block.expired).toBe(true);
+    expect(block?.kind === "table" && block.runs).toEqual({ 0: { 1: { script: "audit", input: { id: "ac_1" } } } });
+  });
 });

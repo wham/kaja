@@ -1,6 +1,6 @@
 import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ApproveGesture } from "./blocks";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ApproveGesture, CellRun } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { Canvas } from "./Canvas";
@@ -11,6 +11,7 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { RunLog } from "./RunLog";
+import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
 import {
@@ -40,6 +41,23 @@ const MAX_VISIBLE_RUN_ROWS = 8;
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
+/**
+ * Why a run nobody pressed Run for is on screen, which is the one thing the two doors
+ * that start one disagree about. A deeplink arrives from outside the window, so its
+ * run `take`s the screen the moment it draws; a table cell was clicked inside one, so
+ * its run only `keep`s the size it was clicked at.
+ */
+export interface RunPresentation {
+  runId: string;
+  screen: "take" | "keep";
+  /**
+   * The size the click was made at, which `keep` restores. A panel is as much a size
+   * as the screen is, so a click made at one presents too — without that the run is
+   * started and never shown, and the console goes on drawing the run before it.
+   */
+  fullScreen?: boolean;
+}
+
 interface ConsoleProps {
   // The whole scope: the runs are that file's runs, and changing it swaps consoles
   // rather than reporting a new run.
@@ -52,11 +70,14 @@ interface ConsoleProps {
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
+  // What a table cell naming another script does when it is clicked, and the size it
+  // was clicked at.
+  onRunScript: (run: CellRun, fullScreen: boolean) => void;
   onClear?: () => void;
   // A run nobody pressed Run for, worth showing rather than leaving in a panel.
   // One-shot — `onPresented` is called once it has been shown, and once it is clear
   // it never will be.
-  presentRunId?: string;
+  present?: RunPresentation;
   onPresented?: () => void;
   // So a run can be started again from full screen rather than only from the command
   // row the canvas covers.
@@ -79,8 +100,9 @@ export function Console({
   onTableView,
   onTablePull,
   onTableCells,
+  onRunScript,
   onClear,
-  presentRunId,
+  present,
   onPresented,
   runControl,
 }: ConsoleProps) {
@@ -219,31 +241,42 @@ export function Console({
     [selectedGroup, onSelect, onViewChange],
   );
 
-  // Full screen belongs to the run you were reading.
-  useEffect(() => {
+  // Full screen belongs to the run you were reading. Before the paint rather than
+  // after it, so the file being handed over is never drawn at the size of the one
+  // before it — which is also what lets a size be carried across, below.
+  useLayoutEffect(() => {
     setFullScreen(false);
   }, [fileId]);
+
+  // A click is made at a size, and the size is part of what was clicked.
+  const onRunScriptCell = useCallback((run: CellRun) => onRunScript(run, fullScreen), [onRunScript, fullScreen]);
 
   /**
    * A run that arrived from a deeplink is shown rather than left in a panel: the moment
    * it draws, the canvas takes the window. It waits for that first block rather than
-   * opening on an empty screen, and a run that ends without drawing is dropped.
+   * opening on an empty screen, and a run that ends without drawing is dropped. A run a
+   * cell started asks for nothing of the sort — it keeps the screen it was clicked at,
+   * at once and whatever it goes on to draw, so the view is left to `defaultView` the
+   * way it is on a run you pressed Run for.
    *
-   * Declared after the two effects that clear full screen, so a fresh file's reset
-   * cannot land on top of the presentation it was opened for.
+   * Declared after the effect that clears full screen, so a fresh file's reset cannot
+   * land on top of the presentation it was opened for.
    */
-  useEffect(() => {
-    if (presentRunId === undefined) return;
-    const group = groups.find((candidate) => candidate.run.id === presentRunId);
-    const presentation = presentRun(group);
+  useLayoutEffect(() => {
+    if (present === undefined) return;
+    const group = groups.find((candidate) => candidate.run.id === present.runId);
+    const presentation = present.screen === "keep" ? (group ? "present" : "wait") : presentRun(group);
     if (presentation === "wait") return;
     if (presentation === "present" && group) {
       if (selection?.runId !== group.run.id) onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
-      enterFullScreen(defaultView(group));
+      // A carried size settles nothing else: the view is derived, so the run lands on
+      // the one it would have landed on had you pressed Run.
+      if (present.screen === "keep") setFullScreen(present.fullScreen === true);
+      else enterFullScreen(defaultView(group));
     }
     onPresented?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentRunId, file.version]);
+  }, [present, file.version]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -297,6 +330,7 @@ export function Console({
       scrollRef={canvasScroll}
       tableViews={tableViews}
       onTableView={onTableView}
+      onRunScript={onRunScriptCell}
       onTablePull={onTablePull}
       onTableCells={onTableCells}
     />
@@ -526,6 +560,7 @@ interface FullScreenProps {
 Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, onViewChange, runControl, onLeave, children }: FullScreenProps) {
   const waiting = group.awaiting !== undefined;
   const time = formatClockTime(group.run.startedAt);
+  const input = runInputLabel(group.run.input);
 
   return (
     <div data-testid="console-fullscreen-view" className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -538,6 +573,11 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">
             Run {group.run.number} · {time}
           </span>
+          {input && (
+            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={input}>
+              {input}
+            </span>
+          )}
         </div>
         {waiting ? (
           <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-amber-500/[0.12] px-2">
@@ -563,9 +603,9 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           <div className="h-4 w-px bg-border" />
           {/* Running a script again used to mean leaving full screen and coming
               back, which is two gestures around the one thing this screen is
-              for. It is the command row's own button, so the caret's
-              Run-with-parameters is here too — which is how a script launched
-              from a deeplink is run again with the values it was launched with. */}
+              for. It is the command row's own button, so Run repeats the values
+              the run in this bar was launched with and the caret is where they
+              are changed. */}
           {runControl}
           {runControl && <div className="h-4 w-px bg-border" />}
           <span className="font-mono text-xs text-muted-foreground">Esc</span>
@@ -621,6 +661,13 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
           )}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
+          {/* What the run carried, because Run repeats it: the values the next press
+              will send have to be readable without opening the sheet that sets them. */}
+          {summary?.input && (
+            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={summary.input}>
+              {summary.input}
+            </span>
+          )}
           {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (
             <span className={cn("truncate font-mono text-xs", summary.waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
@@ -673,7 +720,7 @@ interface RunRowProps extends RunSummaryLine {
 
 // Memoized so the tick that counts up an in-flight run only re-renders that run's
 // row; every settled row holds a value that no longer changes.
-Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
+Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
@@ -681,7 +728,14 @@ Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, wa
       onSelect={onSelect}
     >
       {pending && !waiting ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
+      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="shrink-0 font-mono text-xs text-foreground">{name}</span>
+        {input && (
+          <span className="truncate font-mono text-xs text-muted-foreground" title={input}>
+            {input}
+          </span>
+        )}
+      </div>
       {agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
       <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
@@ -694,6 +748,8 @@ interface RunSummaryLine {
   name: string;
   // `14:03 · 1.2 s`, `13:51 · waiting`, `13:44 · failed`.
   detail?: string;
+  // `id=42 · month=2026-01`, absent on a run that carried nothing.
+  input?: string;
   dotClass: string;
   pending: boolean;
   waiting: boolean;
@@ -707,17 +763,17 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // Still going is a state of the run, not of a call: a script sleeping between two of
   // them is running, and a verdict read off the calls so far would be one the run has
   // not reached.
-  const outcome = waiting
-    ? "waiting"
-    : group.running
-      ? formatElapsed(now - group.run.startedAt)
-      : group.status === "error"
-        ? "failed"
-        : formatDuration(group.run.durationMs);
+  // A held call is admitted before its row is written, so a run whose clock is moving
+  // for one has nothing in its log to show for it. This line is what the picker lists
+  // every run of the file by, which makes it the one place a run not on screen can say
+  // what it is doing.
+  const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
+  const outcome = waiting ? "waiting" : group.running ? elapsed : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
 
   return {
     name: runName(group, groups),
     detail: outcome ? `${time} · ${outcome}` : time,
+    input: runInputLabel(group.run.input),
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
     pending: group.running,
     waiting,

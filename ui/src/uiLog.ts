@@ -64,6 +64,36 @@ export function logScriptLine(level: string, message: string): void {
 }
 
 /**
+ * The first of the two notices that report no failure.
+ *
+ * A ResizeObserver that observes what its own callback resizes is how every measured
+ * element here is drawn, and the spec's answer is to deliver the rest of the
+ * notifications on the next frame and tell the window it did — as an error event with
+ * no error in it. Nothing failed and nothing was lost, so it is neither a footer row
+ * nor a line in kaja.log. Chrome and WebKit word it differently, hence the prefix.
+ */
+function isResizeObserverNotice(message: string): boolean {
+  return message.startsWith("ResizeObserver loop");
+}
+
+const CANCELED = "Canceled";
+
+/**
+ * The second, and it arrives as a rejection.
+ *
+ * The editor drops work whose answer nobody wants any more — a completion superseded
+ * by the next keystroke, a sticky-scroll model by the next scroll — by rejecting with
+ * a cancellation, and one that reaches the window is that same abandonment arriving a
+ * frame later with nobody left to read it. Nothing failed, so it is neither a footer
+ * row nor a line in kaja.log; what it did light was a ring of `Canceled: Canceled`
+ * rows over a session in which nothing had gone wrong. The shape is Monaco's own
+ * reading of one (`isCancellationError`): the name and the message are both `Canceled`.
+ */
+function isCancellation(reason: unknown): boolean {
+  return reason instanceof Error && reason.name === CANCELED && reason.message === CANCELED;
+}
+
+/**
  * Catch what Kaja failed at: `console.error`, `console.warn`, and the two events that
  * carry a failure nobody caught.
  *
@@ -90,13 +120,19 @@ export function installUiLog(): void {
 
   window.addEventListener("error", (event) => {
     if (event.error instanceof Error) {
-      send("ERROR", [event.error]);
+      if (!isCancellation(event.error)) send("ERROR", [event.error]);
+      return;
+    }
+    if (isResizeObserverNotice(event.message)) {
       return;
     }
     const where = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : "";
     send("ERROR", [`${event.message}${where}`]);
   });
   window.addEventListener("unhandledrejection", (event) => {
+    if (isCancellation(event.reason)) {
+      return;
+    }
     send("ERROR", [event.reason]);
   });
 }

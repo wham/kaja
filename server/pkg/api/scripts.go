@@ -24,18 +24,58 @@ import (
 // Writing is refused where this kaja does not own the workspace it opened, which is
 // the one answer canUpdateConfiguration reports.
 
-// scriptsDir is the scripts folder beside kaja.json. It is derived from the
-// configuration path rather than from the process's working directory so the two can
-// never point at different folders. The path is absolute because it is what identifies
-// a script to the client - its console and its stored runs are keyed on it - and the
-// configuration path a server is started with is usually relative to wherever it was
-// started.
-func (s *ApiService) scriptsDir() string {
-	dir := filepath.Join(filepath.Dir(s.configurationPath), "scripts")
+// The path is absolute because it is what identifies a script to the client - its
+// console and its stored runs are keyed on it - and the configuration path a server is
+// started with is usually relative to wherever it was started.
+func defaultScriptsRoot(configurationPath string) string {
+	dir := filepath.Join(filepath.Dir(configurationPath), "scripts")
 	if absolute, err := filepath.Abs(dir); err == nil {
 		return absolute
 	}
 	return dir
+}
+
+// A folder that isn't there falls back to the default rather than being created: an
+// unplugged disk's mount point is a path that looks writable, and scripts written there
+// are ones the disk coming back would hide.
+func scriptsRoot(configurationPath string, configured string) (dir string, unreachable string) {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return defaultScriptsRoot(configurationPath), ""
+	}
+
+	dir = configured
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(filepath.Dir(configurationPath), dir)
+	}
+	if absolute, err := filepath.Abs(dir); err == nil {
+		dir = absolute
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return defaultScriptsRoot(configurationPath), dir
+	}
+	return dir, ""
+}
+
+func (s *ApiService) scriptsDir() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	return dir
+}
+
+// UnreachableScriptsDir is empty where the configured folder was usable.
+func (s *ApiService) UnreachableScriptsDir() string {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	return unreachable
+}
+
+// SetScriptsDir writes the folder into kaja.json, an empty one clearing it back to the
+// folder beside it.
+func (s *ApiService) SetScriptsDir(dir string) error {
+	configuration := LoadGetConfigurationResponse(s.configurationPath).Configuration
+	configuration.ScriptsDir = dir
+	return SaveConfiguration(s.configurationPath, configuration)
 }
 
 // CanWriteWorkspace reports whether this kaja may write the workspace it opened. The
@@ -151,9 +191,43 @@ func (s *ApiService) CreateScript(ctx context.Context, req *CreateScriptRequest)
 	if err != nil {
 		return nil, err
 	}
+	if err := writeNewScript(root, relative, req.Content); err != nil {
+		return nil, err
+	}
+	return &CreateScriptResponse{Script: scriptAt(dir, relative, req.Content)}, nil
+}
+
+// CopyScript writes the file again under a new name, which may file it elsewhere.
+func (s *ApiService) CopyScript(ctx context.Context, req *CopyScriptRequest) (*CopyScriptResponse, error) {
+	dir, root, err := s.openScriptsForWriting()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	from, err := relativeScriptPath(dir, req.Name)
+	if err != nil {
+		return nil, err
+	}
+	to, err := newScriptPath(dir, req.NewName)
+	if err != nil {
+		return nil, err
+	}
+	content, err := root.ReadFile(from)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read script %s: %w", from, err)
+	}
+	if err := writeNewScript(root, to, string(content)); err != nil {
+		return nil, err
+	}
+	return &CopyScriptResponse{Script: scriptAt(dir, to, string(content))}, nil
+}
+
+// writeNewScript writes a script that must not exist yet, making the folder it names.
+func writeNewScript(root *os.Root, relative string, content string) error {
 	if folder := scriptDir(relative); folder != "" {
 		if err := root.MkdirAll(folder, 0755); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	// O_EXCL is the collision check as well as the create, so there is no window
@@ -161,18 +235,15 @@ func (s *ApiService) CreateScript(ctx context.Context, req *CreateScriptRequest)
 	file, err := root.OpenFile(relative, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return nil, fmt.Errorf("a script named %q already exists", relative)
+			return fmt.Errorf("a script named %q already exists", relative)
 		}
-		return nil, err
+		return err
 	}
-	if _, err := file.WriteString(req.Content); err != nil {
+	if _, err := file.WriteString(content); err != nil {
 		file.Close()
-		return nil, err
+		return err
 	}
-	if err := file.Close(); err != nil {
-		return nil, err
-	}
-	return &CreateScriptResponse{Script: scriptAt(dir, relative, req.Content)}, nil
+	return file.Close()
 }
 
 // RenameScript renames a script and, when the new name carries a folder, moves it
@@ -309,6 +380,61 @@ func (s *ApiService) DeleteScriptFolder(ctx context.Context, req *DeleteScriptFo
 		return nil, err
 	}
 	return &DeleteScriptFolderResponse{}, nil
+}
+
+// CopyScriptFolder copies a folder and everything filed there to a path that is free.
+// Only regular files are copied, so a symlink inside the folder is left behind rather
+// than followed. Copying a folder into itself would copy what it is still writing, so
+// that destination is refused before anything is written.
+func (s *ApiService) CopyScriptFolder(ctx context.Context, req *CopyScriptFolderRequest) (*CopyScriptFolderResponse, error) {
+	_, root, err := s.openScriptsForWriting()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	from, err := relativeFolderPath(req.Name)
+	if err != nil {
+		return nil, err
+	}
+	to, err := relativeFolderPath(req.NewName)
+	if err != nil {
+		return nil, err
+	}
+	if to == from || strings.HasPrefix(to, from+"/") {
+		return nil, fmt.Errorf("a folder cannot be copied into itself: %q", to)
+	}
+	info, err := root.Stat(from)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("not a folder: %q", req.Name)
+	}
+	if _, err := root.Stat(to); err == nil {
+		return nil, fmt.Errorf("a folder named %q already exists", to)
+	}
+	err = fs.WalkDir(root.FS(), from, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		target := to + strings.TrimPrefix(path, from)
+		if entry.IsDir() {
+			return root.MkdirAll(target, 0755)
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		content, err := root.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return root.WriteFile(target, content, 0644)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &CopyScriptFolderResponse{Folder: to}, nil
 }
 
 // ErrScriptsReadOnly is every write a served workspace refuses. It is the sentence an

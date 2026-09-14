@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { Block, blockLabel, formatCell, isAwaitingUser } from "./blocks";
+import { Block, blockLabel, cellRun, formatCell, isAwaitingUser, RunCell, TableBlock, withCellRun, withoutRowRuns } from "./blocks";
 
 describe("isAwaitingUser", () => {
   it("is true only for a question nobody has answered", () => {
@@ -64,5 +64,38 @@ describe("formatCell", () => {
   it("shows an absent cell as empty rather than as the word for absent", () => {
     expect(formatCell(null)).toBe("");
     expect(formatCell(undefined)).toBe("");
+  });
+
+  // Anywhere but a cell there is nowhere to go, so what is left of a destination
+  // is what it would have been drawn as.
+  it("reads a destination as its label", () => {
+    expect(formatCell(new RunCell("Refund", { script: "orders/refund" }))).toBe("Refund");
+  });
+});
+
+// The destinations, on the same rules the statuses beside them follow: sparse at
+// both levels, a new object at each, and absent rather than empty.
+describe("withCellRun", () => {
+  const table: TableBlock = { kind: "table", columns: ["id", ""], rows: [["1", "detail"]] };
+
+  it("sets one cell without touching the block it came from", () => {
+    const runs = withCellRun(table, 0, 1, { script: "detail" });
+    expect(runs).toEqual({ 0: { 1: { script: "detail" } } });
+    expect(table.runs).toBeUndefined();
+  });
+
+  it("hands back a new object down the path it wrote", () => {
+    const first = withCellRun(table, 0, 1, { script: "detail" });
+    const second = withCellRun({ ...table, runs: first }, 0, 0, { script: "audit" });
+    expect(second).not.toBe(first);
+    expect(second?.[0]).not.toBe(first?.[0]);
+    expect(cellRun({ ...table, runs: second }, 0, 1)).toEqual({ script: "detail" });
+    expect(cellRun({ ...table, runs: second }, 0, 0)).toEqual({ script: "audit" });
+  });
+
+  it("drops the map with the last row that had one", () => {
+    const runs = withCellRun(table, 0, 1, { script: "detail" });
+    expect(withoutRowRuns({ ...table, runs }, 0)).toBeUndefined();
+    expect(withoutRowRuns({ ...table, runs }, 1)).toBe(runs);
   });
 });
