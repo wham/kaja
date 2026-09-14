@@ -146,8 +146,6 @@ function persistedDrafts(): Draft[] {
   );
 }
 
-// Vertical padding the editor reserves around the code (see Editor.tsx).
-const EDITOR_PADDING = 32;
 const MIN_EDITOR_HEIGHT = 120;
 const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 const SIDE_BY_SIDE_MIN_WIDTH = 1600;
@@ -2023,18 +2021,27 @@ export function App() {
 
   const onGoToView = useCallback((id: string) => applyViews((views) => visit(views, id)), [applyViews]);
 
-  // Derived from the line count rather than Monaco's content height: with
+  // The last line's bottom rather than Monaco's content height: with
   // scrollBeyondLastLine on, content height grows with the editor itself, so feeding
-  // it back would only ever settle at the maximum.
+  // it back would only ever settle at the maximum. The bottom is in view lines, so a
+  // line the editor wraps counts for what it draws, and a narrower pane wraps more,
+  // which is why the layout is watched. An editor created off screen has no width
+  // and wraps at one column, so until it is laid out the line count is the guess.
   const onEditorReady = useCallback(
     (viewId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
       editorRegistryRef.current.set(viewId, editorInstance);
       const report = () => {
-        const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
-        const height = (editorInstance.getModel()?.getLineCount() ?? 1) * lineHeight + EDITOR_PADDING;
+        const model = editorInstance.getModel();
+        if (!model) return;
+        const padding = editorInstance.getOption(monaco.editor.EditorOption.padding);
+        const height =
+          editorInstance.getLayoutInfo().width > 0
+            ? editorInstance.getBottomForLineNumber(model.getLineCount()) + padding.bottom
+            : model.getLineCount() * editorInstance.getOption(monaco.editor.EditorOption.lineHeight) + padding.top + padding.bottom;
         setEditorContentHeights((heights) => (heights[viewId] === height ? heights : { ...heights, [viewId]: height }));
       };
       report();
+      editorInstance.onDidLayoutChange(report);
       editorInstance.onDidChangeModelContent(() => {
         report();
         // Only a real edit writes back: the editor formats its model on open.
