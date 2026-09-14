@@ -128,3 +128,17 @@ function unreadable(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+// Progress and log notifications arrive on the response stream ahead of the response,
+// so they are part of the exchange the trailer reports.
+test("reads what the upstream said while the call was being made", () => {
+  const upstream = parseUpstream(trailer({ notices: ["Reading rows (3/10)", "warning rows: the index is cold"] }));
+  expect(upstream?.notices).toEqual(["Reading rows (3/10)", "warning rows: the index is cold"]);
+});
+
+test("reads a call that said nothing as one with no notices", () => {
+  expect(parseUpstream(trailer({ durationMs: 1 }))?.notices).toBeUndefined();
+  expect(parseUpstream(trailer({ notices: [] }))?.notices).toBeUndefined();
+  expect(parseUpstream(trailer({ notices: "not a list" }))?.notices).toBeUndefined();
+  expect(parseUpstream(trailer({ notices: [1, "kept", ""] }))?.notices).toEqual(["kept"]);
+});

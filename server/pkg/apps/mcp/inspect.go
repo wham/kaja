@@ -48,7 +48,7 @@ func (p *Problem) Error() string {
 
 // Inspect reads what a server exposes without creating an app, so the New MCP
 // app form can fill itself in from what answered.
-func Inspect(parameters map[string]string) (*Surface, *Problem) {
+func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *Problem) {
 	endpoint := strings.TrimSpace(parameters["url"])
 	if endpoint == "" {
 		return nil, &Problem{Kind: ProblemTarget, Message: "Enter the server's MCP endpoint."}
@@ -57,7 +57,11 @@ func Inspect(parameters map[string]string) (*Surface, *Problem) {
 		return nil, &Problem{Kind: ProblemTarget, Message: "That isn't an HTTP endpoint.", Detail: err.Error()}
 	}
 
-	client := NewClient(endpoint, Credential(parameters), &http.Client{Timeout: inspectTimeout})
+	credential, err := credentialSource(parameters, authorizer)
+	if err != nil {
+		return nil, &Problem{Kind: ProblemUnauthorized, Message: "This kaja cannot sign in to an MCP server.", Detail: err.Error()}
+	}
+	client := NewClient(endpoint, credential, &http.Client{Timeout: inspectTimeout})
 	surface, err := client.ReadSurface(nil)
 	if err != nil {
 		return nil, classify(err)

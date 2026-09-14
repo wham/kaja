@@ -35,9 +35,20 @@ import (
 const callTimeout = 120 * time.Second
 
 // App is the mcp app factory. Register it with the apps.Manager.
-type App struct{}
+type App struct {
+	// authorizer is what an app with `auth: "oauth"` reads its token from. A build
+	// without one cannot sign in, and says so where the credential is asked for.
+	authorizer *Authorizer
+}
 
 func New() *App { return &App{} }
+
+// WithAuthorizer is how the process that owns this machine's stored tokens hands
+// them to the app type.
+func (a *App) WithAuthorizer(authorizer *Authorizer) *App {
+	a.authorizer = authorizer
+	return a
+}
 
 func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	endpoint := strings.TrimSpace(parameters["url"])
@@ -49,7 +60,11 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("MCP endpoint: " + endpoint)
 
-	client := NewClient(endpoint, Credential(parameters), &http.Client{Timeout: callTimeout})
+	credential, err := credentialSource(parameters, a.authorizer)
+	if err != nil {
+		return nil, err
+	}
+	client := NewClient(endpoint, credential, &http.Client{Timeout: callTimeout})
 	surface, err := client.ReadSurface(log)
 	if err != nil {
 		return nil, err
@@ -72,6 +87,25 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	return &apps.Opened{Instance: &instance{client: client, methods: methods}}, nil
 }
 
+// credentialSource is what the app sends with every request. Everything but
+// OAuth is settled once, here; an OAuth token is read from the store as each
+// call is made, because a token that renewed itself between two calls has to
+// reach the second one.
+func credentialSource(parameters map[string]string, authorizer *Authorizer) (func() (map[string]string, error), error) {
+	if strings.TrimSpace(parameters["auth"]) == AuthOAuth {
+		if authorizer == nil {
+			return nil, fmt.Errorf("this kaja cannot sign in to an MCP server")
+		}
+		return authorizer.oauthCredential(strings.TrimSpace(parameters["url"])), nil
+	}
+	headers := Credential(parameters)
+	return func() (map[string]string, error) { return headers, nil }, nil
+}
+
+// AuthOAuth is the `auth` an app is configured with when its credential is one
+// kaja obtained by signing in, rather than one anybody typed.
+const AuthOAuth = "oauth"
+
 // Credential turns an mcp app's authentication parameters into the headers the
 // call carries. It is resolved here rather than in the browser, so a "${secret}"
 // token is applied where kaja holds it.
@@ -81,7 +115,7 @@ func Credential(parameters map[string]string) map[string]string {
 		return nil
 	}
 	switch strings.TrimSpace(parameters["auth"]) {
-	case "none":
+	case "none", AuthOAuth:
 		return nil
 	case "apikey":
 		name := strings.TrimSpace(parameters["api_key_name"])

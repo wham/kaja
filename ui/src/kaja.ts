@@ -1216,6 +1216,11 @@ export interface MethodCall {
   requestLine?: string;
   responseStatus?: number;
   responseStatusText?: string;
+  // What the upstream said while the call was being made rather than in answer to it.
+  // An MCP server sends its progress and log notifications on the response stream
+  // ahead of the response, and a call that says nothing for a minute reads as a call
+  // that failed.
+  notices?: string[];
   // The HTTP call a script made itself, with the bare `fetch`. It has no app and no
   // generated request, so this is what says it was one — and its request line is what
   // identifies it, the way a service and a method identify every other call.

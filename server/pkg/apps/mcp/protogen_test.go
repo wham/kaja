@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -281,19 +282,29 @@ func TestAnnotationsReachTheComment(t *testing.T) {
 	requireLines(t, gen.proto, "// Search the web", "// The server describes this tool as read-only.", "// MCP tool: search")
 }
 
-func TestLastSSEData(t *testing.T) {
+func TestReadSSE(t *testing.T) {
 	stream := ":\r\n" +
 		"\r\n" +
 		"event: message\r\n" +
-		"data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{}}\r\n" +
+		"data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":" +
+		"{\"progressToken\":1,\"progress\":3,\"total\":10,\"message\":\"Reading rows\"}}\r\n" +
+		"\r\n" +
+		"event: message\r\n" +
+		"data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/message\",\"params\":" +
+		"{\"level\":\"warning\",\"logger\":\"rows\",\"data\":\"the index is cold\"}}\r\n" +
 		"\r\n" +
 		"event: message\r\n" +
 		"data: {\"jsonrpc\":\"2.0\",\"id\":1,\r\n" +
 		"data: \"result\":{\"ok\":true}}\r\n" +
 		"\r\n"
-	got := string(lastSSEData([]byte(stream)))
-	if !strings.Contains(got, `"result"`) || strings.Contains(got, "notifications/progress") {
-		t.Errorf("lastSSEData = %s", got)
+	response, notices := readSSE([]byte(stream))
+	got := string(response)
+	if !strings.Contains(got, `"result"`) || strings.Contains(got, "notifications/") {
+		t.Errorf("readSSE response = %s", got)
+	}
+	want := []string{"Reading rows (3/10)", "warning rows: the index is cold"}
+	if !reflect.DeepEqual(notices, want) {
+		t.Errorf("readSSE notices = %#v, want %#v", notices, want)
 	}
 }
 
@@ -303,6 +314,9 @@ func TestEncodeHeaderValue(t *testing.T) {
 		"Hello, 世界":    "=?base64?SGVsbG8sIOS4lueVjA==?=",
 		" padded ":     "=?base64?IHBhZGRlZCA=?=",
 		"line1\nline2": "=?base64?bGluZTEKbGluZTI=?=",
+		// A plain value that reads as the sentinel is encoded too, or a server
+		// would decode what was never encoded.
+		"=?base64?literal?=": "=?base64?PT9iYXNlNjQ/bGl0ZXJhbD89?=",
 	}
 	for value, want := range tests {
 		if got := encodeHeaderValue(value); got != want {

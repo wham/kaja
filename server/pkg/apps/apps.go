@@ -137,6 +137,12 @@ type Report struct {
 	Request    string
 	Status     int
 	StatusText string
+	// Notices are what the upstream said while the call was being made, rather than
+	// in answer to it: an MCP server's progress and log notifications arrive on the
+	// response stream ahead of the response. A call that says nothing for a minute
+	// is indistinguishable from one that failed, so they are shown beside the
+	// exchange that carried them.
+	Notices []string
 	// DurationMs is the wall-clock time of the call as this process measured it — the
 	// upstream exchange plus the app's own encode/decode, and nothing of the trip
 	// between the UI and here. Stamped by ApiService.InvokeApp, the one door every

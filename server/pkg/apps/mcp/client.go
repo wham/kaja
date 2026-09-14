@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -27,8 +28,11 @@ import (
 type Client struct {
 	endpoint string
 	http     *http.Client
-	// headers the app sends with every request, credential included.
-	headers map[string]string
+	// credential is what the app sends with every request. It is asked for per
+	// request rather than held, because an OAuth token renews itself: a token
+	// replaced between two calls has to reach the second one without the app
+	// being opened again.
+	credential func() (map[string]string, error)
 
 	mu sync.Mutex
 	// version is the protocol version settled on, legacy whether the handshake
@@ -46,8 +50,11 @@ type Client struct {
 
 // NewClient builds a client for an MCP endpoint. It performs no I/O: the era and
 // the protocol version are settled by the first call.
-func NewClient(endpoint string, headers map[string]string, httpClient *http.Client) *Client {
-	return &Client{endpoint: endpoint, http: httpClient, headers: headers, version: ProtocolVersion}
+func NewClient(endpoint string, credential func() (map[string]string, error), httpClient *http.Client) *Client {
+	if credential == nil {
+		credential = func() (map[string]string, error) { return nil, nil }
+	}
+	return &Client{endpoint: endpoint, http: httpClient, credential: credential, version: ProtocolVersion}
 }
 
 // Exchange is what one JSON-RPC call exchanged with the server, surfaced in the
@@ -61,22 +68,30 @@ type Exchange struct {
 	Request    string
 	Status     int
 	StatusText string
+	// Notices are what the server said while it was working: the progress and log
+	// notifications it sent on the response stream ahead of the response itself.
+	Notices []string
 }
 
 // Call sends one JSON-RPC request and returns the result object. The `_meta`
 // request metadata (modern) or the `initialize` handshake (legacy) is applied
 // here, so callers only ever name a method and its params.
-func (c *Client) Call(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
+//
+// mirrored is the tool's `x-mcp-header` parameters and their values, keyed by
+// the name portion of the `Mcp-Param-{Name}` header each travels under. The
+// transport decides whether they are sent, since the era decides whether the
+// server expects them at all.
+func (c *Client) Call(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
 	if err := c.ensureEra(); err != nil {
 		return nil, nil, err
 	}
-	return c.send(method, params, extra)
+	return c.send(method, params, extra, mirrored)
 }
 
 // send issues one request in the era already settled on, re-running a legacy
 // handshake once if the server has forgotten the session.
-func (c *Client) send(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
-	result, exchange, err := c.attempt(method, params, extra)
+func (c *Client) send(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
+	result, exchange, err := c.attempt(method, params, extra, mirrored)
 	if err == nil {
 		return result, exchange, nil
 	}
@@ -94,7 +109,7 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 		if err := c.handshake(); err != nil {
 			return nil, nil, err
 		}
-		return c.attempt(method, params, extra)
+		return c.attempt(method, params, extra, mirrored)
 	}
 
 	// A server that rejects the version names the ones it has; retry on the best
@@ -108,7 +123,7 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 			if err := c.ensureEra(); err != nil {
 				return nil, nil, err
 			}
-			return c.attempt(method, params, extra)
+			return c.attempt(method, params, extra, mirrored)
 		}
 	}
 	return nil, exchange, err
@@ -135,7 +150,7 @@ func (c *Client) ensureEra() error {
 		return c.handshake()
 	}
 
-	result, _, err := c.attempt("server/discover", nil, nil)
+	result, _, err := c.attempt("server/discover", nil, nil, nil)
 	if err == nil {
 		c.mu.Lock()
 		c.handshook, c.greeting = true, result
@@ -189,7 +204,7 @@ func (c *Client) handshake() error {
 		"protocolVersion": version,
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": clientName, "version": "2"},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -216,13 +231,13 @@ func (c *Client) handshake() error {
 	// The handshake is only complete once the server has been told so. It is a
 	// notification, so nothing is expected back and a server that refuses it is
 	// not worth failing the whole app over.
-	_, _, _ = c.attempt("notifications/initialized", nil, nil)
+	_, _, _ = c.attempt("notifications/initialized", nil, nil, nil)
 	return nil
 }
 
 // attempt performs one HTTP POST carrying one JSON-RPC message. A notification
 // (a method with no id) returns no result.
-func (c *Client) attempt(method string, params map[string]any, extra map[string]string) (json.RawMessage, *Exchange, error) {
+func (c *Client) attempt(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
 	notification := strings.HasPrefix(method, "notifications/")
 
 	c.mu.Lock()
@@ -260,9 +275,13 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 	if err != nil {
 		return nil, nil, fmt.Errorf("building %s request: %w", method, err)
 	}
+	headers, err := c.credential()
+	if err != nil {
+		return nil, nil, err
+	}
 	// The app's own headers are the more specific instruction: a header written
 	// out by hand outranks the credential kaja derived.
-	for name, value := range c.headers {
+	for name, value := range headers {
 		request.Header.Set(name, value)
 	}
 	for name, value := range extra {
@@ -283,6 +302,12 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 		request.Header.Set("Mcp-Method", method)
 		if name := routedName(params); name != "" {
 			request.Header.Set("Mcp-Name", encodeHeaderValue(name))
+		}
+		// A mirrored parameter is the server's own instruction about its tool, so
+		// it is written last: a header configured under the same name would send
+		// an intermediary somewhere the body does not agree with.
+		for name, value := range mirrored {
+			request.Header.Set(headerParamPrefix+name, encodeHeaderValue(value))
 		}
 	}
 
@@ -311,7 +336,8 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 
 	// A JSON-RPC error may arrive under a 4xx status, so the body is read before
 	// the status is judged.
-	result, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), payload)
+	result, notices, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), payload)
+	exchange.Notices = notices
 	if rpcErr != nil {
 		return nil, exchange, rpcErr
 	}
@@ -330,12 +356,13 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 
 // decodeResponse reads the JSON-RPC message out of a response body, which is
 // either a single JSON object or an SSE stream whose last data event carries the
-// response.
-func decodeResponse(contentType string, payload []byte) (json.RawMessage, *jsonRPCError, error) {
+// response, and what the server said on the way there.
+func decodeResponse(contentType string, payload []byte) (json.RawMessage, []string, *jsonRPCError, error) {
+	var notices []string
 	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
-		payload = lastSSEData(payload)
+		payload, notices = readSSE(payload)
 		if payload == nil {
-			return nil, nil, fmt.Errorf("the event stream carried no response")
+			return nil, notices, nil, fmt.Errorf("the event stream carried no response")
 		}
 	}
 	var envelope struct {
@@ -343,25 +370,34 @@ func decodeResponse(contentType string, payload []byte) (json.RawMessage, *jsonR
 		Error  *jsonRPCError   `json:"error"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(payload), &envelope); err != nil {
-		return nil, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
+		return nil, notices, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
 	}
 	if envelope.Error != nil {
-		return nil, envelope.Error, nil
+		return nil, notices, envelope.Error, nil
 	}
 	if envelope.Result == nil {
-		return nil, nil, fmt.Errorf("the response carried neither a result nor an error")
+		return nil, notices, nil, fmt.Errorf("the response carried neither a result nor an error")
 	}
-	return envelope.Result, nil, nil
+	return envelope.Result, notices, nil, nil
 }
 
-// lastSSEData returns the data of the last SSE event in the stream, which is
-// where the final response sits. Notifications sent ahead of it (progress, log
-// messages) are passed over: kaja has nowhere to put them mid-call.
-func lastSSEData(payload []byte) []byte {
+// readSSE reads a response stream: the data of the last event carrying the
+// response, and a line for each notification the server sent ahead of it. Those
+// notifications are what a slow call has to say about itself while it is being
+// made, and a call that says nothing for a minute is indistinguishable from one
+// that failed.
+func readSSE(payload []byte) ([]byte, []string) {
+	// A notice rides in the same trailer the exchange does, so a server that logs
+	// in a loop must not be what pushes the failure out of it.
+	const (
+		noticeLimit = 50
+		noticeChars = 500
+	)
 	scanner := bufio.NewScanner(bytes.NewReader(payload))
 	scanner.Buffer(make([]byte, 0, 64*1024), 32<<20)
 
 	var last []byte
+	var notices []string
 	var current []string
 	flush := func() {
 		if len(current) == 0 {
@@ -371,6 +407,13 @@ func lastSSEData(payload []byte) []byte {
 		current = nil
 		if isJSONRPCResponse(data) {
 			last = data
+			return
+		}
+		if notice := noticeOf(data); notice != "" && len(notices) < noticeLimit {
+			if len(notice) > noticeChars {
+				notice = notice[:noticeChars] + "…"
+			}
+			notices = append(notices, notice)
 		}
 	}
 	for scanner.Scan() {
@@ -385,7 +428,84 @@ func lastSSEData(payload []byte) []byte {
 		}
 	}
 	flush()
-	return last
+	return last, notices
+}
+
+// noticeOf renders one notification as the line the call reports it as. Only the
+// two the specification scopes to the request are read: a log message and a
+// progress report are about the call being made, and anything else on the stream
+// is about the server rather than about this call.
+func noticeOf(data []byte) string {
+	var message struct {
+		Method string `json:"method"`
+		Params struct {
+			Level    string          `json:"level"`
+			Logger   string          `json:"logger"`
+			Data     json.RawMessage `json:"data"`
+			Message  string          `json:"message"`
+			Progress float64         `json:"progress"`
+			Total    *float64        `json:"total"`
+		} `json:"params"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(data), &message) != nil {
+		return ""
+	}
+	params := message.Params
+	switch message.Method {
+	case "notifications/message":
+		parts := []string{}
+		if params.Level != "" {
+			parts = append(parts, params.Level)
+		}
+		if params.Logger != "" {
+			parts = append(parts, params.Logger)
+		}
+		text := noticeText(params.Data)
+		if text == "" {
+			text = "(no message)"
+		}
+		if len(parts) == 0 {
+			return text
+		}
+		return strings.Join(parts, " ") + ": " + text
+	case "notifications/progress":
+		if params.Message == "" && params.Total == nil && params.Progress == 0 {
+			// A count of nothing towards no total: the server has said it is
+			// working, which is what the running indicator already says.
+			return ""
+		}
+		measure := trimFloat(params.Progress)
+		if params.Total != nil {
+			measure += "/" + trimFloat(*params.Total)
+		}
+		if params.Message != "" {
+			return params.Message + " (" + measure + ")"
+		}
+		return measure
+	}
+	return ""
+}
+
+// noticeText is a log notification's data as one line. A string is the line; a
+// structure the server chose to log is its own JSON, which is more than a
+// placeholder saying something was logged.
+func noticeText(data json.RawMessage) string {
+	if len(data) == 0 {
+		return ""
+	}
+	var text string
+	if json.Unmarshal(data, &text) == nil {
+		return strings.TrimSpace(text)
+	}
+	var compact bytes.Buffer
+	if json.Compact(&compact, data) != nil {
+		return ""
+	}
+	return compact.String()
+}
+
+func trimFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 // isJSONRPCResponse reports whether an SSE event's data is a response rather

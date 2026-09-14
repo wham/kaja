@@ -12,6 +12,11 @@ service Api {
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
+  // AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
+  // a browser in the middle of it: the first message carries the page to open,
+  // and the last one says how it went once the server has sent the person back.
+  rpc AuthorizeMcp(AuthorizeMcpRequest) returns (stream AuthorizeMcpResponse);
+  rpc ForgetMcpAuthorization(ForgetMcpAuthorizationRequest) returns (ForgetMcpAuthorizationResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   // WatchConfiguration streams the configuration file as it is edited: one message
   // carrying the whole configuration each time the file changes. What changed is
@@ -341,7 +346,39 @@ enum McpProblemKind {
   MCP_PROBLEM_NOT_MCP = 7;
   // It speaks MCP and exposes nothing.
   MCP_PROBLEM_EMPTY = 8;
+  // Signing in could not be started or did not finish. The detail is what went
+  // wrong; the next move is to try again, or to give kaja a client id.
+  MCP_PROBLEM_AUTHORIZATION = 9;
 }
+
+// AuthorizeMcp signs kaja in to the server the app names, over the authorization
+// flow MCP defines: the server says which authorization server issues its tokens,
+// kaja registers itself where it has to, and the token it is given is kept for
+// that server alone. The app carries the same parameters it would be opened
+// with, since a document behind a login is read with the app's own headers.
+message AuthorizeMcpRequest {
+  McpApp mcp = 1;
+}
+
+message AuthorizeMcpResponse {
+  // The page to open in a browser. Sent first, on its own, before anything is
+  // waited on - the window is what opens it, the desktop and a browser
+  // differing in how.
+  string authorization_url = 1;
+  // Set on the last message: the sign-in finished and the token is kept.
+  bool authorized = 2;
+  // Set on the last message instead, when it didn't.
+  McpProblem problem = 3;
+}
+
+// ForgetMcpAuthorization drops the token kaja holds for a server, which is what
+// signing out is. The client an authorization server registered kaja as stays:
+// it is this installation's record with that server rather than this sign-in's.
+message ForgetMcpAuthorizationRequest {
+  McpApp mcp = 1;
+}
+
+message ForgetMcpAuthorizationResponse {}
 
 // CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
 // message carries the log lines written since the last one and nothing else; the
@@ -816,6 +853,16 @@ message McpApp {
   string token = 4;
   // Header the "apikey" credential is sent under. Empty means "X-API-Key".
   string api_key_name = 5;
+  // The OAuth client kaja is identified as, for the "oauth" credential. Empty
+  // asks the authorization server to register kaja itself, which is what a
+  // server with no prior relationship to its clients does; a client id from a
+  // server's own dashboard, or the https URL of a client ID metadata document,
+  // is used as it stands. Never a secret: kaja registers as a public client and
+  // proves each exchange with PKCE.
+  string client_id = 6;
+  // The scopes to ask for, where the server names none itself. Space-separated,
+  // the way OAuth writes a scope.
+  string scope = 7;
 }
 
 message UpdateConfigurationRequest {

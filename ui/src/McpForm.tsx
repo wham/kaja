@@ -1,4 +1,17 @@
-import { Blocks, CircleAlert, CircleCheck, CircleX, Info, Key, RefreshCw, ShieldOff, Sparkles, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  Blocks,
+  CircleAlert,
+  CircleCheck,
+  CircleX,
+  Info,
+  Key,
+  RefreshCw,
+  ShieldCheck,
+  ShieldOff,
+  Sparkles,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
@@ -12,6 +25,7 @@ import {
   AUTH_APIKEY,
   AUTH_BEARER,
   AUTH_NONE,
+  AUTH_OAUTH,
   DEFAULT_API_KEY_NAME,
   authNote,
   authSchemes,
@@ -24,8 +38,21 @@ import {
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
+import { isWailsEnvironment, openInBrowser } from "./wails";
 
 type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; server: McpServer } | { status: "problem"; problem: McpProblem };
+
+// SignInState is the one slot the OAuth card carries: the button, the browser it is
+// waiting on, and the way it can fail. A sign-in that worked is not a state of its
+// own — the endpoint is read again, and the server answering is the proof.
+type SignInState = { status: "idle" } | { status: "waiting" } | { status: "problem"; problem: McpProblem };
+
+// mcpApp is the app the form is describing right now, which is what both reading the
+// server and signing in to it are asked about.
+function mcpApp(parameters: Record<string, string>): McpApp | undefined {
+  const app = buildApp("", "mcp", parameters, {});
+  return app.app.oneofKind === "mcp" ? app.app.mcp : undefined;
+}
 
 const READ_DEBOUNCE_MS = 600;
 
@@ -101,6 +128,7 @@ export function McpForm({
   onReadyChange,
 }: McpFormProps) {
   const [state, setState] = useState<ReadState>({ status: "idle" });
+  const [signIn, setSignIn] = useState<SignInState>({ status: "idle" });
   const parametersRef = useRef(parameters);
   parametersRef.current = parameters;
   // Only the latest read may write to state; anything older is discarded.
@@ -128,9 +156,7 @@ export function McpForm({
 
     setState({ status: "reading" });
     try {
-      const app = buildApp("", "mcp", parameters, {});
-      const mcp = app.app.oneofKind === "mcp" ? app.app.mcp : undefined;
-      const response = await inspect(key, mcp);
+      const response = await inspect(key, mcpApp(parameters));
       if (readId !== readIdRef.current) return;
       if (response.server && !response.problem) {
         remember(key, response.server);
@@ -153,6 +179,47 @@ export function McpForm({
       });
     }
   }, []);
+
+  // Signing in is a flow with a browser in the middle of it: the first message is the
+  // page to open, and the last one arrives once the authorization server has sent the
+  // person back to the loopback address kaja is listening on. So the stream is read to
+  // its end rather than awaited as one answer.
+  const authorize = useCallback(async () => {
+    setSignIn({ status: "waiting" });
+    const failed = (problem: McpProblem) => setSignIn({ status: "problem", problem });
+    try {
+      const call = getApiClient().authorizeMcp({ mcp: mcpApp(parametersRef.current) });
+      for await (const response of call.responses) {
+        if (response.authorizationUrl) {
+          // The desktop's window is not a browser, and a page it navigated away from
+          // would be the app gone.
+          if (isWailsEnvironment()) openInBrowser(response.authorizationUrl);
+          else window.open(response.authorizationUrl, "_blank", "noopener");
+          continue;
+        }
+        if (response.problem) return failed(response.problem);
+        if (response.authorized) {
+          setSignIn({ status: "idle" });
+          read({ fresh: true });
+          return;
+        }
+      }
+      setSignIn({ status: "idle" });
+    } catch (error) {
+      failed({ kind: McpProblemKind.MCP_PROBLEM_AUTHORIZATION, message: "Kaja could not sign in to that server.", detail: rpcErrorMessage(error) });
+    }
+  }, [read]);
+
+  const forget = useCallback(async () => {
+    try {
+      await getApiClient().forgetMcpAuthorization({ mcp: mcpApp(parametersRef.current) });
+    } catch {
+      // Signing out is dropping a token kaja holds. One it could not drop is one it
+      // will fail on the next call with, which is where that is worth saying.
+    }
+    setSignIn({ status: "idle" });
+    read({ fresh: true });
+  }, [read]);
 
   // Read once the endpoint settles. The demo link, ⏎, or the app this form was opened
   // on are already complete and read at once.
@@ -201,7 +268,10 @@ export function McpForm({
   // A credential the server wants is asked for before anything has been read: it is the
   // whole reason nothing has been.
   const showAuthentication =
-    Boolean(server) || problem?.kind === McpProblemKind.MCP_PROBLEM_UNAUTHORIZED || problem?.kind === McpProblemKind.MCP_PROBLEM_FORBIDDEN;
+    Boolean(server) ||
+    auth === AUTH_OAUTH ||
+    problem?.kind === McpProblemKind.MCP_PROBLEM_UNAUTHORIZED ||
+    problem?.kind === McpProblemKind.MCP_PROBLEM_FORBIDDEN;
 
   return (
     <div className="flex max-w-[640px] flex-col gap-6">
@@ -267,6 +337,10 @@ export function McpForm({
               onParameterChange={setParameter}
               variables={variables}
               readOnly={readOnly}
+              signedIn={Boolean(server) && auth === AUTH_OAUTH}
+              signIn={signIn}
+              onSignIn={authorize}
+              onSignOut={forget}
             />
           )}
         </>
@@ -400,15 +474,65 @@ interface AuthenticationSectionProps {
   onParameterChange: (key: string, value: string) => void;
   variables: { [key: string]: string };
   readOnly: boolean;
+  // Whether the server answered with the token Kaja holds, which is the only honest
+  // proof that a sign-in is still good.
+  signedIn: boolean;
+  signIn: SignInState;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
-// A fixed list: there is no document declaring what a server accepts, so the two
-// shapes a credential comes in are offered outright.
-function AuthenticationSection({ selected, onSelect, parameters, onParameterChange, variables, readOnly }: AuthenticationSectionProps) {
+// A fixed list: there is no document declaring what a server accepts, so every shape a
+// credential comes in is offered outright. Signing in comes first, because it is the
+// one MCP's own authorization framework defines and the one a hosted server wants.
+function AuthenticationSection({
+  selected,
+  onSelect,
+  parameters,
+  onParameterChange,
+  variables,
+  readOnly,
+  signedIn,
+  signIn,
+  onSignIn,
+  onSignOut,
+}: AuthenticationSectionProps) {
+  const oauth = selected === AUTH_OAUTH;
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
       <div role="radiogroup" aria-label="Authentication" className="flex flex-col gap-2">
+        <ChoiceCard selected={oauth}>
+          <ChoiceRow selected={oauth} disabled={readOnly} onSelect={() => onSelect(AUTH_OAUTH)} icon={ShieldCheck}>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-sm text-foreground">Sign in</span>
+              <span className="truncate text-xs text-muted-foreground">Kaja gets the token from the server and keeps it renewed</span>
+            </span>
+          </ChoiceRow>
+          {oauth && (
+            <div className="flex flex-col gap-2 px-3 pb-3">
+              {/* The verbs go where the workspace can't be written; the fields stay,
+                  because reading how an app is configured is still worth doing. */}
+              {!readOnly && <SignInStatus state={signIn} signedIn={signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
+              <VariableSuggestInput
+                value={parameters.clientId ?? ""}
+                onValueChange={(value) => onParameterChange("clientId", value)}
+                variables={variables}
+                placeholder="Client ID — leave empty and Kaja registers itself"
+                disabled={readOnly}
+              />
+              <VariableSuggestInput
+                value={parameters.scope ?? ""}
+                onValueChange={(value) => onParameterChange("scope", value)}
+                variables={variables}
+                placeholder="Scopes — leave empty and the server says which"
+                disabled={readOnly}
+              />
+              <p className="text-xs text-muted-foreground">The token is kept by this Kaja, never in kaja.json.</p>
+            </div>
+          )}
+        </ChoiceCard>
+
         {authSchemes.map((scheme) => {
           const active = selected === scheme.key;
           const note = authNote(scheme.key, parameters.apiKeyName ?? "");
@@ -454,6 +578,51 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
           </ChoiceRow>
         </ChoiceCard>
       </div>
+    </div>
+  );
+}
+
+interface SignInStatusProps {
+  state: SignInState;
+  signedIn: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}
+
+// One slot, like the endpoint's: the button, the browser it is waiting on, and the way
+// it can fail. It says nothing about having succeeded — the server answering above is
+// what says that.
+function SignInStatus({ state, signedIn, onSignIn, onSignOut }: SignInStatusProps) {
+  if (state.status === "waiting") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Spinner />
+        <span>Waiting for the browser. Finish signing in there.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Button variant={signedIn ? "ghost" : "default"} size="sm" onClick={onSignIn}>
+          {signedIn ? "Sign in again" : "Sign in…"}
+        </Button>
+        {signedIn && (
+          <Button variant="ghost" size="sm" onClick={onSignOut}>
+            Sign out
+          </Button>
+        )}
+      </div>
+      {state.status === "problem" && (
+        <div className="flex items-start gap-2 text-xs text-destructive">
+          <CircleX className="mt-px size-3.5 shrink-0" />
+          <span className="min-w-0">
+            {state.problem.message}
+            {state.problem.detail && <span className="block break-all text-muted-foreground">{state.problem.detail}</span>}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -83,6 +83,9 @@ type Tool struct {
 	InputSchema  json.RawMessage `json:"inputSchema,omitempty"`
 	OutputSchema json.RawMessage `json:"outputSchema,omitempty"`
 	Annotations  *ToolAnnotation `json:"annotations,omitempty"`
+	// HeaderParams are the tool's `x-mcp-header` parameters, read off the input
+	// schema when the tool was listed rather than on every call.
+	HeaderParams []HeaderParam `json:"-"`
 }
 
 // ToolAnnotation is the server's own hint about what a tool does. It is

@@ -30,6 +30,10 @@ type UpstreamError struct {
 	// exactly when they matter most.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	// Notices mirror the Report's: what the upstream said while the call was being
+	// made. Carried out of band by the transports, never in JSON() - the JSON is
+	// the failure as the API reported it, and this is not part of it.
+	Notices []string
 	// DurationMs mirrors the Report's: the failed exchange still took time, and it is
 	// stamped the same way (ApiService.InvokeApp). Carried out of band by the
 	// transports, never in JSON() — the JSON is the failure as the API reported it.
