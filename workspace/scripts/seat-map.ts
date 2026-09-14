@@ -1,9 +1,3 @@
-// One screening's house, row by row.
-//
-// Picking the screening is the join again, in miniature: the schedule says
-// which film is at which house, and the other two lists say what either of
-// those is called.
-
 import { kaja } from "kaja";
 import { Theatre } from "theatre/service";
 import { Seating, SeatStatus, Section } from "seating/proto/seating";

@@ -106,7 +106,7 @@ server/proto/api.proto
 
 ### The demo workspace
 
-`workspace/` holds the demo apps and scripts, and both public deployments serve it out of the Dockerfile's `demo` stage: `demo.kaja.tools` and a per-PR app. The **main** workflow drops two apps with `jq` before deploy so the public demo shows fewer, and fails on a name no app has. Nothing in kaja knows a deployment can hide an app, and it must not grow such a setting. The demo services themselves live in kaja-tools/website.
+`workspace/` holds the demo apps and scripts, and both public deployments serve it out of the Dockerfile's `demo` stage. **A demo script carries no comments**: it is the picture of what a script looks like, and a paragraph over the code was the first thing the pane showed of a script the window had to scroll. The deployments are `demo.kaja.tools` and a per-PR app. The **main** workflow drops two apps with `jq` before deploy so the public demo shows fewer, and fails on a name no app has. Nothing in kaja knows a deployment can hide an app, and it must not grow such a setting. The demo services themselves live in kaja-tools/website.
 
 ## Drafts, files and the sidebar
 

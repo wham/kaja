@@ -9,17 +9,19 @@
 # its workspace out of its sandbox container and nowhere else, so the demo
 # stages one there, takes its pictures, and puts the real one back.
 #
-# Two permissions have to be granted to whatever terminal runs this, once, in
+# Three permissions have to be granted to whatever terminal runs this, once, in
 # System Settings → Privacy & Security:
 #
 #   Accessibility    to send the app keystrokes and click its menu bar
+#   Automation       to ask System Events to do that; macOS asks the first time
+#                    and files the answer under the terminal's own row
 #   Screen Recording to photograph a window that is not this terminal's
 #
-# Both are asked for before anything is quit or moved aside, and the message
-# names the terminal to switch on: a permission missing is one the run cannot
-# acquire on its way past, and finding out after the workspace has been staged
-# costs a launch and a restore to learn one thing. Granting one takes effect
-# when the terminal is next started, not while it is running.
+# All three are asked for before anything is quit or moved aside, and the
+# message names the terminal to switch on: a permission missing is one the run
+# cannot acquire on its way past, and finding out after the workspace has been
+# staged costs a launch and a restore to learn one thing. Screen Recording takes
+# effect when the terminal is next started, not while it is running.
 #
 # --- Why it is driven by the keyboard -----------------------------------------
 #
@@ -125,7 +127,7 @@ pause() { sleep "$(echo "$1 $SLOW" | awk '{ print $1 * $2 }')"; }
 
 # -- Preflight -----------------------------------------------------------------
 
-# Both permissions below are filed against the terminal this was run from, which
+# The permissions below are filed against the terminal this was run from, which
 # is somewhere up the parent chain rather than this shell, so the message can
 # name the row to switch on.
 responsible_app() {
@@ -133,20 +135,35 @@ responsible_app() {
     while [ "${pid:-1}" -gt 1 ]; do
         command="$(ps -o comm= -p "$pid" 2>/dev/null)" || return
         case "$command" in
-            /Applications/*.app/Contents/MacOS/*) basename "${command%%.app/*}.app"; return ;;
+            /Applications/*.app/Contents/MacOS/*) echo "${command%%.app/*}.app"; return ;;
         esac
         pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
     done
 }
-GRANTEE="$(responsible_app)"
+GRANTEE_APP="$(responsible_app)"
+GRANTEE="${GRANTEE_APP:+$(basename "$GRANTEE_APP")}"
 GRANTEE="${GRANTEE:-the terminal running this}"
+GRANTEE_BUNDLE_ID="${GRANTEE_APP:+$(defaults read "$GRANTEE_APP/Contents/Info.plist" CFBundleIdentifier 2>/dev/null)}"
 
 [ "$(uname -s)" = "Darwin" ] || die "scripts/demo drives a macOS app; this is $(uname -s)."
 [ -d "$APP_PATH" ] || die "no app bundle at $APP_PATH. Install Kaja, or pass --app."
 
-if ! osascript -e 'tell application "System Events" to get name of first process' > /dev/null 2>&1; then
-    die "$GRANTEE has no Accessibility access, so it cannot drive the app.
+# Driving the app is two permissions, and a probe that exercises only one of them
+# blames the other: listing System Events' processes needs Automation and nothing
+# else, so a terminal with Accessibility and no Automation was told to switch on
+# what it already had. AXIsProcessTrusted is the question Accessibility answers.
+if [ "$(osascript -l JavaScript -e 'ObjC.import("ApplicationServices"); $.AXIsProcessTrusted()' 2>/dev/null)" != true ]; then
+    die "$GRANTEE has no Accessibility access, so it cannot send the app keystrokes.
        Switch it on in System Settings → Privacy & Security → Accessibility, then run again."
+fi
+
+# A terminal that was never asked has no row under Automation, and one that
+# clicked Don't Allow has a row saying so; resetting is what makes macOS ask again.
+if ! osascript -e 'tell application "System Events" to get name of first process' > /dev/null 2>&1; then
+    die "$GRANTEE is not allowed to send Apple events to System Events, so it cannot drive the app.
+       Switch on System Events under $GRANTEE in System Settings → Privacy & Security → Automation,
+       then run again.${GRANTEE_BUNDLE_ID:+ If it is not listed there, this makes macOS ask again:
+       tccutil reset AppleEvents $GRANTEE_BUNDLE_ID}"
 fi
 
 # Asked before anything is quit or moved aside: without it screencapture refuses
