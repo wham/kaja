@@ -121,8 +121,10 @@ type Bridge interface {
 	DeleteScript(path string) error
 	// RunScript executes a script in the webview. Exactly one of path or code is set;
 	// client is what the agent calls itself, which labels the draft an inline snippet
-	// runs in.
-	RunScript(ctx context.Context, path, code, client string) (RunResult, error)
+	// runs in. progress is how the run says what it has done so far, and is nil where
+	// nobody asked to hear it — which is what keeps a window from reporting into a
+	// response that has nowhere to put it.
+	RunScript(ctx context.Context, path, code, client string, progress func(RunProgress)) (RunResult, error)
 	// Catalog returns the most recent services/methods picture, possibly empty
 	// if nothing has compiled yet.
 	Catalog() Catalog
@@ -144,6 +146,11 @@ const defaultClientName = "Agent"
 // proxy_read_timeout among them), and a run cut off at the proxy is
 // indistinguishable from one that failed.
 const streamKeepalive = 15 * time.Second
+
+// notificationBuffer is how many notifications may be waiting to be written before the
+// next one is dropped. They describe a run that is still going, so the newest one says
+// everything a dropped one would have.
+const notificationBuffer = 8
 
 // sessionHeader is what a handshake pins and every request after it echoes, which
 // is what tells two agents on one endpoint apart. Streamable HTTP makes echoing it
@@ -186,7 +193,9 @@ func NewServer(bridge Bridge, token, version string) *Server {
 
 // Streamed answers over SSE whenever the client says it accepts one, so a slow
 // answer can say it is still coming. On the desktop nothing sits between the agent
-// and the server, and a single JSON response is the simpler thing.
+// and the server, and a single JSON response is the simpler thing — except for a
+// request carrying a progress token, which is streamed either way because that is
+// where its notifications go.
 func (s *Server) Streamed() *Server {
 	s.streamed = true
 	return s
@@ -203,6 +212,14 @@ type rpcError struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
+}
+
+// rpcNotification is a message with no id, which is what a server says on the way to
+// an answer rather than as one.
+type rpcNotification struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
 }
 
 type rpcResponse struct {
@@ -283,7 +300,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.streamed && acceptsEventStream(r) {
+	// A request that asked to hear about itself is streamed whatever the delivery: a
+	// notification has nowhere to go in a single body, and the whole of what a progress
+	// token asks for is to be told something before the answer.
+	if acceptsEventStream(r) && (s.streamed || progressToken(req.Params) != nil) {
 		s.respondStreamed(w, r, req, handle, caller, modern)
 		return
 	}
@@ -371,9 +391,20 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
+	// A handler that says something before it has an answer says it here. The send
+	// never blocks: a beat nobody kept up with is one whose next beat says the same
+	// thing a moment later, and the answer must not wait on it.
+	notes := make(chan rpcNotification, notificationBuffer)
+	ctx := withNotifier(r.Context(), func(method string, params map[string]interface{}) {
+		select {
+		case notes <- rpcNotification{JSONRPC: "2.0", Method: method, Params: params}:
+		default:
+		}
+	})
+
 	done := make(chan rpcResponse, 1)
 	go func() {
-		done <- s.answer(r.Context(), req, handle, caller, modern)
+		done <- s.answer(ctx, req, handle, caller, modern)
 	}()
 
 	ticker := time.NewTicker(streamKeepalive)
@@ -385,18 +416,44 @@ func (s *Server) respondStreamed(w http.ResponseWriter, r *http.Request, req rpc
 		case <-ticker.C:
 			fmt.Fprint(w, ": keepalive\n\n")
 			flusher.Flush()
-		case resp := <-done:
-			// json.Marshal never emits a raw newline, so the response is always the single data
-			// line SSE needs it to be.
-			body, err := json.Marshal(resp)
-			if err != nil {
+		case note := <-notes:
+			if !writeEvent(w, flusher, note) {
 				return
 			}
-			fmt.Fprintf(w, "event: message\ndata: %s\n\n", body)
-			flusher.Flush()
+		case resp := <-done:
+			drainNotes(w, flusher, notes)
+			writeEvent(w, flusher, resp)
 			return
 		}
 	}
+}
+
+// drainNotes writes whatever was said on the way to the answer before the answer
+// itself, which is what keeps a beat from being reordered behind the thing it was
+// describing: both are ready at once when a run ends on one.
+func drainNotes(w http.ResponseWriter, flusher http.Flusher, notes <-chan rpcNotification) {
+	for {
+		select {
+		case note := <-notes:
+			if !writeEvent(w, flusher, note) {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
+// writeEvent writes one SSE message. json.Marshal never emits a raw newline, so what
+// it produces is always the single data line SSE needs it to be.
+func writeEvent(w http.ResponseWriter, flusher http.Flusher, message interface{}) bool {
+	body, err := json.Marshal(message)
+	if err != nil {
+		return false
+	}
+	fmt.Fprintf(w, "event: message\ndata: %s\n\n", body)
+	flusher.Flush()
+	return true
 }
 
 func (s *Server) activity(delta int) {

@@ -78,6 +78,10 @@ type Message struct {
 	OnDuty bool `json:"onDuty"`
 	// Change is what an agent did to a file on disk, on "scripts".
 	Change *ScriptChange `json:"change,omitempty"`
+	// Progress is whether the agent asked to hear about this run while it is going, on
+	// "run". A window beats only where somebody is listening, so a run nobody asked
+	// about costs no traffic at all.
+	Progress bool `json:"progress,omitempty"`
 }
 
 // Stream is one attached window.
@@ -117,8 +121,15 @@ type Session struct {
 	mu        sync.Mutex
 	streams   []*Stream
 	catalog   mcp.Catalog
-	pending   map[string]chan mcp.RunResult
+	pending   map[string]*pendingRun
 	idleSince time.Time
+}
+
+// pendingRun is a run dispatched to a window: where its answer goes, and what it says
+// about itself on the way there. progress is nil where the agent asked for none.
+type pendingRun struct {
+	result   chan mcp.RunResult
+	progress func(mcp.RunProgress)
 }
 
 // Handler is the MCP server bound to this session. One per session, so the in-flight
@@ -239,14 +250,29 @@ func (s *Session) Result(runID string, result mcp.RunResult) {
 	s.mu.Unlock()
 	if waiting != nil {
 		select {
-		case waiting <- result:
+		case waiting.result <- result:
 		default:
 		}
 	}
 }
 
-// Run sends a script to the window on duty and waits for what it produced.
-func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
+// Progress carries what a window says about a run still going up to whoever is waiting
+// on it. A run that has already been answered, or one nobody asked to hear about, is
+// told nothing rather than reported on.
+func (s *Session) Progress(runID string, progress mcp.RunProgress) {
+	s.mu.Lock()
+	waiting := s.pending[runID]
+	s.mu.Unlock()
+	if waiting == nil || waiting.progress == nil {
+		return
+	}
+	waiting.progress(progress)
+}
+
+// Run sends a script to the window on duty and waits for what it produced. progress is
+// nil where the agent asked to hear nothing before the answer, and the window is told
+// as much, so it beats only for a run somebody is listening to.
+func (s *Session) Run(ctx context.Context, path, code, client string, progress func(mcp.RunProgress)) (mcp.RunResult, error) {
 	s.mu.Lock()
 	stream := s.duty()
 	if stream == nil {
@@ -255,7 +281,7 @@ func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunRe
 	}
 	runID := randomID()
 	waiting := make(chan mcp.RunResult, 1)
-	s.pending[runID] = waiting
+	s.pending[runID] = &pendingRun{result: waiting, progress: progress}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
@@ -264,7 +290,7 @@ func (s *Session) Run(ctx context.Context, path, code, client string) (mcp.RunRe
 	}()
 
 	select {
-	case stream.messages <- Message{Type: "run", RunID: runID, Path: path, Code: code, Client: client}:
+	case stream.messages <- Message{Type: "run", RunID: runID, Path: path, Code: code, Client: client, Progress: progress != nil}:
 	case <-stream.closed:
 		return mcp.RunResult{}, ErrNoWindow
 	case <-ctx.Done():
@@ -309,7 +335,9 @@ func (s *Session) broadcast(message Message) {
 	}
 }
 
-// Delivery is how the MCP server answers, which depends on what sits in front of it.
+// Delivery is how the MCP server answers a request that has nothing to say before its
+// answer, which depends on what sits in front of it. A request that asked to hear about
+// itself is streamed whatever the delivery, a notification having nowhere else to go.
 type Delivery int
 
 const (
@@ -357,7 +385,7 @@ func (r *Registry) Open(token string) (*Session, error) {
 	session := &Session{
 		token:     token,
 		scripts:   r.scripts,
-		pending:   map[string]chan mcp.RunResult{},
+		pending:   map[string]*pendingRun{},
 		idleSince: time.Now(),
 	}
 	// The bridge is bound to the session and the server to the bridge, so a request

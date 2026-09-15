@@ -30,6 +30,7 @@ func Mount(mux *http.ServeMux, registry *Registry) {
 	mux.HandleFunc("POST /agent-session/detach", registry.ServeDetach)
 	mux.HandleFunc("POST /agent-session/focus", registry.ServeFocus)
 	mux.HandleFunc("POST /agent-session/catalog", registry.ServeCatalog)
+	mux.HandleFunc("POST /agent-session/progress", registry.ServeProgress)
 	mux.HandleFunc("POST /agent-session/result", registry.ServeResult)
 	mux.HandleFunc("POST /mcp", registry.ServeMCP)
 }
@@ -142,6 +143,25 @@ func (r *Registry) ServeResult(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	session.Result(body.RunID, body.Result)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ServeProgress takes what a window says about a run that is still going. It is a door
+// of its own rather than a field on the result, because the whole of what it is for is
+// to be said before there is a result to say it with.
+func (r *Registry) ServeProgress(w http.ResponseWriter, req *http.Request) {
+	session, ok := r.authorize(w, req)
+	if !ok {
+		return
+	}
+	var body struct {
+		RunID    string          `json:"runId"`
+		Progress mcp.RunProgress `json:"progress"`
+	}
+	if !decode(w, req, maxBody, &body) {
+		return
+	}
+	session.Progress(body.RunID, body.Progress)
 	w.WriteHeader(http.StatusNoContent)
 }
 

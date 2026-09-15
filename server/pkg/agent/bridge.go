@@ -57,7 +57,7 @@ func (b *bridge) Activity(inFlight int) { b.session.Activity(inFlight) }
 // RunScript reads a saved script here rather than asking the window to: the process
 // serving the agent owns the disk, so the window is only ever handed source. The
 // script's own path travels with it because that is what the run lands under.
-func (b *bridge) RunScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
+func (b *bridge) RunScript(ctx context.Context, path, code, client string, progress func(mcp.RunProgress)) (mcp.RunResult, error) {
 	if path != "" {
 		script, err := b.scripts().Read(path)
 		if err != nil {
@@ -66,7 +66,7 @@ func (b *bridge) RunScript(ctx context.Context, path, code, client string) (mcp.
 		// The window's own name for the file, which is what its console is keyed on.
 		path, code = script.RunPath, script.Content
 	}
-	return b.session.Run(ctx, path, code, client)
+	return b.session.Run(ctx, path, code, client, progress)
 }
 
 func (b *bridge) Catalog() mcp.Catalog {

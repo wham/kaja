@@ -22,6 +22,12 @@ type fakeBridge struct {
 	runValue   RunResult
 	activity   []int // in-flight counts, in the order they were reported
 	readOnly   bool  // a workspace this kaja does not own, so nothing may write it
+	// onRun is what a run does before it answers, which is where a test beats.
+	onRun func(progress func(RunProgress))
+	// lastProgress is what the run was handed to report itself with, nil where the
+	// caller asked to hear nothing.
+	lastProgress func(RunProgress)
+	hadProgress  bool
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -139,13 +145,17 @@ func (f *fakeBridge) RenameScript(path, newName string) (ScriptInfo, error) {
 	return ScriptInfo{Path: np, Name: newName, Content: c}, nil
 }
 func (f *fakeBridge) DeleteScript(path string) error { delete(f.scripts, path); return nil }
-func (f *fakeBridge) RunScript(_ context.Context, path, code, client string) (RunResult, error) {
+func (f *fakeBridge) RunScript(_ context.Context, path, code, client string, progress func(RunProgress)) (RunResult, error) {
 	if path != "" {
 		f.lastRun = path
 	} else {
 		f.lastRun = code
 	}
 	f.lastClient = client
+	f.lastProgress, f.hadProgress = progress, progress != nil
+	if f.onRun != nil {
+		f.onRun(progress)
+	}
 	return f.runValue, f.runErr
 }
 func (f *fakeBridge) Catalog() Catalog      { return f.catalog }
