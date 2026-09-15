@@ -150,6 +150,13 @@ func (r *Registry) ServeResult(w http.ResponseWriter, req *http.Request) {
 // attached with is unknown, which is what makes a session something a browser
 // offers rather than something this server hands out.
 func (r *Registry) ServeMCP(w http.ResponseWriter, req *http.Request) {
+	// Ahead of the token, not after it: a token looked up first is a token a
+	// cross-origin page can probe, since a refusal that knows the answer reads
+	// differently from one that doesn't.
+	if !mcp.SameSiteOrigin(req) {
+		http.Error(w, "forbidden origin", http.StatusForbidden)
+		return
+	}
 	session, ok := r.authorize(w, req)
 	if !ok {
 		return

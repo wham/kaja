@@ -23,6 +23,10 @@ type Upstream struct {
 	Request    string `json:"request,omitempty"`
 	Status     int    `json:"status,omitempty"`
 	StatusText string `json:"statusText,omitempty"`
+	// Notices are what the upstream said while the call was being made rather than in
+	// answer to it, which the client states between the two halves of its Headers
+	// view - where they sit in the exchange is where they happened.
+	Notices []string `json:"notices,omitempty"`
 	// DurationMs is the exchange as this process measured it, which the client shows
 	// in place of its own round-trip timing. Never omitted: a call that took no
 	// measurable time is not a call nobody measured.
@@ -44,6 +48,7 @@ func UpstreamOf(report *Report) *Upstream {
 		Request:         report.Request,
 		Status:          report.Status,
 		StatusText:      report.StatusText,
+		Notices:         report.Notices,
 		DurationMs:      report.DurationMs,
 	}
 }
@@ -57,14 +62,16 @@ func UpstreamOfError(err *UpstreamError) *Upstream {
 		Request:         err.Method + " " + err.URL,
 		Status:          err.Status,
 		StatusText:      err.StatusText,
+		Notices:         err.Notices,
 		DurationMs:      err.DurationMs,
 		Error:           err.JSON(),
 	}
 }
 
-// WithoutHeaders is the report without the headers describing the hop, which is what
+// WithoutHeaders is the report without what merely describes the hop, which is what
 // is left when the whole of it will not fit in the carrier: the failure and the timing
-// are what the call has to say, the headers only say how it was made.
+// are what the call has to say, the headers only say how it was made and the notices
+// only what was said while it was.
 func (u *Upstream) WithoutHeaders() *Upstream {
 	if u == nil {
 		return nil
@@ -72,6 +79,7 @@ func (u *Upstream) WithoutHeaders() *Upstream {
 	trimmed := *u
 	trimmed.RequestHeaders = nil
 	trimmed.ResponseHeaders = nil
+	trimmed.Notices = nil
 	return &trimmed
 }
 

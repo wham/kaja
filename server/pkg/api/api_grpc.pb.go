@@ -19,31 +19,33 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Api_Compile_FullMethodName             = "/Api/Compile"
-	Api_OpenApp_FullMethodName             = "/Api/OpenApp"
-	Api_RenameApp_FullMethodName           = "/Api/RenameApp"
-	Api_InspectOpenApi_FullMethodName      = "/Api/InspectOpenApi"
-	Api_InspectGrpc_FullMethodName         = "/Api/InspectGrpc"
-	Api_InspectMcp_FullMethodName          = "/Api/InspectMcp"
-	Api_GetConfiguration_FullMethodName    = "/Api/GetConfiguration"
-	Api_WatchConfiguration_FullMethodName  = "/Api/WatchConfiguration"
-	Api_UpdateConfiguration_FullMethodName = "/Api/UpdateConfiguration"
-	Api_SetMcpEnabled_FullMethodName       = "/Api/SetMcpEnabled"
-	Api_SetStoredValue_FullMethodName      = "/Api/SetStoredValue"
-	Api_ClearStoredValue_FullMethodName    = "/Api/ClearStoredValue"
-	Api_ListScripts_FullMethodName         = "/Api/ListScripts"
-	Api_ReadScript_FullMethodName          = "/Api/ReadScript"
-	Api_WriteScript_FullMethodName         = "/Api/WriteScript"
-	Api_CreateScript_FullMethodName        = "/Api/CreateScript"
-	Api_RenameScript_FullMethodName        = "/Api/RenameScript"
-	Api_DeleteScript_FullMethodName        = "/Api/DeleteScript"
-	Api_CopyScript_FullMethodName          = "/Api/CopyScript"
-	Api_ListScriptFolders_FullMethodName   = "/Api/ListScriptFolders"
-	Api_CreateScriptFolder_FullMethodName  = "/Api/CreateScriptFolder"
-	Api_RenameScriptFolder_FullMethodName  = "/Api/RenameScriptFolder"
-	Api_DeleteScriptFolder_FullMethodName  = "/Api/DeleteScriptFolder"
-	Api_CopyScriptFolder_FullMethodName    = "/Api/CopyScriptFolder"
-	Api_ScanScriptVariables_FullMethodName = "/Api/ScanScriptVariables"
+	Api_Compile_FullMethodName                = "/Api/Compile"
+	Api_OpenApp_FullMethodName                = "/Api/OpenApp"
+	Api_RenameApp_FullMethodName              = "/Api/RenameApp"
+	Api_InspectOpenApi_FullMethodName         = "/Api/InspectOpenApi"
+	Api_InspectGrpc_FullMethodName            = "/Api/InspectGrpc"
+	Api_InspectMcp_FullMethodName             = "/Api/InspectMcp"
+	Api_AuthorizeMcp_FullMethodName           = "/Api/AuthorizeMcp"
+	Api_ForgetMcpAuthorization_FullMethodName = "/Api/ForgetMcpAuthorization"
+	Api_GetConfiguration_FullMethodName       = "/Api/GetConfiguration"
+	Api_WatchConfiguration_FullMethodName     = "/Api/WatchConfiguration"
+	Api_UpdateConfiguration_FullMethodName    = "/Api/UpdateConfiguration"
+	Api_SetMcpEnabled_FullMethodName          = "/Api/SetMcpEnabled"
+	Api_SetStoredValue_FullMethodName         = "/Api/SetStoredValue"
+	Api_ClearStoredValue_FullMethodName       = "/Api/ClearStoredValue"
+	Api_ListScripts_FullMethodName            = "/Api/ListScripts"
+	Api_ReadScript_FullMethodName             = "/Api/ReadScript"
+	Api_WriteScript_FullMethodName            = "/Api/WriteScript"
+	Api_CreateScript_FullMethodName           = "/Api/CreateScript"
+	Api_RenameScript_FullMethodName           = "/Api/RenameScript"
+	Api_DeleteScript_FullMethodName           = "/Api/DeleteScript"
+	Api_CopyScript_FullMethodName             = "/Api/CopyScript"
+	Api_ListScriptFolders_FullMethodName      = "/Api/ListScriptFolders"
+	Api_CreateScriptFolder_FullMethodName     = "/Api/CreateScriptFolder"
+	Api_RenameScriptFolder_FullMethodName     = "/Api/RenameScriptFolder"
+	Api_DeleteScriptFolder_FullMethodName     = "/Api/DeleteScriptFolder"
+	Api_CopyScriptFolder_FullMethodName       = "/Api/CopyScriptFolder"
+	Api_ScanScriptVariables_FullMethodName    = "/Api/ScanScriptVariables"
 )
 
 // ApiClient is the client API for Api service.
@@ -59,6 +61,11 @@ type ApiClient interface {
 	InspectOpenApi(ctx context.Context, in *InspectOpenApiRequest, opts ...grpc.CallOption) (*InspectOpenApiResponse, error)
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
 	InspectMcp(ctx context.Context, in *InspectMcpRequest, opts ...grpc.CallOption) (*InspectMcpResponse, error)
+	// AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
+	// a browser in the middle of it: the first message carries the page to open,
+	// and the last one says how it went once the server has sent the person back.
+	AuthorizeMcp(ctx context.Context, in *AuthorizeMcpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AuthorizeMcpResponse], error)
+	ForgetMcpAuthorization(ctx context.Context, in *ForgetMcpAuthorizationRequest, opts ...grpc.CallOption) (*ForgetMcpAuthorizationResponse, error)
 	GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*GetConfigurationResponse, error)
 	// WatchConfiguration streams the configuration file as it is edited: one message
 	// carrying the whole configuration each time the file changes. What changed is
@@ -163,6 +170,35 @@ func (c *apiClient) InspectMcp(ctx context.Context, in *InspectMcpRequest, opts 
 	return out, nil
 }
 
+func (c *apiClient) AuthorizeMcp(ctx context.Context, in *AuthorizeMcpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AuthorizeMcpResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[1], Api_AuthorizeMcp_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AuthorizeMcpRequest, AuthorizeMcpResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_AuthorizeMcpClient = grpc.ServerStreamingClient[AuthorizeMcpResponse]
+
+func (c *apiClient) ForgetMcpAuthorization(ctx context.Context, in *ForgetMcpAuthorizationRequest, opts ...grpc.CallOption) (*ForgetMcpAuthorizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForgetMcpAuthorizationResponse)
+	err := c.cc.Invoke(ctx, Api_ForgetMcpAuthorization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*GetConfigurationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetConfigurationResponse)
@@ -175,7 +211,7 @@ func (c *apiClient) GetConfiguration(ctx context.Context, in *GetConfigurationRe
 
 func (c *apiClient) WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[1], Api_WatchConfiguration_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[2], Api_WatchConfiguration_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -375,6 +411,11 @@ type ApiServer interface {
 	InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error)
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
 	InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error)
+	// AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
+	// a browser in the middle of it: the first message carries the page to open,
+	// and the last one says how it went once the server has sent the person back.
+	AuthorizeMcp(*AuthorizeMcpRequest, grpc.ServerStreamingServer[AuthorizeMcpResponse]) error
+	ForgetMcpAuthorization(context.Context, *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error)
 	GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error)
 	// WatchConfiguration streams the configuration file as it is edited: one message
 	// carrying the whole configuration each time the file changes. What changed is
@@ -426,6 +467,12 @@ func (UnimplementedApiServer) InspectGrpc(context.Context, *InspectGrpcRequest) 
 }
 func (UnimplementedApiServer) InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InspectMcp not implemented")
+}
+func (UnimplementedApiServer) AuthorizeMcp(*AuthorizeMcpRequest, grpc.ServerStreamingServer[AuthorizeMcpResponse]) error {
+	return status.Error(codes.Unimplemented, "method AuthorizeMcp not implemented")
+}
+func (UnimplementedApiServer) ForgetMcpAuthorization(context.Context, *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ForgetMcpAuthorization not implemented")
 }
 func (UnimplementedApiServer) GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetConfiguration not implemented")
@@ -601,6 +648,35 @@ func _Api_InspectMcp_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).InspectMcp(ctx, req.(*InspectMcpRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_AuthorizeMcp_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(AuthorizeMcpRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ApiServer).AuthorizeMcp(m, &grpc.GenericServerStream[AuthorizeMcpRequest, AuthorizeMcpResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_AuthorizeMcpServer = grpc.ServerStreamingServer[AuthorizeMcpResponse]
+
+func _Api_ForgetMcpAuthorization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForgetMcpAuthorizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).ForgetMcpAuthorization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_ForgetMcpAuthorization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).ForgetMcpAuthorization(ctx, req.(*ForgetMcpAuthorizationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -968,6 +1044,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Api_InspectMcp_Handler,
 		},
 		{
+			MethodName: "ForgetMcpAuthorization",
+			Handler:    _Api_ForgetMcpAuthorization_Handler,
+		},
+		{
 			MethodName: "GetConfiguration",
 			Handler:    _Api_GetConfiguration_Handler,
 		},
@@ -1044,6 +1124,11 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Compile",
 			Handler:       _Api_Compile_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "AuthorizeMcp",
+			Handler:       _Api_AuthorizeMcp_Handler,
 			ServerStreams: true,
 		},
 		{

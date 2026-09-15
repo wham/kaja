@@ -28,7 +28,10 @@ type ApiService struct {
 	gitRef                 string
 	buildNumber            string
 	variableStore          VariableStore
-	apps                   *apps.Manager
+	// mcpAuthorizer holds this installation's MCP sign-ins. It is nil where there
+	// is nowhere to keep one, and the verbs that use it are then absent.
+	mcpAuthorizer *mcp.Authorizer
+	apps          *apps.Manager
 
 	// The configuration file's watcher, started by the first call that watches it.
 	// Guarded by watcherMu.
@@ -42,19 +45,32 @@ type ApiService struct {
 func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
 	tempdir.StartCleanup()
 
+	// A sign-in is a write: it leaves a credential on the machine serving the
+	// workspace. So a kaja serving its workspace read-only has no authorizer, and
+	// the verbs that would use one say there is nothing to sign in with.
+	var authorizer *mcp.Authorizer
+	if canUpdateConfiguration {
+		opened, err := mcp.DefaultAuthorizer()
+		if err != nil {
+			slog.Warn("MCP authorization is unavailable", "error", err)
+		}
+		authorizer = opened
+	}
+
 	return &ApiService{
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
 		gitRef:                 gitRef,
 		buildNumber:            buildNumber,
 		variableStore:          variableStore,
+		mcpAuthorizer:          authorizer,
 		apps: apps.NewManager(map[string]apps.App{
 			"grpc":    rpc.New(),
 			"twirp":   twirp.New(),
 			"openapi": openapi.New(),
 			"openai":  openai.New(),
 			"folder":  folder.New(),
-			"mcp":     mcp.New(),
+			"mcp":     mcp.New().WithAuthorizer(authorizer),
 		}),
 	}
 }
@@ -391,7 +407,7 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Mcp{Mcp: req.Mcp}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
-	surface, problem := mcp.Inspect(parameters)
+	surface, problem := mcp.Inspect(parameters, s.mcpAuthorizer)
 	if problem != nil {
 		return &InspectMcpResponse{Problem: &McpProblem{
 			Kind:    mcpProblemKind(problem.Kind),
@@ -401,6 +417,77 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	}
 
 	return &InspectMcpResponse{Server: describeMcpServer(surface)}, nil
+}
+
+// AuthorizeMcp signs kaja in to the server an app names. The stream is the flow:
+// the page to open goes out first and on its own, because nothing can happen
+// until somebody opens it, and the verdict follows once the authorization server
+// has sent them back to the loopback address kaja is listening on.
+func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerStreamingServer[AuthorizeMcpResponse]) error {
+	if req.Mcp == nil {
+		return fmt.Errorf("mcp app is required")
+	}
+	if s.mcpAuthorizer == nil {
+		return stream.Send(&AuthorizeMcpResponse{Problem: &McpProblem{
+			Kind:    McpProblemKind_MCP_PROBLEM_AUTHORIZATION,
+			Message: "This kaja serves its workspace read-only, so it has nowhere to keep a sign-in.",
+		}})
+	}
+
+	target, done, err := s.mcpAuthorizer.Begin(s.mcpAuthorization(req.Mcp))
+	if err != nil {
+		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
+	}
+	if err := stream.Send(&AuthorizeMcpResponse{AuthorizationUrl: target}); err != nil {
+		s.mcpAuthorizer.Cancel(done)
+		return err
+	}
+
+	if err := s.mcpAuthorizer.Wait(stream.Context(), done); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			// The window went away. There is nobody left to answer.
+			return nil
+		}
+		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
+	}
+	return stream.Send(&AuthorizeMcpResponse{Authorized: true})
+}
+
+// ForgetMcpAuthorization drops the token kaja holds for a server.
+func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error) {
+	if req.Mcp == nil {
+		return nil, fmt.Errorf("mcp app is required")
+	}
+	if s.mcpAuthorizer == nil {
+		return &ForgetMcpAuthorizationResponse{}, nil
+	}
+	if err := s.mcpAuthorizer.Forget(s.Variables().Expand(req.Mcp.Url)); err != nil {
+		return nil, err
+	}
+	return &ForgetMcpAuthorizationResponse{}, nil
+}
+
+// mcpAuthorization is the app's half of a sign-in, with its variables resolved:
+// the same endpoint and headers the app would be opened with, since a server
+// guarding its metadata guards it against an unconfigured request too.
+func (s *ApiService) mcpAuthorization(app *McpApp) mcp.AppAuthorization {
+	resolver := s.Variables()
+	return mcp.AppAuthorization{
+		Endpoint: resolver.Expand(app.Url),
+		Headers:  resolver.ExpandAll(app.Headers),
+		ClientID: resolver.Expand(app.ClientId),
+		Scope:    resolver.Expand(app.Scope),
+	}
+}
+
+// authorizationProblem is a sign-in that did not happen, said the way the form
+// says every other failure: one line, and the error under it.
+func authorizationProblem(err error) *McpProblem {
+	return &McpProblem{
+		Kind:    McpProblemKind_MCP_PROBLEM_AUTHORIZATION,
+		Message: "Kaja could not sign in to that server.",
+		Detail:  err.Error(),
+	}
 }
 
 var mcpProblemKinds = map[mcp.ProblemKind]McpProblemKind{

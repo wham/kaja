@@ -6,12 +6,12 @@
   <sub><b>macOS · Docker</b></sub>
 </p>
 
-<h3 align="center">A canvas for your APIs</h3>
+<h3 align="center">The API client built for you and your agents.</h3>
 
 <p align="center">
-  An API client like Postman or Bruno, except your agent writes the payloads.
+  Connect gRPC, OpenAPI, or MCP. Explore APIs yourself, or let an agent write and run typed scripts.
   <br/>
-  Kaja draws the flow, and you can inspect every call.
+  Every request stays visible and inspectable.
 </p>
 
 <p align="center">
@@ -74,7 +74,7 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -tags development -v)`. The `development` tag is the one `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
 - Update demo protos: `scripts/demo-protos` refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo services themselves live in [kaja-tools/website](https://github.com/kaja-tools/website).
-- App Store screenshots: `scripts/demo` walks the installed `/Applications/Kaja.app` through its own story — empty workspace, new app, the tree, a drafted call, a run, the canvas, a performance test, variables, the MCP page — and photographs each at 1440×900 into `desktop/build/screenshots`. It stages a workspace in the app's sandbox container and puts yours back on the way out. The terminal running it needs Accessibility and Screen Recording access.
+- App Store screenshots: `scripts/demo` walks the installed `/Applications/Kaja.app` through its own story — empty workspace, new app, the tree, a drafted call, a run, the canvas, a performance test, variables, the MCP page — and photographs each at 1440×900 into `desktop/build/screenshots`. It stages a workspace in the app's sandbox container and puts yours back on the way out. The terminal running it needs Accessibility, Automation (for System Events) and Screen Recording access.
 
 ### Releases
 

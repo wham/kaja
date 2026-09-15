@@ -47,7 +47,7 @@ func main() {
 	// The agent session. A script runs in a browser, so a deployed kaja can only answer
 	// an agent by forwarding the run to a window that has offered itself. The window makes
 	// up the token and holds the stream; this server holds nothing at rest.
-	agent.Mount(mux, agent.NewRegistry(agent.NewWorkspaceScripts(apiService), agent.Streamed))
+	agent.Mount(mux, agent.NewRegistry(agent.NewWorkspaceScripts(apiService), agent.Streamed, GitRef))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

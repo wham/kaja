@@ -93,7 +93,8 @@ func (f *fakeServer) write(w http.ResponseWriter, id, result, rpcError string) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		// A notification ahead of the response, which the client must step over.
 		fmt.Fprint(w, ":\r\n\r\n")
-		fmt.Fprint(w, "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{}}\n\n")
+		fmt.Fprint(w, "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\","+
+			"\"params\":{\"progressToken\":1,\"progress\":1,\"total\":2,\"message\":\"Reading\"}}\n\n")
 		fmt.Fprint(w, "event: message\ndata: "+payload+"\n\n")
 		return
 	}
@@ -418,7 +419,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}); problem == nil || problem.Kind != ProblemUnauthorized {
+		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemUnauthorized {
 			t.Fatalf("problem = %v, want unauthorized", problem)
 		}
 	})
@@ -428,7 +429,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			fmt.Fprint(w, "<html><body>hello</body></html>")
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL}); problem == nil || problem.Kind != ProblemNotMCP {
+		if _, problem := Inspect(map[string]string{"url": server.URL}, nil); problem == nil || problem.Kind != ProblemNotMCP {
 			t.Fatalf("problem = %v, want notMcp", problem)
 		}
 	})
@@ -440,13 +441,13 @@ func TestInspectClassifiesFailures(t *testing.T) {
 		}}
 		server := httptest.NewServer(fake.handler())
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}); problem == nil || problem.Kind != ProblemEmpty {
+		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemEmpty {
 			t.Fatalf("problem = %v, want empty", problem)
 		}
 	})
 
 	t.Run("no endpoint", func(t *testing.T) {
-		if _, problem := Inspect(map[string]string{"url": "  "}); problem == nil || problem.Kind != ProblemTarget {
+		if _, problem := Inspect(map[string]string{"url": "  "}, nil); problem == nil || problem.Kind != ProblemTarget {
 			t.Fatalf("problem = %v, want target", problem)
 		}
 	})
@@ -454,7 +455,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 
 func TestInspectReadsTheSurface(t *testing.T) {
 	_, endpoint := modernServer(t, nil)
-	surface, problem := Inspect(map[string]string{"url": endpoint})
+	surface, problem := Inspect(map[string]string{"url": endpoint}, nil)
 	if problem != nil {
 		t.Fatalf("Inspect: %v", problem)
 	}
@@ -555,6 +556,7 @@ type invoked struct {
 	Body            []byte
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
+	Notices         []string
 }
 
 func invoke(in *instance, method string, request []byte, headers map[string]string) (*invoked, error) {
@@ -570,6 +572,143 @@ func invoke(in *instance, method string, request []byte, headers map[string]stri
 	if report := stream.Report(); report != nil {
 		result.RequestHeaders = report.RequestHeaders
 		result.ResponseHeaders = report.ResponseHeaders
+		result.Notices = report.Notices
 	}
 	return result, nil
+}
+
+// annotatedTools is a listing where one tool mirrors two of its parameters into
+// headers and another mis-annotates one of its own.
+const annotatedTools = `{
+  "resultType": "complete",
+  "tools": [
+    {
+      "name": "get_weather",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "location": {"type": "string"},
+          "region": {"type": "string", "x-mcp-header": "Region"},
+          "days": {"type": "integer", "x-mcp-header": "Days"}
+        },
+        "required": ["location"]
+      }
+    },
+    {
+      "name": "execute_sql",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ratio": {"type": "number", "x-mcp-header": "Ratio"}
+        }
+      }
+    }
+  ]
+}`
+
+func TestMirrorsAnnotatedParametersIntoHeaders(t *testing.T) {
+	fake, endpoint := modernServer(t, map[string]string{"tools/list": annotatedTools})
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	request := encodeRequest(t, bound, `{"location":"Seattle","region":"us-west1","days":3}`)
+	if _, err := invoke(in, "mcp.Tools/GetWeather", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+
+	call := fake.asked("tools/call")
+	if call == nil {
+		t.Fatal("expected tools/call")
+	}
+	if got := call.Headers.Get("Mcp-Param-Region"); got != "us-west1" {
+		t.Errorf("Mcp-Param-Region = %q", got)
+	}
+	if got := call.Headers.Get("Mcp-Param-Days"); got != "3" {
+		t.Errorf("Mcp-Param-Days = %q", got)
+	}
+}
+
+// A parameter the call leaves out is a header the call leaves out, which is what
+// a server validating the two against each other expects.
+func TestOmitsHeadersForParametersNotGiven(t *testing.T) {
+	fake, endpoint := modernServer(t, map[string]string{"tools/list": annotatedTools})
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	request := encodeRequest(t, bound, `{"location":"Seattle"}`)
+	if _, err := invoke(in, "mcp.Tools/GetWeather", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+
+	call := fake.asked("tools/call")
+	if _, ok := call.Headers["Mcp-Param-Region"]; ok {
+		t.Error("expected no Mcp-Param-Region header")
+	}
+	if _, ok := call.Headers["Mcp-Param-Days"]; ok {
+		t.Error("expected no Mcp-Param-Days header")
+	}
+}
+
+// A tool whose annotations break the rules is left out of the listing rather
+// than taking the rest of the server's tools with it.
+func TestDropsToolsWithInvalidAnnotations(t *testing.T) {
+	_, endpoint := modernServer(t, map[string]string{"tools/list": annotatedTools})
+	in, logs := openApp(t, endpoint, nil)
+
+	if _, ok := in.methods["mcp.Tools/GetWeather"]; !ok {
+		t.Error("expected the valid tool to be offered")
+	}
+	if _, ok := in.methods["mcp.Tools/ExecuteSql"]; ok {
+		t.Error("expected the mis-annotated tool to be left out")
+	}
+	said := strings.Join(logs.lines, "\n")
+	if !strings.Contains(said, `Left out the tool "execute_sql"`) {
+		t.Errorf("expected the log to name the tool it left out, got %s", said)
+	}
+}
+
+// The mirrored headers are the modern transport's. A handshake-era server never
+// declared them, so nothing is sent it would have to validate.
+func TestLegacyServerIsSentNoMirroredHeaders(t *testing.T) {
+	fake := &fakeServer{
+		era: "legacy",
+		results: map[string]string{
+			"initialize": `{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},` +
+				`"serverInfo":{"name":"legacy-server","version":"0.1.0"}}`,
+			"tools/list": annotatedTools,
+			"tools/call": weatherResult,
+		},
+	}
+	server := httptest.NewServer(fake.handler())
+	defer server.Close()
+
+	in, _ := openApp(t, server.URL+"/mcp", nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+	request := encodeRequest(t, bound, `{"location":"Seattle","region":"us-west1"}`)
+	if _, err := invoke(in, "mcp.Tools/GetWeather", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+
+	call := fake.asked("tools/call")
+	if _, ok := call.Headers["Mcp-Param-Region"]; ok {
+		t.Error("expected no Mcp-Param-Region header")
+	}
+}
+
+// A server that streams its answer may say something on the way there. A call
+// that reports nothing for a minute is indistinguishable from one that failed,
+// so what it said rides back with the exchange that carried it.
+func TestReportsWhatTheServerSaidWhileWorking(t *testing.T) {
+	fake, endpoint := modernServer(t, nil)
+	fake.sse = true
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if len(result.Notices) == 0 {
+		t.Fatal("expected the call to report what the server said")
+	}
 }

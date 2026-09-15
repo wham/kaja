@@ -46,7 +46,7 @@ func (c *Client) ReadSurface(log func(string)) (*Surface, error) {
 		if err != nil {
 			return nil, fmt.Errorf("listing tools: %w", err)
 		}
-		surface.Tools = tools
+		surface.Tools = acceptTools(tools, log)
 	}
 	if declared.Resources != nil || unknown {
 		// Resources are optional even where the capability is declared, and a
@@ -68,6 +68,26 @@ func (c *Client) ReadSurface(log func(string)) (*Surface, error) {
 		log(fmt.Sprintf("Listed %d tool(s), %d resource(s), %d prompt(s)", len(surface.Tools), len(surface.Resources), len(surface.Prompts)))
 	}
 	return surface, nil
+}
+
+// acceptTools reads each tool's `x-mcp-header` annotations and leaves out the
+// tools whose annotations are invalid. Dropping one rather than failing the
+// listing is the whole point of the rule: a server that has mis-annotated a
+// single tool still has the rest of its tools to offer.
+func acceptTools(tools []Tool, log func(string)) []Tool {
+	accepted := make([]Tool, 0, len(tools))
+	for _, tool := range tools {
+		params, err := readHeaderParams(tool.InputSchema)
+		if err != nil {
+			if log != nil {
+				log(fmt.Sprintf("Left out the tool %q: %s", tool.Name, err))
+			}
+			continue
+		}
+		tool.HeaderParams = params
+		accepted = append(accepted, tool)
+	}
+	return accepted
 }
 
 // readGreeting reads what the server said about itself while the era was
@@ -117,7 +137,7 @@ func listAll[T any](c *Client, method string, key string) ([]T, error) {
 		if cursor != "" {
 			params["cursor"] = cursor
 		}
-		result, _, err := c.send(method, params, nil)
+		result, _, err := c.send(method, params, nil, nil)
 		if err != nil {
 			return nil, err
 		}

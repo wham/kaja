@@ -569,6 +569,64 @@ export interface McpProblem {
     detail: string;
 }
 /**
+ * AuthorizeMcp signs kaja in to the server the app names, over the authorization
+ * flow MCP defines: the server says which authorization server issues its tokens,
+ * kaja registers itself where it has to, and the token it is given is kept for
+ * that server alone. The app carries the same parameters it would be opened
+ * with, since a document behind a login is read with the app's own headers.
+ *
+ * @generated from protobuf message AuthorizeMcpRequest
+ */
+export interface AuthorizeMcpRequest {
+    /**
+     * @generated from protobuf field: McpApp mcp = 1
+     */
+    mcp?: McpApp;
+}
+/**
+ * @generated from protobuf message AuthorizeMcpResponse
+ */
+export interface AuthorizeMcpResponse {
+    /**
+     * The page to open in a browser. Sent first, on its own, before anything is
+     * waited on - the window is what opens it, the desktop and a browser
+     * differing in how.
+     *
+     * @generated from protobuf field: string authorization_url = 1
+     */
+    authorizationUrl: string;
+    /**
+     * Set on the last message: the sign-in finished and the token is kept.
+     *
+     * @generated from protobuf field: bool authorized = 2
+     */
+    authorized: boolean;
+    /**
+     * Set on the last message instead, when it didn't.
+     *
+     * @generated from protobuf field: McpProblem problem = 3
+     */
+    problem?: McpProblem;
+}
+/**
+ * ForgetMcpAuthorization drops the token kaja holds for a server, which is what
+ * signing out is. The client an authorization server registered kaja as stays:
+ * it is this installation's record with that server rather than this sign-in's.
+ *
+ * @generated from protobuf message ForgetMcpAuthorizationRequest
+ */
+export interface ForgetMcpAuthorizationRequest {
+    /**
+     * @generated from protobuf field: McpApp mcp = 1
+     */
+    mcp?: McpApp;
+}
+/**
+ * @generated from protobuf message ForgetMcpAuthorizationResponse
+ */
+export interface ForgetMcpAuthorizationResponse {
+}
+/**
  * CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
  * message carries the log lines written since the last one and nothing else; the
  * last message of a stream is the terminal status, with the sources and the stub
@@ -1537,6 +1595,24 @@ export interface McpApp {
      * @generated from protobuf field: string api_key_name = 5
      */
     apiKeyName: string;
+    /**
+     * The OAuth client kaja is identified as, for the "oauth" credential. Empty
+     * asks the authorization server to register kaja itself, which is what a
+     * server with no prior relationship to its clients does; a client id from a
+     * server's own dashboard, or the https URL of a client ID metadata document,
+     * is used as it stands. Never a secret: kaja registers as a public client and
+     * proves each exchange with PKCE.
+     *
+     * @generated from protobuf field: string client_id = 6
+     */
+    clientId: string;
+    /**
+     * The scopes to ask for, where the server names none itself. Space-separated,
+     * the way OAuth writes a scope.
+     *
+     * @generated from protobuf field: string scope = 7
+     */
+    scope: string;
 }
 /**
  * @generated from protobuf message UpdateConfigurationRequest
@@ -1773,7 +1849,14 @@ export enum McpProblemKind {
      *
      * @generated from protobuf enum value: MCP_PROBLEM_EMPTY = 8;
      */
-    MCP_PROBLEM_EMPTY = 8
+    MCP_PROBLEM_EMPTY = 8,
+    /**
+     * Signing in could not be started or did not finish. The detail is what went
+     * wrong; the next move is to try again, or to give kaja a client id.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_AUTHORIZATION = 9;
+     */
+    MCP_PROBLEM_AUTHORIZATION = 9
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -2165,6 +2248,54 @@ class McpProblem$Type extends MessageType<McpProblem> {
  * @generated MessageType for protobuf message McpProblem
  */
 export const McpProblem = new McpProblem$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AuthorizeMcpRequest$Type extends MessageType<AuthorizeMcpRequest> {
+    constructor() {
+        super("AuthorizeMcpRequest", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpApp }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message AuthorizeMcpRequest
+ */
+export const AuthorizeMcpRequest = new AuthorizeMcpRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AuthorizeMcpResponse$Type extends MessageType<AuthorizeMcpResponse> {
+    constructor() {
+        super("AuthorizeMcpResponse", [
+            { no: 1, name: "authorization_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "authorized", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "problem", kind: "message", T: () => McpProblem }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message AuthorizeMcpResponse
+ */
+export const AuthorizeMcpResponse = new AuthorizeMcpResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ForgetMcpAuthorizationRequest$Type extends MessageType<ForgetMcpAuthorizationRequest> {
+    constructor() {
+        super("ForgetMcpAuthorizationRequest", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpApp }
+        ]);
+    }
+}
+/**
+ * @generated MessageType for protobuf message ForgetMcpAuthorizationRequest
+ */
+export const ForgetMcpAuthorizationRequest = new ForgetMcpAuthorizationRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ForgetMcpAuthorizationResponse$Type extends MessageType<ForgetMcpAuthorizationResponse> {
+    constructor() {
+        super("ForgetMcpAuthorizationResponse", []);
+    }
+}
+/**
+ * @generated MessageType for protobuf message ForgetMcpAuthorizationResponse
+ */
+export const ForgetMcpAuthorizationResponse = new ForgetMcpAuthorizationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
@@ -2804,7 +2935,9 @@ class McpApp$Type extends MessageType<McpApp> {
             { no: 2, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 3, name: "auth", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "api_key_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "api_key_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "client_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2871,6 +3004,8 @@ export const Api = new ServiceType("Api", [
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
+    { name: "AuthorizeMcp", serverStreaming: true, options: {}, I: AuthorizeMcpRequest, O: AuthorizeMcpResponse },
+    { name: "ForgetMcpAuthorization", options: {}, I: ForgetMcpAuthorizationRequest, O: ForgetMcpAuthorizationResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },

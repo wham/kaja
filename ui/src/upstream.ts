@@ -22,6 +22,10 @@ export interface Upstream {
   request?: string;
   status?: number;
   statusText?: string;
+  // What the upstream said while the call was being made rather than in answer to it:
+  // an MCP server's progress and log notifications arrive on the response stream ahead
+  // of the response itself.
+  notices?: string[];
   durationMs?: number;
   // The HTTP failure itself, shown in place of the gRPC error the call was tunnelled
   // through.
@@ -72,9 +76,18 @@ export function parseUpstream(value: unknown): Upstream | undefined {
     request: typeof object.request === "string" && object.request !== "" ? object.request : undefined,
     status: statusOf(object.status),
     statusText: typeof object.statusText === "string" && object.statusText !== "" ? object.statusText : undefined,
+    notices: noticesOf(object.notices),
     durationMs: durationOf(object.durationMs),
     error: object.error && typeof object.error === "object" && !Array.isArray(object.error) ? (object.error as UpstreamFailure) : undefined,
   };
+}
+
+// A notice is a line of text. Anything else reads as a call that sent none, which is
+// what every call that isn't an MCP one already looks like.
+function noticesOf(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const notices = value.filter((entry): entry is string => typeof entry === "string" && entry !== "");
+  return notices.length > 0 ? notices : undefined;
 }
 
 function headersOf(value: unknown): MethodCallHeaders | undefined {

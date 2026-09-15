@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 const (
@@ -29,7 +30,7 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 			"mimeType":    "text/plain",
 		},
 	}
-	return map[string]interface{}{"resources": resources}, nil
+	return cacheable(map[string]interface{}{"resources": resources}, workspaceTTL), nil
 }
 
 type resourceReadParams struct {
@@ -44,19 +45,23 @@ func (s *Server) handleResourceRead(params json.RawMessage) (interface{}, *rpcEr
 
 	switch p.URI {
 	case guideURI:
-		return resourceContents(p.URI, "text/markdown", guide), nil
+		return resourceContents(p.URI, "text/markdown", guide, staticTTL), nil
 	case servicesURI:
 		// The same index list_services returns.
-		return resourceContents(p.URI, "text/plain", s.bridge.Catalog().listServices("", "", "")), nil
+		return resourceContents(p.URI, "text/plain", s.bridge.Catalog().listServices("", "", ""), workspaceTTL), nil
 	default:
 		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown resource %q", p.URI)}
 	}
 }
 
-func resourceContents(uri, mimeType, text string) interface{} {
-	return map[string]interface{}{
+// resourceContents is one resource's text. The guide never changes while the process
+// runs and the services index follows the apps, so the read is cacheable for as long
+// as the slower-moving of the two is: a caller holding a stale index of what it can
+// call would write a script against an app that has been deleted.
+func resourceContents(uri, mimeType, text string, ttl time.Duration) interface{} {
+	return cacheable(map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{"uri": uri, "mimeType": mimeType, "text": text},
 		},
-	}
+	}, ttl)
 }

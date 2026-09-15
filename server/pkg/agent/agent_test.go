@@ -84,13 +84,13 @@ func (f *fakeScripts) Delete(path string) (ScriptChange, error) {
 func (f *fakeScripts) CanWrite() bool { return f.writable }
 
 func newRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, Streamed)
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, Streamed, "test")
 }
 
 // newOwnedRegistry is the desktop's half: a process that owns the workspace it opened,
 // answering an agent with nothing in front of it.
 func newOwnedRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, Direct)
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, Direct, "test")
 }
 
 // next reads the next message a window is sent, failing rather than hanging.
@@ -652,5 +652,28 @@ func TestMountRegistersTheDoors(t *testing.T) {
 	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/agent-session", nil))
 	if recorder.Code != http.StatusOK {
 		t.Errorf("GET /agent-session = %d, want 200", recorder.Code)
+	}
+}
+
+// The web's door is the same door, so the origin is checked here too - and ahead of
+// the token, or a cross-origin page could tell a real token from a guessed one by
+// which refusal it got back.
+func TestMCPRefusesACrossOriginPage(t *testing.T) {
+	registry := newRegistry()
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+
+	for _, bearer := range []string{token, "not-the-token-not-the-token-nope"} {
+		request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+		request.Header.Set("Authorization", "Bearer "+bearer)
+		request.Header.Set("Origin", "https://attacker.test")
+		recorder := httptest.NewRecorder()
+		registry.ServeMCP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Errorf("token %q: status = %d, want 403", bearer, recorder.Code)
+		}
 	}
 }
