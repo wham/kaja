@@ -26,20 +26,7 @@ import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDuration
 import { CellRef, TableView } from "./tableView";
 import { appHeaders, appType, buildApp, getAppType } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
-import {
-  appendCall,
-  createDraft,
-  findUntouched,
-  isAgentDraft,
-  isUntouched,
-  markRun,
-  pruneDrafts,
-  reopen,
-  Draft,
-  takeOver,
-  untouchedDrafts,
-  withCode,
-} from "./drafts";
+import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
 import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
@@ -71,7 +58,6 @@ import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
   dropView,
-  persistedDraftId,
   PersistedViewState,
   restoreViews,
   serializeViews,
@@ -125,15 +111,6 @@ import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./run
 import { ParameterSheet } from "./ParameterSheet";
 import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
-
-// Read so start-up pruning can't drop a draft that is about to reopen.
-function openDraftIds(): string[] {
-  const persisted = getPersistedValue<PersistedViewState>("views");
-  return (persisted?.views ?? []).flatMap((view) => {
-    const id = persistedDraftId(view);
-    return id === undefined ? [] : [id];
-  });
-}
 
 // Also reads the legacy "scratches" key: drafts were called scratches before the rename.
 // `agentClient` is the same kind of lag — the field held what connects to Kaja's MCP
@@ -253,11 +230,7 @@ export function App() {
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
   const variableWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const [apps, setApps] = useState<AppModel[]>([]);
-  // Read before the drafts themselves: start-up is when the sweep runs.
-  const [sweepDrafts, setSweepDrafts] = usePersistedState("sweepDrafts", true);
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
-    pruneDrafts(persistedDrafts(), Date.now(), new Set(openDraftIds()), getPersistedValue<boolean>("sweepDrafts") ?? true),
-  );
+  const [drafts, setDrafts] = useState<Draft[]>(() => persistedDrafts());
   const [views, setViews] = useState<View[]>(() => restoreViews(getPersistedValue<PersistedViewState>("views"), persistedDrafts()));
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 240);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
@@ -1530,10 +1503,6 @@ export function App() {
     [openNameSheet, takenNames],
   );
 
-  const onDiscardUntouched = useCallback(() => {
-    discardDrafts(untouchedDrafts(draftsRef.current));
-  }, [discardDrafts]);
-
   const onDiscardAllDrafts = useCallback(() => {
     discardDrafts(draftsRef.current.filter((draft) => !isAgentDraft(draft)));
   }, [discardDrafts]);
@@ -2229,8 +2198,7 @@ export function App() {
     if (view?.type !== "script") return;
     const code = editorRegistryRef.current.get(view.id)?.getValue() ?? "";
     const now = Date.now();
-    // An empty `generatedCode` is what keeps the next method click from taking this
-    // over and the sweep from dropping it.
+    // An empty `generatedCode` is what keeps the next method click from taking this over.
     const draft = { ...createDraft(code, undefined, now), generatedCode: "" };
     applyDrafts((list) => [draft, ...list]);
     applyViews((views) => showDraft(views, draft));
@@ -2676,10 +2644,7 @@ export function App() {
                     onDraftSelect={onDraftSelect}
                     onSaveDraftAsFile={onSaveDraftAsFile}
                     onDiscardDraft={onDiscardDraft}
-                    onDiscardUntouched={onDiscardUntouched}
                     onDiscardAllDrafts={onDiscardAllDrafts}
-                    sweepDrafts={sweepDrafts}
-                    onToggleSweepDrafts={() => setSweepDrafts((on) => !on)}
                     onScriptSelect={onScriptSelect}
                     onRenameScript={canWriteFiles ? onRenameScript : undefined}
                     onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}

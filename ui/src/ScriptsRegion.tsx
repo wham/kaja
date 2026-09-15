@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check,
   ChevronRight,
   ClipboardPaste,
   Copy,
@@ -23,7 +22,7 @@ import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { Script } from "./apps";
-import { BROWSING_NOTE, isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
+import { BROWSING_NOTE, isAgentDraft, isUntouched, orderDrafts, Draft, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
 import {
   buildScriptTree,
@@ -111,11 +110,8 @@ export interface ScriptsRegionProps {
   onDraftSelect: (draft: Draft) => void;
   onSaveDraftAsFile: (draft: Draft) => void;
   onDiscardDraft: (draft: Draft) => void;
-  // Neither can reach a file.
-  onDiscardUntouched: () => void;
+  // Cannot reach a file.
   onDiscardAllDrafts: () => void;
-  sweepDrafts: boolean;
-  onToggleSweepDrafts: () => void;
 
   onScriptSelect: (script: Script) => void;
   // Typed in the row, so the name is already resolved to where it lands: a name with a
@@ -174,7 +170,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [draftMenu, setDraftMenu] = useState<{ draft: Draft; top: number; left: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ path: string; top: number; left: number } | null>(null);
   const [filesMenu, setFilesMenu] = useState<{ top: number; left: number } | null>(null);
-  const [draftsMenu, setDraftsMenu] = useState<{ top: number; left: number } | null>(null);
+  const openFilesMenu = (event: React.MouseEvent) => setFilesMenu({ top: event.clientY, left: event.clientX });
 
   // The row being dragged and where it would land: a folder path, "" for the top level,
   // or null where a drop would write nothing — a file already filed there is that case,
@@ -182,6 +178,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [drag, setDrag] = useState<{ script: Script; folder: string | null } | null>(null);
   const spring = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const canMove = canWrite && props.onMoveScript !== undefined;
+  const filesActions = canWrite && Boolean(props.onCreateScript || props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder);
 
   const toggleFolder = (path: string) => setOpenFolders((open) => (open.includes(path) ? open.filter((candidate) => candidate !== path) : [...open, path]));
 
@@ -326,11 +323,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             label="Drafts"
             open={draftsOpen}
             onToggle={() => setDraftsOpen((open) => !open)}
-            action={
-              ownDrafts.length > 0
-                ? { icon: Trash2, label: "Discard drafts", onClick: (event) => setDraftsMenu({ top: event.clientY, left: event.clientX }) }
-                : undefined
-            }
+            action={ownDrafts.length > 0 ? { icon: Trash2, label: "Discard all drafts", onClick: props.onDiscardAllDrafts } : undefined}
           />
           {draftsOpen && (
             <ul role="tree" aria-label="Drafts" className="select-none">
@@ -389,11 +382,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         dropping={drag?.folder === ""}
         onDragOver={(event) => onDragOverFolder(event, "")}
         onDrop={(event) => onDropInFolder(event, "")}
-        action={
-          canWrite && (props.onCreateScript || props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder)
-            ? { icon: Ellipsis, label: "Actions for Files", onClick: (event) => setFilesMenu({ top: event.clientY, left: event.clientX }) }
-            : undefined
-        }
+        action={filesActions ? { icon: Ellipsis, label: "Actions for Files", onClick: openFilesMenu } : undefined}
+        onMenu={filesActions ? openFilesMenu : undefined}
       />
       {filesOpen && (
         <ul
@@ -535,24 +525,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           )}
         </ul>
       )}
-
-      <CursorMenu at={draftsMenu} onClose={() => setDraftsMenu(null)} width="w-56">
-        {/* Untouched means still byte-identical to the generated call: clearing
-            them removes nothing you wrote. */}
-        <DropdownMenuItem onSelect={props.onDiscardUntouched}>
-          Discard untouched
-          <span className="ml-auto pl-4 text-xs text-muted-foreground">{untouchedDrafts(drafts).length}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={props.onDiscardAllDrafts}>
-          Discard all
-          <span className="ml-auto pl-4 text-xs text-muted-foreground">{ownDrafts.length}</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={props.onToggleSweepDrafts}>
-          Sweep untouched weekly
-          <span className="ml-auto pl-4">{props.sweepDrafts && <Check size={13} className="text-muted-foreground" />}</span>
-        </DropdownMenuItem>
-      </CursorMenu>
 
       {/* The Files header is the row that means the top level, so its menu makes and
           pastes there. */}
@@ -748,6 +720,7 @@ function GroupHeader({
   open,
   onToggle,
   action,
+  onMenu,
   dropping,
   onDragOver,
   onDrop,
@@ -756,6 +729,9 @@ function GroupHeader({
   open: boolean;
   onToggle: () => void;
   action?: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void };
+  // Separate from `action`, so a header whose verb acts on the click rather than opening
+  // a menu is not one a right-click fires.
+  onMenu?: (event: React.MouseEvent) => void;
   dropping?: boolean;
   onDragOver?: (event: React.DragEvent) => void;
   onDrop?: (event: React.DragEvent) => void;
@@ -767,9 +743,9 @@ function GroupHeader({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onContextMenu={(event) => {
-        if (!action) return;
+        if (!onMenu) return;
         event.preventDefault();
-        action.onClick(event);
+        onMenu(event);
       }}
       role="button"
       // Named explicitly, because the row holds a button of its own: without it the
