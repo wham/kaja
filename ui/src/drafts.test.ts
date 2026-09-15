@@ -1,18 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  appendCall,
-  createDraft,
-  findUntouched,
-  isUntouched,
-  markRun,
-  orderDrafts,
-  pruneDrafts,
-  reopen,
-  Draft,
-  takeOver,
-  untouchedDrafts,
-  withCode,
-} from "./drafts";
+import { appendCall, createDraft, findUntouched, isUntouched, markRun, orderDrafts, reopen, Draft, takeOver, withCode } from "./drafts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -103,39 +90,6 @@ describe("withCode", () => {
   });
 });
 
-describe("pruneDrafts", () => {
-  const stale = (id: string, extra: Partial<Draft> = {}): Draft => ({
-    ...createDraft(listShows, undefined, NOW - 30 * DAY),
-    id,
-    updatedAt: NOW - 30 * DAY,
-    ...extra,
-  });
-
-  it("drops old browsing buffers and keeps everything that was worked in", () => {
-    const kept = pruneDrafts(
-      [stale("browsed"), stale("ran", { ran: true }), stale("edited", { code: listShows + "// mine" }), createDraft(listShows, undefined, NOW)],
-      NOW,
-      new Set(),
-    );
-
-    expect(kept.map((draft) => draft.id)).toEqual(["ran", "edited", kept[2].id]);
-  });
-
-  it("never drops one that is open", () => {
-    expect(pruneDrafts([stale("browsed")], NOW, new Set(["browsed"]))).toHaveLength(1);
-  });
-
-  // The agent's row persists with no client connected — that is how you read
-  // what the last one did — so only a deliberate clear removes it.
-  it("never sweeps the agent's draft", () => {
-    expect(pruneDrafts([stale("agent", { agentName: "Claude" })], NOW, new Set())).toHaveLength(1);
-  });
-
-  it("sweeps nothing while the sweep is off", () => {
-    expect(pruneDrafts([stale("browsed")], NOW, new Set(), false)).toHaveLength(1);
-  });
-});
-
 describe("the Drafts group", () => {
   const draft = (id: string, updatedAt: number, extra: Partial<Draft> = {}): Draft => ({
     ...createDraft(listShows, undefined, updatedAt),
@@ -165,13 +119,6 @@ describe("the Drafts group", () => {
     ]);
 
     expect(ordered.map((draft) => draft.id)).toEqual(["claude", "codex", "mine"]);
-  });
-
-  // Clearing untouched drafts must not reach the agent's row or your work.
-  it("counts untouched without the agent's row", () => {
-    const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentName: "Claude" })];
-
-    expect(untouchedDrafts(list).map((draft) => draft.id)).toEqual(["browsed"]);
   });
 
   // Clicking a method takes over a browsing buffer of your own, never the one an

@@ -1,11 +1,6 @@
 import ts from "typescript";
 import { deriveDraftTitle } from "./draftTitle";
 
-// A draft opened, never edited and never run is a browsing buffer, not work. The
-// sweep drops one this old — the steady state of a pile that grows one row per method
-// clicked is otherwise only ever upward.
-export const SWEEP_DAYS = 7;
-
 // How many drafts the sidebar draws before the rest become `n more…`. Capped rather
 // than scrolled, so the Scripts region stays a predictable share of the panel.
 export const VISIBLE_DRAFTS = 8;
@@ -30,7 +25,7 @@ export interface Draft {
   // apart. A draft is not bound to the method it came from.
   originAppName?: string;
   // What an agent calls itself, on the one draft it writes in. It is what pins the row
-  // above your own drafts, outside the count and outside the sweep.
+  // above your own drafts and outside the count.
   agentName?: string;
   createdAt: number;
   updatedAt: number;
@@ -74,7 +69,7 @@ export function findUntouched(drafts: Draft[], code: string, originAppName: stri
 }
 
 // Reopening is not work, so it settles nothing — it only keeps the buffer at the top
-// of the list and out of the way of the pruner.
+// of the list.
 export function reopen(draft: Draft, now: number): Draft {
   return { ...draft, updatedAt: now };
 }
@@ -108,8 +103,8 @@ export function markRun(draft: Draft, code: string, now: number): Draft {
   };
 }
 
-// Excluded from the count and from the sweep: it persists with no agent connected,
-// because that is how you read what the last one did.
+// Excluded from the count: it persists with no agent connected, because that is how
+// you read what the last one did.
 export function isAgentDraft(draft: Draft): boolean {
   return draft.agentName !== undefined;
 }
@@ -122,20 +117,6 @@ export function isAgentDraft(draft: Draft): boolean {
 export function orderDrafts(drafts: Draft[]): Draft[] {
   const rank = (draft: Draft) => (isAgentDraft(draft) ? 0 : isUntouched(draft) ? 2 : 1);
   return [...drafts].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
-}
-
-// Clicking the method again regenerates the same code, so clearing these removes
-// nothing you wrote.
-export function untouchedDrafts(drafts: Draft[]): Draft[] {
-  return drafts.filter((draft) => !isAgentDraft(draft) && isUntouched(draft));
-}
-
-// Unlimited only works if the browsing buffers clear themselves out. Anything run or
-// edited is kept forever, and so is the agent's row.
-export function pruneDrafts(drafts: Draft[], now: number, openIds: Set<string>, sweep = true): Draft[] {
-  if (!sweep) return drafts;
-  const cutoff = now - SWEEP_DAYS * 24 * 60 * 60 * 1000;
-  return drafts.filter((draft) => openIds.has(draft.id) || isAgentDraft(draft) || !isUntouched(draft) || draft.updatedAt >= cutoff);
 }
 
 /**
