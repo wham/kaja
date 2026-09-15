@@ -101,7 +101,7 @@ export function KajaMap({ className }: { className?: string }) {
         <path d="M496 205l3 4 6-8" />
       </g>
       <text x="440" y="270" textAnchor="middle" fontSize="11" className="fill-muted-foreground">
-        every call lands here, for you to see and approve
+        every request stays visible and inspectable
       </text>
 
       {PROTOCOLS.map(({ mark: Mark, name, source, y }) => (

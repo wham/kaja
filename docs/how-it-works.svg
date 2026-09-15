@@ -58,7 +58,7 @@
     <path d="M394 209h78" />
     <path d="M496 205l3 4 6-8" />
   </g>
-  <text class="said" x="440" y="270" text-anchor="middle">every call lands here, for you to see and approve</text>
+  <text class="said" x="440" y="270" text-anchor="middle">every request stays visible and inspectable</text>
 
   <rect class="node" x="680" y="40" width="176" height="44" rx="8" stroke-width="1.5" />
   <g class="ink" stroke-width="2" transform="translate(694 52) scale(0.8333)">
