@@ -1543,7 +1543,7 @@ export function App() {
 
   // The source always arrives with the run: whichever process holds the disk reads the
   // file itself, and the window is only ever handed what to run and where it lands.
-  const runForAgent = useCallback(async ({ path, code, client, controller }: AgentRun): Promise<McpRunReport> => {
+  const runForAgent = useCallback(async ({ path, code, client, controller, progress }: AgentRun): Promise<McpRunReport> => {
     // Started before the run and read after it: type-checking is the editor worker's
     // job, so it costs the run no time. Nothing here waits on it to decide anything —
     // a type error is reported, not refused, exactly as pressing Run in the window
@@ -1553,6 +1553,7 @@ export function App() {
     const draft = path ? undefined : agentDraftRef.current(code, client || "Agent");
     const fileId = path || draft?.id;
     const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
+    progress?.(() => collect.calls.length);
     const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
     let result: McpRunReport;
     // The agent's controller is the run's, so an agent giving up on the answer and

@@ -342,7 +342,7 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 		}
 		return textToolResult("Deleted " + args["path"]), nil
 	case "run_script":
-		return s.runScript(ctx, args["path"], args["code"], caller), nil
+		return s.runScript(ctx, args["path"], args["code"], caller, progressToken(params)), nil
 	default:
 		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown tool %q", p.Name)}
 	}
@@ -408,11 +408,11 @@ func (s *Server) describeType(name, appName string) map[string]interface{} {
 	return errorToolResult(fmt.Errorf("%q is declared by more than one app (%s); pass app to choose", name, strings.Join(names, ", ")))
 }
 
-func (s *Server) runScript(ctx context.Context, path, code, caller string) map[string]interface{} {
+func (s *Server) runScript(ctx context.Context, path, code, caller string, token json.RawMessage) map[string]interface{} {
 	if path == "" && code == "" {
 		return errorToolResult(fmt.Errorf("provide either path or code"))
 	}
-	result, err := s.bridge.RunScript(ctx, path, code, caller)
+	result, err := s.bridge.RunScript(ctx, path, code, caller, runProgress(ctx, token))
 	if err != nil {
 		return errorToolResult(err)
 	}

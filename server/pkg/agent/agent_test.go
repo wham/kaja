@@ -334,7 +334,7 @@ func TestAWindowClosingFailsItsRun(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := session.Run(context.Background(), "", "1", "Claude Code")
+		_, err := session.Run(context.Background(), "", "1", "Claude Code", nil)
 		done <- err
 	}()
 
@@ -362,7 +362,7 @@ func TestGivingUpOnARunTellsTheWindowToDropIt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := session.Run(ctx, "", "1", "Claude Code")
+		_, err := session.Run(ctx, "", "1", "Claude Code", nil)
 		done <- err
 	}()
 
@@ -675,5 +675,63 @@ func TestMCPRefusesACrossOriginPage(t *testing.T) {
 		if recorder.Code != http.StatusForbidden {
 			t.Errorf("token %q: status = %d, want 403", bearer, recorder.Code)
 		}
+	}
+}
+
+// A window beats only for a run somebody is listening to, and what it says reaches the
+// agent waiting on that run and nothing else.
+func TestARunBeatsOnlyWhereSomebodyIsListening(t *testing.T) {
+	registry := newRegistry()
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+	session, _ := registry.Session(token)
+
+	quiet := make(chan error, 1)
+	go func() {
+		_, err := session.Run(context.Background(), "", "1", "Claude Code", nil)
+		quiet <- err
+	}()
+	unwatched := drain(t, stream, "run")
+	if unwatched.Progress {
+		t.Error("a run nobody asked about was told to beat")
+	}
+	session.Result(unwatched.RunID, mcp.RunResult{})
+	if err := <-quiet; err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	beats := make(chan mcp.RunProgress, 4)
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.Run(context.Background(), "", "2", "Claude Code", func(progress mcp.RunProgress) { beats <- progress })
+		done <- err
+	}()
+	started := drain(t, stream, "run")
+	if !started.Progress {
+		t.Fatal("a run that was asked about was not told to beat")
+	}
+
+	session.Progress(started.RunID, mcp.RunProgress{Calls: 3})
+	select {
+	case beat := <-beats:
+		if beat.Calls != 3 {
+			t.Errorf("calls = %d, want 3", beat.Calls)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the beat did not reach the agent waiting on the run")
+	}
+
+	// A run nobody is waiting on is one the beat is dropped for rather than routed
+	// somewhere else.
+	session.Progress("no-such-run", mcp.RunProgress{Calls: 9})
+	session.Result(started.RunID, mcp.RunResult{})
+	if err := <-done; err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(beats) != 0 {
+		t.Errorf("a beat reached a run nobody asked about")
 	}
 }

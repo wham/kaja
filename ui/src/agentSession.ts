@@ -36,6 +36,10 @@ const ACTIVITY_LINGER_MS = 2500;
 // reconnected without saying anything, backing off to this.
 const RECONNECT_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
+// How often a run says what it has done so far, where the agent asked to hear it. It is
+// a beat rather than a report per call: a perf test makes thousands, and what the agent
+// is reading is that the wait is a run rather than a stall.
+const PROGRESS_MS = 2000;
 
 export interface AgentSessionState {
   /** Whether this build can open an MCP server. */
@@ -71,6 +75,13 @@ export interface AgentRun {
    * going holds everything it opened, so giving up on the answer ends the run.
    */
   controller: AbortController;
+  /**
+   * Set where the agent asked to hear about the run before it is over. The run hands
+   * over a way to read how many calls it has made so far and the beat is the session's,
+   * because what is being reported is that the wait is a run rather than a stall. How
+   * long the agent has waited is measured where it is waiting.
+   */
+  progress?: (calls: () => number) => void;
 }
 
 /** What an agent did to a file on disk, so the sidebar and an open editor keep up. */
@@ -93,6 +104,7 @@ interface Message {
   inFlight?: number;
   onDuty?: boolean;
   change?: AgentScriptChange;
+  progress?: boolean;
 }
 
 /**
@@ -402,12 +414,19 @@ class AgentSession {
     const runId = message.runId;
     const controller = new AbortController();
     this.running.set(runId, controller);
+    let beat: number | undefined;
+    const progress = message.progress
+      ? (calls: () => number) => {
+          beat = window.setInterval(() => void this.post("/agent-session/progress", JSON.stringify({ runId, progress: { calls: calls() } })), PROGRESS_MS);
+        }
+      : undefined;
     let result: unknown;
     try {
-      result = await this.runner?.({ path: message.path ?? "", code: message.code ?? "", client: message.client, controller });
+      result = await this.runner?.({ path: message.path ?? "", code: message.code ?? "", client: message.client, controller, progress });
     } catch (err) {
       result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] };
     } finally {
+      window.clearInterval(beat);
       this.running.delete(runId);
     }
     // A run's answer goes out even where the stream this window is holding has
