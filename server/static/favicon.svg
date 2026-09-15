@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="182" height="110" viewBox="1.25 10.25 45.5 27.5" fill="none" role="img" aria-label="Kaja">
-  <defs><linearGradient id="kajaFav" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#B0503F"></stop><stop offset="1" stop-color="#8A35D8"></stop></linearGradient></defs>
-  
-  <path d="M4 29 H13 L19 13 L28 35 L33 24 H44" stroke="url(#kajaFav)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="1.25 1.25 45.5 45.5" fill="none" role="img" aria-label="Kaja">
+  <defs>
+    <linearGradient id="kajaFav" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B0503F"/>
+      <stop offset="1" stop-color="#8A35D8"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M4 29 H13 L19 13 L28 35 L33 24 H44"
+        stroke="url(#kajaFav)" stroke-width="5.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
