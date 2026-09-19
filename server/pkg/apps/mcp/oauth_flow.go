@@ -32,9 +32,7 @@ const flowTimeout = 5 * time.Minute
 
 // redirectURI is the address kaja is sent back to, which is what it registers
 // with an authorization server and what the authorization request names. The
-// port is the fixed one wherever it is free, so a client registered once goes on
-// working, and the listener is what is asked because it is the only thing that
-// knows whether that port was available.
+// port is read off the listener because the fixed one may have been taken.
 func (a *Authorizer) redirectURI() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -243,15 +241,14 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 	return renewed.AccessToken, nil
 }
 
-// refreshClient is the client a held token was issued to, which is the one a
-// refresh has to present. It is read off the grant rather than resolved again:
-// neither a client id the app configures nor one kaja ships is in the store, and
-// a refresh token is worth nothing to another client anyway.
+// refreshClient is the client a held token was issued to, read off the grant
+// rather than resolved again: neither a configured client id nor one kaja ships
+// is in the store, and a refresh token is worth nothing to another client.
 func (a *Authorizer) refreshClient(held *grant) *registration {
 	registered := a.store.Client(held.Server.Issuer)
 	if held.ClientID == "" {
 		// A grant from before the client was recorded on one, which can only be
-		// a client kaja registered: nothing else could ever have renewed it.
+		// a client kaja registered.
 		if registered != nil {
 			return registered
 		}
@@ -360,12 +357,9 @@ func (a *Authorizer) readAuthorizationServer(issuer string) (*authorizationServe
 // asks for: one the person already has, then one kaja ships for this server,
 // then one this installation registered with it before, then one registered now.
 // A client id metadata document is the first of those - it is an https URL, so
-// it is a client id the person has - and kaja hosts none of its own.
-//
-// What kaja ships outranks what it registered because a server kaja ships an id
-// for is one that registers nobody: anything held against it was registered
-// before there was an id to ship, and the shipped one is the one that server's
-// owner knows about.
+// it is a client id the person has - and kaja hosts none of its own. What kaja
+// ships outranks what it registered, a server it ships an id for being one that
+// registers nobody.
 func (a *Authorizer) clientFor(server *authorizationServer, configured string, scope string, redirect string) (*registration, error) {
 	if configured = strings.TrimSpace(configured); configured != "" {
 		return &registration{ClientID: configured}, nil
@@ -397,11 +391,8 @@ func (a *Authorizer) listen() error {
 	}
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", a.port))
 	if err != nil && a.port != 0 {
-		// RFC 8252 section 7.3: an authorization server matching a loopback
-		// redirect ignores its port, so a port something else is holding is not
-		// a sign-in that cannot happen. A server that matches the port anyway
-		// refuses the redirect, and being told that is worth more than failing
-		// here over a port nobody chose.
+		// RFC 8252 section 7.3: a loopback redirect is matched without its port,
+		// so one something else is holding is not a sign-in that cannot happen.
 		listener, err = net.Listen("tcp", "127.0.0.1:0")
 	}
 	if err != nil {

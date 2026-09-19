@@ -363,8 +363,6 @@ func TestUsesAClientIdOfYourOwn(t *testing.T) {
 	}
 }
 
-// The client kaja ships for a server that issues one to nobody. GitHub's is the
-// entry that exists, and it is looked up by issuer rather than by app type.
 func TestBuiltInClient(t *testing.T) {
 	shipped := builtInClient("https://github.com/login/oauth")
 	if shipped == nil || shipped.ClientID == "" {
@@ -381,8 +379,7 @@ func TestBuiltInClient(t *testing.T) {
 	}
 }
 
-// A client kaja ships is used where the person configured none, which is what
-// reaches a server that registers nobody without a form to fill in first.
+// What reaches a server that registers nobody, with no form to fill in first.
 func TestUsesTheClientIdKajaShips(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	shipsClient(t, fake.as.URL, "shipped-client")
@@ -400,8 +397,6 @@ func TestUsesTheClientIdKajaShips(t *testing.T) {
 	}
 }
 
-// What the person configured outranks it, which is what makes the table a
-// default rather than a decision.
 func TestAConfiguredClientIdOutranksTheOneKajaShips(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	shipsClient(t, fake.as.URL, "shipped-client")
@@ -416,10 +411,8 @@ func TestAConfiguredClientIdOutranksTheOneKajaShips(t *testing.T) {
 	}
 }
 
-// A renewal presents the client the token was issued to. Neither a client kaja
-// ships nor one the app configures is in the store, so a renewal that looked for
-// one there sent no client id at all - which only ever showed up once a server
-// issued tokens that expire.
+// Neither a shipped nor a configured client is in the store, so a renewal that
+// looked for one there sent no client id at all.
 func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	fake.issueRefresh = true
@@ -449,8 +442,6 @@ func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 	}
 }
 
-// A port something else is holding is not a sign-in that cannot happen: an
-// authorization server matching a loopback redirect ignores its port.
 func TestFallsBackToAFreePortWhenTheFixedOneIsTaken(t *testing.T) {
 	taken, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -474,7 +465,6 @@ func TestFallsBackToAFreePortWhenTheFixedOneIsTaken(t *testing.T) {
 	}
 }
 
-// shipsClient puts a server in the shipped table for the length of one test.
 func shipsClient(t *testing.T, issuer, id string) {
 	t.Helper()
 	builtInClients[issuer] = id
