@@ -1,17 +1,23 @@
-import { GitHubMark, type BrandMark } from "./brandMarks";
+import { AtlassianMark, GitHubMark, SentryMark, type BrandMark } from "./brandMarks";
 
 // A server Kaja is set up for: a name, the endpoint it is reached at, and the mark it
 // is recognised by. An entry exists where signing in is something Kaja can carry
-// through without being told anything - which is the server's authorization server
-// having an entry in the Go side's own list - so being on this list is what "sign-in
-// ready" says.
+// through knowing nothing but the address, and there are two ways to be that: the
+// server registers a client on demand, or its authorization server has an entry in
+// the Go side's own list because it registers nobody. Being on this list is what
+// "sign-in ready" says, and which of the two it was is not something a row reports -
+// a bundled client id is what it costs Kaja, not what it costs you.
 export interface KnownServer {
   name: string;
   endpoint: string;
   mark: BrandMark;
 }
 
-export const knownServers: KnownServer[] = [{ name: "GitHub", endpoint: "https://api.githubcopilot.com/mcp/", mark: GitHubMark }];
+export const knownServers: KnownServer[] = [
+  { name: "Atlassian", endpoint: "https://mcp.atlassian.com/v1/mcp", mark: AtlassianMark },
+  { name: "GitHub", endpoint: "https://api.githubcopilot.com/mcp/", mark: GitHubMark },
+  { name: "Sentry", endpoint: "https://mcp.sentry.dev/mcp", mark: SentryMark },
+];
 
 // The address without the scheme, which is how a server is written down everywhere
 // but in the field itself.

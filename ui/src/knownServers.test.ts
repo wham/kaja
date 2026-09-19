@@ -4,6 +4,8 @@ import { canonicalEndpoint, endpointLabel, knownServerFor, knownServers, matchin
 describe("knownServerFor", () => {
   it("matches the endpoint as it is bundled", () => {
     expect(knownServerFor("https://api.githubcopilot.com/mcp/")?.name).toBe("GitHub");
+    expect(knownServerFor("https://mcp.sentry.dev/mcp")?.name).toBe("Sentry");
+    expect(knownServerFor("https://mcp.atlassian.com/v1/mcp")?.name).toBe("Atlassian");
   });
 
   it("matches the same address written differently", () => {
@@ -46,6 +48,8 @@ describe("matchingServers", () => {
   it("matches a name or an address", () => {
     expect(matchingServers("git").map((server) => server.name)).toEqual(["GitHub"]);
     expect(matchingServers("githubcopilot.com").map((server) => server.name)).toEqual(["GitHub"]);
+    expect(matchingServers("sentry.dev").map((server) => server.name)).toEqual(["Sentry"]);
+    expect(matchingServers("atlas").map((server) => server.name)).toEqual(["Atlassian"]);
     expect(matchingServers("linear")).toEqual([]);
   });
 });

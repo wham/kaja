@@ -6,8 +6,10 @@ package mcp
 //
 // A client id is a public name rather than a credential - a public client proves
 // itself with PKCE - so one belongs in the source the way a redirect URI does.
-// An entry exists only for a server kaja has had to learn something about,
-// registering none on demand and reading no client ID metadata document.
+// An entry exists only for a server kaja has had to learn something about, which
+// a server that registers a client on demand is not: that one needs nothing here
+// and is still a server kaja can sign in to knowing only its address. Nothing is
+// registered here on demand, and no client ID metadata document is read.
 var builtInServers = map[string]builtInServer{
 	// An OAuth app rather than a GitHub app: GitHub's own MCP server declares the
 	// classic scopes, which only an OAuth app can be granted.
