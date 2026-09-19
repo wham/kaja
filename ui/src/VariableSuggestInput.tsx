@@ -39,6 +39,7 @@ interface VariableSuggestInputProps {
   type?: string;
   trailingAction?: React.ReactNode;
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  onFocus?: () => void;
   onBlur?: () => void;
 }
 
@@ -57,6 +58,7 @@ export function VariableSuggestInput({
   type,
   trailingAction,
   onKeyDown: onKeyDownProp,
+  onFocus,
   onBlur,
 }: VariableSuggestInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +128,7 @@ export function VariableSuggestInput({
           }}
           onSelect={refreshSuggestion}
           onKeyDown={onKeyDown}
+          onFocus={onFocus}
           onBlur={() => {
             setSuggestion(null);
             onBlur?.();
