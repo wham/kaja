@@ -507,42 +507,6 @@ export interface McpServer {
      * @generated from protobuf field: int32 prompt_count = 9
      */
     promptCount: number;
-    /**
-     * The tools it listed, so the form can show what the app would add.
-     *
-     * @generated from protobuf field: repeated McpTool tools = 10
-     */
-    tools: McpTool[];
-    /**
-     * The server's own guidance on how to use it, where it offers any.
-     *
-     * @generated from protobuf field: string instructions = 11
-     */
-    instructions: string;
-}
-/**
- * @generated from protobuf message McpTool
- */
-export interface McpTool {
-    /**
-     * @generated from protobuf field: string name = 1
-     */
-    name: string;
-    /**
-     * @generated from protobuf field: string title = 2
-     */
-    title: string;
-    /**
-     * @generated from protobuf field: string description = 3
-     */
-    description: string;
-    /**
-     * The server's own hint that the tool only reads. It is the server's word and
-     * nothing more.
-     *
-     * @generated from protobuf field: bool read_only = 4
-     */
-    readOnly: boolean;
 }
 /**
  * McpProblem is a server that couldn't be read, classified so the form can name
@@ -2218,9 +2182,7 @@ class McpServer$Type extends MessageType<McpServer> {
             { no: 6, name: "tool_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 7, name: "resource_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 8, name: "resource_template_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 9, name: "prompt_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 10, name: "tools", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => McpTool },
-            { no: 11, name: "instructions", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 9, name: "prompt_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
 }
@@ -2228,21 +2190,6 @@ class McpServer$Type extends MessageType<McpServer> {
  * @generated MessageType for protobuf message McpServer
  */
 export const McpServer = new McpServer$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class McpTool$Type extends MessageType<McpTool> {
-    constructor() {
-        super("McpTool", [
-            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "read_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-}
-/**
- * @generated MessageType for protobuf message McpTool
- */
-export const McpTool = new McpTool$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class McpProblem$Type extends MessageType<McpProblem> {
     constructor() {
