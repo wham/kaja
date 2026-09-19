@@ -72,6 +72,35 @@ func TestProtectedResourceURLs(t *testing.T) {
 	}
 }
 
+// Both well-known forms are asked, and the one the failure names is the first:
+// the fallback answering "nothing here" says nothing about this server.
+func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
+	asked := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Path)
+		if r.URL.Path == "/.well-known/oauth-protected-resource/v1/mcp" {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	_, err := testAuthorizer(t).readProtectedResource(server.URL+"/v1/mcp", "")
+	if err == nil {
+		t.Fatal("expected the discovery to fail")
+	}
+	if len(asked) != 2 {
+		t.Errorf("asked = %v, want both well-known forms", asked)
+	}
+	if !strings.Contains(err.Error(), "/.well-known/oauth-protected-resource/v1/mcp") {
+		t.Errorf("err = %v, want the address it looked at first", err)
+	}
+	if strings.Contains(err.Error(), "404") {
+		t.Errorf("err = %v, want the fallback's answer left out", err)
+	}
+}
+
 func TestAuthorizationServerURLs(t *testing.T) {
 	got, err := authorizationServerURLs("https://auth.example.com/tenant1")
 	if err != nil {
