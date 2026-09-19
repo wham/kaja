@@ -25,6 +25,7 @@ const (
 	ProblemUnreachable  ProblemKind = "unreachable"
 	ProblemTimeout      ProblemKind = "timeout"
 	ProblemUnauthorized ProblemKind = "unauthorized"
+	ProblemSignIn       ProblemKind = "signIn"
 	ProblemForbidden    ProblemKind = "forbidden"
 	ProblemHTTPError    ProblemKind = "httpError"
 	ProblemNotMCP       ProblemKind = "notMcp"
@@ -60,6 +61,12 @@ func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *P
 	credential, err := credentialSource(parameters, authorizer)
 	if err != nil {
 		return nil, &Problem{Kind: ProblemUnauthorized, Message: "This kaja cannot sign in to an MCP server.", Detail: err.Error()}
+	}
+	// Asked before the call rather than read out of the failure it would be: a
+	// server that has never been signed in to refuses the read with the same 401 a
+	// wrong token gets, and the answer to one is not the answer to the other.
+	if strings.TrimSpace(parameters["auth"]) == AuthOAuth && !authorizer.SignedIn(endpoint) {
+		return nil, &Problem{Kind: ProblemSignIn, Message: "Sign in to read this server."}
 	}
 	client := NewClient(endpoint, credential, &http.Client{Timeout: inspectTimeout})
 	surface, err := client.ReadSurface(nil)

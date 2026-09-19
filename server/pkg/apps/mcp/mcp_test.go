@@ -453,6 +453,27 @@ func TestInspectClassifiesFailures(t *testing.T) {
 	})
 }
 
+func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
+	reached := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth}
+	_, problem := Inspect(parameters, testAuthorizer(t))
+	if problem == nil || problem.Kind != ProblemSignIn {
+		t.Fatalf("problem = %v, want signIn", problem)
+	}
+	if problem.Detail != "" {
+		t.Errorf("detail = %q, want the step to say nothing more", problem.Detail)
+	}
+	if reached {
+		t.Error("expected no request to a server kaja has no token for")
+	}
+}
+
 func TestInspectReadsTheSurface(t *testing.T) {
 	_, endpoint := modernServer(t, nil)
 	surface, problem := Inspect(map[string]string{"url": endpoint}, nil)

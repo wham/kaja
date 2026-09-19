@@ -246,21 +246,25 @@ const (
 	// Signing in could not be started or did not finish. The detail is what went
 	// wrong; the next move is to try again, or to give kaja a client id.
 	McpProblemKind_MCP_PROBLEM_AUTHORIZATION McpProblemKind = 9
+	// The app signs in and kaja has not. Nothing has gone wrong and the server was
+	// never called: the next move is the sign-in the app already asks for.
+	McpProblemKind_MCP_PROBLEM_SIGN_IN McpProblemKind = 10
 )
 
 // Enum value maps for McpProblemKind.
 var (
 	McpProblemKind_name = map[int32]string{
-		0: "MCP_PROBLEM_UNKNOWN",
-		1: "MCP_PROBLEM_TARGET",
-		2: "MCP_PROBLEM_UNREACHABLE",
-		3: "MCP_PROBLEM_TIMEOUT",
-		4: "MCP_PROBLEM_UNAUTHORIZED",
-		5: "MCP_PROBLEM_FORBIDDEN",
-		6: "MCP_PROBLEM_HTTP_ERROR",
-		7: "MCP_PROBLEM_NOT_MCP",
-		8: "MCP_PROBLEM_EMPTY",
-		9: "MCP_PROBLEM_AUTHORIZATION",
+		0:  "MCP_PROBLEM_UNKNOWN",
+		1:  "MCP_PROBLEM_TARGET",
+		2:  "MCP_PROBLEM_UNREACHABLE",
+		3:  "MCP_PROBLEM_TIMEOUT",
+		4:  "MCP_PROBLEM_UNAUTHORIZED",
+		5:  "MCP_PROBLEM_FORBIDDEN",
+		6:  "MCP_PROBLEM_HTTP_ERROR",
+		7:  "MCP_PROBLEM_NOT_MCP",
+		8:  "MCP_PROBLEM_EMPTY",
+		9:  "MCP_PROBLEM_AUTHORIZATION",
+		10: "MCP_PROBLEM_SIGN_IN",
 	}
 	McpProblemKind_value = map[string]int32{
 		"MCP_PROBLEM_UNKNOWN":       0,
@@ -273,6 +277,7 @@ var (
 		"MCP_PROBLEM_NOT_MCP":       7,
 		"MCP_PROBLEM_EMPTY":         8,
 		"MCP_PROBLEM_AUTHORIZATION": 9,
+		"MCP_PROBLEM_SIGN_IN":       10,
 	}
 )
 
@@ -5574,7 +5579,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15OPEN_API_PROBLEM_HTML\x10\x04\x12#\n" +
 	"\x1fOPEN_API_PROBLEM_NOT_A_DOCUMENT\x10\x05\x12\x1d\n" +
 	"\x19OPEN_API_PROBLEM_SWAGGER2\x10\x06\x12\x1e\n" +
-	"\x1aOPEN_API_PROBLEM_MALFORMED\x10\a*\x9b\x02\n" +
+	"\x1aOPEN_API_PROBLEM_MALFORMED\x10\a*\xb4\x02\n" +
 	"\x0eMcpProblemKind\x12\x17\n" +
 	"\x13MCP_PROBLEM_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12MCP_PROBLEM_TARGET\x10\x01\x12\x1b\n" +
@@ -5585,7 +5590,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x16MCP_PROBLEM_HTTP_ERROR\x10\x06\x12\x17\n" +
 	"\x13MCP_PROBLEM_NOT_MCP\x10\a\x12\x15\n" +
 	"\x11MCP_PROBLEM_EMPTY\x10\b\x12\x1d\n" +
-	"\x19MCP_PROBLEM_AUTHORIZATION\x10\t*[\n" +
+	"\x19MCP_PROBLEM_AUTHORIZATION\x10\t\x12\x17\n" +
+	"\x13MCP_PROBLEM_SIGN_IN\x10\n" +
+	"*[\n" +
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +

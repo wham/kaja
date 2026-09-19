@@ -497,6 +497,7 @@ var mcpProblemKinds = map[mcp.ProblemKind]McpProblemKind{
 	mcp.ProblemUnreachable:  McpProblemKind_MCP_PROBLEM_UNREACHABLE,
 	mcp.ProblemTimeout:      McpProblemKind_MCP_PROBLEM_TIMEOUT,
 	mcp.ProblemUnauthorized: McpProblemKind_MCP_PROBLEM_UNAUTHORIZED,
+	mcp.ProblemSignIn:       McpProblemKind_MCP_PROBLEM_SIGN_IN,
 	mcp.ProblemForbidden:    McpProblemKind_MCP_PROBLEM_FORBIDDEN,
 	mcp.ProblemHTTPError:    McpProblemKind_MCP_PROBLEM_HTTP_ERROR,
 	mcp.ProblemNotMCP:       McpProblemKind_MCP_PROBLEM_NOT_MCP,
