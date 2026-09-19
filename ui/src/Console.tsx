@@ -116,6 +116,7 @@ export function Console({
   const groups = file.groups;
   const selection = file.selection;
   const activeTab = file.tab;
+  const embedded = file.embedded;
   const newest = groups[groups.length - 1];
 
   const [now, setNow] = useState(Date.now());
@@ -156,6 +157,7 @@ export function Console({
 
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
+  const onEmbeddedChange = useCallback((on: boolean) => consoles.setEmbedded(fileId, on, Date.now()), [fileId]);
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
 
   /**
@@ -342,6 +344,7 @@ export function Console({
       rows={rows}
       selectedItemId={selection?.itemId}
       activeTab={activeTab}
+      embedded={embedded}
       selectedItem={selectedItem}
       waiting={waiting !== undefined}
       logFloor={logFloor}
@@ -352,6 +355,7 @@ export function Console({
       onTailingChange={setTailing}
       onSelectRow={selectRow}
       onTabChange={onTabChange}
+      onEmbeddedChange={onEmbeddedChange}
       onShowLogs={() => onLogFloorChange("all")}
       onGoToCanvas={() => onViewChange("canvas")}
     />
