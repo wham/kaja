@@ -2028,6 +2028,11 @@ type AuthorizeMcpResponse struct {
 	// waited on - the window is what opens it, the desktop and a browser
 	// differing in how.
 	AuthorizationUrl string `protobuf:"bytes,1,opt,name=authorization_url,json=authorizationUrl,proto3" json:"authorization_url,omitempty"`
+	// The code to type into that page, sent with the URL. It is set where the
+	// grant sends kaja nothing back and the person carries the answer across
+	// themselves, which is how a server that refuses a client with no secret is
+	// signed in to; a redirect flow leaves it empty.
+	UserCode string `protobuf:"bytes,4,opt,name=user_code,json=userCode,proto3" json:"user_code,omitempty"`
 	// Set on the last message: the sign-in finished and the token is kept.
 	Authorized bool `protobuf:"varint,2,opt,name=authorized,proto3" json:"authorized,omitempty"`
 	// Set on the last message instead, when it didn't.
@@ -2069,6 +2074,13 @@ func (*AuthorizeMcpResponse) Descriptor() ([]byte, []int) {
 func (x *AuthorizeMcpResponse) GetAuthorizationUrl() string {
 	if x != nil {
 		return x.AuthorizationUrl
+	}
+	return ""
+}
+
+func (x *AuthorizeMcpResponse) GetUserCode() string {
+	if x != nil {
+		return x.UserCode
 	}
 	return ""
 }
@@ -5412,9 +5424,10 @@ const file_proto_api_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x16\n" +
 	"\x06detail\x18\x03 \x01(\tR\x06detail\"0\n" +
 	"\x13AuthorizeMcpRequest\x12\x19\n" +
-	"\x03mcp\x18\x01 \x01(\v2\a.McpAppR\x03mcp\"\x8a\x01\n" +
+	"\x03mcp\x18\x01 \x01(\v2\a.McpAppR\x03mcp\"\xa7\x01\n" +
 	"\x14AuthorizeMcpResponse\x12+\n" +
-	"\x11authorization_url\x18\x01 \x01(\tR\x10authorizationUrl\x12\x1e\n" +
+	"\x11authorization_url\x18\x01 \x01(\tR\x10authorizationUrl\x12\x1b\n" +
+	"\tuser_code\x18\x04 \x01(\tR\buserCode\x12\x1e\n" +
 	"\n" +
 	"authorized\x18\x02 \x01(\bR\n" +
 	"authorized\x12%\n" +

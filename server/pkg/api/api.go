@@ -421,8 +421,10 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 
 // AuthorizeMcp signs kaja in to the server an app names. The stream is the flow:
 // the page to open goes out first and on its own, because nothing can happen
-// until somebody opens it, and the verdict follows once the authorization server
-// has sent them back to the loopback address kaja is listening on.
+// until somebody opens it, and the verdict follows once the sign-in has been
+// finished there - by the authorization server sending them back to the loopback
+// address kaja is listening on, or by the code it sent them off with being
+// entered.
 func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerStreamingServer[AuthorizeMcpResponse]) error {
 	if req.Mcp == nil {
 		return fmt.Errorf("mcp app is required")
@@ -434,11 +436,11 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 		}})
 	}
 
-	target, done, err := s.mcpAuthorizer.Begin(s.mcpAuthorization(req.Mcp))
+	prompt, done, err := s.mcpAuthorizer.Begin(s.mcpAuthorization(req.Mcp))
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
-	if err := stream.Send(&AuthorizeMcpResponse{AuthorizationUrl: target}); err != nil {
+	if err := stream.Send(&AuthorizeMcpResponse{AuthorizationUrl: prompt.URL, UserCode: prompt.UserCode}); err != nil {
 		s.mcpAuthorizer.Cancel(done)
 		return err
 	}

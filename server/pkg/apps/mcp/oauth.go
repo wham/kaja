@@ -164,6 +164,7 @@ type authorizationServer struct {
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 	TokenEndpoint                     string   `json:"token_endpoint"`
 	RegistrationEndpoint              string   `json:"registration_endpoint"`
+	DeviceAuthorizationEndpoint       string   `json:"device_authorization_endpoint"`
 	ScopesSupported                   []string `json:"scopes_supported"`
 	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
 	ClientIDMetadataDocumentSupported bool     `json:"client_id_metadata_document_supported"`
@@ -367,8 +368,14 @@ func requestToken(client *http.Client, server *authorizationServer, registered *
 	}
 	defer response.Body.Close()
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, metadataLimit))
+	// A refusal is read out of the body whatever the status: GitHub answers 200
+	// with the error in it, and RFC 8628's `authorization_pending` arrives that
+	// way too, so a status is not what says whether a token was issued.
+	if refusal := readTokenRefusal(payload); refusal != nil {
+		return nil, fmt.Errorf("the authorization server refused the token request: %w", refusal)
+	}
 	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("the authorization server refused the token request: %s", tokenErrorText(payload))
+		return nil, fmt.Errorf("the authorization server refused the token request: %s", summarize(payload))
 	}
 
 	var answer struct {
@@ -393,20 +400,29 @@ func requestToken(client *http.Client, server *authorizationServer, registered *
 	return issued, nil
 }
 
-// tokenErrorText is the reason an OAuth error response gives, which is a pair of
-// fields rather than a sentence.
-func tokenErrorText(payload []byte) string {
-	var failure struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description"`
+// tokenRefusal is an OAuth error response, which is a pair of fields rather than
+// a sentence. The code is kept apart from the text because the device grant is
+// driven by it: `authorization_pending` is what says to keep waiting.
+type tokenRefusal struct {
+	Code        string `json:"error"`
+	Description string `json:"error_description"`
+}
+
+func (r *tokenRefusal) Error() string {
+	if r.Description != "" {
+		return r.Code + ": " + r.Description
 	}
-	if json.Unmarshal(payload, &failure) != nil || failure.Error == "" {
-		return summarize(payload)
+	return r.Code
+}
+
+// readTokenRefusal reads one out of a token endpoint's answer, or reports that
+// the answer is not a refusal at all.
+func readTokenRefusal(payload []byte) *tokenRefusal {
+	refusal := &tokenRefusal{}
+	if json.Unmarshal(payload, refusal) != nil || refusal.Code == "" {
+		return nil
 	}
-	if failure.Description != "" {
-		return failure.Error + ": " + failure.Description
-	}
-	return failure.Error
+	return refusal
 }
 
 // fetchJSON reads one discovery document.
