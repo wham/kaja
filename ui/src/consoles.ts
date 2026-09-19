@@ -173,6 +173,10 @@ export class FileConsole {
   runs: Run[] = [];
   selection: RunSelection | null = null;
   tab: ConsoleTab = "response";
+  // Whether the payload pane reads the documents its strings carry. Off by default:
+  // the pane says what came back, and a string an API sent is a string until
+  // somebody asks for it to be read.
+  embedded = false;
   // Undefined until a view has been chosen, which is what lets a run that drew
   // something open on its canvas while an explicit choice still outranks it.
   view?: ConsoleView;
@@ -580,6 +584,14 @@ export class Consoles {
     const file = this.#ensure(fileId, now);
     if (file.tab === tab) return;
     file.tab = tab;
+    this.#touch(fileId, true);
+  }
+
+  setEmbedded(fileId: string | undefined, embedded: boolean, now: number): void {
+    if (!fileId) return;
+    const file = this.#ensure(fileId, now);
+    if (file.embedded === embedded) return;
+    file.embedded = embedded;
     this.#touch(fileId, true);
   }
 

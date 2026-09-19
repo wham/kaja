@@ -1,10 +1,11 @@
-import { ArrowDown, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
+import { ArrowDown, Braces, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
+import { spliceEmbedded } from "./embeddedJson";
 import { fetchRequestLine } from "./fetchCall";
 import { splitRequestLine } from "./requestLine";
 import { unwrapEnvelope } from "./httpEnvelope";
@@ -38,7 +39,7 @@ const payloadTabClass = "cursor-pointer select-none whitespace-nowrap text-xs te
 const payloadTabActiveClass = "font-medium text-foreground";
 // Same weight as the console header's utilities: no resting chrome.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
-const touchUtilityButtonClass = "h-11 w-11";
+const touchUtilityButtonClass = "h-11 w-9";
 
 interface RunLogProps {
   group: RunGroup;
@@ -53,6 +54,8 @@ interface RunLogProps {
   rows: ConsoleItem[];
   selectedItemId?: string;
   activeTab: ConsoleTab;
+  // Whether the payload pane reads the documents its strings carry.
+  embedded: boolean;
   selectedItem?: ConsoleItem;
   waiting: boolean;
   // So the tail bar can say what is being left out.
@@ -65,6 +68,7 @@ interface RunLogProps {
   onTailingChange: (tailing: boolean) => void;
   onSelectRow: (itemId: string) => void;
   onTabChange: (tab: ConsoleTab) => void;
+  onEmbeddedChange: (embedded: boolean) => void;
   onShowLogs: () => void;
   onGoToCanvas: () => void;
 }
@@ -84,6 +88,7 @@ export function RunLog({
   rows,
   selectedItemId,
   activeTab,
+  embedded,
   selectedItem,
   waiting,
   logFloor,
@@ -94,6 +99,7 @@ export function RunLog({
   onTailingChange,
   onSelectRow,
   onTabChange,
+  onEmbeddedChange,
   onShowLogs,
   onGoToCanvas,
 }: RunLogProps) {
@@ -263,9 +269,22 @@ export function RunLog({
           {group.run.payloadsExpired ? (
             <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
           ) : selectedItem?.payloadsDropped && selectedItem.call ? (
-            <RunLog.ShelvedPayloadPane key={selectedItem.id} item={selectedItem} activeTab={activeTab} onTabChange={onTabChange} />
+            <RunLog.ShelvedPayloadPane
+              key={selectedItem.id}
+              item={selectedItem}
+              activeTab={activeTab}
+              embedded={embedded}
+              onTabChange={onTabChange}
+              onEmbeddedChange={onEmbeddedChange}
+            />
           ) : selectedItem?.call ? (
-            <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
+            <RunLog.PayloadPane
+              methodCall={selectedItem.call}
+              activeTab={activeTab}
+              embedded={embedded}
+              onTabChange={onTabChange}
+              onEmbeddedChange={onEmbeddedChange}
+            />
           ) : selectedItem?.printed ? (
             <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
           ) : (
@@ -286,17 +305,7 @@ export function RunLog({
  * asks for it back and draws the same pane it would have drawn — the reach of the log
  * is what the disk holds, and only the working set is what React does.
  */
-RunLog.ShelvedPayloadPane = function ({
-  item,
-  touch,
-  activeTab,
-  onTabChange,
-}: {
-  item: ConsoleItem;
-  touch?: boolean;
-  activeTab: ConsoleTab;
-  onTabChange: (tab: ConsoleTab) => void;
-}) {
+RunLog.ShelvedPayloadPane = function ({ item, ...pane }: { item: ConsoleItem } & Omit<PayloadPaneProps, "methodCall">) {
   // Null once the shelf has answered with nothing, which is a payload old enough to
   // have been let go of there too.
   const [payload, setPayload] = useState<ArchivedPayload | null | undefined>(undefined);
@@ -321,7 +330,7 @@ RunLog.ShelvedPayloadPane = function ({
   // A read off the shelf lands within a frame or two, so the wait says nothing rather
   // than flashing a state nobody has time to read.
   if (payload === undefined) return <div className="min-h-0 flex-1" />;
-  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} touch={touch} activeTab={activeTab} onTabChange={onTabChange} />;
+  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} {...pane} />;
 };
 
 // A payload that is not there any more, and why. Expiry is only bearable when it is
@@ -607,7 +616,26 @@ interface PayloadPaneProps {
   // whole height instead of a 12px glyph in the middle of it.
   touch?: boolean;
   activeTab: ConsoleTab;
+  embedded: boolean;
   onTabChange: (tab: ConsoleTab) => void;
+  onEmbeddedChange: (embedded: boolean) => void;
+}
+
+// What the pane draws, and whether there is a document in it to read. The two are
+// one walk: the toggle exists exactly when the reading changes something, so what
+// it would draw is also what says whether to offer it.
+interface PanePayload {
+  content?: unknown;
+  rawText?: string;
+  embeddable: boolean;
+  // Measured before the reading, because how big the answer was is a fact about the
+  // exchange rather than about how the pane is drawing it.
+  bytes?: number;
+}
+
+function readPayload(value: unknown, embedded: boolean): PanePayload {
+  const read = spliceEmbedded(value);
+  return { content: embedded ? read.value : value, embeddable: read.found, bytes: payloadBytes(value) };
 }
 
 // Whether anything has come back. A stream sets `output` on every message, so the
@@ -622,15 +650,24 @@ function hasResponse(methodCall: MethodCall): boolean {
  * failure is the body the API sent, a stream is its messages one after another, and
  * anything else is the message with whatever encoding carried it taken off.
  */
-function responsePayload(methodCall: MethodCall): { content?: unknown; rawText?: string } {
-  if (methodCall.error !== undefined) return { content: unwrapFailure(methodCall.error) };
+function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload {
+  if (methodCall.error !== undefined) return readPayload(unwrapFailure(methodCall.error), embedded);
   if (methodCall.streamOutputs !== undefined) {
-    return { rawText: methodCall.streamOutputs.map((message) => JSON.stringify(unwrapEnvelope(methodCall.outputType, message), null, 2)).join("\n\n") };
+    let embeddable = false;
+    const sent: string[] = [];
+    const drawn = methodCall.streamOutputs.map((message) => {
+      const value = unwrapEnvelope(methodCall.outputType, message);
+      const read = readPayload(value, embedded);
+      embeddable ||= read.embeddable;
+      sent.push(JSON.stringify(value, null, 2));
+      return JSON.stringify(read.content, null, 2);
+    });
+    return { rawText: drawn.join("\n\n"), embeddable, bytes: payloadBytes(undefined, sent.join("\n\n")) };
   }
-  return { content: unwrapEnvelope(methodCall.outputType, methodCall.output) };
+  return readPayload(unwrapEnvelope(methodCall.outputType, methodCall.output), embedded);
 }
 
-RunLog.PayloadPane = function ({ methodCall, touch = false, activeTab, onTabChange }: PayloadPaneProps) {
+RunLog.PayloadPane = function ({ methodCall, touch = false, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const isStreaming = methodCall.streamOutputs !== undefined;
@@ -657,18 +694,31 @@ RunLog.PayloadPane = function ({ methodCall, touch = false, activeTab, onTabChan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answered]);
 
-  const { content, rawText } = activeTab === "request" ? { content: methodCall.input, rawText: undefined } : responsePayload(methodCall);
+  const { content, rawText, embeddable, bytes } = activeTab === "request" ? readPayload(methodCall.input, embedded) : responsePayload(methodCall, embedded);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* The pane names itself: which part of the call on the left, and what
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
-      <div className={cn("flex shrink-0 items-center gap-4 overflow-hidden px-3", touch ? "h-11 border-b border-border" : "h-[28px]")}>
+      <div className={cn("flex shrink-0 items-center overflow-hidden px-3", touch ? "h-11 gap-3 border-b border-border" : "h-[28px] gap-4")}>
         <RunLog.PayloadTabs methodCall={methodCall} touch={touch} activeTab={activeTab} onTabChange={onTabChange} />
-        {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} sizeOnly={activeTab === "request"} />}
+        {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} bytes={bytes} sizeOnly={activeTab === "request"} />}
         {showsJson && (
           <div className="flex shrink-0 items-center gap-1">
+            {/* First in the cluster, because it decides what the other three act
+                on. Absent where there is no document to read, so the button
+                appearing is how you find out there is one. */}
+            {embeddable && (
+              <IconButton
+                icon={Braces}
+                aria-label={embedded ? "Show the raw string" : "Read embedded JSON"}
+                variant="ghost"
+                size="sm"
+                className={cn(utilityButtonClass, touch && touchUtilityButtonClass, embedded && "bg-accent text-foreground")}
+                onClick={() => onEmbeddedChange(!embedded)}
+              />
+            )}
             <IconButton
               icon={FoldVertical}
               aria-label="Fold all"
@@ -730,7 +780,7 @@ RunLog.PayloadTabs = function ({ methodCall, touch = false, activeTab, onTabChan
   );
 
   return (
-    <div className="flex shrink-0 items-center gap-4">
+    <div className={cn("flex shrink-0 items-center", touch ? "gap-3" : "gap-4")}>
       {tab("request", "Request")}
       {tab("response", `Response${isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}`)}
       {tab("headers", "Headers")}
@@ -740,8 +790,7 @@ RunLog.PayloadTabs = function ({ methodCall, touch = false, activeTab, onTabChan
 
 interface ResponseSummaryProps {
   methodCall: MethodCall;
-  content: unknown;
-  rawText?: string;
+  bytes?: number;
   // The strip describes the pane in front of you, and the row above already states
   // what happened: on the request there is no status and no duration to have, so the
   // size of what was sent is the whole of what only this pane knows.
@@ -749,7 +798,7 @@ interface ResponseSummaryProps {
 }
 
 // Status colour appears here and in the call's dot, and nowhere else.
-RunLog.ResponseSummary = function ({ methodCall, content, rawText, sizeOnly }: ResponseSummaryProps) {
+RunLog.ResponseSummary = function ({ methodCall, bytes, sizeOnly }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
   const duration = formatDuration(callDurationMs(methodCall));
@@ -759,7 +808,7 @@ RunLog.ResponseSummary = function ({ methodCall, content, rawText, sizeOnly }: R
     methodCall.upstreamDurationMs !== undefined && methodCall.durationMs !== undefined
       ? `API ${formatDuration(methodCall.upstreamDurationMs)} · end to end ${formatDuration(methodCall.durationMs)}`
       : undefined;
-  const size = formatBytes(payloadBytes(content, rawText));
+  const size = formatBytes(bytes);
   const streamCount = methodCall.streamOutputs?.length;
 
   return (
@@ -811,7 +860,7 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     (requestLine !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0);
   const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
-  const { content, rawText } = responsePayload(methodCall);
+  const { bytes } = responsePayload(methodCall, false);
   const answered = hasResponse(methodCall);
   // What the server said while it was working, which reached us between the request
   // and the response and is stated where it happened.
@@ -838,7 +887,7 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
           headers={responseHeaders}
           status={exchangeStatus(methodCall)}
           durationMs={callDurationMs(methodCall)}
-          size={answered ? payloadBytes(content, rawText) : undefined}
+          size={answered ? bytes : undefined}
           pending={!answered}
           className="mt-4"
         />

@@ -130,6 +130,7 @@ export function Console({
   const groups = file.groups;
   const selection = file.selection;
   const activeTab = file.tab;
+  const embedded = file.embedded;
   const newest = groups[groups.length - 1];
 
   const [now, setNow] = useState(Date.now());
@@ -173,6 +174,7 @@ export function Console({
 
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
+  const onEmbeddedChange = useCallback((on: boolean) => consoles.setEmbedded(fileId, on, Date.now()), [fileId]);
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
 
   /**
@@ -383,6 +385,7 @@ export function Console({
       rows={rows}
       selectedItemId={selection?.itemId}
       activeTab={activeTab}
+      embedded={embedded}
       selectedItem={selectedItem}
       waiting={waiting !== undefined}
       logFloor={logFloor}
@@ -393,6 +396,7 @@ export function Console({
       onTailingChange={setTailing}
       onSelectRow={selectRow}
       onTabChange={onTabChange}
+      onEmbeddedChange={onEmbeddedChange}
       onShowLogs={() => onLogFloorChange("all")}
       onGoToCanvas={() => onViewChange("canvas")}
     />
@@ -474,9 +478,24 @@ export function Console({
           {selectedGroup?.run.payloadsExpired ? (
             <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
           ) : payloadItem.payloadsDropped && payloadItem.call ? (
-            <RunLog.ShelvedPayloadPane key={payloadItem.id} item={payloadItem} touch activeTab={activeTab} onTabChange={onTabChange} />
+            <RunLog.ShelvedPayloadPane
+              key={payloadItem.id}
+              item={payloadItem}
+              touch
+              activeTab={activeTab}
+              embedded={embedded}
+              onTabChange={onTabChange}
+              onEmbeddedChange={onEmbeddedChange}
+            />
           ) : payloadItem.call ? (
-            <RunLog.PayloadPane methodCall={payloadItem.call} touch activeTab={activeTab} onTabChange={onTabChange} />
+            <RunLog.PayloadPane
+              methodCall={payloadItem.call}
+              touch
+              activeTab={activeTab}
+              embedded={embedded}
+              onTabChange={onTabChange}
+              onEmbeddedChange={onEmbeddedChange}
+            />
           ) : (
             <RunLog.PrintedPane message={payloadItem.logs?.[0]?.message ?? ""} level={printedLevel(payloadItem)} />
           )}
