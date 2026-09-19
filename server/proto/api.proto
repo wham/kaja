@@ -304,19 +304,6 @@ message McpServer {
   int32 resource_count = 7;
   int32 resource_template_count = 8;
   int32 prompt_count = 9;
-  // The tools it listed, so the form can show what the app would add.
-  repeated McpTool tools = 10;
-  // The server's own guidance on how to use it, where it offers any.
-  string instructions = 11;
-}
-
-message McpTool {
-  string name = 1;
-  string title = 2;
-  string description = 3;
-  // The server's own hint that the tool only reads. It is the server's word and
-  // nothing more.
-  bool read_only = 4;
 }
 
 // McpProblem is a server that couldn't be read, classified so the form can name

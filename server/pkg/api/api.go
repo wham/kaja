@@ -507,13 +507,8 @@ func mcpProblemKind(kind mcp.ProblemKind) McpProblemKind {
 	return mcpProblemKinds[kind]
 }
 
-// mcpToolLimit bounds how many tools travel back to the form. It shows a few and
-// counts the rest, and a server with three hundred of them would otherwise send
-// every description it has to fill a list nobody reads to the end.
-const mcpToolLimit = 24
-
 func describeMcpServer(surface *mcp.Surface) *McpServer {
-	described := &McpServer{
+	return &McpServer{
 		Name:                  surface.ServerInfo.Name,
 		Version:               surface.ServerInfo.Version,
 		ProtocolVersion:       surface.ProtocolVersion,
@@ -523,20 +518,7 @@ func describeMcpServer(surface *mcp.Surface) *McpServer {
 		ResourceCount:         int32(len(surface.Resources)),
 		ResourceTemplateCount: int32(len(surface.ResourceTemplates)),
 		PromptCount:           int32(len(surface.Prompts)),
-		Instructions:          surface.Instructions,
 	}
-	for i, tool := range surface.Tools {
-		if i == mcpToolLimit {
-			break
-		}
-		described.Tools = append(described.Tools, &McpTool{
-			Name:        tool.Name,
-			Title:       tool.Title,
-			Description: tool.Description,
-			ReadOnly:    tool.Annotations != nil && tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint,
-		})
-	}
-	return described
 }
 
 // InspectOpenApi reads an OpenAPI document without creating an app, so the New

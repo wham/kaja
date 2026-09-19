@@ -364,7 +364,7 @@ export function GrpcForm({
               }}
               duplicate={duplicateName}
               readOnly={readOnly}
-              caption={nameTouched ? undefined : `From the ${nameFromAddress(url) ? "address" : "service it serves"}. Rename if you'd rather.`}
+              caption={nameTouched ? undefined : `From the ${nameFromAddress(url) ? "address" : "service it serves"}.`}
             />
           )}
 
@@ -416,22 +416,24 @@ interface SourceStatusProps {
 function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
   if (state.status === "idle") {
     return (
-      <div className="flex items-center gap-1.5">
-        <p className="text-xs text-muted-foreground">
-          {mode === "reflection"
-            ? "Kaja asks the server what it serves and fills in the rest."
-            : "Kaja reads every .proto file in the folder and fills in the rest."}
-        </p>
+      <p className="text-xs text-muted-foreground">
+        {mode === "reflection"
+          ? "Kaja asks the server what it serves and fills in the rest."
+          : "Kaja reads every .proto file in the folder and fills in the rest."}
         {demoLabel && onDemo && !readOnly && (
           <>
-            <span className="text-xs text-muted-foreground">·</span>
-            <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <Sparkles size={11} />
-              {demoLabel}
-            </button>
+            {" "}
+            {/* The separator rides with the link, so a wrap never leaves it dangling. */}
+            <span className="whitespace-nowrap">
+              ·{" "}
+              <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 align-middle hover:text-foreground">
+                <Sparkles size={11} />
+                {demoLabel}
+              </button>
+            </span>
           </>
         )}
-      </div>
+      </p>
     );
   }
 

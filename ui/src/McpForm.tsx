@@ -1,18 +1,4 @@
-import {
-  Blocks,
-  CircleAlert,
-  CircleCheck,
-  CircleX,
-  Copy,
-  Info,
-  Key,
-  RefreshCw,
-  ShieldCheck,
-  ShieldOff,
-  Sparkles,
-  TriangleAlert,
-  type LucideIcon,
-} from "lucide-react";
+import { Blocks, CircleAlert, CircleCheck, CircleX, Copy, Key, RefreshCw, ShieldCheck, Sparkles, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
@@ -368,7 +354,7 @@ export function McpForm({
               }}
               duplicate={duplicateName}
               readOnly={readOnly}
-              caption={nameTouched ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}. Rename if you'd rather.`}
+              caption={nameTouched ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}.`}
             />
           )}
 
@@ -467,18 +453,22 @@ interface EndpointStatusProps {
 function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry }: EndpointStatusProps) {
   if (state.status === "idle") {
     return (
-      <div className="flex items-center gap-1.5">
-        <p className="text-xs text-muted-foreground">Kaja asks the server what it exposes and turns each tool into a method.</p>
+      <p className="text-xs text-muted-foreground">
+        Kaja asks the server what it exposes and fills in the rest.
         {demoLabel && onDemo && !readOnly && (
           <>
-            <span className="text-xs text-muted-foreground">·</span>
-            <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <Sparkles size={11} />
-              {demoLabel}
-            </button>
+            {" "}
+            {/* The separator rides with the link, so a wrap never leaves it dangling. */}
+            <span className="whitespace-nowrap">
+              ·{" "}
+              <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 align-middle hover:text-foreground">
+                <Sparkles size={11} />
+                {demoLabel}
+              </button>
+            </span>
           </>
         )}
-      </div>
+      </p>
     );
   }
 
@@ -508,36 +498,24 @@ function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: ()
   if (server.promptCount > 0) parts.push(count(server.promptCount, "prompt"));
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-        <div className="pt-0.5 text-emerald-600 dark:text-emerald-400">
-          <CircleCheck size={15} />
-        </div>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-sm text-foreground">
-            {parts.join(" · ")}{" "}
-            <span className="text-muted-foreground">
-              from {server.name || "the server"}
-              {server.version && ` ${server.version}`}
-            </span>
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {eraLabel(server.protocolVersion, server.handshake)}
-            {server.tools.length > 0 && ` · ${server.tools.map((tool) => tool.name).join(" · ")}`}
-          </p>
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
-          <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
-        </div>
+    <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+      <div className="pt-0.5 text-emerald-600 dark:text-emerald-400">
+        <CircleCheck size={15} />
       </div>
-      {server.instructions && (
-        <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
-          <div className="pt-0.5 text-muted-foreground">
-            <Info size={15} />
-          </div>
-          <p className="line-clamp-3 text-xs leading-5 text-muted-foreground">{server.instructions}</p>
-        </div>
-      )}
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="truncate text-sm text-foreground">
+          {parts.join(" · ")} <span className="text-muted-foreground">from {server.name || "the server"}</span>
+        </p>
+        {/* A version is whatever the server calls its build, and some of them name a
+            commit, so it goes on the line that truncates rather than the one read. */}
+        <p className="truncate text-xs text-muted-foreground">
+          {eraLabel(server.protocolVersion, server.handshake)}
+          {server.version && ` · ${server.version}`}
+        </p>
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
+        <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
+      </div>
     </div>
   );
 }
@@ -620,17 +598,15 @@ function AuthenticationSection({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
-      <div role="radiogroup" aria-label="Authentication" className="flex flex-col gap-2">
+      <div role="radiogroup" aria-label="Authentication" className="flex flex-col gap-1.5 pt-0.5">
         <ChoiceCard selected={oauth}>
           <ChoiceRow selected={oauth} disabled={readOnly} onSelect={() => onSelect(AUTH_OAUTH)} icon={ShieldCheck}>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm text-foreground">Sign in</span>
-              <span className="truncate text-xs text-muted-foreground">Kaja gets the token from the server and keeps it renewed</span>
-            </span>
+            <span className={cn("shrink-0 text-sm", oauth ? "text-foreground" : "text-muted-foreground")}>Sign in</span>
+            <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
             {known && <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>}
           </ChoiceRow>
           {oauth && (
-            <div className="flex flex-col gap-2 px-3 pb-3">
+            <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
               {/* The verbs go where the workspace can't be written; the fields stay,
                   because reading how an app is configured is still worth doing. */}
               {!readOnly && (
@@ -649,20 +625,20 @@ function AuthenticationSection({
                     value={parameters.clientId ?? ""}
                     onValueChange={(value) => onParameterChange("clientId", value)}
                     variables={variables}
-                    placeholder="Client ID — leave empty and Kaja registers itself"
+                    placeholder="Client ID"
                     disabled={readOnly}
                   />
                   <VariableSuggestInput
                     value={parameters.scope ?? ""}
                     onValueChange={(value) => onParameterChange("scope", value)}
                     variables={variables}
-                    placeholder="Scopes — leave empty and the server says which"
+                    placeholder="Scopes"
                     disabled={readOnly}
                   />
+                  <p className="text-xs text-muted-foreground">Left empty, Kaja registers itself and takes the scopes the server names.</p>
                 </>
               )}
               {bundled && <p className="text-xs text-muted-foreground">Using Kaja's registration with {bundled.name}.</p>}
-              <p className="text-xs text-muted-foreground">The token is kept by this Kaja, never shared with anyone who opens this workspace.</p>
             </div>
           )}
         </ChoiceCard>
@@ -673,30 +649,34 @@ function AuthenticationSection({
           return (
             <ChoiceCard key={scheme.key} selected={active}>
               <ChoiceRow selected={active} disabled={readOnly} onSelect={() => onSelect(scheme.key)} icon={scheme.key === AUTH_APIKEY ? Key : Blocks}>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm text-foreground">{scheme.label}</span>
-                  <span className="truncate text-xs text-muted-foreground">{scheme.summary}</span>
-                </span>
+                <span className={cn("shrink-0 text-sm", active ? "text-foreground" : "text-muted-foreground")}>{scheme.label}</span>
+                <span className="truncate text-xs text-muted-foreground">{scheme.summary}</span>
               </ChoiceRow>
               {active && (
-                <div className="flex flex-col gap-2 px-3 pb-3">
-                  {scheme.key === AUTH_APIKEY && (
-                    <VariableSuggestInput
-                      value={parameters.apiKeyName ?? ""}
-                      onValueChange={(value) => onParameterChange("apiKeyName", value)}
-                      variables={variables}
-                      placeholder={DEFAULT_API_KEY_NAME}
-                      disabled={readOnly}
-                    />
-                  )}
-                  <VariableSuggestInput
-                    value={parameters.token ?? ""}
-                    onValueChange={(value) => onParameterChange("token", value)}
-                    variables={variables}
-                    placeholder={scheme.key === AUTH_APIKEY ? "API key or ${VARIABLE}" : "Token or ${VARIABLE}"}
-                    disabled={readOnly}
-                  />
-                  {note.text && <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>}
+                <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    {scheme.key === AUTH_APIKEY && (
+                      <div className="w-48">
+                        <VariableSuggestInput
+                          value={parameters.apiKeyName ?? ""}
+                          onValueChange={(value) => onParameterChange("apiKeyName", value)}
+                          variables={variables}
+                          placeholder={DEFAULT_API_KEY_NAME}
+                          disabled={readOnly}
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <VariableSuggestInput
+                        value={parameters.token ?? ""}
+                        onValueChange={(value) => onParameterChange("token", value)}
+                        variables={variables}
+                        placeholder={scheme.key === AUTH_APIKEY ? "Key" : "Token"}
+                        disabled={readOnly}
+                      />
+                    </div>
+                  </div>
+                  <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>
                 </div>
               )}
             </ChoiceCard>
@@ -704,11 +684,8 @@ function AuthenticationSection({
         })}
 
         <ChoiceCard selected={selected === AUTH_NONE}>
-          <ChoiceRow selected={selected === AUTH_NONE} disabled={readOnly} onSelect={() => onSelect(AUTH_NONE)} icon={ShieldOff}>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm text-foreground">Send no credentials</span>
-              <span className="truncate text-xs text-muted-foreground">For a server that is open, or guarded another way</span>
-            </span>
+          <ChoiceRow selected={selected === AUTH_NONE} disabled={readOnly} onSelect={() => onSelect(AUTH_NONE)}>
+            <span className={cn("text-sm", selected === AUTH_NONE ? "text-foreground" : "text-muted-foreground")}>Send no credentials</span>
           </ChoiceRow>
         </ChoiceCard>
       </div>

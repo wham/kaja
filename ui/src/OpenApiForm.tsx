@@ -423,7 +423,7 @@ export function OpenApiForm({
             }}
             duplicate={duplicateName}
             readOnly={readOnly}
-            caption={nameTouched ? undefined : "From the document's title. Rename if you'd rather."}
+            caption={nameTouched ? undefined : "From the document's title."}
           />
 
           <ServerSection
