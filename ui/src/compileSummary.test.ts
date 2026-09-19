@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { App, CompilationStatus, createPendingApp } from "./apps";
 import { LogLevel } from "./server/api";
-import { appWarnings, countMethods, firstErrorMessage, settledLabel, summarizeCompilation } from "./compileSummary";
+import { appWarnings, compileDotClass, countMethods, firstErrorMessage, settledLabel, summarizeCompilation } from "./compileSummary";
 
 function app(name: string, status: CompilationStatus, logs: { level: LogLevel; message: string }[] = []): App {
   const app = createPendingApp({ name, grpc: { url: "", protoDir: "", headers: {} }, app: { oneofKind: "grpc" } } as any);
@@ -114,5 +114,19 @@ describe("settledLabel", () => {
 
   test("long compiles round to whole seconds", () => {
     expect(settledLabel([app("a", "success"), app("b", "success")], 12400)).toBe("2 apps ready · 12s");
+  });
+});
+
+describe("compileDotClass", () => {
+  test("is the state's own colour", () => {
+    expect(compileDotClass("failed")).toBe("bg-destructive");
+    expect(compileDotClass("warning")).toBe("bg-amber-500");
+    expect(compileDotClass("ready")).toBe("bg-emerald-500");
+  });
+
+  test("is quiet where nothing has happened yet", () => {
+    expect(compileDotClass("loading")).toBe("bg-muted-foreground");
+    expect(compileDotClass("compiling")).toBe("bg-muted-foreground");
+    expect(compileDotClass("empty")).toBe("bg-muted-foreground");
   });
 });

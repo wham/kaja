@@ -15,6 +15,10 @@ export interface RecentFile {
 }
 
 interface NoFileBlankslateProps {
+  // The narrow frame has no sidebar, so the sentence names the finder — the tree is
+  // reached through it there — and the two doors under it are buttons rather than
+  // keys nothing on the screen can press.
+  mobile?: boolean;
   onOpenFinder: () => void;
   onNewDraft: () => void;
   // The last few things you looked at. This is the only moment the cache behind
@@ -33,7 +37,7 @@ interface NoFileBlankslateProps {
  * absent rather than an empty box, which is the right amount for someone who has
  * nothing yet.
  */
-export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBlankslateProps) {
+export function NoFileBlankslate({ mobile = false, onOpenFinder, onNewDraft, recent }: NoFileBlankslateProps) {
   const finderKey = useShortcutLabel("finder");
   const newDraftKey = useShortcutLabel("newDraft");
 
@@ -41,15 +45,22 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
       <div className="flex flex-col items-center gap-2">
         <FileCode size={28} className="text-muted-foreground" />
-        <p className="m-0 text-sm text-foreground">Pick a method in the sidebar and Kaja drafts a script.</p>
+        <p className="m-0 text-center text-sm text-foreground">
+          {mobile ? "Pick a method in the finder and Kaja drafts a script." : "Pick a method in the sidebar and Kaja drafts a script."}
+        </p>
         <p className="m-0 text-xs text-muted-foreground">Edit it, run it, save it as a file.</p>
       </div>
       {recent.length > 0 && (
-        <div className="flex w-[300px] flex-col gap-1">
+        <div className={cn("flex flex-col gap-1", mobile ? "w-full max-w-[300px]" : "w-[300px]")}>
           {recent.map((file) => {
             const Icon = file.icon;
             return (
-              <button key={file.key} type="button" onClick={file.go} className="flex h-[30px] items-center gap-2 rounded-md px-2 text-left hover:bg-accent">
+              <button
+                key={file.key}
+                type="button"
+                onClick={file.go}
+                className={cn("flex items-center gap-2 rounded-md px-2 text-left hover:bg-accent", mobile ? "h-11" : "h-[30px]")}
+              >
                 <Icon size={14} className="shrink-0 text-muted-foreground" />
                 <span className={cn("min-w-0 flex-1 truncate text-xs", file.saved ? "text-foreground" : "text-muted-foreground")}>{file.name}</span>
                 {file.updatedAt !== undefined && (
@@ -60,15 +71,34 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
           })}
         </div>
       )}
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{finderKey}</span> find a call
-        </button>
-        <div className="h-3 w-px bg-border" />
-        <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{newDraftKey}</span> blank script
-        </button>
-      </div>
+      {mobile ? (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenFinder}
+            className="flex h-11 items-center rounded-md border border-border bg-card px-4 text-sm text-foreground active:bg-accent"
+          >
+            Find a call
+          </button>
+          <button
+            type="button"
+            onClick={onNewDraft}
+            className="flex h-11 items-center rounded-md border border-border bg-card px-4 text-sm text-foreground active:bg-accent"
+          >
+            Blank script
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
+            <span className="font-mono">{finderKey}</span> find a call
+          </button>
+          <div className="h-3 w-px bg-border" />
+          <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
+            <span className="font-mono">{newDraftKey}</span> blank script
+          </button>
+        </div>
+      )}
     </div>
   );
 }

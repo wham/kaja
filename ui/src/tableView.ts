@@ -229,9 +229,9 @@ export function holdsPage(block: TableBlock, window: TableWindow): boolean {
   return window.pending || block.loading === true || window.hasNext;
 }
 
-export function bodyMinHeight(block: TableBlock, window: TableWindow): number | undefined {
+export function bodyMinHeight(block: TableBlock, window: TableWindow, rowHeight = ROW_HEIGHT, headerHeight = HEADER_HEIGHT): number | undefined {
   if (!holdsPage(block, window)) return undefined;
-  return HEADER_HEIGHT + window.expected * ROW_HEIGHT;
+  return headerHeight + window.expected * rowHeight;
 }
 
 /**

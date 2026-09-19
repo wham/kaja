@@ -91,6 +91,24 @@ export function summarizeCompilation(apps: App[], configurationLoaded: boolean):
   return { ...summary, state: "ready", label: plural(apps.length, "app") };
 }
 
+/**
+ * The dot a compile state wears where there is no status bar to draw the whole
+ * indicator — the compile log's own row in the finder. The colours are the bar's own,
+ * so the two can't come to say different things about one state.
+ */
+export function compileDotClass(state: CompileState): string {
+  switch (state) {
+    case "failed":
+      return "bg-destructive";
+    case "warning":
+      return "bg-amber-500";
+    case "ready":
+      return "bg-emerald-500";
+    default:
+      return "bg-muted-foreground";
+  }
+}
+
 // The receipt shown for a few seconds after a batch settles green.
 export function settledLabel(apps: App[], milliseconds: number): string {
   const seconds = Math.max(milliseconds, 100) / 1000;

@@ -393,6 +393,19 @@ The **log** is the flat audit log — one row per call, in wall order, always co
 - **A key for a verb the workspace hasn't got is not listed** (`listedShortcuts`) — the rule that takes Save as file off the command row rather than disabling it.
 - **Reset all is the CommandRow's**, in the `action` slot every other view keeps its one view-level verb in, disabled rather than hidden while nothing differs: it is the answer to "can I get back?", which has to be readable before anything is broken.
 
+## The window under 640px
+
+**One breakpoint, and above it nothing changes** (`mobile.ts`): the desktop frame with its splitters is what an iPad in landscape gets too. Below it there is no second pane to put beside the first and no pointer to aim a splitter with, so the window is **one 52px header over one page that scrolls** (`MobileFrame.tsx`) — script first, console below, stacked rather than split. The header is what the sidebar header, the command row and the status bar all became, and it carries two things: the finder's trigger, and Run.
+
+- **The finder is the navigation, which is what lets the sidebar go.** It is the same one list; what differs is that the window's own screens are a **Kaja group** of their own rather than rows among the files, and the compile and MCP states are **dots on those rows**. That is where the status bar's two marks went — on the wide frame the bar says them, so there the rows say nothing.
+- **The console is not a pane, so its header sticks** to the top of the page, and pressing Run **scrolls you to it**. Not on the press: a run that has drawn nothing is a console one line high, so the press asks and the ask is honoured on the first layout where the console can reach the top.
+- **The log never scrolls the page.** Following the tail would take the script away from you while you were reading it, so the page is Run's to move and the tail bar's `Latest` is what catches it up.
+- **The script is drawn rather than opened** — Monaco's colouring as markup, soft-wrapped, no line numbers, because a second scroller inside the one scroll is not a page. **Edit** swaps the editor in over the same model, with Run and Done in the row beneath it. The page stays mounted behind it, since a view holding work nothing else has must not be lost to a keystroke.
+- **What has nothing to sit beside becomes a screen** (`MobileScreen`): a call's payload, a table row's whole record. Back is the only way out of one.
+- **A table is read as rows.** The first column is the row's title and the rest join into a caption under it, four columns in 390px being four truncations; the record a tap opens is where a cell keeps its verbs.
+- **Every row and every control is 44px**, the log's rows included — which is the one thing the windowing arithmetic has to be told, rather than reading a constant.
+- **A block the run is parked on pins to the foot of the canvas**, because the empty space under a question is the pause, and here that space is the rest of the document.
+
 ## What Kaja failed at
 
 The one error surface in the chrome (`appErrors.ts`, `ErrorStatus.tsx`), at the end of the footer's left group. Everything in Kaja auto-saves, so no screen has a save step and none of them says it saved; what a screen owes you is the news that a write **didn't** land, and that news is the same news wherever it comes from. So there is one place for it rather than a receipt per form.

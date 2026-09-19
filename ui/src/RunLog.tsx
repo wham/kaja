@@ -11,6 +11,7 @@ import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { KajaTrace } from "./KajaTrace";
 import { callDurationMs, callLabel, MethodCall } from "./kaja";
+import { TOUCH_TARGET } from "./mobile";
 import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { useShortcutLabel } from "./shortcuts";
@@ -37,9 +38,18 @@ const payloadTabClass = "cursor-pointer select-none whitespace-nowrap text-xs te
 const payloadTabActiveClass = "font-medium text-foreground";
 // Same weight as the console header's utilities: no resting chrome.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
+const touchUtilityButtonClass = "h-11 w-11";
 
 interface RunLogProps {
   group: RunGroup;
+  // The narrow frame: 44px rows, and the payload is a screen rather than a pane
+  // under the log. The log itself is the same windowed, complete log.
+  mobile?: boolean;
+  // What is actually scrolling. Under the narrow frame the log doesn't scroll — the
+  // page it sits in does, so the window is measured against that one instead.
+  scroller?: React.RefObject<HTMLElement | null>;
+  // Where a row goes when there is no room for a pane beside it.
+  onOpenPayload?: (itemId: string) => void;
   rows: ConsoleItem[];
   selectedItemId?: string;
   activeTab: ConsoleTab;
@@ -68,6 +78,9 @@ interface RunLogProps {
  */
 export function RunLog({
   group,
+  mobile = false,
+  scroller,
+  onOpenPayload,
   rows,
   selectedItemId,
   activeTab,
@@ -85,9 +98,13 @@ export function RunLog({
   onGoToCanvas,
 }: RunLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [window, setWindow] = useState({ top: 0, height: 0 });
   const onTailingRef = useRef(onTailingChange);
   onTailingRef.current = onTailingChange;
+  // Only the rows on screen are in the document either way; what differs is which
+  // element's scroll says which those are.
+  const rowHeight = mobile ? TOUCH_TARGET : CALL_ROW_HEIGHT;
 
   const total = rows.length;
   const slowest = group.stats.slowest;
@@ -98,17 +115,27 @@ export function RunLog({
   const shown = rows.length - group.calls.length;
   const hidden = { lines: printed.lines - shown, errors: logFloor === "off" ? printed.errors : 0 };
 
-  useLayoutEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
+  const scrollerElement = useCallback(() => (mobile ? (scroller?.current ?? null) : scrollRef.current), [mobile, scroller]);
 
-    const measure = () => {
-      setWindow({ top: element.scrollTop, height: element.clientHeight });
-      const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= TAIL_SLACK;
-      // Written now, not on the render this schedules: the next row may land before that
-      // render does, and it must not scroll the log back down.
-      if (atBottom !== tailingRef.current) onTailingRef.current(atBottom);
-    };
+  // How far the rows have been scrolled past, whichever element is doing the
+  // scrolling: the difference between the two rects is the log's own scrollTop where
+  // the log is the scroller, and its offset into the page where the page is.
+  const measure = useCallback(() => {
+    const element = scrollerElement();
+    if (!element) return;
+    const content = contentRef.current;
+    const top = content ? Math.max(0, element.getBoundingClientRect().top - content.getBoundingClientRect().top) : 0;
+    const height = element.clientHeight;
+    setWindow((current) => (current.top === top && current.height === height ? current : { top, height }));
+    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= TAIL_SLACK;
+    // Written now, not on the render this schedules: the next row may land before that
+    // render does, and it must not scroll the log back down.
+    if (atBottom !== tailingRef.current) onTailingRef.current(atBottom);
+  }, [scrollerElement, tailingRef]);
+
+  useLayoutEffect(() => {
+    const element = scrollerElement();
+    if (!element) return;
 
     measure();
     element.addEventListener("scroll", measure, { passive: true });
@@ -118,33 +145,58 @@ export function RunLog({
       element.removeEventListener("scroll", measure);
       observer.disconnect();
     };
-  }, [tailingRef]);
+  }, [measure, scrollerElement]);
 
-  // Following means staying at the bottom as rows arrive.
+  // The rows themselves are what grew, which no observer on the scroller reports.
+  useLayoutEffect(measure, [measure, total]);
+
+  // Following means staying at the bottom as rows arrive. Under the narrow frame it
+  // means nothing: the bottom is the page's, and a log that scrolled the page would
+  // take the script away from you while you were reading it. Run is what moves that
+  // page, and the tail bar's Latest is what catches it up.
   useLayoutEffect(() => {
-    const element = scrollRef.current;
+    if (mobile) return;
+    const element = scrollerElement();
     if (element && tailingRef.current) element.scrollTop = element.scrollHeight;
-  }, [total, tailing, tailingRef]);
+  }, [total, tailing, tailingRef, mobile, scrollerElement]);
 
-  const first = Math.max(0, Math.floor(window.top / CALL_ROW_HEIGHT) - OVERSCAN);
-  const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / CALL_ROW_HEIGHT) + OVERSCAN * 2));
+  const first = Math.max(0, Math.floor(window.top / rowHeight) - OVERSCAN);
+  const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / rowHeight) + OVERSCAN * 2));
   const visible = rows.slice(first, first + count);
   // The log is never collapsed or summarised away, so this says what is out of sight
   // rather than standing in for it.
-  const rowsBelow = Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
+  const rowsBelow = Math.max(0, total - Math.round((window.top + window.height) / rowHeight));
+
+  const follow = () => {
+    onTailingChange(true);
+    const element = scrollerElement();
+    if (element) element.scrollTop = element.scrollHeight;
+  };
+
+  // The row is the whole gesture where there is no pane to put beside it: selecting
+  // it and opening what it holds are one tap.
+  const selectRow = (itemId: string) => {
+    onSelectRow(itemId);
+    onOpenPayload?.(itemId);
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} data-testid="console-log" className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
+    <div className={cn("flex flex-col", !mobile && "min-h-0 flex-1")}>
+      <div
+        ref={scrollRef}
+        data-testid="console-log"
+        className={cn("@container", !mobile && "shrink overflow-y-auto")}
+        style={mobile ? undefined : { maxHeight: MAX_LOG_HEIGHT }}
+      >
         {total === 0 ? (
-          <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
+          <div className="flex items-center px-3 text-xs text-muted-foreground" style={{ height: rowHeight }}>
             {/* A run parked on a question is in flight but is not on its way to
                 a call — the tail bar below already says what it is doing. */}
             {group.running && !waiting ? "Waiting for the first call…" : "No calls."}
           </div>
         ) : (
-          <div style={{ height: total * CALL_ROW_HEIGHT }}>
-            <div style={{ transform: `translateY(${first * CALL_ROW_HEIGHT}px)` }}>
+          <div ref={contentRef} style={{ height: total * rowHeight }}>
+            <div style={{ transform: `translateY(${first * rowHeight}px)` }}>
               {visible.map((item) =>
                 item.call ? (
                   <RunLog.CallRow
@@ -159,7 +211,8 @@ export function RunLog({
                     fraction={barFraction(callDurationMs(item.call), slowest)}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
-                    onSelect={onSelectRow}
+                    height={rowHeight}
+                    onSelect={selectRow}
                     now={now}
                   />
                 ) : (
@@ -171,7 +224,8 @@ export function RunLog({
                     message={item.logs?.[0]?.message ?? ""}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
-                    onSelect={onSelectRow}
+                    height={rowHeight}
+                    onSelect={selectRow}
                   />
                 ),
               )}
@@ -180,44 +234,49 @@ export function RunLog({
         )}
       </div>
 
-      <RunLog.TailBar
-        waiting={waiting}
-        scriptFailed={scriptFailed}
-        running={group.running && !waiting}
-        calls={group.calls.length}
-        held={group.heldCalls}
-        elapsedMs={now - group.run.startedAt}
-        rowsBelow={rowsBelow}
-        failures={failures}
-        dropped={group.dropped}
-        hiddenLines={hidden.lines}
-        hiddenErrors={hidden.errors}
-        tailing={tailing}
-        onFollow={() => onTailingChange(true)}
-        onShowLogs={onShowLogs}
-        onGoToCanvas={onGoToCanvas}
-      />
+      <div className={cn(mobile && "sticky bottom-0 z-10")}>
+        <RunLog.TailBar
+          waiting={waiting}
+          scriptFailed={scriptFailed}
+          running={group.running && !waiting}
+          calls={group.calls.length}
+          held={group.heldCalls}
+          elapsedMs={now - group.run.startedAt}
+          rowsBelow={rowsBelow}
+          failures={failures}
+          dropped={group.dropped}
+          hiddenLines={hidden.lines}
+          hiddenErrors={hidden.errors}
+          tailing={tailing}
+          onFollow={follow}
+          onShowLogs={onShowLogs}
+          onGoToCanvas={onGoToCanvas}
+        />
+      </div>
 
       {/* The payload sits in a pane of its own that never reflows as you move
           through the log — which is why Request/Response/Headers live down here
-          rather than in the header. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
-        {group.run.payloadsExpired ? (
-          <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
-        ) : selectedItem?.payloadsDropped && selectedItem.call ? (
-          <RunLog.ShelvedPayloadPane key={selectedItem.id} item={selectedItem} activeTab={activeTab} onTabChange={onTabChange} />
-        ) : selectedItem?.call ? (
-          <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
-        ) : selectedItem?.printed ? (
-          <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
-        ) : (
-          <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
-            {/* With logs mixed in, a row is not necessarily a call — and this
+          rather than in the header. Under the narrow frame there is no beside, so
+          the same pane is a screen a row pushes. */}
+      {!mobile && (
+        <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
+          {group.run.payloadsExpired ? (
+            <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
+          ) : selectedItem?.payloadsDropped && selectedItem.call ? (
+            <RunLog.ShelvedPayloadPane key={selectedItem.id} item={selectedItem} activeTab={activeTab} onTabChange={onTabChange} />
+          ) : selectedItem?.call ? (
+            <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} />
+          ) : selectedItem?.printed ? (
+            <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
+              {/* With logs mixed in, a row is not necessarily a call — and this
                 pane is what a printed line's full text opens into. */}
-            {total === 0 ? "Nothing to show." : logFloor === "off" ? "Select a call." : "Select a row."}
-          </div>
-        )}
-      </div>
+              {total === 0 ? "Nothing to show." : logFloor === "off" ? "Select a call." : "Select a row."}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -227,7 +286,17 @@ export function RunLog({
  * asks for it back and draws the same pane it would have drawn — the reach of the log
  * is what the disk holds, and only the working set is what React does.
  */
-RunLog.ShelvedPayloadPane = function ({ item, activeTab, onTabChange }: { item: ConsoleItem; activeTab: ConsoleTab; onTabChange: (tab: ConsoleTab) => void }) {
+RunLog.ShelvedPayloadPane = function ({
+  item,
+  touch,
+  activeTab,
+  onTabChange,
+}: {
+  item: ConsoleItem;
+  touch?: boolean;
+  activeTab: ConsoleTab;
+  onTabChange: (tab: ConsoleTab) => void;
+}) {
   // Null once the shelf has answered with nothing, which is a payload old enough to
   // have been let go of there too.
   const [payload, setPayload] = useState<ArchivedPayload | null | undefined>(undefined);
@@ -252,7 +321,7 @@ RunLog.ShelvedPayloadPane = function ({ item, activeTab, onTabChange }: { item: 
   // A read off the shelf lands within a frame or two, so the wait says nothing rather
   // than flashing a state nobody has time to read.
   if (payload === undefined) return <div className="min-h-0 flex-1" />;
-  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} activeTab={activeTab} onTabChange={onTabChange} />;
+  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} touch={touch} activeTab={activeTab} onTabChange={onTabChange} />;
 };
 
 // A payload that is not there any more, and why. Expiry is only bearable when it is
@@ -274,21 +343,24 @@ interface LogRowProps {
   message: string;
   selected: boolean;
   stale: boolean;
+  // Stated rather than read off a constant: a finger and a pointer want different
+  // rows, and the windowing above is arithmetic over whichever one this is.
+  height: number;
   onSelect: (itemId: string) => void;
 }
 
 /**
  * One line the script printed, mixed into the calls where it was printed. The same
- * fixed 24px as a call row, truncating rather than wrapping — the windowing is
+ * fixed height as a call row, truncating rather than wrapping — the windowing is
  * arithmetic only because every row is that height. The full line is one click away
  * in the pane below.
  */
-RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
+RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, height, onSelect }: LogRowProps) {
   return (
     <div
       data-testid="console-log-row"
       className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
-      style={{ height: CALL_ROW_HEIGHT }}
+      style={{ height }}
       onClick={() => onSelect(id)}
     >
       {/* A printed line is a channel rather than a verdict, so it takes a bar in
@@ -475,6 +547,7 @@ interface CallRowProps {
   fraction?: number;
   selected: boolean;
   stale: boolean;
+  height: number;
   onSelect: (itemId: string) => void;
   now: number;
 }
@@ -483,8 +556,8 @@ interface CallRowProps {
  * One call, and the same shape for every one of them.
  *
  * Every prop is a value rather than an object, which is what makes the memo hold: a
- * settled row is handed the same twelve values on every repaint and doesn't render
- * again. `now` is the exception and is passed as zero unless the row is counting up.
+ * settled row is handed the same values on every repaint and doesn't render again.
+ * `now` is the exception and is passed as zero unless the row is counting up.
  */
 RunLog.CallRow = memo(function CallRow({
   id,
@@ -497,6 +570,7 @@ RunLog.CallRow = memo(function CallRow({
   fraction,
   selected,
   stale,
+  height,
   onSelect,
   now,
 }: CallRowProps) {
@@ -506,7 +580,7 @@ RunLog.CallRow = memo(function CallRow({
     <div
       data-testid="console-call-row"
       className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
-      style={{ height: CALL_ROW_HEIGHT }}
+      style={{ height }}
       onClick={() => onSelect(id)}
     >
       {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
@@ -529,6 +603,9 @@ RunLog.CallRow = memo(function CallRow({
 
 interface PayloadPaneProps {
   methodCall: MethodCall;
+  // A finger rather than a pointer: the tabs and the three utilities are the row's
+  // whole height instead of a 12px glyph in the middle of it.
+  touch?: boolean;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
 }
@@ -553,7 +630,7 @@ function responsePayload(methodCall: MethodCall): { content?: unknown; rawText?:
   return { content: unwrapEnvelope(methodCall.outputType, methodCall.output) };
 }
 
-RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPaneProps) {
+RunLog.PayloadPane = function ({ methodCall, touch = false, activeTab, onTabChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const isStreaming = methodCall.streamOutputs !== undefined;
@@ -587,8 +664,8 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
       {/* The pane names itself: which part of the call on the left, and what
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
-      <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
-        <RunLog.PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
+      <div className={cn("flex shrink-0 items-center gap-4 overflow-hidden px-3", touch ? "h-11 border-b border-border" : "h-[28px]")}>
+        <RunLog.PayloadTabs methodCall={methodCall} touch={touch} activeTab={activeTab} onTabChange={onTabChange} />
         {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} sizeOnly={activeTab === "request"} />}
         {showsJson && (
           <div className="flex shrink-0 items-center gap-1">
@@ -597,7 +674,7 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
               aria-label="Fold all"
               variant="ghost"
               size="sm"
-              className={utilityButtonClass}
+              className={cn(utilityButtonClass, touch && touchUtilityButtonClass)}
               onClick={() => jsonViewerRef.current?.foldAll()}
             />
             <IconButton
@@ -605,10 +682,17 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
               aria-label="Unfold all"
               variant="ghost"
               size="sm"
-              className={utilityButtonClass}
+              className={cn(utilityButtonClass, touch && touchUtilityButtonClass)}
               onClick={() => jsonViewerRef.current?.unfoldAll()}
             />
-            <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={copy} />
+            <IconButton
+              icon={copied ? Check : Copy}
+              aria-label="Copy JSON"
+              variant="ghost"
+              size="sm"
+              className={cn(utilityButtonClass, touch && touchUtilityButtonClass)}
+              onClick={copy}
+            />
           </div>
         )}
       </div>
@@ -629,17 +713,18 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, onTabChange }: PayloadPa
 };
 
 interface PayloadTabsProps {
+  touch?: boolean;
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
 }
 
-RunLog.PayloadTabs = function ({ methodCall, activeTab, onTabChange }: PayloadTabsProps) {
+RunLog.PayloadTabs = function ({ methodCall, touch = false, activeTab, onTabChange }: PayloadTabsProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
 
   const tab = (id: ConsoleTab, label: string) => (
-    <span className={cn(payloadTabClass, activeTab === id && payloadTabActiveClass)} onClick={() => onTabChange(id)}>
+    <span className={cn(payloadTabClass, touch && "flex h-11 items-center text-sm", activeTab === id && payloadTabActiveClass)} onClick={() => onTabChange(id)}>
       {label}
     </span>
   );

@@ -6,6 +6,7 @@ interface StartProps {
   // until the configuration has answered it.
   configurationLoaded: boolean;
   hasApps: boolean;
+  mobile?: boolean;
   onNewAppClick: () => void;
   // Absent where this build has no MCP server to point an agent at.
   onConnectAgentClick?: () => void;
@@ -26,6 +27,7 @@ interface StartProps {
 export function Start({
   configurationLoaded,
   hasApps,
+  mobile,
   onNewAppClick,
   onConnectAgentClick,
   canUpdateConfiguration,
@@ -39,5 +41,5 @@ export function Start({
     return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateConfiguration={canUpdateConfiguration} />;
   }
 
-  return <NoFileBlankslate onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} recent={recent} />;
+  return <NoFileBlankslate mobile={mobile} onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} recent={recent} />;
 }

@@ -34,13 +34,29 @@ export interface Destination {
   // A call the API deprecated. Dimmed and struck through, as it is in the tree and
   // in the editor; it is still a call, so it keeps its place and its ⏎.
   deprecated?: boolean;
+  // What this row is doing, as the dot the status bar drew. Only the narrow frame
+  // sets it: there is no status bar there, so the compile log and the MCP server say
+  // it on the rows that are already about them rather than nowhere at all.
+  status?: DestinationStatus;
   go: () => void;
+}
+
+export interface DestinationStatus {
+  dotClass: string;
+  label: string;
 }
 
 interface FinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
+  // What the window itself is — the compile log, the MCP server, the variables. A
+  // group of its own only where the sidebar isn't: on the wide frame these are rows
+  // among the files, because the sidebar's band is already where they are reached.
+  kaja?: Destination[];
+  // A finger rather than a pointer: the trigger takes the header's width and every
+  // row is 44px. The hint line goes with the keyboard that isn't there.
+  touch?: boolean;
   // The trigger says so, and Run beside it goes disabled on the same condition.
   errorCount: number;
   open: boolean;
@@ -55,22 +71,23 @@ interface FinderProps {
  * shows one thing, and this is how you reach another without walking the tree. So it
  * is a finder, not a tab list: nothing here can be closed, because nothing was opened.
  */
-export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, highlightPrevious }: FinderProps) {
+export function Finder({ recent, elsewhere, kaja, errorCount, open, onOpenChange, highlightPrevious, touch = false }: FinderProps) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const current = recent[0];
 
-  const { recentRows, otherRows } = useMemo(() => {
+  const { recentRows, kajaRows, otherRows } = useMemo(() => {
     const term = query.trim().toLowerCase();
     const matches = (destination: Destination) => `${destination.name} ${destination.path}`.toLowerCase().includes(term);
     const been = recent.filter(matches);
+    const own = (kaja ?? []).filter(matches);
     const rest = elsewhere.filter(matches);
-    return { recentRows: been, otherRows: term ? rest : rest.slice(0, RESTING_OTHERS) };
-  }, [recent, elsewhere, query]);
+    return { recentRows: been, kajaRows: own, otherRows: term ? rest : rest.slice(0, RESTING_OTHERS) };
+  }, [recent, elsewhere, kaja, query]);
 
-  const rows = useMemo(() => [...recentRows, ...otherRows], [recentRows, otherRows]);
+  const rows = useMemo(() => [...recentRows, ...kajaRows, ...otherRows], [recentRows, kajaRows, otherRows]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,13 +138,14 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           className={cn(
             // It gives up room before anything else in the row does — a label that truncates is
             // read; a button that shrinks is one drawn over the button next to it.
-            "relative flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            "relative flex min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            touch ? "h-10 w-full" : "h-[26px]",
             open && "bg-accent",
             errorCount > 0 ? "border-destructive" : "border-border",
           )}
-          style={{ maxWidth: TRIGGER_MAX_WIDTH }}
+          style={{ maxWidth: touch ? undefined : TRIGGER_MAX_WIDTH }}
         >
-          <TriggerContent destination={current} errorCount={errorCount} />
+          <TriggerContent destination={current} errorCount={errorCount} touch={touch} />
           <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -136,9 +154,12 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
         align="start"
         sideOffset={2}
         // Movement makes fast repeated ⌘P feel unstable, so it only fades.
-        className="flex w-[380px] flex-col overflow-hidden rounded-lg p-0 shadow-lg transition-opacity duration-[120ms] data-[ending-style]:scale-100 data-[starting-style]:scale-100"
+        className={cn(
+          "flex flex-col overflow-hidden rounded-lg p-0 shadow-lg transition-opacity duration-[120ms] data-[ending-style]:scale-100 data-[starting-style]:scale-100",
+          touch ? "w-[calc(100vw-24px)]" : "w-[380px]",
+        )}
       >
-        <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-border px-3">
+        <div className={cn("flex shrink-0 items-center gap-2 border-b border-border px-3", touch ? "h-11" : "h-[34px]")}>
           <Search size={13} className="shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
@@ -148,10 +169,16 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
             placeholder="Go to a file or call…"
             aria-label="Go to a file or call"
             aria-activedescendant={rows.length > 0 ? `finder-row-${highlight}` : undefined}
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            className={cn("min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground", touch ? "text-base" : "text-sm")}
           />
         </div>
-        <div ref={listRef} role="listbox" aria-label="Files" className="min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: LIST_MAX_HEIGHT }}>
+        <div
+          ref={listRef}
+          role="listbox"
+          aria-label="Files"
+          className="min-h-0 flex-1 overflow-y-auto"
+          style={{ maxHeight: touch ? "60svh" : LIST_MAX_HEIGHT }}
+        >
           {rows.length === 0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing matches “{query}”.</div>}
           {recentRows.length > 0 && <GroupHeader>Recent</GroupHeader>}
           {recentRows.map((destination, index) => (
@@ -160,26 +187,46 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
               destination={destination}
               index={index}
               recent
+              touch={touch}
               highlighted={highlight === index}
               onHighlight={setHighlight}
               onSelect={select}
             />
           ))}
-          {otherRows.length > 0 && <GroupHeader border={recentRows.length > 0}>All files</GroupHeader>}
-          {otherRows.map((destination, index) => (
+          {/* Where there is no sidebar and no status bar, this is the group the
+              window's own screens are in — and the compile and MCP dots with
+              them, on the rows those two states are already about. */}
+          {kajaRows.length > 0 && <GroupHeader border={recentRows.length > 0}>Kaja</GroupHeader>}
+          {kajaRows.map((destination, index) => (
             <DestinationRow
               key={destination.key}
               destination={destination}
               index={recentRows.length + index}
+              touch={touch}
               highlighted={highlight === recentRows.length + index}
               onHighlight={setHighlight}
               onSelect={select}
             />
           ))}
+          {otherRows.length > 0 && <GroupHeader border={recentRows.length + kajaRows.length > 0}>All files</GroupHeader>}
+          {otherRows.map((destination, index) => (
+            <DestinationRow
+              key={destination.key}
+              destination={destination}
+              index={recentRows.length + kajaRows.length + index}
+              touch={touch}
+              highlighted={highlight === recentRows.length + kajaRows.length + index}
+              onHighlight={setHighlight}
+              onSelect={select}
+            />
+          ))}
         </div>
-        <div className="flex h-[32px] shrink-0 items-center border-t border-border px-3">
-          <span className="text-xs text-muted-foreground">↑↓ move · ⏎ go</span>
-        </div>
+        {/* The hint names two keys, so it goes where there is a keyboard to press them on. */}
+        {!touch && (
+          <div className="flex h-[32px] shrink-0 items-center border-t border-border px-3">
+            <span className="text-xs text-muted-foreground">↑↓ move · ⏎ go</span>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
@@ -197,6 +244,7 @@ function DestinationRow({
   destination,
   index,
   recent,
+  touch,
   highlighted,
   onHighlight,
   onSelect,
@@ -204,6 +252,7 @@ function DestinationRow({
   destination: Destination;
   index: number;
   recent?: boolean;
+  touch?: boolean;
   highlighted: boolean;
   onHighlight: (index: number) => void;
   onSelect: (destination: Destination) => void;
@@ -214,7 +263,7 @@ function DestinationRow({
       id={`finder-row-${index}`}
       role="option"
       aria-selected={highlighted}
-      className={cn("group flex h-[30px] cursor-pointer items-center gap-2 px-3", highlighted && "bg-accent")}
+      className={cn("group flex cursor-pointer items-center gap-2 px-3", touch ? "h-11" : "h-[30px]", highlighted && "bg-accent")}
       onMouseEnter={() => onHighlight(index)}
       onClick={() => onSelect(destination)}
     >
@@ -230,7 +279,13 @@ function DestinationRow({
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
       {destination.uncallable && <Ban size={12} className="shrink-0 text-muted-foreground" />}
-      {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
+      {destination.status && (
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span className={cn("h-1.5 w-1.5 rounded-full", destination.status.dotClass)} />
+          <span className="whitespace-nowrap text-xs text-muted-foreground">{destination.status.label}</span>
+        </span>
+      )}
+      {highlighted && !touch && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
     </div>
   );
 }
@@ -238,14 +293,16 @@ function DestinationRow({
 // The trigger says where you are, in 26px: icon, name, and the one qualifier that
 // tells two identically named calls apart. There is always somewhere to be — Start is
 // the bottom of the stack — so it has no "nothing open" state to draw.
-function TriggerContent({ destination, errorCount }: { destination: Destination; errorCount: number }) {
+function TriggerContent({ destination, errorCount, touch }: { destination: Destination; errorCount: number; touch?: boolean }) {
   const [dropLabel, setDropLabel] = useState(false);
   const probeRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const probe = probeRef.current;
-    setDropLabel(probe ? probe.offsetWidth > TRIGGER_MAX_WIDTH - TRIGGER_CHROME : false);
-  }, [destination.name, destination.origin, errorCount]);
+    // The narrow frame's trigger is as wide as the header, so there is no cap to
+    // measure against and the qualifier never has to go.
+    setDropLabel(!touch && probe ? probe.offsetWidth > TRIGGER_MAX_WIDTH - TRIGGER_CHROME : false);
+  }, [destination.name, destination.origin, errorCount, touch]);
 
   const Icon = errorCount > 0 ? CircleAlert : destination.icon;
   const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : destination.origin;
@@ -274,7 +331,9 @@ function TriggerContent({ destination, errorCount }: { destination: Destination;
           way the qualifier goes before the name truncates — a name cut to its
           last letter says less than no qualifier does. */}
       {qualifier && !dropLabel && (
-        <span className={cn("shrink-0 text-xs @max-[340px]:hidden", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
+        <span className={cn("shrink-0 text-xs", !touch && "@max-[340px]:hidden", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>
+          {qualifier}
+        </span>
       )}
     </>
   );

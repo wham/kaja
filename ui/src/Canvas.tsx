@@ -16,6 +16,8 @@ import {
   TableBlock,
   TextBlock,
 } from "./blocks";
+import { rowCaption, rowRecord, rowTitle, TOUCH_TARGET } from "./mobile";
+import { MobileScreen } from "./MobileFrame";
 import { RateLimitState } from "./rateLimit";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
@@ -64,6 +66,10 @@ interface CanvasProps {
   // A size, not a mode: everything below reads it only to decide how much air a
   // block is given.
   fullScreen?: boolean;
+  // The narrow frame. The canvas flows in the page's one scroll rather than
+  // scrolling itself, a table is read as rows rather than as columns, and a block
+  // the run is parked on is pinned where it can be answered.
+  mobile?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
@@ -93,6 +99,7 @@ interface CanvasProps {
 export function Canvas({
   group,
   fullScreen,
+  mobile = false,
   onAnswer,
   onCancelAsk,
   onDecide,
@@ -139,18 +146,23 @@ export function Canvas({
       ref={scroller}
       data-testid="canvas"
       className={cn(
-        "@container flex min-h-0 flex-1 flex-col gap-4 overflow-auto font-mono text-xs",
-        fullScreen ? "px-8 py-6" : "p-3",
+        "@container flex flex-col gap-4 font-mono text-xs",
+        mobile ? "p-3" : cn("min-h-0 flex-1 overflow-auto", fullScreen ? "px-8 py-6" : "p-3"),
         group.run.stale && "opacity-70",
       )}
     >
       {drawn.map((item) => (
         // Blocks keep their full height and the canvas scrolls. Without this a long table
         // is squeezed to a couple of rows to make the run fit.
-        <div key={item.id} className="shrink-0">
+        //
+        // The block the run is parked on is the exception: it sticks to the foot of
+        // the page, because the empty space under a question is the pause and on a
+        // phone that space is the rest of the document.
+        <div key={item.id} className={cn("shrink-0", mobile && item.id === group.awaiting?.id && "sticky bottom-0 z-10 bg-background pb-1")}>
           <Canvas.Entry
             item={item}
             fullScreen={fullScreen}
+            mobile={mobile}
             onAnswer={onAnswer}
             onCancelAsk={onCancelAsk}
             onDecide={onDecide}
@@ -254,6 +266,7 @@ Canvas.Notice = function ({ children }: { children: React.ReactNode }) {
 
 interface EntryProps {
   item: ConsoleItem;
+  mobile?: boolean;
   fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
@@ -271,6 +284,7 @@ interface EntryProps {
 Canvas.Entry = function ({
   item,
   fullScreen,
+  mobile,
   onAnswer,
   onCancelAsk,
   onDecide,
@@ -289,6 +303,7 @@ Canvas.Entry = function ({
       id={item.id}
       block={item.block}
       fullScreen={fullScreen}
+      mobile={mobile}
       onAnswer={onAnswer}
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
@@ -307,6 +322,7 @@ interface BlockProps {
   id: string;
   block: Block;
   fullScreen?: boolean;
+  mobile?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
@@ -324,6 +340,7 @@ Canvas.Block = function ({
   id,
   block,
   fullScreen,
+  mobile,
   onAnswer,
   onCancelAsk,
   onDecide,
@@ -345,6 +362,7 @@ Canvas.Block = function ({
         <Canvas.Table
           id={id}
           block={block}
+          mobile={mobile}
           view={tableViews[id] ?? NO_TABLE_VIEW}
           onView={onTableView}
           onPull={onTablePull}
@@ -488,6 +506,7 @@ Canvas.Code = function ({ block }: { block: CodeBlock }) {
 interface TableProps {
   id: string;
   block: TableBlock;
+  mobile?: boolean;
   view: TableView;
   onView: (blockId: string, view: TableView) => void;
   onPull: (blockId: string, search: string, want: number) => void;
@@ -510,7 +529,10 @@ interface TableProps {
  * can still page, and the page on screen stays, dimmed, until the next is here. Only
  * a first draw has nothing to dim, which is what the skeleton rows are for.
  */
-Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: TableProps) {
+Canvas.Table = function ({ id, block, mobile = false, view, onView, onPull, onCells, onRun }: TableProps) {
+  // Which row is open as a record. A row rather than a copy of it, so a cell that
+  // fills in while the record is open fills in there too.
+  const [record, setRecord] = useState<number | undefined>(undefined);
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
   const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
@@ -558,12 +580,14 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
       {/* One bar, above the rows. A pager under a fifty-row table is a control
           you have to go looking for, and on a canvas of several blocks it is
           hard to tell which table it belongs to. Everything in it is 28px,
-          which is what a pointer wants and what a 12px glyph never was. */}
+          which is what a pointer wants and what a 12px glyph never was — and
+          44px where the thing pointing is a finger. */}
       {controls && (
-        <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2">
+        <div className={cn("relative flex items-center gap-2 border-b border-border bg-card px-2", mobile ? "h-14" : "h-10")}>
           <div
             className={cn(
-              "flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring",
+              "flex min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring",
+              mobile ? "h-11 flex-1" : "h-7 w-[200px]",
               refused && "cursor-not-allowed opacity-60",
             )}
             title={refused ? "Run to search" : undefined}
@@ -601,7 +625,9 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
             </div>
           )}
           <div className="ml-auto flex min-w-0 items-center gap-2">
-            <span data-testid="canvas-table-summary" className="min-w-0 truncate tabular-nums text-muted-foreground @max-[520px]:hidden">
+            {/* Where the rows are read one at a time, how many there are is the
+                one thing the page itself cannot say. */}
+            <span data-testid="canvas-table-summary" className={cn("min-w-0 truncate tabular-nums text-muted-foreground", !mobile && "@max-[520px]:hidden")}>
               {tableSummary(block, shown)}
             </span>
             {/* Two buttons joined into a pair: one target to aim at, and the
@@ -611,7 +637,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
             <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
               <button
                 type="button"
-                className="flex h-7 w-7 items-center justify-center border-r border-input text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                className={cn(
+                  "flex items-center justify-center border-r border-input text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground",
+                  mobile ? "h-11 w-11" : "h-7 w-7",
+                )}
                 disabled={!shown.hasPrevious}
                 aria-label="Previous page"
                 onClick={() => {
@@ -624,7 +653,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
               <button
                 type="button"
                 data-testid="canvas-table-next"
-                className="flex h-7 w-7 items-center justify-center text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                className={cn(
+                  "flex items-center justify-center text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground",
+                  mobile ? "h-11 w-11" : "h-7 w-7",
+                )}
                 disabled={!shown.hasNext || block.loading === true}
                 aria-label="Next page"
                 onClick={() => {
@@ -641,64 +673,101 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
       {/* The height of a full page, held for as long as the table can page, so
           a fetch, a short last page and a filtered result all leave the blocks
           below exactly where they were. */}
-      <div className="relative flex flex-col" style={{ minHeight: bodyMinHeight(block, shown) }}>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-muted">
-                {block.columns.map((column, index) => (
-                  <th
-                    key={index}
-                    className={cn(
-                      "h-7 whitespace-nowrap border-b border-border px-3 text-left font-medium uppercase text-muted-foreground",
-                      numeric[index] && "text-right",
-                    )}
+      <div className="relative flex flex-col" style={{ minHeight: mobile ? bodyMinHeight(block, shown, TOUCH_TARGET, 0) : bodyMinHeight(block, shown) }}>
+        {mobile ? (
+          /* Four columns in 390px is four truncations, so a row is its first
+             column with the rest as a caption under it, and the whole record is
+             one tap away. */
+          <div className={cn("flex flex-col", holding && "pointer-events-none opacity-40")}>
+            {skeleton
+              ? Array.from({ length: shown.expected }, (_, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex flex-col justify-center gap-1.5 border-b border-border/50 px-3 last:border-b-0"
+                    style={{ height: TOUCH_TARGET }}
                   >
-                    {column}
-                  </th>
+                    <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[rowIndex % SKELETON_WIDTHS.length] }} />
+                    <div className="h-2 rounded-full bg-foreground/[0.06]" style={{ width: SKELETON_WIDTHS[(rowIndex + 2) % SKELETON_WIDTHS.length] }} />
+                  </div>
+                ))
+              : drawn.map((row, rowIndex) => (
+                  <button
+                    key={rowIndex}
+                    type="button"
+                    data-testid="canvas-table-row"
+                    className="flex w-full flex-col justify-center gap-0.5 border-b border-border/50 px-3 py-2 text-left last:border-b-0 active:bg-accent"
+                    style={{ minHeight: TOUCH_TARGET }}
+                    onClick={() => setRecord(drawnIndices[rowIndex])}
+                  >
+                    <span className="truncate text-foreground">{rowTitle(row) === "" ? "—" : rowTitle(row)}</span>
+                    {rowCaption(row) !== "" && <span className="truncate text-muted-foreground">{rowCaption(row)}</span>}
+                  </button>
                 ))}
-              </tr>
-            </thead>
-            {/* Rows that are on their way out stop responding to the pointer:
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted">
+                  {block.columns.map((column, index) => (
+                    <th
+                      key={index}
+                      className={cn(
+                        "h-7 whitespace-nowrap border-b border-border px-3 text-left font-medium uppercase text-muted-foreground",
+                        numeric[index] && "text-right",
+                      )}
+                    >
+                      {column}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              {/* Rows that are on their way out stop responding to the pointer:
                 what is under it is the page you were reading, not the one you
                 asked for. */}
-            <tbody className={cn(holding && "pointer-events-none opacity-40")}>
-              {skeleton
-                ? Array.from({ length: shown.expected }, (_, rowIndex) => (
-                    <tr key={rowIndex} className="last:[&>td]:border-b-0">
-                      {block.columns.map((_, cellIndex) => (
-                        <td key={cellIndex} className="h-[26px] border-b border-border/50 px-3">
-                          <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[cellIndex % SKELETON_WIDTHS.length] }} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                : drawn.map((row, rowIndex) => (
-                    // One row is one line: a cell that wrapped would break the 26px rhythm the whole
-                    // grid is read down.
-                    <tr key={rowIndex} className="last:[&>td]:border-b-0">
-                      {row.map((cell, cellIndex) => (
-                        <Canvas.TableCell
-                          key={cellIndex}
-                          cell={cell}
-                          column={cellIndex}
-                          numeric={numeric[cellIndex]}
-                          status={cellStatus(block, drawnIndices[rowIndex], cellIndex)}
-                          run={cellRun(block, drawnIndices[rowIndex], cellIndex)}
-                          expired={block.expired === true}
-                          onRetry={() => onCells(id, [{ row: drawnIndices[rowIndex], column: cellIndex, retry: true }])}
-                          onRun={onRun}
-                        />
-                      ))}
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
-        </div>
+              <tbody className={cn(holding && "pointer-events-none opacity-40")}>
+                {skeleton
+                  ? Array.from({ length: shown.expected }, (_, rowIndex) => (
+                      <tr key={rowIndex} className="last:[&>td]:border-b-0">
+                        {block.columns.map((_, cellIndex) => (
+                          <td key={cellIndex} className="h-[26px] border-b border-border/50 px-3">
+                            <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[cellIndex % SKELETON_WIDTHS.length] }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  : drawn.map((row, rowIndex) => (
+                      // One row is one line: a cell that wrapped would break the 26px rhythm the whole
+                      // grid is read down.
+                      <tr key={rowIndex} className="last:[&>td]:border-b-0">
+                        {row.map((cell, cellIndex) => (
+                          <Canvas.TableCell
+                            key={cellIndex}
+                            cell={cell}
+                            column={cellIndex}
+                            numeric={numeric[cellIndex]}
+                            status={cellStatus(block, drawnIndices[rowIndex], cellIndex)}
+                            run={cellRun(block, drawnIndices[rowIndex], cellIndex)}
+                            expired={block.expired === true}
+                            onRetry={() => onCells(id, [{ row: drawnIndices[rowIndex], column: cellIndex, retry: true }])}
+                            onRun={onRun}
+                          />
+                        ))}
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {/* One slow shimmer across the whole set rather than one per bar: fifty
             bars each pulsing on their own is a light show, not a wait. */}
         {skeleton && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-7 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent animate-shimmer motion-reduce:animate-none" />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent animate-shimmer motion-reduce:animate-none",
+              mobile ? "top-0" : "top-7",
+            )}
+          />
         )}
         {/* Nothing at all while a page is on its way and under the delay: a
             flash of loading state is worse than no state. */}
@@ -733,7 +802,83 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
           </button>
         </div>
       )}
+      {record !== undefined && block.rows[record] !== undefined && (
+        <Canvas.Record
+          columns={block.columns}
+          cells={block.rows[record]}
+          statusOf={(column) => cellStatus(block, record, column)}
+          runOf={(column) => cellRun(block, record, column)}
+          expired={block.expired === true}
+          onRetry={(column) => onCells(id, [{ row: record, column, retry: true }])}
+          onRun={onRun}
+          onClose={() => setRecord(undefined)}
+        />
+      )}
     </div>
+  );
+};
+
+interface RecordProps {
+  columns: string[];
+  cells: string[];
+  statusOf: (column: number) => CellStatus | undefined;
+  runOf: (column: number) => CellRun | undefined;
+  expired: boolean;
+  onRetry: (column: number) => void;
+  onRun: (run: CellRun) => void;
+  onClose: () => void;
+}
+
+/**
+ * The row whole, as key and value. It is where a cell keeps its verbs under the
+ * narrow frame: the caption on the row is text, so a destination to run and a cell
+ * that stopped and can be asked again are both reached here, beside the value they
+ * are about.
+ */
+Canvas.Record = function ({ columns, cells, statusOf, runOf, expired, onRetry, onRun, onClose }: RecordProps) {
+  const title = rowTitle(cells);
+  return (
+    <MobileScreen title={title} onClose={onClose}>
+      <div className="min-h-0 flex-1 overflow-y-auto font-mono text-xs">
+        {rowRecord(columns, cells).map((field) => {
+          const run = runOf(field.index);
+          const status = statusOf(field.index);
+          return (
+            <div key={field.index} className="flex flex-col gap-1 border-b border-border/50 px-3 py-2.5">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                {field.column === "" ? `Column ${field.index + 1}` : field.column}
+              </span>
+              {run !== undefined ? (
+                <button
+                  type="button"
+                  className="self-start text-left underline decoration-muted-foreground/40 underline-offset-2 text-foreground"
+                  onClick={() => {
+                    onRun(run);
+                    onClose();
+                  }}
+                >
+                  {field.value}
+                </button>
+              ) : status === undefined ? (
+                <span className="whitespace-pre-wrap break-words text-foreground">{field.value}</span>
+              ) : status.error === undefined ? (
+                <span className="text-muted-foreground">{expired ? "Run to load" : "Loading…"}</span>
+              ) : (
+                <span className="flex flex-wrap items-center gap-2 text-destructive">
+                  <span className="break-words">{status.error}</span>
+                  {status.retry === true && !expired && (
+                    <button type="button" className="flex h-9 items-center gap-1 text-muted-foreground" onClick={() => onRetry(field.index)}>
+                      <RotateCw size={12} />
+                      Retry
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </MobileScreen>
   );
 };
 

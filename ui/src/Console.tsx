@@ -10,6 +10,8 @@ import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
+import { callLabel } from "./kaja";
+import { MobileScreen } from "./MobileFrame";
 import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
@@ -24,6 +26,7 @@ import {
   LogFloor,
   presentRun,
   printedCounts,
+  printedLevel,
   RunGroup,
   RunSelection,
 } from "./runs";
@@ -62,6 +65,12 @@ interface ConsoleProps {
   // The whole scope: the runs are that file's runs, and changing it swaps consoles
   // rather than reporting a new run.
   fileId?: string;
+  // The narrow frame: the console is the lower half of one page rather than a pane,
+  // so its header sticks instead of the pane scrolling under it, and a payload is a
+  // screen a row pushes rather than something beside the log.
+  mobile?: boolean;
+  // What is scrolling, where it isn't the console itself.
+  scroller?: React.RefObject<HTMLElement | null>;
   reserveTrafficLights?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
@@ -92,6 +101,8 @@ interface ConsoleProps {
  */
 export function Console({
   fileId,
+  mobile = false,
+  scroller,
   reserveTrafficLights,
   onAnswer,
   onCancelAsk,
@@ -112,6 +123,9 @@ export function Console({
   );
 
   const runLabel = useShortcutLabel("run");
+  // The row whose payload is open as a screen. Only the narrow frame has one — a
+  // pane beside the log is what every other frame has instead.
+  const [payloadItemId, setPayloadItemId] = useState<string | undefined>(undefined);
   const file = consoles.file(fileId);
   const groups = file.groups;
   const selection = file.selection;
@@ -140,7 +154,10 @@ export function Console({
    * about it survives a restart. All three views are shown at it: the room is worth as
    * much to a thousand-row log or a page of charts as it is to the canvas.
    */
-  const [fullScreen, setFullScreen] = useState(false);
+  const [wantsFullScreen, setFullScreen] = useState(false);
+  // The narrow frame has no other size to be: the console already has the page, so
+  // there is nothing for the screen to take and no bar to leave it by.
+  const fullScreen = wantsFullScreen && !mobile;
   // Carried across entering and leaving, so the way back lands where you left.
   const canvasScroll = useRef(0);
 
@@ -200,6 +217,9 @@ export function Console({
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
   const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
+  // Read back out of the run rather than held, so a call that settles while its
+  // screen is open fills the screen in.
+  const payloadItem = payloadItemId === undefined ? undefined : rows.find((item) => item.id === payloadItemId);
   const activeView = file.view ?? defaultView(selectedGroup);
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
@@ -298,6 +318,12 @@ export function Console({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeView, selectedGroup, fullScreen, enterFullScreen]);
 
+  // A screen over a run that is no longer the one on screen is a payload nobody
+  // asked for, so changing the file or the run closes it.
+  useEffect(() => {
+    setPayloadItemId(undefined);
+  }, [fileId, selection?.runId]);
+
   // Picking a row is a decision to read it, so the log stops moving under it.
   const selectRow = useCallback(
     (itemId: string) => {
@@ -311,8 +337,19 @@ export function Console({
   // A selected Response over an empty panel implies a state the console doesn't have.
   if (groups.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
-        Run a script to see its calls here. <span className="ml-1 font-mono">{runLabel}</span>
+      <div
+        className={cn(
+          "flex items-center justify-center bg-background text-xs text-muted-foreground",
+          mobile ? "h-24 border-t border-border" : "min-h-0 flex-1",
+        )}
+      >
+        {mobile ? (
+          "Run this script to see its calls here."
+        ) : (
+          <>
+            Run a script to see its calls here. <span className="ml-1 font-mono">{runLabel}</span>
+          </>
+        )}
       </div>
     );
   }
@@ -321,11 +358,12 @@ export function Console({
     <Canvas
       group={selectedGroup}
       fullScreen={fullScreen}
+      mobile={mobile}
       onAnswer={onAnswer}
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
-      onFullScreen={() => enterFullScreen("canvas")}
+      onFullScreen={mobile ? undefined : () => enterFullScreen("canvas")}
       onOpenStats={() => onViewChange("stats")}
       scrollRef={canvasScroll}
       tableViews={tableViews}
@@ -339,6 +377,9 @@ export function Console({
   ) : (
     <RunLog
       group={selectedGroup}
+      mobile={mobile}
+      scroller={scroller}
+      onOpenPayload={mobile ? setPayloadItemId : undefined}
       rows={rows}
       selectedItemId={selection?.itemId}
       activeTab={activeTab}
@@ -374,7 +415,7 @@ export function Console({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
+    <div className={cn("flex flex-col bg-background", !mobile && "min-h-0 flex-1")}>
       {/* One row spanning the full console width, and it holds its shape: which
           run, which view, and what to do with what is shown. Stepping through
           the runs is the picker's and the two run keys' — a pair of arrows beside a
@@ -383,10 +424,17 @@ export function Console({
           the selection moves — that is the change the split pays for.
           Everything leaves in order of what it is worth as the panel narrows,
           and the run pill truncates through all of it. */}
-      <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
-        <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
+      <div
+        className={cn(
+          "@container flex shrink-0 items-center gap-3 overflow-hidden border-y border-border bg-background px-3",
+          // Under the narrow frame the page scrolls past it, so it holds the top:
+          // which run is on screen is the one thing that may not scroll away.
+          mobile ? "sticky top-0 z-20 h-11" : "h-[35px] border-t-0",
+        )}
+      >
+        <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} touch={mobile} />
         <div className="h-4 w-px shrink-0 bg-border" />
-        <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} />
+        <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} touch={mobile} />
         {/* Only there when the run printed something, on the same rule as
             everything else in this header: a control over nothing is chrome. */}
         {activeView === "calls" && printed.lines > 0 && (
@@ -400,7 +448,7 @@ export function Console({
         {/* Full screen is about the room, which all three views can use. Fold,
             unfold and copy are about a payload, so they live on the payload
             pane itself. */}
-        {selectedGroup && (
+        {selectedGroup && !mobile && (
           <div className="ml-auto flex shrink-0 items-center @max-[430px]:hidden">
             <IconButton
               icon={Maximize}
@@ -421,13 +469,33 @@ export function Console({
           only drew has no calls to state, so it has no row. */}
       {selectedGroup && activeView === "canvas" && selectedGroup.strip.calls > 0 && <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} />}
       {body}
+      {mobile && payloadItem && (
+        <MobileScreen title={payloadItem.call ? callLabel(payloadItem.call) : logLabel(payloadItem)} onClose={() => setPayloadItemId(undefined)}>
+          {selectedGroup?.run.payloadsExpired ? (
+            <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
+          ) : payloadItem.payloadsDropped && payloadItem.call ? (
+            <RunLog.ShelvedPayloadPane key={payloadItem.id} item={payloadItem} touch activeTab={activeTab} onTabChange={onTabChange} />
+          ) : payloadItem.call ? (
+            <RunLog.PayloadPane methodCall={payloadItem.call} touch activeTab={activeTab} onTabChange={onTabChange} />
+          ) : (
+            <RunLog.PrintedPane message={payloadItem.logs?.[0]?.message ?? ""} level={printedLevel(payloadItem)} />
+          )}
+        </MobileScreen>
+      )}
     </div>
   );
+}
+
+// A printed line has no name of its own, so the screen it opens is titled by what it
+// was printed at.
+function logLabel(item: ConsoleItem): string {
+  return item.logs?.[0]?.message ?? "";
 }
 
 interface ViewSelectProps {
   activeView: ConsoleView;
   waiting: boolean;
+  touch?: boolean;
   onChange: (view: ConsoleView) => void;
 }
 
@@ -436,23 +504,19 @@ interface ViewSelectProps {
  * rather than in the header because the full-screen bar carries it too — a size is
  * not a mode, so taking the screen may not take two thirds of the run with it.
  */
-Console.ViewSelect = function ({ activeView, waiting, onChange }: ViewSelectProps) {
+Console.ViewSelect = function ({ activeView, waiting, touch = false, onChange }: ViewSelectProps) {
+  const buttonClass = touch ? "h-9 px-3 py-0 text-sm" : "h-[20px] px-2.5 py-0 text-xs";
   return (
-    <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
+    <SegmentedControl className={cn("shrink-0 p-[2px]", touch ? "h-11" : "h-[26px]")} aria-label="Run view">
       {/* "Calls" rather than "Log": a row here is a call and only a call, and
           "log" is what anyone means by what a script printed — which is now a
           thing this view can mix in. */}
-      <SegmentedControl.Button
-        selected={activeView === "calls"}
-        className="h-[20px] px-2.5 py-0 text-xs"
-        onClick={() => onChange("calls")}
-        data-testid="console-view-calls"
-      >
+      <SegmentedControl.Button selected={activeView === "calls"} className={buttonClass} onClick={() => onChange("calls")} data-testid="console-view-calls">
         Calls
       </SegmentedControl.Button>
       <SegmentedControl.Button
         selected={activeView === "canvas"}
-        className="h-[20px] gap-1.5 px-2.5 py-0 text-xs"
+        className={cn("gap-1.5", buttonClass)}
         onClick={() => onChange("canvas")}
         data-testid="console-view-canvas"
       >
@@ -464,12 +528,7 @@ Console.ViewSelect = function ({ activeView, waiting, onChange }: ViewSelectProp
       {/* Always there, and never carrying a count: a run has statistics whether or
           not anyone shaped it as a test, and a segment that appears once a run is
           big enough would be a control you have to notice to know exists. */}
-      <SegmentedControl.Button
-        selected={activeView === "stats"}
-        className="h-[20px] px-2.5 py-0 text-xs"
-        onClick={() => onChange("stats")}
-        data-testid="console-view-stats"
-      >
+      <SegmentedControl.Button selected={activeView === "stats"} className={buttonClass} onClick={() => onChange("stats")} data-testid="console-view-stats">
         Stats
       </SegmentedControl.Button>
     </SegmentedControl>
@@ -631,11 +690,12 @@ interface RunSelectProps {
   onSelect: (group: RunGroup) => void;
   onClear?: () => void;
   now: number;
+  touch?: boolean;
 }
 
 // The pill inherits the status of the run it names, so a waiting or failed run is
 // legible without opening the menu.
-Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }: RunSelectProps) {
+Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, touch = false }: RunSelectProps) {
   const [open, setOpen] = useState(false);
   const summary = selectedGroup ? runSummary(selectedGroup, groups, now) : undefined;
 
@@ -646,7 +706,8 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
           type="button"
           data-testid="console-call-select"
           className={cn(
-            "flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            "flex min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            touch ? "h-11" : "h-[26px]",
             summary?.waiting ? "border-amber-500/60" : "border-border",
           )}
           title={summary?.name}
@@ -688,6 +749,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
               {dayLabel && <div className="px-3 pb-1 pt-2 font-mono text-[11px] text-muted-foreground/70">{dayLabel}</div>}
               <Console.RunRow
                 {...summary}
+                touch={touch}
                 stale={group.run.stale === true}
                 isSelected={group.run.id === selectedGroup?.run.id}
                 onSelect={() => onSelect(group)}
@@ -715,16 +777,17 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
 interface RunRowProps extends RunSummaryLine {
   stale: boolean;
   isSelected: boolean;
+  touch?: boolean;
   onSelect: () => void;
 }
 
 // Memoized so the tick that counts up an in-flight run only re-renders that run's
 // row; every settled row holds a value that no longer changes.
-Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
+Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pending, waiting, agent, stale, touch, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
-      className={cn("h-8 gap-3 rounded-none px-3", isSelected && "bg-accent", stale && "opacity-75")}
+      className={cn("gap-3 rounded-none px-3", touch ? "h-11" : "h-8", isSelected && "bg-accent", stale && "opacity-75")}
       onSelect={onSelect}
     >
       {pending && !waiting ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
