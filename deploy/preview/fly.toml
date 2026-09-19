@@ -2,6 +2,11 @@
 # them all: the workflow passes the app name (kaja-pr-<number>) with --app, so
 # the name below is only what flyctl falls back to.
 #
+# A preview is a scratch copy nobody keeps: it is rebuilt on every push and
+# destroyed when the pull request closes, so it is served --editable and a
+# change to an app, a variable or a script can be tried on it. demo.kaja.tools
+# is the front door and stays read-only.
+#
 # The Dockerfile is at the repository root, so the build context must be too:
 #   fly deploy . --config deploy/preview/fly.toml --app kaja-pr-123
 app = "kaja-preview"
@@ -14,9 +19,18 @@ primary_region = "sjc"
   # same image demo.kaja.tools runs.
   build-target = "demo"
 
+# The image's own CMD is the plain server, which serves its workspace read-only.
+# Overriding the default process group is what makes this one writable, so the
+# flag stays the single answer and the image stays the one both deployments run.
+[processes]
+  app = "./server --editable"
+
 [http_service]
   internal_port = 41520
   force_https = true
+  # Naming the group is what flyctl insists on once there is a [processes]
+  # section, even where it is the only group there is.
+  processes = ["app"]
   # A preview is idle almost all of its life: no machine runs until someone
   # opens the URL, and it stops again afterwards.
   auto_stop_machines = "stop"

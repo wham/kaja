@@ -4,7 +4,9 @@
 #
 # It is the same image a pull request preview runs (deploy/preview/fly.toml),
 # built from the same target, so what a change was clicked through on before it
-# merged is what the demo becomes after.
+# merged is what the demo becomes after. What differs is the command: a preview
+# is served --editable, and this one is not, because it is the front door and a
+# visitor's edit would be what the next one arrives on.
 #
 # The Dockerfile is at the repository root, so the build context must be too:
 #   fly deploy . --config deploy/demo/fly.toml
