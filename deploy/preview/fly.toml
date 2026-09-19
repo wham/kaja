@@ -28,6 +28,9 @@ primary_region = "sjc"
 [http_service]
   internal_port = 41520
   force_https = true
+  # Naming the group is what flyctl insists on once there is a [processes]
+  # section, even where it is the only group there is.
+  processes = ["app"]
   # A preview is idle almost all of its life: no machine runs until someone
   # opens the URL, and it stops again afterwards.
   auto_stop_machines = "stop"
