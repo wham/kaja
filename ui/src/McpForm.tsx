@@ -3,6 +3,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  Copy,
   Info,
   Key,
   RefreshCw,
@@ -20,6 +21,7 @@ import { AppNameField } from "./AppNameField";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { AppSurface, buildApp, getAppType } from "./appTypes";
+import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import {
   AUTH_APIKEY,
@@ -44,8 +46,10 @@ type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; 
 
 // SignInState is the one slot the OAuth card carries: the button, the browser it is
 // waiting on, and the way it can fail. A sign-in that worked is not a state of its
-// own — the endpoint is read again, and the server answering is the proof.
-type SignInState = { status: "idle" } | { status: "waiting" } | { status: "problem"; problem: McpProblem };
+// own — the endpoint is read again, and the server answering is the proof. The code
+// is what a server kaja cannot be sent back from asks the person to type over there,
+// so waiting on one is waiting with something to say.
+type SignInState = { status: "idle" } | { status: "waiting"; userCode: string } | { status: "problem"; problem: McpProblem };
 
 // mcpApp is the app the form is describing right now, which is what both reading the
 // server and signing in to it are asked about.
@@ -185,7 +189,7 @@ export function McpForm({
   // person back to the loopback address kaja is listening on. So the stream is read to
   // its end rather than awaited as one answer.
   const authorize = useCallback(async () => {
-    setSignIn({ status: "waiting" });
+    setSignIn({ status: "waiting", userCode: "" });
     const failed = (problem: McpProblem) => setSignIn({ status: "problem", problem });
     try {
       const call = getApiClient().authorizeMcp({ mcp: mcpApp(parametersRef.current) });
@@ -195,6 +199,7 @@ export function McpForm({
           // would be the app gone.
           if (isWailsEnvironment()) openInBrowser(response.authorizationUrl);
           else window.open(response.authorizationUrl, "_blank", "noopener");
+          setSignIn({ status: "waiting", userCode: response.userCode });
           continue;
         }
         if (response.problem) return failed(response.problem);
@@ -582,6 +587,31 @@ function AuthenticationSection({
   );
 }
 
+// The code the person carries to the page that was opened. It is shown in full and
+// copyable, being a value that has to be typed somewhere else in the next minute.
+function UserCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void copyText(code).then((landed) => {
+      if (landed) setCopied(true);
+    });
+  };
+  return (
+    <div className="flex items-center gap-1 pl-6">
+      <span className="font-mono text-sm tracking-[0.18em] text-foreground">{code}</span>
+      <IconButton
+        size="xs"
+        variant="ghost"
+        tooltip="native"
+        icon={Copy}
+        aria-label={copied ? "Copied the code" : "Copy the code"}
+        className={cn("h-5 w-5 [&_svg]:size-3", copied && "text-foreground")}
+        onClick={copy}
+      />
+    </div>
+  );
+}
+
 interface SignInStatusProps {
   state: SignInState;
   signedIn: boolean;
@@ -595,9 +625,12 @@ interface SignInStatusProps {
 function SignInStatus({ state, signedIn, onSignIn, onSignOut }: SignInStatusProps) {
   if (state.status === "waiting") {
     return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Spinner />
-        <span>Waiting for the browser. Finish signing in there.</span>
+      <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Spinner />
+          <span>{state.userCode ? "Enter this code in the browser to finish signing in." : "Waiting for the browser. Finish signing in there."}</span>
+        </div>
+        {state.userCode && <UserCode code={state.userCode} />}
       </div>
     );
   }

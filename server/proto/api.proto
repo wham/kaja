@@ -365,6 +365,11 @@ message AuthorizeMcpResponse {
   // waited on - the window is what opens it, the desktop and a browser
   // differing in how.
   string authorization_url = 1;
+  // The code to type into that page, sent with the URL. It is set where the
+  // grant sends kaja nothing back and the person carries the answer across
+  // themselves, which is how a server that refuses a client with no secret is
+  // signed in to; a redirect flow leaves it empty.
+  string user_code = 4;
   // Set on the last message: the sign-in finished and the token is kept.
   bool authorized = 2;
   // Set on the last message instead, when it didn't.

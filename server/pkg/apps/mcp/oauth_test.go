@@ -146,6 +146,14 @@ type fakeAuthorization struct {
 	authorized   bool
 	issueRefresh bool
 	expiresIn    int64
+	// device turns the server into one that offers the device grant.
+	device bool
+	// pending is how many times the token endpoint says the person has not
+	// answered yet, and the answer it gives while they haven't.
+	pending        int
+	pendingRefusal string
+	// deviceForms is every token request the device grant made.
+	deviceForms []url.Values
 }
 
 func newFakeAuthorization(t *testing.T) *fakeAuthorization {
@@ -161,13 +169,29 @@ func newFakeAuthorization(t *testing.T) *fakeAuthorization {
 	t.Cleanup(fake.resource.Close)
 
 	asMux.HandleFunc("GET /.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
+		document := map[string]any{
 			"issuer":                           fake.as.URL,
 			"authorization_endpoint":           fake.as.URL + "/authorize",
 			"token_endpoint":                   fake.as.URL + "/token",
 			"registration_endpoint":            fake.as.URL + "/register",
 			"code_challenge_methods_supported": []string{"S256"},
 			"authorization_response_iss_parameter_supported": true,
+		}
+		if fake.device {
+			document["device_authorization_endpoint"] = fake.as.URL + "/device"
+		}
+		writeJSON(w, document)
+	})
+	asMux.HandleFunc("POST /device", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		fake.lastForm = r.PostForm
+		writeJSON(w, map[string]any{
+			"device_code":      "the-device-code",
+			"user_code":        "WDJB-MJHT",
+			"verification_uri": fake.as.URL + "/activate",
+			"expires_in":       900,
+			// A test is not waiting the default five seconds between polls.
+			"interval": 1,
 		})
 	})
 	asMux.HandleFunc("POST /register", func(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +201,16 @@ func newFakeAuthorization(t *testing.T) *fakeAuthorization {
 	asMux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		fake.lastForm = r.PostForm
+		if r.PostForm.Get("grant_type") == deviceGrantType {
+			fake.deviceForms = append(fake.deviceForms, r.PostForm)
+			if fake.pending > 0 {
+				fake.pending--
+				// The refusal comes back with a 200, which is what GitHub does and
+				// what a status therefore cannot be read as a verdict.
+				writeJSON(w, map[string]any{"error": fake.pendingRefusal})
+				return
+			}
+		}
 		answer := map[string]any{"access_token": "token-" + r.PostForm.Get("grant_type"), "token_type": "Bearer", "expires_in": fake.expiresIn}
 		if fake.issueRefresh {
 			answer["refresh_token"] = "refresh-1"
@@ -226,7 +260,7 @@ func TestSignsInAndKeepsTheToken(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -234,7 +268,7 @@ func TestSignsInAndKeepsTheToken(t *testing.T) {
 		t.Error("expected kaja to register itself where no client id was given")
 	}
 
-	opened, err := url.Parse(target)
+	opened, err := url.Parse(prompt.URL)
 	if err != nil {
 		t.Fatalf("the authorization URL: %v", err)
 	}
@@ -293,11 +327,11 @@ func TestRefusesAnAnswerFromAnotherIssuer(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	query := mustQuery(t, target)
+	query := mustQuery(t, prompt.URL)
 	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
 		"code":  {"the-code"},
 		"state": {query.Get("state")},
@@ -320,11 +354,11 @@ func TestRenewsAnExpiredToken(t *testing.T) {
 	fake.expiresIn = 1
 	authorizer := testAuthorizer(t)
 
-	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	query := mustQuery(t, target)
+	query := mustQuery(t, prompt.URL)
 	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
 		"code":  {"the-code"},
 		"state": {query.Get("state")},
@@ -351,14 +385,14 @@ func TestUsesAClientIdOfYourOwn(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	target, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "https://kaja.example/client.json"})
+	prompt, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "https://kaja.example/client.json"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
 	if fake.registered {
 		t.Error("expected no registration where a client id was given")
 	}
-	if got := mustQuery(t, target).Get("client_id"); got != "https://kaja.example/client.json" {
+	if got := mustQuery(t, prompt.URL).Get("client_id"); got != "https://kaja.example/client.json" {
 		t.Errorf("client_id = %q", got)
 	}
 }
@@ -377,6 +411,11 @@ func TestBuiltInClient(t *testing.T) {
 	if builtInClient("https://auth.example.com") != nil {
 		t.Error("expected nothing to be shipped for a server kaja has never met")
 	}
+	// GitHub refuses a code exchange carrying no client secret, whoever the
+	// client is, so the device grant is the only one a sign-in there can finish.
+	if !knownServer("https://github.com/login/oauth").Device {
+		t.Error("expected GitHub to be signed in to with the device grant")
+	}
 }
 
 // What reaches a server that registers nobody, with no form to fill in first.
@@ -385,14 +424,14 @@ func TestUsesTheClientIdKajaShips(t *testing.T) {
 	shipsClient(t, fake.as.URL, "shipped-client")
 	authorizer := testAuthorizer(t)
 
-	target, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	prompt, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
 	if fake.registered {
 		t.Error("expected no registration where kaja ships a client")
 	}
-	if got := mustQuery(t, target).Get("client_id"); got != "shipped-client" {
+	if got := mustQuery(t, prompt.URL).Get("client_id"); got != "shipped-client" {
 		t.Errorf("client_id = %q", got)
 	}
 }
@@ -402,11 +441,11 @@ func TestAConfiguredClientIdOutranksTheOneKajaShips(t *testing.T) {
 	shipsClient(t, fake.as.URL, "shipped-client")
 	authorizer := testAuthorizer(t)
 
-	target, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
+	prompt, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	if got := mustQuery(t, target).Get("client_id"); got != "mine" {
+	if got := mustQuery(t, prompt.URL).Get("client_id"); got != "mine" {
 		t.Errorf("client_id = %q", got)
 	}
 }
@@ -419,11 +458,11 @@ func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 	fake.expiresIn = 1
 	authorizer := testAuthorizer(t)
 
-	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	query := mustQuery(t, target)
+	query := mustQuery(t, prompt.URL)
 	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
 		"code": {"the-code"}, "state": {query.Get("state")}, "iss": {fake.as.URL},
 	})
@@ -439,6 +478,111 @@ func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 	}
 	if got := fake.lastForm.Get("client_id"); got != "mine" {
 		t.Errorf("client_id = %q, want the client the token was issued to", got)
+	}
+}
+
+// A server that refuses a public client's code exchange is signed in to with the
+// device grant instead: kaja asks for a code, the person types it somewhere else,
+// and the token endpoint is asked until they have.
+func TestSignsInWithTheDeviceGrant(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	fake.device = true
+	fake.pending = 1
+	fake.pendingRefusal = "authorization_pending"
+	shipsServer(t, fake.as.URL, builtInServer{ClientID: "shipped-client", Device: true})
+	authorizer := testAuthorizer(t)
+
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	if prompt.UserCode != "WDJB-MJHT" {
+		t.Errorf("user code = %q, want the code the person types", prompt.UserCode)
+	}
+	if prompt.URL != fake.as.URL+"/activate" {
+		t.Errorf("page = %q, want where the code is typed", prompt.URL)
+	}
+	if got := fake.lastForm.Get("client_id"); got != "shipped-client" {
+		t.Errorf("client_id = %q", got)
+	}
+	if authorizer.listener != nil {
+		t.Error("expected no loopback listener: nothing is being sent back to one")
+	}
+
+	if err := <-done; err != nil {
+		t.Fatalf("the sign-in: %v", err)
+	}
+	if len(fake.deviceForms) != 2 {
+		t.Fatalf("polled %d times, want one refusal and one token", len(fake.deviceForms))
+	}
+	asked := fake.deviceForms[len(fake.deviceForms)-1]
+	if asked.Get("device_code") != "the-device-code" || asked.Get("client_secret") != "" {
+		t.Errorf("the token request = %v, want the device code and no secret", asked)
+	}
+	token, err := authorizer.Token(fake.endpoint())
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if token != "token-"+deviceGrantType {
+		t.Errorf("token = %q", token)
+	}
+}
+
+// Everything but `authorization_pending` and `slow_down` ends the flow, and a
+// refusal carried by a 200 is still a refusal.
+func TestADeviceGrantStopsOnARefusal(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	fake.device = true
+	fake.pending = 3
+	fake.pendingRefusal = "access_denied"
+	shipsServer(t, fake.as.URL, builtInServer{ClientID: "shipped-client", Device: true})
+	authorizer := testAuthorizer(t)
+
+	_, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	err = <-done
+	if err == nil || !strings.Contains(err.Error(), "access_denied") {
+		t.Fatalf("the sign-in = %v, want the refusal said as it stands", err)
+	}
+	if len(fake.deviceForms) != 1 {
+		t.Errorf("polled %d times, want a refusal not to be asked again", len(fake.deviceForms))
+	}
+}
+
+// The redirect flow is what a server that registers clients gets, device grant
+// advertised or not: it is the one that needs nothing typed across.
+func TestADeviceEndpointAloneIsNotTheDeviceGrant(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	fake.device = true
+	authorizer := testAuthorizer(t)
+
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	t.Cleanup(func() { authorizer.Cancel(done) })
+	if prompt.UserCode != "" {
+		t.Errorf("user code = %q, want the browser to carry the answer back", prompt.UserCode)
+	}
+	if mustQuery(t, prompt.URL).Get("code_challenge") == "" {
+		t.Error("expected the redirect flow")
+	}
+}
+
+// A token endpoint that answers 200 with an error in it is answering with a
+// refusal, and the refusal is what a sign-in reports.
+func TestReadsARefusalCarriedByA200(t *testing.T) {
+	refusal := readTokenRefusal([]byte(`{"error":"incorrect_client_credentials","error_description":"The client_id and/or client_secret passed are incorrect."}`))
+	if refusal == nil {
+		t.Fatal("expected an error body to read as a refusal")
+	}
+	if !strings.Contains(refusal.Error(), "incorrect_client_credentials") || !strings.Contains(refusal.Error(), "client_secret") {
+		t.Errorf("the refusal reads %q", refusal.Error())
+	}
+	if readTokenRefusal([]byte(`{"access_token":"a-token"}`)) != nil {
+		t.Error("expected a token to read as no refusal")
 	}
 }
 
@@ -467,8 +611,13 @@ func TestFallsBackToAFreePortWhenTheFixedOneIsTaken(t *testing.T) {
 
 func shipsClient(t *testing.T, issuer, id string) {
 	t.Helper()
-	builtInClients[issuer] = id
-	t.Cleanup(func() { delete(builtInClients, issuer) })
+	shipsServer(t, issuer, builtInServer{ClientID: id})
+}
+
+func shipsServer(t *testing.T, issuer string, entry builtInServer) {
+	t.Helper()
+	builtInServers[issuer] = entry
+	t.Cleanup(func() { delete(builtInServers, issuer) })
 }
 
 func mustQuery(t *testing.T, target string) url.Values {
@@ -497,11 +646,11 @@ func TestAnAppSignedInSendsItsToken(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	query := mustQuery(t, target)
+	query := mustQuery(t, prompt.URL)
 	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
 		"code": {"the-code"}, "state": {query.Get("state")}, "iss": {fake.as.URL},
 	})

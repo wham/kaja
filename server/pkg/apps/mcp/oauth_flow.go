@@ -75,7 +75,19 @@ type flow struct {
 	proof      pkce
 	redirect   string
 	done       chan error
-	timer      *time.Timer
+	// stop is closed when the flow settles, which is what a device grant's poll
+	// is watching: nobody is left to answer once the flow is over.
+	stop  chan struct{}
+	timer *time.Timer
+}
+
+// SignInPrompt is what the person has to do for a sign-in to finish: a page to
+// open, and - where the grant sends kaja nothing back - the code to type into it.
+type SignInPrompt struct {
+	URL string
+	// UserCode is set by the device grant alone. A redirect flow needs none: the
+	// browser carries the answer back by itself.
+	UserCode string
 }
 
 // AppAuthorization is the app's half of a sign-in: which server, and the client
@@ -110,56 +122,64 @@ func DefaultAuthorizer() (*Authorizer, error) {
 // Begin discovers everything a sign-in needs and hands back the page to open and
 // a channel that reports how it went. Nothing is stored until the flow finishes:
 // a sign-in that is never completed leaves no trace.
-func (a *Authorizer) Begin(app AppAuthorization) (string, <-chan error, error) {
+func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, error) {
 	resource, err := canonicalResource(app.Endpoint)
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 
 	challenged, metadataURL := a.probe(app)
 	described, err := a.readProtectedResource(app.Endpoint, metadataURL)
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 	if described.Resource != "" {
 		declared, err := canonicalResource(described.Resource)
 		if err != nil || declared != resource {
-			return "", nil, fmt.Errorf("the server's metadata is about %q rather than about %q", described.Resource, resource)
+			return SignInPrompt{}, nil, fmt.Errorf("the server's metadata is about %q rather than about %q", described.Resource, resource)
 		}
 	}
 	if len(described.AuthorizationServers) == 0 {
-		return "", nil, fmt.Errorf("the server names no authorization server to sign in to")
+		return SignInPrompt{}, nil, fmt.Errorf("the server names no authorization server to sign in to")
 	}
 
 	server, err := a.readAuthorizationServer(described.AuthorizationServers[0])
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 	scope := pickScope(challenged["scope"], app.Scope, described)
+
+	if usesDeviceGrant(server) {
+		registered := a.heldClient(server, app.ClientID)
+		if registered == nil {
+			return SignInPrompt{}, nil, fmt.Errorf("the authorization server registers no clients, so it needs a client id of your own")
+		}
+		return a.beginDevice(resource, scope, server, registered)
+	}
 
 	// The listener comes first, because the address it is on is what kaja is
 	// registered against and what the authorization request has to name.
 	if err := a.listen(); err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 	redirect := a.redirectURI()
 
 	registered, err := a.clientFor(server, app.ClientID, scope, redirect)
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 
 	proof, err := newPKCE()
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 	state, err := randomToken()
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 	target, err := authorizationURL(server, registered.ClientID, redirect, scope, resource, state, proof)
 	if err != nil {
-		return "", nil, err
+		return SignInPrompt{}, nil, err
 	}
 
 	pending := &flow{
@@ -170,6 +190,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (string, <-chan error, error) {
 		proof:      proof,
 		redirect:   redirect,
 		done:       make(chan error, 1),
+		stop:       make(chan struct{}),
 	}
 	a.mu.Lock()
 	a.pending[state] = pending
@@ -177,7 +198,15 @@ func (a *Authorizer) Begin(app AppAuthorization) (string, <-chan error, error) {
 	pending.timer = time.AfterFunc(flowTimeout, func() {
 		a.settle(state, fmt.Errorf("the sign-in was not finished in time"))
 	})
-	return target, pending.done, nil
+	return SignInPrompt{URL: target}, pending.done, nil
+}
+
+// usesDeviceGrant reports whether a sign-in here has to be carried by the device
+// grant. It is a fact about the server rather than about the client: a server
+// that refuses a code exchange with no secret refuses it whoever the client is,
+// so a client id of the person's own runs into the same wall.
+func usesDeviceGrant(server *authorizationServer) bool {
+	return knownServer(server.Issuer).Device && server.DeviceAuthorizationEndpoint != ""
 }
 
 // Cancel gives up on a sign-in nobody is waiting for any more.
@@ -361,13 +390,7 @@ func (a *Authorizer) readAuthorizationServer(issuer string) (*authorizationServe
 // ships outranks what it registered, a server it ships an id for being one that
 // registers nobody.
 func (a *Authorizer) clientFor(server *authorizationServer, configured string, scope string, redirect string) (*registration, error) {
-	if configured = strings.TrimSpace(configured); configured != "" {
-		return &registration{ClientID: configured}, nil
-	}
-	if shipped := builtInClient(server.Issuer); shipped != nil {
-		return shipped, nil
-	}
-	if held := a.store.Client(server.Issuer); held != nil && held.ClientID != "" {
+	if held := a.heldClient(server, configured); held != nil {
 		return held, nil
 	}
 	registered, err := registerClient(a.client, server, redirect, scope)
@@ -378,6 +401,22 @@ func (a *Authorizer) clientFor(server *authorizationServer, configured string, s
 		return nil, err
 	}
 	return registered, nil
+}
+
+// heldClient is the client kaja already has for a server - one the person
+// configured, one kaja ships, or one this installation registered before - or
+// nothing, which is what registering is for.
+func (a *Authorizer) heldClient(server *authorizationServer, configured string) *registration {
+	if configured = strings.TrimSpace(configured); configured != "" {
+		return &registration{ClientID: configured}
+	}
+	if shipped := builtInClient(server.Issuer); shipped != nil {
+		return shipped
+	}
+	if held := a.store.Client(server.Issuer); held != nil && held.ClientID != "" {
+		return held
+	}
+	return nil
 }
 
 // listen opens the loopback listener, if it is not already open. It is opened
@@ -485,6 +524,7 @@ func (a *Authorizer) settle(state string, err error) {
 	a.mu.Unlock()
 
 	pending.timer.Stop()
+	close(pending.stop)
 	pending.done <- err
 	close(pending.done)
 	if closing != nil {

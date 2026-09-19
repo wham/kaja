@@ -596,6 +596,15 @@ export interface AuthorizeMcpResponse {
      */
     authorizationUrl: string;
     /**
+     * The code to type into that page, sent with the URL. It is set where the
+     * grant sends kaja nothing back and the person carries the answer across
+     * themselves, which is how a server that refuses a client with no secret is
+     * signed in to; a redirect flow leaves it empty.
+     *
+     * @generated from protobuf field: string user_code = 4
+     */
+    userCode: string;
+    /**
      * Set on the last message: the sign-in finished and the token is kept.
      *
      * @generated from protobuf field: bool authorized = 2
@@ -2265,6 +2274,7 @@ class AuthorizeMcpResponse$Type extends MessageType<AuthorizeMcpResponse> {
     constructor() {
         super("AuthorizeMcpResponse", [
             { no: 1, name: "authorization_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "user_code", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "authorized", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "problem", kind: "message", T: () => McpProblem }
         ]);
