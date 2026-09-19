@@ -13,7 +13,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
@@ -37,6 +37,7 @@ import {
   isReadableEndpoint,
   uniqueAppName,
 } from "./mcpServer";
+import { KnownServer, endpointLabel, knownServerFor, matchingServers } from "./knownServers";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -141,8 +142,16 @@ export function McpForm({
   const [nameTouched, setNameTouched] = useState(Boolean(name));
   // Typing is the only change that waits for a pause before reading.
   const typedRef = useRef(false);
+  // Whether the field is offering the servers Kaja is set up for.
+  const [picker, setPicker] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   const url = parameters.url ?? "";
+  const known = useMemo(() => knownServerFor(url), [url]);
+  const offered = useMemo(() => matchingServers(url), [url]);
+  // The list is an offer of what to type, so it goes the moment the field holds one of
+  // them: what a matched endpoint has to say is said by the chip and the read below it.
+  const picking = picker && !readOnly && !known && offered.length > 0;
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   const source = inspectionKey(parameters);
@@ -245,6 +254,8 @@ export function McpForm({
     return () => clearTimeout(timer);
   }, [source, read]);
 
+  useEffect(() => setHighlight(0), [url]);
+
   useEffect(() => onSurfaceChange(server ? { count: surfaceCount(server) } : undefined), [server, onSurfaceChange]);
 
   // Derive the name from what the server calls itself until the user types one.
@@ -255,10 +266,12 @@ export function McpForm({
   }, [server, nameTouched, takenNames, onNameChange]);
 
   // A server that won't say what it exposes without a credential is asking for the one
-  // MCP's own authorization framework hands out.
+  // MCP's own authorization framework hands out. A server Kaja is set up for asks for
+  // the sign-in it is set up for, which is the whole of what being on that list buys.
   useEffect(() => {
     if (readOnly || problem?.kind !== McpProblemKind.MCP_PROBLEM_UNAUTHORIZED) return;
-    onParametersChange((previous) => ((previous.auth ?? "") === "" ? { ...previous, auth: AUTH_BEARER } : previous));
+    const wanted = knownServerFor(parametersRef.current.url ?? "") ? AUTH_OAUTH : AUTH_BEARER;
+    onParametersChange((previous) => ((previous.auth ?? "") === "" ? { ...previous, auth: wanted } : previous));
   }, [problem, readOnly, onParametersChange]);
 
   useEffect(() => {
@@ -266,6 +279,14 @@ export function McpForm({
   }, [server, url, onReadyChange]);
 
   const setParameter = (key: string, value: string) => onParametersChange((previous) => ({ ...previous, [key]: value }));
+
+  // Taking a row is the address and the credential at once: an entry exists because
+  // Kaja can sign in to it, so selecting anything else would be undoing the offer.
+  const pick = (chosen: KnownServer) => {
+    setPicker(false);
+    typedRef.current = false;
+    onParametersChange((previous) => ({ ...previous, url: chosen.endpoint, auth: AUTH_OAUTH }));
+  };
 
   const demo = getAppType("mcp")?.demo;
   const auth = (parameters.auth ?? "").trim() || AUTH_BEARER;
@@ -285,23 +306,40 @@ export function McpForm({
           MCP endpoint
         </label>
 
-        <VariableSuggestInput
-          id="mcp-url"
-          value={url}
-          onValueChange={(value) => {
-            typedRef.current = true;
-            setParameter("url", value);
-          }}
-          variables={variables}
-          placeholder="https://example.com/mcp"
-          disabled={readOnly}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
+        <div className="relative">
+          <VariableSuggestInput
+            id="mcp-url"
+            value={url}
+            onValueChange={(value) => {
+              typedRef.current = true;
+              setParameter("url", value);
+            }}
+            variables={variables}
+            placeholder="https://example.com/mcp"
+            disabled={readOnly}
+            className={known ? "pr-28" : undefined}
+            trailingAction={known && <KnownServerChip server={known} />}
+            onFocus={() => setPicker(true)}
+            onBlur={() => setPicker(false)}
+            onKeyDown={(event) => {
+              if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                event.preventDefault();
+                setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                return;
+              }
+              if (picking && event.key === "Escape") {
+                event.preventDefault();
+                setPicker(false);
+                return;
+              }
+              if (event.key !== "Enter") return;
               event.preventDefault();
-              read({ fresh: true });
-            }
-          }}
-        />
+              if (picking) pick(offered[highlight % offered.length]);
+              else read({ fresh: true });
+            }}
+          />
+          {picking && <KnownServerList servers={offered} query={url} highlight={highlight % offered.length} onHighlight={setHighlight} onPick={pick} />}
+        </div>
 
         <EndpointStatus
           state={state}
@@ -338,6 +376,7 @@ export function McpForm({
             <AuthenticationSection
               selected={auth}
               onSelect={(value) => setParameter("auth", value)}
+              known={known}
               parameters={parameters}
               onParameterChange={setParameter}
               variables={variables}
@@ -351,6 +390,66 @@ export function McpForm({
         </>
       )}
     </div>
+  );
+}
+
+interface KnownServerListProps {
+  servers: KnownServer[];
+  query: string;
+  highlight: number;
+  onHighlight: (index: number) => void;
+  onPick: (server: KnownServer) => void;
+}
+
+// The servers Kaja is set up for, under the field they fill in. Rows are the height of
+// that field, and the footer is the escape hatch: everything here is an offer, and
+// pasting an address nobody bundled is the ordinary way to use the form.
+function KnownServerList({ servers, query, highlight, onHighlight, onPick }: KnownServerListProps) {
+  const typed = query.trim().length > 0;
+  return (
+    // Keep focus in the input so a click on a row isn't lost to blur.
+    <div
+      onMouseDown={(event) => event.preventDefault()}
+      className="absolute left-0 top-full z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-md"
+    >
+      {!typed && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Servers Kaja is set up for</p>}
+      {servers.map((server, index) => (
+        <button
+          key={server.endpoint}
+          type="button"
+          onMouseEnter={() => onHighlight(index)}
+          onClick={() => onPick(server)}
+          className={cn("flex h-8 w-full items-center gap-2 px-3 text-left", index === highlight ? "bg-accent" : "hover:bg-accent/50")}
+        >
+          <span className="flex size-[18px] shrink-0 items-center justify-center text-foreground">
+            <server.mark size={16} />
+          </span>
+          <span className="shrink-0 text-sm text-foreground">{server.name}</span>
+          <span className="truncate font-mono text-xs text-muted-foreground">{endpointLabel(server.endpoint)}</span>
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{typed && index === highlight ? "⏎" : "sign-in ready"}</span>
+        </button>
+      ))}
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+        {!typed || isReadableEndpoint(query) ? (
+          <>
+            Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+          </>
+        ) : (
+          "Nothing typed here is a URL yet, so no server has been reached."
+        )}
+      </p>
+    </div>
+  );
+}
+
+// The server the endpoint turned out to be, said in the field that holds it. It is the
+// one thing recognition adds above the divider: everything it changed is below.
+function KnownServerChip({ server }: { server: KnownServer }) {
+  return (
+    <span className="flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+      <server.mark size={12} />
+      <span className="max-w-24 truncate">{server.name}</span>
+    </span>
   );
 }
 
@@ -475,6 +574,8 @@ function ProblemBanner({ problem, readOnly, onRetry }: { problem: McpProblem; re
 interface AuthenticationSectionProps {
   selected: string;
   onSelect: (value: string) => void;
+  // The server Kaja ships a registration for, where the endpoint is one of those.
+  known: KnownServer | undefined;
   parameters: Record<string, string>;
   onParameterChange: (key: string, value: string) => void;
   variables: { [key: string]: string };
@@ -493,6 +594,7 @@ interface AuthenticationSectionProps {
 function AuthenticationSection({
   selected,
   onSelect,
+  known,
   parameters,
   onParameterChange,
   variables,
@@ -503,6 +605,18 @@ function AuthenticationSection({
   onSignOut,
 }: AuthenticationSectionProps) {
   const oauth = selected === AUTH_OAUTH;
+  // A prefill is a starting point, never a lock: the bundled registration is what the
+  // card opens on, and asking for the fields is one click either way. A client id or a
+  // scope already in the app is that ask having been made before.
+  const [ownClient, setOwnClient] = useState(false);
+  const own = ownClient || (parameters.clientId ?? "") !== "" || (parameters.scope ?? "") !== "";
+  // The registration the card would sign in with, where that is Kaja's own.
+  const bundled = own ? undefined : known;
+  const backToKaja = () => {
+    setOwnClient(false);
+    onParameterChange("clientId", "");
+    onParameterChange("scope", "");
+  };
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
@@ -513,27 +627,42 @@ function AuthenticationSection({
               <span className="truncate text-sm text-foreground">Sign in</span>
               <span className="truncate text-xs text-muted-foreground">Kaja gets the token from the server and keeps it renewed</span>
             </span>
+            {known && <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>}
           </ChoiceRow>
           {oauth && (
             <div className="flex flex-col gap-2 px-3 pb-3">
               {/* The verbs go where the workspace can't be written; the fields stay,
                   because reading how an app is configured is still worth doing. */}
-              {!readOnly && <SignInStatus state={signIn} signedIn={signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
-              <VariableSuggestInput
-                value={parameters.clientId ?? ""}
-                onValueChange={(value) => onParameterChange("clientId", value)}
-                variables={variables}
-                placeholder="Client ID — leave empty and Kaja registers itself"
-                disabled={readOnly}
-              />
-              <VariableSuggestInput
-                value={parameters.scope ?? ""}
-                onValueChange={(value) => onParameterChange("scope", value)}
-                variables={variables}
-                placeholder="Scopes — leave empty and the server says which"
-                disabled={readOnly}
-              />
-              <p className="text-xs text-muted-foreground">The token is kept by this Kaja, never in kaja.json.</p>
+              {!readOnly && (
+                <SignInStatus
+                  state={signIn}
+                  signedIn={signedIn}
+                  onSignIn={onSignIn}
+                  onSignOut={onSignOut}
+                  onOwnClient={bundled ? () => setOwnClient(true) : undefined}
+                  onBundled={known && own ? backToKaja : undefined}
+                />
+              )}
+              {!bundled && (
+                <>
+                  <VariableSuggestInput
+                    value={parameters.clientId ?? ""}
+                    onValueChange={(value) => onParameterChange("clientId", value)}
+                    variables={variables}
+                    placeholder="Client ID — leave empty and Kaja registers itself"
+                    disabled={readOnly}
+                  />
+                  <VariableSuggestInput
+                    value={parameters.scope ?? ""}
+                    onValueChange={(value) => onParameterChange("scope", value)}
+                    variables={variables}
+                    placeholder="Scopes — leave empty and the server says which"
+                    disabled={readOnly}
+                  />
+                </>
+              )}
+              {bundled && <p className="text-xs text-muted-foreground">Using Kaja's registration with {bundled.name}.</p>}
+              <p className="text-xs text-muted-foreground">The token is kept by this Kaja, never shared with anyone who opens this workspace.</p>
             </div>
           )}
         </ChoiceCard>
@@ -617,12 +746,16 @@ interface SignInStatusProps {
   signedIn: boolean;
   onSignIn: () => void;
   onSignOut: () => void;
+  // Present where Kaja's own registration is what would be used, and where something
+  // typed over it could be given back. Never both.
+  onOwnClient?: () => void;
+  onBundled?: () => void;
 }
 
 // One slot, like the endpoint's: the button, the browser it is waiting on, and the way
 // it can fail. It says nothing about having succeeded — the server answering above is
 // what says that.
-function SignInStatus({ state, signedIn, onSignIn, onSignOut }: SignInStatusProps) {
+function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient, onBundled }: SignInStatusProps) {
   if (state.status === "waiting") {
     return (
       <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
@@ -644,6 +777,16 @@ function SignInStatus({ state, signedIn, onSignIn, onSignOut }: SignInStatusProp
         {signedIn && (
           <Button variant="ghost" size="sm" onClick={onSignOut}>
             Sign out
+          </Button>
+        )}
+        {onOwnClient && (
+          <Button variant="ghost" size="sm" onClick={onOwnClient}>
+            Use my own client ID
+          </Button>
+        )}
+        {onBundled && (
+          <Button variant="ghost" size="sm" onClick={onBundled}>
+            Back to Kaja's
           </Button>
         )}
       </div>
