@@ -32,8 +32,7 @@ const flowTimeout = 5 * time.Minute
 
 // redirectURI is the address kaja is sent back to, which is what it registers
 // with an authorization server and what the authorization request names. The
-// port is fixed so a client registered once goes on working; a test binds its
-// own, which is the only reason this is read off the listener.
+// port is read off the listener because the fixed one may have been taken.
 func (a *Authorizer) redirectURI() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -216,10 +215,6 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 		return "", fmt.Errorf("the token for %s has expired and the server issued nothing to renew it with; sign in again", resource)
 	}
 
-	registered := a.store.Client(held.Server.Issuer)
-	if registered == nil {
-		registered = &registration{ClientID: ""}
-	}
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", held.Token.RefreshToken)
@@ -227,7 +222,7 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 	if held.Token.Scope != "" {
 		form.Set("scope", held.Token.Scope)
 	}
-	renewed, err := requestToken(a.client, held.Server, registered, form)
+	renewed, err := requestToken(a.client, held.Server, a.refreshClient(held), form)
 	if err != nil {
 		return "", fmt.Errorf("renewing the token for %s: %w", resource, err)
 	}
@@ -244,6 +239,26 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 		return "", err
 	}
 	return renewed.AccessToken, nil
+}
+
+// refreshClient is the client a held token was issued to, read off the grant
+// rather than resolved again: neither a configured client id nor one kaja ships
+// is in the store, and a refresh token is worth nothing to another client.
+func (a *Authorizer) refreshClient(held *grant) *registration {
+	registered := a.store.Client(held.Server.Issuer)
+	if held.ClientID == "" {
+		// A grant from before the client was recorded on one, which can only be
+		// a client kaja registered.
+		if registered != nil {
+			return registered
+		}
+		return &registration{}
+	}
+	// The registration is what carries a secret, where the server issued one.
+	if registered != nil && registered.ClientID == held.ClientID {
+		return registered
+	}
+	return &registration{ClientID: held.ClientID}
 }
 
 // SignedIn reports whether a resource has a token at all, which is what the app
@@ -339,13 +354,18 @@ func (a *Authorizer) readAuthorizationServer(issuer string) (*authorizationServe
 }
 
 // clientFor is the client kaja is identified as, in the order the specification
-// asks for: one the person already has, then one this installation registered
-// with this server before, then one registered now. A client id metadata
-// document is the first of those - it is an https URL, so it is a client id the
-// person has - and kaja hosts none of its own.
+// asks for: one the person already has, then one kaja ships for this server,
+// then one this installation registered with it before, then one registered now.
+// A client id metadata document is the first of those - it is an https URL, so
+// it is a client id the person has - and kaja hosts none of its own. What kaja
+// ships outranks what it registered, a server it ships an id for being one that
+// registers nobody.
 func (a *Authorizer) clientFor(server *authorizationServer, configured string, scope string, redirect string) (*registration, error) {
 	if configured = strings.TrimSpace(configured); configured != "" {
 		return &registration{ClientID: configured}, nil
+	}
+	if shipped := builtInClient(server.Issuer); shipped != nil {
+		return shipped, nil
 	}
 	if held := a.store.Client(server.Issuer); held != nil && held.ClientID != "" {
 		return held, nil
@@ -370,8 +390,13 @@ func (a *Authorizer) listen() error {
 		return nil
 	}
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", a.port))
+	if err != nil && a.port != 0 {
+		// RFC 8252 section 7.3: a loopback redirect is matched without its port,
+		// so one something else is holding is not a sign-in that cannot happen.
+		listener, err = net.Listen("tcp", "127.0.0.1:0")
+	}
 	if err != nil {
-		return fmt.Errorf("kaja could not open port %d to be signed back in on: %w", a.port, err)
+		return fmt.Errorf("kaja could not open a port to be signed back in on: %w", err)
 	}
 	a.listener = listener
 	mux := http.NewServeMux()
@@ -434,7 +459,11 @@ func (a *Authorizer) finish(pending *flow, query url.Values) error {
 	if issued.Scope == "" {
 		issued.Scope = pending.scope
 	}
-	return a.store.SaveGrant(pending.resource, &grant{Server: pending.server, Token: issued})
+	return a.store.SaveGrant(pending.resource, &grant{
+		Server:   pending.server,
+		Token:    issued,
+		ClientID: pending.registered.ClientID,
+	})
 }
 
 // settle reports a flow's outcome once and lets go of it, closing the listener

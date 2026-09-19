@@ -23,10 +23,12 @@ type TokenStore struct {
 }
 
 // grant is everything one resource's token needs to be used and renewed: the
-// authorization server that issued it, and the token itself.
+// authorization server that issued it, the token, and the client it was issued
+// to, since a refresh has to present the same one.
 type grant struct {
-	Server *authorizationServer `json:"server"`
-	Token  *tokenSet            `json:"token"`
+	Server   *authorizationServer `json:"server"`
+	Token    *tokenSet            `json:"token"`
+	ClientID string               `json:"client_id,omitempty"`
 }
 
 type storeFile struct {

@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -360,6 +361,114 @@ func TestUsesAClientIdOfYourOwn(t *testing.T) {
 	if got := mustQuery(t, target).Get("client_id"); got != "https://kaja.example/client.json" {
 		t.Errorf("client_id = %q", got)
 	}
+}
+
+func TestBuiltInClient(t *testing.T) {
+	shipped := builtInClient("https://github.com/login/oauth")
+	if shipped == nil || shipped.ClientID == "" {
+		t.Fatal("expected kaja to ship a client for GitHub")
+	}
+	if shipped.ClientSecret != "" {
+		t.Error("a client kaja ships is public and proves itself with PKCE")
+	}
+	if builtInClient("https://github.com/login/oauth/") == nil {
+		t.Error("expected a trailing slash to name the same issuer")
+	}
+	if builtInClient("https://auth.example.com") != nil {
+		t.Error("expected nothing to be shipped for a server kaja has never met")
+	}
+}
+
+// What reaches a server that registers nobody, with no form to fill in first.
+func TestUsesTheClientIdKajaShips(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	shipsClient(t, fake.as.URL, "shipped-client")
+	authorizer := testAuthorizer(t)
+
+	target, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint()})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	if fake.registered {
+		t.Error("expected no registration where kaja ships a client")
+	}
+	if got := mustQuery(t, target).Get("client_id"); got != "shipped-client" {
+		t.Errorf("client_id = %q", got)
+	}
+}
+
+func TestAConfiguredClientIdOutranksTheOneKajaShips(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	shipsClient(t, fake.as.URL, "shipped-client")
+	authorizer := testAuthorizer(t)
+
+	target, _, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	if got := mustQuery(t, target).Get("client_id"); got != "mine" {
+		t.Errorf("client_id = %q", got)
+	}
+}
+
+// Neither a shipped nor a configured client is in the store, so a renewal that
+// looked for one there sent no client id at all.
+func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	fake.issueRefresh = true
+	fake.expiresIn = 1
+	authorizer := testAuthorizer(t)
+
+	target, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	query := mustQuery(t, target)
+	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
+		"code": {"the-code"}, "state": {query.Get("state")}, "iss": {fake.as.URL},
+	})
+	if err := <-done; err != nil {
+		t.Fatalf("the sign-in: %v", err)
+	}
+
+	if _, err := authorizer.Token(fake.endpoint()); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if got := fake.lastForm.Get("grant_type"); got != "refresh_token" {
+		t.Fatalf("grant_type = %q, want the token to have been renewed", got)
+	}
+	if got := fake.lastForm.Get("client_id"); got != "mine" {
+		t.Errorf("client_id = %q, want the client the token was issued to", got)
+	}
+}
+
+func TestFallsBackToAFreePortWhenTheFixedOneIsTaken(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("holding a port: %v", err)
+	}
+	defer taken.Close()
+	held := taken.Addr().(*net.TCPAddr).Port
+
+	authorizer := testAuthorizer(t)
+	authorizer.port = held
+	if err := authorizer.listen(); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() {
+		if authorizer.listener != nil {
+			_ = authorizer.listener.Close()
+		}
+	})
+	if got := authorizer.redirectURI(); strings.Contains(got, fmt.Sprintf(":%d%s", held, callbackPath)) {
+		t.Errorf("redirectURI = %q, want a port that was free", got)
+	}
+}
+
+func shipsClient(t *testing.T, issuer, id string) {
+	t.Helper()
+	builtInClients[issuer] = id
+	t.Cleanup(func() { delete(builtInClients, issuer) })
 }
 
 func mustQuery(t *testing.T, target string) url.Values {
