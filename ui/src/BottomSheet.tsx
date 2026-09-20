@@ -1,17 +1,17 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
-import { SheetPosition, snapSheet } from "./phone";
+import { SheetPosition, sheetStops, snapSheet, tapSheet } from "./phone";
 
 interface BottomSheetProps {
   position: SheetPosition;
   onPositionChange: (position: SheetPosition) => void;
-  // What the sheet shows at rest: the chrome and nothing under it.
+  // What the sheet shows at rest: the grabber and nothing under it.
   restHeight: number;
-  // What stays uncovered above the sheet when it is up.
+  // What stays uncovered above the sheet at full height.
   topInset: number;
-  // The rows that drag it — the handle and whatever header sits under the handle. A
-  // tap on them with no drag flips the sheet.
-  chrome: React.ReactNode;
+  // The row that drags it, drawn only above rest. A tap on it with no drag flips the
+  // sheet.
+  chrome?: React.ReactNode;
   hidden?: boolean;
   children: React.ReactNode;
 }
@@ -20,18 +20,18 @@ interface BottomSheetProps {
 const DRAG_SLOP = 4;
 
 /**
- * A sheet along the bottom of its container, with two places to be: resting on its
- * chrome, or up with the container's top still showing. It is moved by a drag on the
- * chrome and lands on one end or the other, so there is no third state to reason
- * about. The body is the sheet's own scroll; only the chrome moves it.
+ * A sheet along the bottom of its container, with three places to be: resting on its
+ * grabber, half up over what it covers, and full. It is moved by a drag on the
+ * grabber and its row, and lands on one of the three. The body is the sheet's own
+ * scroll; only the chrome moves it.
  */
 export function BottomSheet({ position, onPositionChange, restHeight, topInset, chrome, hidden, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
   const [drag, setDrag] = useState<number>();
-  const gesture = useRef<{ pointerId: number; startY: number; startOffset: number; moved: boolean; samples: { y: number; t: number }[] } | undefined>(
-    undefined,
-  );
+  const gesture = useRef<
+    { pointerId: number; startY: number; startOffset: number; from: SheetPosition; moved: boolean; samples: { y: number; t: number }[] } | undefined
+  >(undefined);
 
   useLayoutEffect(() => {
     const element = sheetRef.current;
@@ -44,7 +44,8 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
   }, []);
 
   const restOffset = Math.max(0, height - restHeight);
-  const offset = drag ?? (position === "up" ? 0 : restOffset);
+  const stops = useMemo(() => sheetStops(restOffset), [restOffset]);
+  const offset = drag ?? stops.find((stop) => stop.position === position)?.offset ?? restOffset;
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -56,6 +57,7 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
       pointerId: event.pointerId,
       startY: event.clientY,
       startOffset: offset,
+      from: position,
       moved: false,
       samples: [{ y: event.clientY, t: event.timeStamp }],
     };
@@ -78,19 +80,21 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
     gesture.current = undefined;
     setDrag(undefined);
     if (!current.moved) {
-      onPositionChange(position === "up" ? "rest" : "up");
+      onPositionChange(tapSheet(position));
       return;
     }
     const first = current.samples[0];
     const last = current.samples[current.samples.length - 1];
     const velocity = last.t > first.t ? (last.y - first.y) / (last.t - first.t) : 0;
-    onPositionChange(snapSheet(Math.min(restOffset, Math.max(0, current.startOffset + (event.clientY - current.startY))), restOffset, velocity));
+    const left = Math.min(restOffset, Math.max(0, current.startOffset + (event.clientY - current.startY)));
+    onPositionChange(snapSheet(left, stops, velocity, current.from));
   };
 
   return (
     <div
       ref={sheetRef}
       data-testid="bottom-sheet"
+      data-position={position}
       className={cn(
         "absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-[14px] border-t border-border bg-card shadow-[0_-8px_24px_-16px_rgba(0,0,0,0.5)]",
         hidden && "hidden",
@@ -111,10 +115,11 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="flex justify-center pb-1 pt-2">
+        {/* The whole affordance at rest, so it is what the resting height is measured as. */}
+        <div className="flex h-[24px] items-center justify-center">
           <div className="h-1 w-9 rounded-full bg-muted-foreground/40" />
         </div>
-        {chrome}
+        {position !== "rest" && chrome}
       </div>
       <div className="flex min-h-0 flex-1 flex-col" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {children}

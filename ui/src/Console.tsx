@@ -1,6 +1,5 @@
 import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
 import { ApproveGesture, CellRun } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
@@ -84,9 +83,9 @@ interface ConsoleProps {
   // So a run can be started again from full screen rather than only from the command
   // row the canvas covers.
   runControl?: React.ReactNode;
-  // On a phone the console is the screen and the log is a page of the script's sheet:
-  // the log is drawn into the sheet, full screen is nothing more than the canvas, and
-  // a call picked off the canvas raises the sheet on it.
+  // On a phone the console is the screen: the three views get the segmented control
+  // full width, and full screen is nothing more than the script's sheet getting out
+  // of the way.
   phone?: PhoneConsole;
 }
 
@@ -178,7 +177,7 @@ export function Console({
       // The canvas already has the phone's whole screen; taking it means the sheet
       // getting out of the way.
       if (phone) {
-        phone.onShowCanvas();
+        phone.onShowRun();
         return;
       }
       setFullScreen(true);
@@ -215,10 +214,7 @@ export function Console({
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
   const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
-  const chosenView = file.view ?? defaultView(selectedGroup);
-  // The phone's log is on the sheet, so the screen never shows it: a run that opens on
-  // its log opens on its canvas, and the sheet's handle says how many calls it made.
-  const activeView = phone && chosenView === "calls" ? "canvas" : chosenView;
+  const activeView = file.view ?? defaultView(selectedGroup);
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
 
@@ -253,11 +249,10 @@ export function Console({
     (itemId: string) => {
       if (!selectedGroup) return;
       setTailing(false);
-      if (phone) phone.onShowCalls();
-      else onViewChange("calls");
+      onViewChange("calls");
       onSelect({ runId: selectedGroup.run.id, itemId });
     },
-    [selectedGroup, onSelect, onViewChange, phone],
+    [selectedGroup, onSelect, onViewChange],
   );
 
   // Full screen belongs to the run you were reading. Before the paint rather than
@@ -329,16 +324,10 @@ export function Console({
 
   // A selected Response over an empty panel implies a state the console doesn't have.
   if (groups.length === 0) {
-    const empty = (
+    return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
         Run a script to see its calls here. {!phone && <span className="ml-1 font-mono">{runLabel}</span>}
       </div>
-    );
-    return (
-      <>
-        {empty}
-        {phone?.logHost && createPortal(empty, phone.logHost)}
-      </>
     );
   }
 
@@ -361,7 +350,7 @@ export function Console({
       onTabChange={onTabChange}
       onEmbeddedChange={onEmbeddedChange}
       onShowLogs={() => onLogFloorChange("all")}
-      onGoToCanvas={() => (phone ? phone.onShowCanvas() : onViewChange("canvas"))}
+      onGoToCanvas={() => onViewChange("canvas")}
     />
   );
 
@@ -391,28 +380,21 @@ export function Console({
   if (phone) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-background">
-        {/* One 36px row carries what the header and the strip do on the desktop:
-            which run, and its calls. */}
-        <div className="flex h-[36px] shrink-0 items-center gap-3 border-b border-border px-3">
+        {/* The desktop's own control, full width: three run surfaces here, three
+            there, same labels and same order. The code has no segment — it is the
+            sheet, raised over whatever this is showing. */}
+        <div className="flex h-[40px] shrink-0 items-center px-3">
+          <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} fullWidth />
+        </div>
+        {/* What the console header and the strip say on the desktop: which run, and
+            its calls. */}
+        <div className="flex h-[28px] shrink-0 items-center gap-3 border-y border-border px-3">
           <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} compact />
           {selectedGroup && activeView === "canvas" && selectedGroup.strip.calls > 0 && (
             <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} inline />
           )}
-          {/* Stats is a page a perf test lands on and nothing else asks for, so the way
-              between it and the canvas is drawn only where there is one to draw. */}
-          {selectedGroup && (activeView === "stats" || selectedGroup.run.perf !== undefined) && (
-            <SegmentedControl className="ml-auto h-[26px] shrink-0 p-[2px]" aria-label="Run view">
-              <SegmentedControl.Button selected={activeView === "canvas"} className="h-[20px] px-2.5 py-0 text-xs" onClick={() => onViewChange("canvas")}>
-                Canvas
-              </SegmentedControl.Button>
-              <SegmentedControl.Button selected={activeView === "stats"} className="h-[20px] px-2.5 py-0 text-xs" onClick={() => onViewChange("stats")}>
-                Stats
-              </SegmentedControl.Button>
-            </SegmentedControl>
-          )}
         </div>
         {body}
-        {phone.logHost && runLog && createPortal(runLog, phone.logHost)}
       </div>
     );
   }
@@ -489,6 +471,8 @@ interface ViewSelectProps {
   activeView: ConsoleView;
   waiting: boolean;
   onChange: (view: ConsoleView) => void;
+  // The phone, where the control is the whole of the chrome's first row.
+  fullWidth?: boolean;
 }
 
 /**
@@ -496,23 +480,19 @@ interface ViewSelectProps {
  * rather than in the header because the full-screen bar carries it too — a size is
  * not a mode, so taking the screen may not take two thirds of the run with it.
  */
-Console.ViewSelect = function ({ activeView, waiting, onChange }: ViewSelectProps) {
+Console.ViewSelect = function ({ activeView, waiting, onChange, fullWidth }: ViewSelectProps) {
+  const segment = fullWidth ? "h-[26px] flex-1 justify-center px-2.5 py-0 text-xs" : "h-[20px] px-2.5 py-0 text-xs";
   return (
-    <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
+    <SegmentedControl className={fullWidth ? "flex h-[32px] w-full p-[2px]" : "h-[26px] shrink-0 p-[2px]"} aria-label="Run view">
       {/* "Calls" rather than "Log": a row here is a call and only a call, and
           "log" is what anyone means by what a script printed — which is now a
           thing this view can mix in. */}
-      <SegmentedControl.Button
-        selected={activeView === "calls"}
-        className="h-[20px] px-2.5 py-0 text-xs"
-        onClick={() => onChange("calls")}
-        data-testid="console-view-calls"
-      >
+      <SegmentedControl.Button selected={activeView === "calls"} className={segment} onClick={() => onChange("calls")} data-testid="console-view-calls">
         Calls
       </SegmentedControl.Button>
       <SegmentedControl.Button
         selected={activeView === "canvas"}
-        className="h-[20px] gap-1.5 px-2.5 py-0 text-xs"
+        className={cn(segment, "gap-1.5")}
         onClick={() => onChange("canvas")}
         data-testid="console-view-canvas"
       >
@@ -524,12 +504,7 @@ Console.ViewSelect = function ({ activeView, waiting, onChange }: ViewSelectProp
       {/* Always there, and never carrying a count: a run has statistics whether or
           not anyone shaped it as a test, and a segment that appears once a run is
           big enough would be a control you have to notice to know exists. */}
-      <SegmentedControl.Button
-        selected={activeView === "stats"}
-        className="h-[20px] px-2.5 py-0 text-xs"
-        onClick={() => onChange("stats")}
-        data-testid="console-view-stats"
-      >
+      <SegmentedControl.Button selected={activeView === "stats"} className={segment} onClick={() => onChange("stats")} data-testid="console-view-stats">
         Stats
       </SegmentedControl.Button>
     </SegmentedControl>

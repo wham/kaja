@@ -2741,18 +2741,24 @@ export function App() {
     </>
   );
 
-  const bodyOf = (view: View) => (
-    <div key={view.id} style={{ display: view.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+  const bodyOf = (view: View, shownId?: string) => (
+    <div key={view.id} style={{ display: view.id === (shownId ?? currentView?.id) ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {renderBody(view)}
     </div>
   );
 
+  // The phone's sheet shows the nearest script in the view stack, so the answer to
+  // "which code?" is always "the one you were last in" — which is what lets it be
+  // raised over a definition, Variables or an app form as readily as over a run.
+  const phoneScriptView = views.find(isEditorView);
   const phoneScript =
-    currentView && (currentView.type === "draft" || currentView.type === "script") && currentFileId !== undefined
+    phoneScriptView && (phoneScriptView.type === "draft" || phoneScriptView.type === "script")
       ? {
-          fileId: currentFileId,
-          model: currentView.model,
-          readOnly: (currentView.type === "script" && !canWriteFiles) || (currentView.type === "draft" && agentViewName(currentView.draftId) !== undefined),
+          fileId: phoneScriptView.type === "script" ? phoneScriptView.script.path : phoneScriptView.draftId,
+          name: viewIdentity(phoneScriptView, drafts).name,
+          model: phoneScriptView.model,
+          readOnly:
+            (phoneScriptView.type === "script" && !canWriteFiles) || (phoneScriptView.type === "draft" && agentViewName(phoneScriptView.draftId) !== undefined),
         }
       : undefined;
 
@@ -2775,7 +2781,8 @@ export function App() {
           }
           action={action}
           script={phoneScript}
-          editor={editorBodies.map(bodyOf)}
+          onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
+          editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
           console={(phone) => (
             <Console
               fileId={currentFileId}
@@ -2794,7 +2801,7 @@ export function App() {
             />
           )}
         >
-          {otherBodies.map(bodyOf)}
+          {otherBodies.map((view) => bodyOf(view))}
         </PhoneFrame>
       ) : (
         <div
@@ -2903,7 +2910,7 @@ export function App() {
                     overflow,
                   }}
                 >
-                  {bodies.map(bodyOf)}
+                  {bodies.map((view) => bodyOf(view))}
                 </div>
                 {currentIsEditor && (
                   <>
