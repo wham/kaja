@@ -1,3 +1,4 @@
+import { MessageType, ScalarType } from "@protobuf-ts/runtime";
 import { expect, test } from "bun:test";
 import { readEmbedded, spliceEmbedded } from "./embeddedJson";
 
@@ -55,4 +56,22 @@ test("hands back what it did not read", () => {
 
 test("reads a payload that is nothing but a string", () => {
   expect(spliceEmbedded('{"a":1}')).toEqual({ value: { a: 1 }, found: true });
+});
+
+// A response is a generated message rather than an object literal, which is the
+// whole of what the pane is handed: a walk that stopped at the prototype found
+// nothing to read in any call ever made.
+test("reads the document a generated message carries", () => {
+  const content = new MessageType<{ type: string; text: string }>("Content", [
+    { no: 1, name: "type", kind: "scalar", T: ScalarType.STRING },
+    { no: 2, name: "text", kind: "scalar", T: ScalarType.STRING },
+  ]);
+  const result = new MessageType<{ content: unknown[] }>("CallToolResult", [
+    { no: 1, name: "content", kind: "message", repeat: 1, T: () => content },
+  ]).create({ content: [content.create({ type: "text", text: '{"tag_name":"0.15.0"}' })] });
+
+  const read = spliceEmbedded(result);
+
+  expect(read.found).toBe(true);
+  expect(read.value).toEqual({ content: [{ type: "text", text: { tag_name: "0.15.0" } }] });
 });

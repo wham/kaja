@@ -42,9 +42,8 @@ export interface EmbeddedPayload {
  * never descends into what it just read. A document inside a document is one
  * guess built on another, and the first wrong one would take the rest with it.
  *
- * Anything that is not a plain object, an array or a string is handed back as it
- * was: a bytes field is a Uint8Array, and walking one would draw it as a map of
- * indices.
+ * Anything holding no fields is handed back as it was: a bytes field is a
+ * Uint8Array, and walking one would draw it as a map of indices.
  */
 export function spliceEmbedded(payload: unknown): EmbeddedPayload {
   let found = false;
@@ -60,7 +59,7 @@ export function spliceEmbedded(payload: unknown): EmbeddedPayload {
       const read = node.map(walk);
       return read.some((item, index) => item !== node[index]) ? read : node;
     }
-    if (!isPlainObject(node)) return node;
+    if (!isRecord(node)) return node;
     let changed = false;
     const read: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(node)) {
@@ -73,8 +72,10 @@ export function spliceEmbedded(payload: unknown): EmbeddedPayload {
   return { value: walk(payload), found };
 }
 
-function isPlainObject(node: unknown): node is Record<string, unknown> {
+// A payload is a generated message rather than an object literal, and the runtime
+// creates one over a prototype of its own — so a walk that descended only into
+// objects made by `{}` never reached a response at all.
+function isRecord(node: unknown): node is Record<string, unknown> {
   if (node === null || typeof node !== "object") return false;
-  const prototype = Object.getPrototypeOf(node);
-  return prototype === Object.prototype || prototype === null;
+  return !ArrayBuffer.isView(node) && !(node instanceof Date) && !(node instanceof Map) && !(node instanceof Set);
 }
