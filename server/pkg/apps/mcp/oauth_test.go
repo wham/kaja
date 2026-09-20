@@ -86,7 +86,7 @@ func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := testAuthorizer(t).readProtectedResource(server.URL+"/v1/mcp", "")
+	_, err := testAuthorizer(t).readProtectedResource(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
 	if err == nil {
 		t.Fatal("expected the discovery to fail")
 	}
@@ -98,6 +98,53 @@ func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "404") {
 		t.Errorf("err = %v, want the fallback's answer left out", err)
+	}
+}
+
+// A server that publishes no document about itself is signed in to at its own
+// origin, the way the revision of MCP before RFC 9728 read one - and the
+// document it publishes at its root about its root is passed over on the way,
+// being about another resource than the endpoint the app names.
+func TestSignsInAtTheOriginWhereThereIsNoResourceMetadata(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"resource": server.URL + "/", "authorization_servers": []string{"https://elsewhere.example"}})
+	})
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{
+			"issuer":                 server.URL,
+			"authorization_endpoint": server.URL + "/authorize",
+			"token_endpoint":         server.URL + "/token",
+		})
+	})
+
+	authorizer := testAuthorizer(t)
+	found, described, err := authorizer.signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+	if err != nil {
+		t.Fatalf("signInAt: %v", err)
+	}
+	if described != nil {
+		t.Errorf("described = %#v, want the root's document passed over", described)
+	}
+	if found.Issuer != server.URL || found.TokenEndpoint != server.URL+"/token" {
+		t.Errorf("found = %#v, want the server's own metadata", found)
+	}
+}
+
+// With nothing at the origin either, the missing resource metadata is what is
+// reported: it is the document the specification asks this server for.
+func TestTheMissingResourceMetadataIsWhatIsReported(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+
+	_, _, err := testAuthorizer(t).signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+	if err == nil {
+		t.Fatal("expected the sign-in to have nowhere to go")
+	}
+	if !strings.Contains(err.Error(), "/.well-known/oauth-protected-resource/v1/mcp") {
+		t.Errorf("err = %v, want the document the server does not publish", err)
 	}
 }
 
