@@ -16,7 +16,7 @@ replace github.com/wham/kaja/v2/protoc-gen-kaja => ../protoc-gen-kaja
 require (
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0
 )
 
 require (

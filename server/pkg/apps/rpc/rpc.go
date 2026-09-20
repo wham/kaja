@@ -48,7 +48,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 }
 
 // reflect discovers the upstream's services via gRPC reflection and writes the
-// reconstructed .proto files into protoDir. The app's own credential is sent
+// descriptors it was answered with into protoDir. The app's own credential is sent
 // with the reflection stream: a server that guards its methods usually guards
 // the list of them too.
 func reflect(url string, options grpc.TLSOptions, metadata map[string]string, protoDir string, log func(string)) error {
@@ -67,9 +67,9 @@ func reflect(url string, options grpc.TLSOptions, metadata map[string]string, pr
 	}
 	log(fmt.Sprintf("Discovered %d service(s): %v", len(result.Services), result.Services))
 
-	if err := grpc.WriteProtoFiles(result, protoDir); err != nil {
-		return fmt.Errorf("writing proto files: %w", err)
+	if err := grpc.WriteDescriptorSet(result, protoDir); err != nil {
+		return fmt.Errorf("writing the descriptors: %w", err)
 	}
-	log("Proto files written to " + protoDir)
+	log("Descriptors written to " + protoDir)
 	return nil
 }

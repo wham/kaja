@@ -147,7 +147,9 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds))
+	// A surface is one message, and a server with a few hundred protos in it has a
+	// surface bigger than grpc-go's default.
+	conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(MaxMessageSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC client for %s (TLS=%v): %w", c.target, c.useTLS, err)
 	}
@@ -358,242 +360,51 @@ func (c *ReflectionClient) getFileDescriptorByName(
 	return nil
 }
 
-// WriteProtoFiles writes the discovered file descriptors as .proto files to a directory.
-// Returns the directory path containing the generated files.
-func WriteProtoFiles(result *ReflectionResult, outputDir string) error {
-	for _, fd := range result.FileDescriptors {
-		fileName := fd.GetName()
+// DescriptorSetName is the one file a reflected surface is written to: the
+// descriptors the server sent, as it sent them. Compiling those directly is what
+// keeps kaja's reading of a server the server's own - printing them back out as
+// .proto text was a second parser to keep in step with protoc, and the one this
+// replaced turned an edition into a syntax nothing accepts, a proto2 file into a
+// proto3 one, an optional field into a oneof of its own, and dropped every option
+// it had no line for, deprecation included.
+const DescriptorSetName = "reflection.binpb"
 
-		// Skip well-known types - they'll be provided by the include dir
-		if strings.HasPrefix(fileName, "google/protobuf/") {
+// WriteDescriptorSet writes the discovered descriptors into dir as a
+// FileDescriptorSet, which is what the compiler reads them back out of.
+func WriteDescriptorSet(result *ReflectionResult, dir string) error {
+	set := &descriptorpb.FileDescriptorSet{File: result.FileDescriptors}
+	encoded, err := proto.Marshal(set)
+	if err != nil {
+		return fmt.Errorf("encoding the descriptors: %w", err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+	return os.WriteFile(filepath.Join(dir, DescriptorSetName), encoded, 0o644)
+}
+
+// DescriptorSetFiles reads a descriptor set and reports the files to compile from
+// it: everything the server declared, which is everything but the well-known types
+// its protos import.
+func DescriptorSetFiles(path string) ([]string, error) {
+	encoded, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	set := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(encoded, set); err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	var names []string
+	for _, file := range set.GetFile() {
+		if strings.HasPrefix(file.GetName(), "google/protobuf/") {
 			continue
 		}
-
-		filePath := filepath.Join(outputDir, fileName)
-
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", fileName, err)
-		}
-
-		content := generateProtoFromDescriptor(fd)
-
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", fileName, err)
-		}
+		names = append(names, file.GetName())
 	}
-
-	return nil
-}
-
-// generateProtoFromDescriptor converts a FileDescriptorProto back to .proto text format.
-func generateProtoFromDescriptor(fd *descriptorpb.FileDescriptorProto) string {
-	var b strings.Builder
-
-	if fd.GetSyntax() != "" {
-		b.WriteString(fmt.Sprintf("syntax = \"%s\";\n\n", fd.GetSyntax()))
-	} else {
-		b.WriteString("syntax = \"proto3\";\n\n")
+	if len(names) == 0 {
+		return nil, fmt.Errorf("%s declares no files", path)
 	}
-
-	if fd.GetPackage() != "" {
-		b.WriteString(fmt.Sprintf("package %s;\n\n", fd.GetPackage()))
-	}
-
-	for _, dep := range fd.GetDependency() {
-		b.WriteString(fmt.Sprintf("import \"%s\";\n", dep))
-	}
-	if len(fd.GetDependency()) > 0 {
-		b.WriteString("\n")
-	}
-
-	if fd.GetOptions() != nil {
-		opts := fd.GetOptions()
-		if opts.GetGoPackage() != "" {
-			b.WriteString(fmt.Sprintf("option go_package = \"%s\";\n\n", opts.GetGoPackage()))
-		}
-	}
-
-	for _, enum := range fd.GetEnumType() {
-		writeEnum(&b, enum, 0)
-	}
-
-	for _, msg := range fd.GetMessageType() {
-		writeMessage(&b, msg, 0)
-	}
-
-	for _, svc := range fd.GetService() {
-		writeService(&b, svc)
-	}
-
-	return b.String()
-}
-
-func writeEnum(b *strings.Builder, enum *descriptorpb.EnumDescriptorProto, indent int) {
-	prefix := strings.Repeat("  ", indent)
-	b.WriteString(fmt.Sprintf("%senum %s {\n", prefix, enum.GetName()))
-
-	for _, val := range enum.GetValue() {
-		b.WriteString(fmt.Sprintf("%s  %s = %d;\n", prefix, val.GetName(), val.GetNumber()))
-	}
-
-	b.WriteString(fmt.Sprintf("%s}\n\n", prefix))
-}
-
-func writeMessage(b *strings.Builder, msg *descriptorpb.DescriptorProto, indent int) {
-	prefix := strings.Repeat("  ", indent)
-	b.WriteString(fmt.Sprintf("%smessage %s {\n", prefix, msg.GetName()))
-
-	for _, enum := range msg.GetEnumType() {
-		writeEnum(b, enum, indent+1)
-	}
-
-	for _, nested := range msg.GetNestedType() {
-		// Skip map entry types
-		if nested.GetOptions() != nil && nested.GetOptions().GetMapEntry() {
-			continue
-		}
-		writeMessage(b, nested, indent+1)
-	}
-
-	oneofFields := make(map[int32][]int) // oneof index -> field indices
-	for i, field := range msg.GetField() {
-		if field.OneofIndex != nil {
-			oneofFields[*field.OneofIndex] = append(oneofFields[*field.OneofIndex], i)
-		}
-	}
-
-	fieldsInOneof := make(map[int]bool)
-	for _, indices := range oneofFields {
-		for _, idx := range indices {
-			fieldsInOneof[idx] = true
-		}
-	}
-
-	for i, oneof := range msg.GetOneofDecl() {
-		b.WriteString(fmt.Sprintf("%s  oneof %s {\n", prefix, oneof.GetName()))
-		for _, fieldIdx := range oneofFields[int32(i)] {
-			field := msg.GetField()[fieldIdx]
-			writeField(b, field, msg, indent+2)
-		}
-		b.WriteString(fmt.Sprintf("%s  }\n", prefix))
-	}
-
-	for i, field := range msg.GetField() {
-		if !fieldsInOneof[i] {
-			writeField(b, field, msg, indent+1)
-		}
-	}
-
-	b.WriteString(fmt.Sprintf("%s}\n\n", prefix))
-}
-
-func writeField(b *strings.Builder, field *descriptorpb.FieldDescriptorProto, parent *descriptorpb.DescriptorProto, indent int) {
-	prefix := strings.Repeat("  ", indent)
-
-	typeName := getTypeName(field, parent)
-
-	label := ""
-	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && !strings.HasPrefix(typeName, "map<") {
-		label = "repeated "
-	}
-
-	b.WriteString(fmt.Sprintf("%s%s%s %s = %d;\n", prefix, label, typeName, field.GetName(), field.GetNumber()))
-}
-
-func getTypeName(field *descriptorpb.FieldDescriptorProto, parent *descriptorpb.DescriptorProto) string {
-	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-		typeName := field.GetTypeName()
-		for _, nested := range parent.GetNestedType() {
-			if nested.GetOptions() != nil && nested.GetOptions().GetMapEntry() {
-				fullName := "." + parent.GetName() + "." + nested.GetName()
-				if strings.HasSuffix(typeName, fullName) || strings.HasSuffix(typeName, "."+nested.GetName()) {
-					var keyType, valueType string
-					for _, f := range nested.GetField() {
-						if f.GetName() == "key" {
-							keyType = getScalarTypeName(f.GetType())
-						} else if f.GetName() == "value" {
-							if f.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE || f.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
-								valueType = simplifyTypeName(f.GetTypeName())
-							} else {
-								valueType = getScalarTypeName(f.GetType())
-							}
-						}
-					}
-					return fmt.Sprintf("map<%s, %s>", keyType, valueType)
-				}
-			}
-		}
-	}
-
-	switch field.GetType() {
-	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE, descriptorpb.FieldDescriptorProto_TYPE_ENUM:
-		return simplifyTypeName(field.GetTypeName())
-	default:
-		return getScalarTypeName(field.GetType())
-	}
-}
-
-func simplifyTypeName(name string) string {
-	if strings.HasPrefix(name, ".") {
-		name = name[1:]
-	}
-	return name
-}
-
-func getScalarTypeName(t descriptorpb.FieldDescriptorProto_Type) string {
-	switch t {
-	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
-		return "double"
-	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
-		return "float"
-	case descriptorpb.FieldDescriptorProto_TYPE_INT64:
-		return "int64"
-	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
-		return "uint64"
-	case descriptorpb.FieldDescriptorProto_TYPE_INT32:
-		return "int32"
-	case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
-		return "fixed64"
-	case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
-		return "fixed32"
-	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
-		return "bool"
-	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
-		return "string"
-	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
-		return "bytes"
-	case descriptorpb.FieldDescriptorProto_TYPE_UINT32:
-		return "uint32"
-	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
-		return "sfixed32"
-	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-		return "sfixed64"
-	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
-		return "sint32"
-	case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
-		return "sint64"
-	default:
-		return "unknown"
-	}
-}
-
-func writeService(b *strings.Builder, svc *descriptorpb.ServiceDescriptorProto) {
-	b.WriteString(fmt.Sprintf("service %s {\n", svc.GetName()))
-
-	for _, method := range svc.GetMethod() {
-		inputType := simplifyTypeName(method.GetInputType())
-		outputType := simplifyTypeName(method.GetOutputType())
-
-		if method.GetClientStreaming() && method.GetServerStreaming() {
-			b.WriteString(fmt.Sprintf("  rpc %s(stream %s) returns (stream %s);\n", method.GetName(), inputType, outputType))
-		} else if method.GetClientStreaming() {
-			b.WriteString(fmt.Sprintf("  rpc %s(stream %s) returns (%s);\n", method.GetName(), inputType, outputType))
-		} else if method.GetServerStreaming() {
-			b.WriteString(fmt.Sprintf("  rpc %s(%s) returns (stream %s);\n", method.GetName(), inputType, outputType))
-		} else {
-			b.WriteString(fmt.Sprintf("  rpc %s(%s) returns (%s);\n", method.GetName(), inputType, outputType))
-		}
-	}
-
-	b.WriteString("}\n\n")
+	return names, nil
 }

@@ -4,7 +4,7 @@ import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@
 import { APP_HEADER, appHeaders, appType, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import { rpcErrorMessage } from "./rpcMessage";
-import { TOOL_ERROR_CODE, ToolFailure, UPSTREAM_TRAILER, parseUpstream } from "./upstream";
+import { TOOL_ERROR_CODE, ToolFailure, UPSTREAM_TRAILER, decodeTrailerValue, parseUpstream } from "./upstream";
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
 import { getBaseUrlForApp, GRPC_WEB_FORMAT } from "./server/connection";
@@ -33,16 +33,18 @@ function absorbReserved(methodCall: MethodCall, key: string, value: unknown): bo
 
 function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, trailers?: RpcMetadata): void {
   const responseHeaders: MethodCallHeaders = {};
-  const absorb = (meta?: RpcMetadata) => {
+  const absorb = (meta: RpcMetadata | undefined, read: (value: unknown) => string) => {
     if (!meta) return;
     for (const [key, value] of Object.entries(meta)) {
       if (!absorbReserved(methodCall, key, value)) {
-        responseHeaders[key] = String(value);
+        responseHeaders[key] = read(value);
       }
     }
   };
-  absorb(headers);
-  absorb(trailers);
+  // A response header arrives as the transport read it; a trailer arrives percent-
+  // encoded, because that is how kaja wrote it into a block read back as Latin-1.
+  absorb(headers, String);
+  absorb(trailers, decodeTrailerValue);
   methodCall.responseHeaders = responseHeaders;
 }
 
@@ -57,7 +59,7 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
   const responseHeaders: MethodCallHeaders = {};
   for (const [key, value] of Object.entries(metaRecord)) {
     if (!absorbReserved(methodCall, key, value)) {
-      responseHeaders[key] = String(value);
+      responseHeaders[key] = decodeTrailerValue(value);
     }
   }
   if (Object.keys(responseHeaders).length > 0) {

@@ -9,6 +9,7 @@ import (
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/internal/workspace"
+	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
 )
@@ -98,20 +99,40 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
+// compilerFor reads what a proto directory holds and says how to compile it. A
+// surface kaja was pointed at is .proto files; one that came from reflection is the
+// descriptors the server sent, compiled as they are rather than printed back out as
+// text something else has to parse again.
+func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, error) {
+	set := filepath.Join(protoDir, grpc.DescriptorSetName)
+	if _, err := os.Stat(set); err == nil {
+		files, err := grpc.DescriptorSetFiles(set)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading descriptors: %v", err)
+		}
+		c.logger.debug(fmt.Sprintf("Found %d reflected file(s)", len(files)))
+		return protoc.New(protoc.WithDescriptorSetIn(set)), files, nil
+	}
+
+	protoFiles, err := findProtoFiles(protoDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("finding proto files: %v", err)
+	}
+	if len(protoFiles) == 0 {
+		return nil, nil, fmt.Errorf("no .proto files found in %s", protoDir)
+	}
+	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
+	return protoc.New(protoc.WithProtoPaths(protoDir)), protoFiles, nil
+}
+
 func (c *Compiler) compile(sourcesDir string, protoDir string) error {
 	protoDir = workspace.Resolve(protoDir)
 	c.logger.debug("protoDir: " + protoDir)
 
-	protoFiles, err := findProtoFiles(protoDir)
+	compiler, protoFiles, err := c.compilerFor(protoDir)
 	if err != nil {
-		return fmt.Errorf("finding proto files: %v", err)
+		return err
 	}
-	if len(protoFiles) == 0 {
-		return fmt.Errorf("no .proto files found in %s", protoDir)
-	}
-	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
-
-	compiler := protoc.New(protoc.WithProtoPaths(protoDir))
 
 	c.logger.debug("Compiling proto files")
 	result, err := compiler.Compile(protoFiles...)

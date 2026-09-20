@@ -76,6 +76,21 @@ function asToolFailure(error: unknown): ToolFailure | undefined {
 // server-side) because a trailer block is read back byte by byte as Latin-1. Anything
 // that is not the object it should be reads as a call that reported nothing, which is
 // what a missing trailer already means.
+// What a trailer carried, as it was written. A trailer block is read back byte by
+// byte as Latin-1, so everything kaja writes into one is percent-encoded — which is
+// why a server's own header with an accent in it read as escapes wherever the value
+// was shown rather than parsed.
+export function decodeTrailerValue(value: unknown): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const text = String(raw);
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    // Not a valid escape sequence; the raw value is still worth more than nothing.
+    return text;
+  }
+}
+
 export function parseUpstream(value: unknown): Upstream | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
   if (raw === undefined || raw === null) return undefined;
