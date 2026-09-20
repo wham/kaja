@@ -357,3 +357,90 @@ func TestUnionOfTypesIsAValue(t *testing.T) {
 		`optional string maybe = 2 [json_name = "maybe"];`,
 	)
 }
+
+// Every field read off a document carries presence, required ones included.
+// Without it a required scalar the caller set to its zero is dropped on the way
+// out — and a zero is exactly what a required field is most often set to.
+func TestRequiredFieldsCarryPresence(t *testing.T) {
+	proto := generate(t, `{
+		"type": "object",
+		"properties": {
+			"count": {"type": "integer"},
+			"flag": {"type": "boolean"},
+			"note": {"type": "string"},
+			"tags": {"type": "array", "items": {"type": "string"}}
+		},
+		"required": ["count", "flag", "note", "tags"]
+	}`)
+	requireLines(t, proto,
+		`optional double count = 1 [json_name = "count"];`,
+		`optional bool flag = 2 [json_name = "flag"];`,
+		`optional string note = 3 [json_name = "note"];`,
+		// A repeated field has no presence to carry, and an empty one is nothing
+		// to send.
+		`repeated string tags = 4 [json_name = "tags"];`,
+	)
+}
+
+// A prompt's arguments are fields like any other, so a required one is sent even
+// when it is the empty string.
+func TestRequiredPromptArgumentCarriesPresence(t *testing.T) {
+	gen, err := generateProto(&Surface{Prompts: []Prompt{{
+		Name:      "review",
+		Arguments: []PromptArgument{{Name: "diff", Required: true}},
+	}}})
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	requireLines(t, gen.proto, `optional string diff = 1 [json_name = "diff"];`)
+}
+
+// A $ref pointer names a place in one document, and each tool's schema is its
+// own document: two tools both declaring `#/$defs/Item` declare two shapes.
+func TestEachToolKeepsItsOwnDefs(t *testing.T) {
+	gen, err := generateProto(&Surface{Tools: []Tool{
+		{Name: "alpha", InputSchema: json.RawMessage(`{
+			"type":"object","properties":{"item":{"$ref":"#/$defs/Item"}},
+			"$defs":{"Item":{"type":"object","properties":{"onlyInAlpha":{"type":"string"}}}}}`)},
+		{Name: "beta", InputSchema: json.RawMessage(`{
+			"type":"object","properties":{"item":{"$ref":"#/$defs/Item"}},
+			"$defs":{"Item":{"type":"object","properties":{"onlyInBeta":{"type":"boolean"}}}}}`)},
+	}})
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	requireLines(t, gen.proto,
+		`optional string only_in_alpha = 1 [json_name = "onlyInAlpha"];`,
+		`optional bool only_in_beta = 1 [json_name = "onlyInBeta"];`,
+		`optional Item item = 1 [json_name = "item"];`,
+		`optional Item2 item = 1 [json_name = "item"];`,
+	)
+}
+
+// A server that declares the resources capability and lists nothing under it has
+// nothing to address by URI, so the three fixed methods would be rows leading
+// nowhere — and the form, which counts what was listed, promises none.
+func TestDeclaredButEmptyResourcesIsNoService(t *testing.T) {
+	gen, err := generateProto(&Surface{
+		Tools:        []Tool{{Name: "ping"}},
+		Capabilities: Capabilities{Resources: &struct{}{}, Prompts: &struct{}{}},
+	})
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	if !reflect.DeepEqual(gen.serviceTypeNames, []string{"mcp.Tools"}) {
+		t.Errorf("services = %v, want the Tools service alone", gen.serviceTypeNames)
+	}
+
+	// A template is something to address, even with no resource listed.
+	templated, err := generateProto(&Surface{
+		Tools:             []Tool{{Name: "ping"}},
+		ResourceTemplates: []ResourceTemplate{{URITemplate: "file:///{path}"}},
+	})
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	if len(templated.serviceTypeNames) != 2 {
+		t.Errorf("services = %v, want the Resources service too", templated.serviceTypeNames)
+	}
+}

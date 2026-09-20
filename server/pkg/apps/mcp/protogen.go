@@ -43,10 +43,12 @@ type fieldDef struct {
 	repeated bool
 	// mapKey renders the field as map<mapKey, typ>. Only ever "string".
 	mapKey string
-	// optional tracks presence: a field the document doesn't insist on is sent
-	// only when the script set it, and drawn only when the server did. Without it
-	// a zero the script wrote is dropped on the way out and every field the server
-	// left out is drawn as its zero on the way back.
+	// optional tracks presence: the field is sent only when the script set it, and
+	// drawn only when the server did. Every field read off a document carries it,
+	// required ones included - without presence a zero the script wrote is dropped
+	// on the way out, so the tool the document insists on being told about is the
+	// one that never hears the value. A repeated field and a map have no presence
+	// to carry, and an empty one is nothing to send.
 	optional bool
 	doc      string
 }
@@ -73,9 +75,6 @@ type serviceDef struct {
 type generator struct {
 	messages  []*messageDef
 	usedNames map[string]bool
-	// refNames maps a resolved $ref pointer to the message already allocated for
-	// it, which is also what keeps a self-referential schema from recursing.
-	refNames  map[string]string
 	usesValue bool
 
 	services []*serviceDef
@@ -90,7 +89,6 @@ type generator struct {
 func generateProto(surface *Surface) (*generated, error) {
 	g := &generator{
 		usedNames: map[string]bool{},
-		refNames:  map[string]string{},
 		bindings:  map[string]*binding{},
 	}
 	// The shapes every server shares are written out verbatim, so their names are
@@ -102,7 +100,11 @@ func generateProto(surface *Surface) (*generated, error) {
 	if len(surface.Tools) > 0 {
 		g.addTools(surface.Tools)
 	}
-	if len(surface.Resources) > 0 || len(surface.ResourceTemplates) > 0 || surface.Capabilities.Resources != nil {
+	// A server that declares the capability and lists neither a resource nor a
+	// template has nothing to address by URI that it has told anyone about, so the
+	// three fixed methods would be rows leading nowhere - which is also what the
+	// form says the app will add, counting what was listed.
+	if len(surface.Resources) > 0 || len(surface.ResourceTemplates) > 0 {
 		g.addResources()
 	}
 	if len(surface.Prompts) > 0 {
@@ -326,7 +328,7 @@ func (g *generator) addPrompts(prompts []Prompt) {
 				doc = strings.TrimSpace(doc + "\n\n[required]")
 			}
 			request.fields = append(request.fields, fieldDef{
-				typ: "string", name: protoFieldName(argument.Name), number: i + 1, jsonName: argument.Name, optional: !argument.Required, doc: doc,
+				typ: "string", name: protoFieldName(argument.Name), number: i + 1, jsonName: argument.Name, optional: true, doc: doc,
 			})
 		}
 		g.messages = append(g.messages, request)
@@ -348,6 +350,12 @@ type walker struct {
 	// depth bounds the walk. A $ref cycle is broken by the name allocated for the
 	// ref, but a schema that nests inline has no name to break on.
 	depth int
+	// refNames maps a $ref pointer to the message allocated for it, which is also
+	// what keeps a self-referential schema from recursing. It belongs to the
+	// walker rather than to the generator because a pointer names a place in one
+	// document: every tool's schema declares its own `#/$defs/Item`, and two of
+	// them are two shapes.
+	refNames map[string]string
 }
 
 const maxSchemaDepth = 12
@@ -393,7 +401,7 @@ func (w *walker) fieldsOf(s *schema, owner string) []fieldDef {
 			jsonName: entry.Name,
 			repeated: repeated,
 			mapKey:   mapKey,
-			optional: !repeated && mapKey == "" && !required[entry.Name],
+			optional: !repeated && mapKey == "",
 			doc:      fieldDoc(entry.Schema, required[entry.Name]),
 		})
 	}
@@ -415,12 +423,15 @@ func (w *walker) typeOf(s *schema, nameHint string) (typ string, repeated bool, 
 		return w.value(), false, ""
 	}
 	if ref := s.Ref; ref != "" {
-		if name, ok := w.g.refNames[ref]; ok {
+		if name, ok := w.refNames[ref]; ok {
 			return name, false, ""
 		}
 		if isObject(w.merge(resolved)) {
 			name := w.g.reserve(protoIdentifier(refName(ref), "Type"))
-			w.g.refNames[ref] = name
+			if w.refNames == nil {
+				w.refNames = map[string]string{}
+			}
+			w.refNames[ref] = name
 			message := &messageDef{name: name, doc: strings.TrimSpace(resolved.Description)}
 			w.g.messages = append(w.g.messages, message)
 			message.fields = w.fieldsOf(w.merge(resolved), name)

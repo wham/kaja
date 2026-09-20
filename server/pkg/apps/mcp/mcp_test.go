@@ -923,3 +923,37 @@ func TestInspectRecognisesTheLegacyTransport(t *testing.T) {
 		t.Errorf("the detail carries the markup: %s", problem.Detail)
 	}
 }
+
+// A zero is a value: a required argument the script set to "" or 0 has to reach
+// the server, or the call kaja writes for a tool with a required string cannot
+// be run at all.
+func TestZeroValuedArgumentsReachTheServer(t *testing.T) {
+	fake, endpoint := modernServer(t, nil)
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	request := encodeRequest(t, bound, `{"location":"","days":0}`)
+	if _, err := invoke(in, "mcp.Tools/GetWeather", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+
+	call := fake.asked("tools/call")
+	if call == nil {
+		t.Fatal("expected tools/call")
+	}
+	var arguments map[string]any
+	if err := json.Unmarshal(call.Params["arguments"], &arguments); err != nil {
+		t.Fatalf("arguments: %v", err)
+	}
+	if got, ok := arguments["location"]; !ok || got != "" {
+		t.Errorf("location = %v (present %v), want the empty string the caller set", got, ok)
+	}
+	if got, ok := arguments["days"]; !ok || got != float64(0) {
+		t.Errorf("days = %v (present %v), want the zero the caller set", got, ok)
+	}
+	// A field nobody set is still absent, so the server's own validation is what
+	// answers for it.
+	if _, ok := arguments["units"]; ok {
+		t.Errorf("units was sent though nothing set it: %v", arguments)
+	}
+}
