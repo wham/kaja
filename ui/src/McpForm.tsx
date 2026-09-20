@@ -206,7 +206,7 @@ export function McpForm({
       }
       setSignIn({ status: "idle" });
     } catch (error) {
-      failed({ kind: McpProblemKind.MCP_PROBLEM_AUTHORIZATION, message: "Kaja could not sign in to that server.", detail: rpcErrorMessage(error) });
+      failed({ kind: McpProblemKind.MCP_PROBLEM_AUTHORIZATION, message: "The sign-in failed.", detail: rpcErrorMessage(error) });
     }
   }, [read]);
 

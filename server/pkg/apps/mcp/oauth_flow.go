@@ -348,7 +348,9 @@ func (a *Authorizer) readProtectedResource(endpoint string, named string) (*prot
 			// address the specification puts first and the one a server publishing
 			// this document publishes it at. Reporting the last one instead named
 			// the fallback, so a person was told about a URL their server was never
-			// going to answer at while the address that mattered went unsaid.
+			// going to answer at while the address that mattered went unsaid. What
+			// is reported is the request and its answer: a document kaja was not
+			// served is not a document the server does not publish.
 			if reported == nil {
 				reported = err
 			}
@@ -359,7 +361,7 @@ func (a *Authorizer) readProtectedResource(endpoint string, named string) (*prot
 	if reported == nil {
 		reported = fmt.Errorf("%q is not a URL", endpoint)
 	}
-	return nil, fmt.Errorf("the server does not say where to sign in: %w", reported)
+	return nil, fmt.Errorf("no protected resource metadata: %w", reported)
 }
 
 // readAuthorizationServer tries each well-known form in turn and takes the first
