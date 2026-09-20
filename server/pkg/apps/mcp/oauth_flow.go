@@ -129,21 +129,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	}
 
 	challenged, metadataURL := a.probe(app)
-	described, err := a.readProtectedResource(app.Endpoint, metadataURL)
-	if err != nil {
-		return SignInPrompt{}, nil, err
-	}
-	if described.Resource != "" {
-		declared, err := canonicalResource(described.Resource)
-		if err != nil || declared != resource {
-			return SignInPrompt{}, nil, fmt.Errorf("the server's metadata is about %q rather than about %q", described.Resource, resource)
-		}
-	}
-	if len(described.AuthorizationServers) == 0 {
-		return SignInPrompt{}, nil, fmt.Errorf("the server names no authorization server to sign in to")
-	}
-
-	server, err := a.readAuthorizationServer(described.AuthorizationServers[0])
+	server, described, err := a.signInAt(app.Endpoint, resource, metadataURL)
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
@@ -338,7 +324,38 @@ func (a *Authorizer) probe(app AppAuthorization) (challenge, string) {
 	return parsed, parsed["resource_metadata"]
 }
 
-func (a *Authorizer) readProtectedResource(endpoint string, named string) (*protectedResource, error) {
+// signInAt is the authorization server to sign in at, and the resource's own
+// document where it published one. A server that publishes none is signed in to
+// at its own origin: that is what the revision of MCP before RFC 9728 said an
+// MCP server was, and a document served by the host the endpoint is on is the
+// server's own word exactly as the missing one would have been.
+func (a *Authorizer) signInAt(endpoint string, resource string, named string) (*authorizationServer, *protectedResource, error) {
+	described, missing := a.readProtectedResource(endpoint, resource, named)
+	if missing == nil {
+		server, err := a.readAuthorizationServer(described.AuthorizationServers[0])
+		if err != nil {
+			return nil, nil, err
+		}
+		return server, described, nil
+	}
+	origin, err := serverOrigin(endpoint)
+	if err != nil {
+		return nil, nil, missing
+	}
+	// The missing document is what is reported when the fallback is not there
+	// either: it is the one the specification asks this server for.
+	server, err := a.readAuthorizationServer(origin)
+	if err != nil {
+		return nil, nil, missing
+	}
+	return server, nil, nil
+}
+
+// readProtectedResource reads the document naming the authorization server that
+// issues tokens for this resource. A document that is about something else is
+// passed over rather than taken: a host serving several MCP endpoints publishes
+// one at its root about the root, and that is not this endpoint's.
+func (a *Authorizer) readProtectedResource(endpoint string, resource string, named string) (*protectedResource, error) {
 	candidates := protectedResourceURLs(endpoint, named)
 	var reported error
 	for _, target := range candidates {
@@ -353,6 +370,18 @@ func (a *Authorizer) readProtectedResource(endpoint string, named string) (*prot
 			// served is not a document the server does not publish.
 			if reported == nil {
 				reported = err
+			}
+			continue
+		}
+		if !describes(described, resource) {
+			if reported == nil {
+				reported = fmt.Errorf("%s is about %q rather than about %q", target, described.Resource, resource)
+			}
+			continue
+		}
+		if len(described.AuthorizationServers) == 0 {
+			if reported == nil {
+				reported = fmt.Errorf("%s names no authorization server", target)
 			}
 			continue
 		}

@@ -105,6 +105,17 @@ func canonicalResource(raw string) (string, error) {
 	return parsed.String(), nil
 }
 
+// serverOrigin is the MCP endpoint reduced to the host it is served from, which
+// is the authorization server of a server publishing no metadata of its own.
+func serverOrigin(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("%q is not an absolute URL", raw)
+	}
+	origin := &url.URL{Scheme: strings.ToLower(parsed.Scheme), Host: strings.ToLower(parsed.Host)}
+	return origin.String(), nil
+}
+
 // protectedResource is the RFC 9728 document an MCP server serves about itself:
 // which authorization servers issue tokens for it, and the scopes it is worth
 // asking for.
@@ -112,6 +123,16 @@ type protectedResource struct {
 	Resource             string   `json:"resource"`
 	AuthorizationServers []string `json:"authorization_servers"`
 	ScopesSupported      []string `json:"scopes_supported"`
+}
+
+// describes reports whether a document is about the resource it was read for. A
+// document naming no resource does not say, which is taken on trust.
+func describes(document *protectedResource, resource string) bool {
+	if document.Resource == "" {
+		return true
+	}
+	declared, err := canonicalResource(document.Resource)
+	return err == nil && declared == resource
 }
 
 // protectedResourceURLs is where the resource's metadata is looked for. A
