@@ -18,6 +18,8 @@ const sent: { message: unknown; options: RpcOptions }[] = [];
 
 // Set by the one test about a call that was refused; a call is answered otherwise.
 let refuse: Error | undefined;
+// What the server answered with beside the response, as a trailer block carries it.
+let trailer: Record<string, string> = {};
 
 class FakeShowsClient {
   readonly methods = [{ name: "ListShows" }];
@@ -43,6 +45,7 @@ class FakeShowsClient {
         // What the app exchanged with the API it carried the call to, in the one
         // envelope everything Kaja has to say about a call travels in.
         [UPSTREAM_TRAILER]: JSON.stringify({ responseHeaders: { "X-RateLimit-Remaining": "42" }, durationMs: 12 }),
+        ...trailer,
       }),
     };
   }
@@ -67,6 +70,7 @@ const app = {
 function client() {
   sent.length = 0;
   refuse = undefined;
+  trailer = {};
   const calls: MethodCall[] = [];
   const kaja: Kaja = new KajaHost().run({
     onMethodCallUpdate: (methodCall) => void calls.push(methodCall),
@@ -177,5 +181,19 @@ describe("a method that streams from the client", () => {
     await methods.Upload({ chunk: "a" });
     expect(calls[0].method.name).toBe("Upload");
     expect(calls[0].input).toEqual({ chunk: "a" });
+  });
+});
+
+describe("what a server said about a call", () => {
+  it("reads a trailer as it was written rather than as it was escaped", async () => {
+    const { methods, calls } = client();
+    trailer = {
+      "grpc-status-details-bin": '[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SEAT_TAKEN"}]',
+      "x-seat": "%C5%99ada%201",
+    };
+    await methods.ListShows({});
+    const headers = calls[calls.length - 1].responseHeaders ?? {};
+    expect(headers["x-seat"]).toBe("řada 1");
+    expect(headers["grpc-status-details-bin"]).toContain("SEAT_TAKEN");
   });
 });

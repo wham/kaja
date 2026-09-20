@@ -1,163 +1,97 @@
 package grpc
 
 import (
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func TestGenerateProtoFromDescriptor(t *testing.T) {
-	// Create a simple file descriptor
-	fd := &descriptorpb.FileDescriptorProto{
-		Name:    strPtr("test.proto"),
-		Package: strPtr("test"),
-		Syntax:  strPtr("proto3"),
-		MessageType: []*descriptorpb.DescriptorProto{
+// reflected is a discovery result holding one file of a server's own and one
+// well-known type its protos import.
+func reflected() *ReflectionResult {
+	return &ReflectionResult{
+		Services: []string{"test.TestService"},
+		FileDescriptors: []*descriptorpb.FileDescriptorProto{
 			{
-				Name: strPtr("TestMessage"),
-				Field: []*descriptorpb.FieldDescriptorProto{
-					{
-						Name:   strPtr("name"),
-						Number: int32Ptr(1),
-						Type:   typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING),
-						Label:  labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
-					},
-					{
-						Name:   strPtr("count"),
-						Number: int32Ptr(2),
-						Type:   typePtr(descriptorpb.FieldDescriptorProto_TYPE_INT32),
-						Label:  labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
-					},
-					{
-						Name:   strPtr("tags"),
-						Number: int32Ptr(3),
-						Type:   typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING),
-						Label:  labelPtr(descriptorpb.FieldDescriptorProto_LABEL_REPEATED),
-					},
-				},
+				Name:    proto.String("test.proto"),
+				Package: proto.String("test"),
+				Syntax:  proto.String("proto3"),
+				MessageType: []*descriptorpb.DescriptorProto{{
+					Name: proto.String("TestMessage"),
+					Field: []*descriptorpb.FieldDescriptorProto{{
+						Name:   proto.String("name"),
+						Number: proto.Int32(1),
+						Type:   descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
+						Label:  descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
+					}},
+				}},
+				Service: []*descriptorpb.ServiceDescriptorProto{{
+					Name: proto.String("TestService"),
+					Method: []*descriptorpb.MethodDescriptorProto{{
+						Name:       proto.String("GetTest"),
+						InputType:  proto.String(".test.TestMessage"),
+						OutputType: proto.String(".test.TestMessage"),
+					}},
+				}},
 			},
-		},
-		Service: []*descriptorpb.ServiceDescriptorProto{
-			{
-				Name: strPtr("TestService"),
-				Method: []*descriptorpb.MethodDescriptorProto{
-					{
-						Name:       strPtr("GetTest"),
-						InputType:  strPtr(".test.TestMessage"),
-						OutputType: strPtr(".test.TestMessage"),
-					},
-				},
-			},
+			{Name: proto.String("google/protobuf/timestamp.proto"), Package: proto.String("google.protobuf"), Syntax: proto.String("proto3")},
 		},
 	}
-
-	content := generateProtoFromDescriptor(fd)
-
-	// Verify the output contains expected elements
-	if !strings.Contains(content, "syntax = \"proto3\"") {
-		t.Error("Expected proto3 syntax")
-	}
-	if !strings.Contains(content, "package test;") {
-		t.Error("Expected package test")
-	}
-	if !strings.Contains(content, "message TestMessage") {
-		t.Error("Expected TestMessage")
-	}
-	if !strings.Contains(content, "string name = 1") {
-		t.Error("Expected name field")
-	}
-	if !strings.Contains(content, "int32 count = 2") {
-		t.Error("Expected count field")
-	}
-	if !strings.Contains(content, "repeated string tags = 3") {
-		t.Error("Expected tags field")
-	}
-	if !strings.Contains(content, "service TestService") {
-		t.Error("Expected TestService")
-	}
-	if !strings.Contains(content, "rpc GetTest(test.TestMessage) returns (test.TestMessage)") {
-		t.Error("Expected GetTest method")
-	}
-
-	t.Logf("Generated proto:\n%s", content)
 }
 
-func TestGenerateProtoWithNestedTypes(t *testing.T) {
-	fd := &descriptorpb.FileDescriptorProto{
-		Name:    strPtr("nested.proto"),
-		Package: strPtr("nested"),
-		Syntax:  strPtr("proto3"),
-		EnumType: []*descriptorpb.EnumDescriptorProto{
-			{
-				Name: strPtr("Status"),
-				Value: []*descriptorpb.EnumValueDescriptorProto{
-					{Name: strPtr("UNKNOWN"), Number: int32Ptr(0)},
-					{Name: strPtr("ACTIVE"), Number: int32Ptr(1)},
-					{Name: strPtr("INACTIVE"), Number: int32Ptr(2)},
-				},
-			},
-		},
-		MessageType: []*descriptorpb.DescriptorProto{
-			{
-				Name: strPtr("Outer"),
-				Field: []*descriptorpb.FieldDescriptorProto{
-					{
-						Name:     strPtr("status"),
-						Number:   int32Ptr(1),
-						Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_ENUM),
-						TypeName: strPtr(".nested.Status"),
-						Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
-					},
-				},
-				NestedType: []*descriptorpb.DescriptorProto{
-					{
-						Name: strPtr("Inner"),
-						Field: []*descriptorpb.FieldDescriptorProto{
-							{
-								Name:   strPtr("value"),
-								Number: int32Ptr(1),
-								Type:   typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING),
-								Label:  labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
-							},
-						},
-					},
-				},
-			},
-		},
+// TestWriteDescriptorSet is what a reflected surface leaves on disk: the descriptors
+// the server sent, in one file, unchanged.
+func TestWriteDescriptorSet(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDescriptorSet(reflected(), dir); err != nil {
+		t.Fatalf("WriteDescriptorSet: %v", err)
 	}
 
-	content := generateProtoFromDescriptor(fd)
-
-	if !strings.Contains(content, "enum Status") {
-		t.Error("Expected Status enum")
+	encoded, err := os.ReadFile(filepath.Join(dir, DescriptorSetName))
+	if err != nil {
+		t.Fatalf("read the set back: %v", err)
 	}
-	if !strings.Contains(content, "UNKNOWN = 0") {
-		t.Error("Expected UNKNOWN value")
+	set := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(encoded, set); err != nil {
+		t.Fatalf("the set is not a FileDescriptorSet: %v", err)
 	}
-	if !strings.Contains(content, "message Outer") {
-		t.Error("Expected Outer message")
+	if len(set.GetFile()) != 2 {
+		t.Errorf("%d files in the set, want both the server sent", len(set.GetFile()))
 	}
-	if !strings.Contains(content, "message Inner") {
-		t.Error("Expected Inner message")
+	if !proto.Equal(set.GetFile()[0], reflected().FileDescriptors[0]) {
+		t.Errorf("the file came back changed:\n%v", set.GetFile()[0])
 	}
-
-	t.Logf("Generated proto:\n%s", content)
 }
 
-// Helper functions
-func strPtr(s string) *string {
-	return &s
+// TestDescriptorSetFiles is what the compiler is told to compile out of it: the
+// server's own files, and not the well-known types they import.
+func TestDescriptorSetFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDescriptorSet(reflected(), dir); err != nil {
+		t.Fatalf("WriteDescriptorSet: %v", err)
+	}
+
+	files, err := DescriptorSetFiles(filepath.Join(dir, DescriptorSetName))
+	if err != nil {
+		t.Fatalf("DescriptorSetFiles: %v", err)
+	}
+	if len(files) != 1 || files[0] != "test.proto" {
+		t.Errorf("files = %v, want the server's own alone", files)
+	}
 }
 
-func int32Ptr(i int32) *int32 {
-	return &i
-}
+// TestDescriptorSetFilesOfAnEmptySurface is a server that declares nothing of its
+// own, which is a compile with nothing to compile rather than one that fails later.
+func TestDescriptorSetFilesOfAnEmptySurface(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDescriptorSet(&ReflectionResult{}, dir); err != nil {
+		t.Fatalf("WriteDescriptorSet: %v", err)
+	}
 
-func typePtr(t descriptorpb.FieldDescriptorProto_Type) *descriptorpb.FieldDescriptorProto_Type {
-	return &t
-}
-
-func labelPtr(l descriptorpb.FieldDescriptorProto_Label) *descriptorpb.FieldDescriptorProto_Label {
-	return &l
+	if _, err := DescriptorSetFiles(filepath.Join(dir, DescriptorSetName)); err == nil {
+		t.Errorf("an empty set compiled")
+	}
 }

@@ -3,14 +3,25 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
+	// A server that compresses what it sends answers a client that says it can read
+	// it, and grpc-go says so for the compressors that are linked in - so without
+	// this one a gzip response is a call refused for a reason nobody chose, and with
+	// it a big response travels as the server already knows how to send it.
+	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // connections caches one gRPC client connection per (target, TLS) pair. A
@@ -20,6 +31,14 @@ var (
 	connectionsMu sync.Mutex
 	connections   = map[string]*grpc.ClientConn{}
 )
+
+// MaxMessageSize is how big a message kaja will read. grpc-go's own default is four
+// megabytes, which is a server's guard against what it is sent rather than a client's
+// against what it asked for - and an API answering a listing with more than that is
+// an API kaja refused to show rather than one it showed. How big a response is, is
+// the API's business; what kaja does with a big one is the console's, which already
+// has its own caps.
+var MaxMessageSize = grpc.MaxCallRecvMsgSize(math.MaxInt32)
 
 // sharedConnection returns the cached connection for the given target, dialing
 // (lazily — grpc.NewClient does not block) and caching one on first use. Two apps
@@ -43,7 +62,7 @@ func sharedConnection(target string, useTLS bool, options TLSOptions) (*grpc.Cli
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(&grpcCodec{})))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(&grpcCodec{}), MaxMessageSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
@@ -70,8 +89,15 @@ func (c *grpcCodec) Unmarshal(data []byte, v interface{}) error {
 	return fmt.Errorf("unsupported type: %T", v)
 }
 
+// Name is empty, and that is what the request's content type is read from: grpc-go
+// names the content subtype after the codec, so a codec called "proto" sends
+// "application/grpc+proto". The protocol allows it and no stock client sends it, so a
+// server that routes on "application/grpc" alone answers it from its HTTP frontend
+// instead - a 404 page, which arrives as UNIMPLEMENTED and names neither the call nor
+// the reason. Google's endpoints are that server. An empty name leaves the content
+// type bare, which is what every other gRPC client on the wire sends.
 func (c *grpcCodec) Name() string {
-	return "proto"
+	return ""
 }
 
 // Client is a gRPC client that can invoke methods on a target server.
@@ -192,6 +218,13 @@ func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.D
 	return c.Invoke(ctx, method, request, headers)
 }
 
+// StatusDetails is the one -bin trailer that isn't arbitrary bytes: the protocol
+// defines it as a google.rpc.Status, and it is where a gRPC API says what was wrong
+// with a request beyond the code and the one sentence beside it - which field, which
+// quota, how long to wait. So it is read rather than dropped, and what the client is
+// shown under the name the server sent is that status as text.
+const StatusDetails = "grpc-status-details-bin"
+
 // Reserved names carry the frame rather than anything the server said: HTTP/2
 // pseudo-headers, the status the transport already reports, and the content type the
 // codec settled. A -bin name is base64 of arbitrary bytes, which is not a header
@@ -215,7 +248,16 @@ func ResponseMetadata(header, trailer metadata.MD) map[string]string {
 	flattened := map[string]string{}
 	for _, md := range []metadata.MD{header, trailer} {
 		for name, values := range md {
-			if reservedMetadata(name) || len(values) == 0 {
+			if len(values) == 0 {
+				continue
+			}
+			if name == StatusDetails {
+				if details := readStatusDetails(values[0]); details != "" {
+					flattened[name] = details
+				}
+				continue
+			}
+			if reservedMetadata(name) {
 				continue
 			}
 			joined := strings.Join(values, ", ")
@@ -285,4 +327,41 @@ func (s *ServerStream) Recv() ([]byte, error) {
 func (s *ServerStream) Metadata() map[string]string {
 	header, _ := s.stream.Header()
 	return ResponseMetadata(header, s.stream.Trailer())
+}
+
+// readStatusDetails renders the status a server attached to a refusal. Each detail
+// is one of google.rpc's own messages, so it is read as the type it names; one this
+// build doesn't know is left as its type URL rather than taking the rest with it.
+func readStatusDetails(raw string) string {
+	carried := &statuspb.Status{}
+	if err := proto.Unmarshal([]byte(raw), carried); err != nil {
+		return ""
+	}
+	if len(carried.GetDetails()) == 0 {
+		return ""
+	}
+
+	read := make([]json.RawMessage, 0, len(carried.GetDetails()))
+	for _, detail := range carried.GetDetails() {
+		read = append(read, readDetail(detail))
+	}
+	rendered, err := json.Marshal(read)
+	if err != nil {
+		return ""
+	}
+	return string(rendered)
+}
+
+func readDetail(detail *anypb.Any) json.RawMessage {
+	// The Any itself rather than the message inside it, because that is what carries
+	// the type beside the fields: which of google.rpc's messages this is, is half of
+	// what it says.
+	if rendered, err := protojson.Marshal(detail); err == nil {
+		return rendered
+	}
+	rendered, err := json.Marshal(map[string]string{"@type": detail.GetTypeUrl()})
+	if err != nil {
+		return json.RawMessage("{}")
+	}
+	return rendered
 }

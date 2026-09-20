@@ -1,0 +1,25 @@
+// A proto2 surface, which is what a service written before 2016 still speaks.
+syntax = "proto2";
+
+package legacy;
+
+message Booking {
+  required string id = 1;
+  optional string note = 2;
+  repeated string seats = 3;
+  optional int32 count = 4 [default = 1];
+  optional Kind kind = 5 [default = KIND_STANDARD];
+
+  enum Kind {
+    KIND_STANDARD = 0;
+    KIND_PREMIUM = 1;
+  }
+}
+
+message Ack {
+  optional bool ok = 1 [default = true];
+}
+
+service Bookings {
+  rpc Book(Booking) returns (Ack);
+}

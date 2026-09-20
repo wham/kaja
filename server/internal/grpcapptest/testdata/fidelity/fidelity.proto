@@ -1,0 +1,65 @@
+// A surface with the things a real API's protos hold, so what reflection writes back
+// out can be compared with what the same files generate directly.
+syntax = "proto3";
+
+package fidelity.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "example.com/fidelity/v1";
+
+// A ticket, as the API describes one.
+message Ticket {
+  // What the API calls the ticket.
+  string id = 1;
+  optional string note = 2;
+  repeated string tags = 3;
+  map<string, string> labels = 4;
+  Seat seat = 5;
+  Status status = 6;
+  google.protobuf.Timestamp issued_at = 7;
+  google.protobuf.Struct extras = 8;
+  bytes signature = 9;
+  oneof payment {
+    string card = 10;
+    string voucher = 11;
+  }
+  reserved 20, 21;
+  reserved "old_name";
+
+  message Seat {
+    int32 row = 1;
+    string letter = 2;
+  }
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ISSUED = 1;
+    STATUS_VOID = 2 [deprecated = true];
+  }
+}
+
+message Rounding {
+  double whole = 1;
+  float part = 2;
+  int64 big = 3;
+  uint64 unsigned = 4;
+  sint32 signed = 5;
+  fixed32 fixed = 6;
+  bool flag = 7;
+  string deprecated_field = 8 [deprecated = true];
+}
+
+message Empty {}
+
+service Tickets {
+  // Reads one ticket.
+  rpc GetTicket(Ticket) returns (Ticket);
+
+  rpc ListTickets(Empty) returns (stream Ticket);
+
+  rpc OldWay(Empty) returns (Empty) {
+    option deprecated = true;
+  }
+}

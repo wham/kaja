@@ -40,8 +40,8 @@ type Server struct {
 
 // Service is one service in that surface.
 type Service struct {
-	Name                 string
-	MethodCount          int
+	Name                       string
+	MethodCount                int
 	ClientStreamingMethodCount int
 }
 
@@ -104,7 +104,7 @@ func inspectReflection(parameters map[string]string, log func(string)) (*Server,
 		// to say so.
 		if options.Mode != "" && worthRetrying(err) {
 			if _, reachable := probe(target, options.WithMode(otherMode(options.Mode)), metadata, log); reachable {
-				return nil, &Problem{Kind: ProblemTLS, Message: wrongTransport(options.Mode), Detail: err.Error()}
+				return nil, &Problem{Kind: ProblemTLS, Message: wrongTransport(options.Mode), Detail: brief(err.Error())}
 			}
 		}
 		return nil, classify(err)
@@ -216,10 +216,17 @@ func discover(target *url.URL, options grpc.TLSOptions, metadata map[string]stri
 
 // probe asks the server the same question discover does, but only to learn
 // whether it is there and over which transport. A server that answers "no
-// reflection here" - or asks for a credential - has answered.
+// reflection here" - or asks for a credential - has answered. So has one whose
+// certificate nothing here trusts: a handshake that got as far as the certificate
+// is a server speaking TLS, which is the whole of what a probe over TLS is asking,
+// and an internal service signs its own.
 func probe(target *url.URL, options grpc.TLSOptions, metadata map[string]string, log func(string)) (bool, bool) {
-	if _, usedTLS, err := discover(target, options, metadata, probeTimeout, log); err == nil || answered(err) {
+	_, usedTLS, err := discover(target, options, metadata, probeTimeout, log)
+	if err == nil || answered(err) {
 		return usedTLS, true
+	}
+	if options.UseTLS(target) && looksLikeTLS(err.Error()) {
+		return true, true
 	}
 	return false, false
 }
@@ -269,7 +276,7 @@ func wrongTransport(mode string) string {
 }
 
 func classify(err error) *Problem {
-	detail := err.Error()
+	detail := brief(err.Error())
 	switch grpcstatus.Code(err) {
 	case grpccodes.Unimplemented:
 		return &Problem{
@@ -302,7 +309,31 @@ func classify(err error) *Problem {
 	return &Problem{Kind: ProblemUnreachable, Message: "Couldn't reach the server.", Detail: detail}
 }
 
-var tlsMarkers = []string{"tls:", "x509", "certificate", "handshake"}
+// What a failure says when it was the transport. "handshake" alone is not one of
+// them: an HTTP proxy that refuses a CONNECT says "failed to do connect handshake",
+// and a host that doesn't resolve behind one would read as a TLS problem.
+// brief is a failure as the form can show it. A server answering a gRPC call from
+// its HTTP frontend sends a whole error page, and grpc-go carries it into the error
+// text under a "data:" line of its own - so the form drew a page of Google's HTML
+// under a sentence about reflection. The first line is the diagnosis; the rest is
+// what was being served instead.
+func brief(detail string) string {
+	if line, _, found := strings.Cut(detail, "\ndata: "); found {
+		detail = line
+	}
+	if line, _, found := strings.Cut(detail, "\n"); found {
+		detail = line
+	}
+	if runes := []rune(detail); len(runes) > briefLimit {
+		detail = strings.TrimRight(string(runes[:briefLimit]), " ") + "…"
+	}
+	return detail
+}
+
+// briefLimit is how much of a failure a caption holds before it stops being one.
+const briefLimit = 400
+
+var tlsMarkers = []string{"tls:", "x509", "certificate", "authentication handshake failed"}
 
 func looksLikeTLS(detail string) bool {
 	lowered := strings.ToLower(detail)
