@@ -1,4 +1,8 @@
 import { useMediaQuery } from "./useMediaQuery";
+import { PHONE_QUERY, methodTag } from "./phone";
+import { PhoneFinder } from "./PhoneFinder";
+import { PhoneFrame } from "./PhoneFrame";
+import { summarizeCompilation } from "./compileSummary";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
@@ -78,7 +82,7 @@ import { Variables, VariablesSave } from "./Variables";
 import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
-import { mcpStatusOf, type McpControl } from "./mcpState";
+import { mcpDotClass, mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
@@ -363,7 +367,8 @@ export function App() {
   );
   // The plug in the sidebar's band and the page's headline are one derivation, so the
   // two can never say different things about the same server.
-  const mcpBandState = mcpControl ? mcpStatusOf(mcpConnection, mcpControl, mcpActive).state : undefined;
+  const mcpBandStatus = mcpControl ? mcpStatusOf(mcpConnection, mcpControl, mcpActive) : undefined;
+  const mcpBandState = mcpBandStatus?.state;
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -697,6 +702,7 @@ export function App() {
   }, []);
 
   const isNarrow = useMediaQuery("(max-width: 767px)");
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
@@ -2474,6 +2480,8 @@ export function App() {
             icon: mark,
             uncallable: unsupportedReason(method, appType(app.configuration)) !== undefined,
             deprecated: method.deprecated,
+            call: true,
+            tag: methodTag(method),
             go: () => void onMethodSelect(method, service, app),
           });
         }
@@ -2495,6 +2503,42 @@ export function App() {
     onShortcutsClick,
     onShowCompileLog,
   ]);
+
+  // Kaja's own views on the phone's finder, each wearing the state the status bar
+  // and the sidebar's band would have shown.
+  const phoneWorkspace = useMemo<Destination[]>(() => {
+    const rows: Destination[] = [{ key: "variables", name: "Variables", path: "", origin: "", icon: Braces, go: onVariablesClick }];
+    if (mcpControl && mcpBandStatus) {
+      rows.push({
+        key: "mcp",
+        name: "MCP server",
+        path: "",
+        origin: "",
+        icon: Plug,
+        status: { dot: mcpDotClass(mcpBandStatus.state) ?? "bg-emerald-500", note: mcpBandStatus.headline },
+        go: onMcpClick,
+      });
+    }
+    if (apps.length > 0) {
+      const compile = summarizeCompilation(apps, configurationLoaded);
+      const dot =
+        compile.state === "failed"
+          ? "bg-destructive"
+          : compile.state === "warning" || compile.state === "compiling" || compile.state === "loading"
+            ? "bg-amber-500"
+            : "bg-emerald-500";
+      rows.push({
+        key: "compiler",
+        name: "Compile log",
+        path: "",
+        origin: "",
+        icon: ScrollText,
+        status: { dot, note: `${apps.length} ${apps.length === 1 ? "app" : "apps"}` },
+        go: () => onShowCompileLog(),
+      });
+    }
+    return rows;
+  }, [apps, configurationLoaded, mcpControl, mcpBandStatus, onVariablesClick, onMcpClick, onShowCompileLog]);
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
@@ -2551,6 +2595,7 @@ export function App() {
   const runningSince = running ? Math.min(...runsHere.map((live) => live.run.startedAt)) : undefined;
   const runButton = currentIsEditor ? (
     <RunButton
+      size={isPhone ? "lg" : "default"}
       onRun={() => onRunCurrentTab()}
       onStop={onStopActiveRun}
       running={running}
@@ -2592,268 +2637,328 @@ export function App() {
   // Bodies render in creation order, so bringing a file to the front never moves a
   // live editor in the DOM.
   const bodies = [...views].sort((a, b) => a.seq - b.seq);
+  const isEditorView = (view: View) => view.type === "draft" || view.type === "script";
+  // The phone keeps its editors in the script's sheet and everything else under the
+  // header, so the two are drawn apart there; the desktop draws them in one pane.
+  const editorBodies = bodies.filter(isEditorView);
+  const otherBodies = bodies.filter((view) => !isEditorView(view));
+
+  const renderBody = (view: View) => (
+    <>
+      {view.type === "compiler" && (
+        <CompileLog
+          apps={apps}
+          configurationLoaded={configurationLoaded}
+          onNewAppClick={onNewAppClick}
+          onConnectAgentClick={mcpControl ? onMcpClick : undefined}
+          canUpdateConfiguration={runtime.canUpdateConfiguration}
+          expandApp={compileLogExpandApp}
+        />
+      )}
+      {(view.type === "draft" || view.type === "script") && (
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {/* Somebody else is writing in this one, so the editor
+              follows rather than pretending you can type into a
+              buffer that is being rewritten under you. */}
+          {view.type === "draft" && agentViewName(view.draftId) && (
+            <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+              <Plug size={13} className="shrink-0 text-muted-foreground" />
+              <span className="shrink-0 text-sm text-foreground">{agentViewName(view.draftId)}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">agent draft · following {agentViewName(view.draftId)}</span>
+              <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
+                Take over
+              </Button>
+            </div>
+          )}
+          {/* A file the server can't write is a file you read and
+              run, not one you edit into a change nothing would
+              keep. A draft beside it is unaffected: it lives in
+              this browser, so it is as writable here as anywhere. */}
+          <Editor
+            model={view.model}
+            onMount={(editor) => onEditorReady(view.id, editor)}
+            onGoToDefinition={onGoToDefinition}
+            viewState={view.viewState}
+            readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewName(view.draftId) !== undefined)}
+            phone={isPhone}
+          />
+        </div>
+      )}
+      {view.type === "definition" && (
+        <Definition model={view.model} onGoToDefinition={onGoToDefinition} startLineNumber={view.startLineNumber} startColumn={view.startColumn} />
+      )}
+      {view.type === "appForm" && (
+        <AppForm
+          mode={view.mode}
+          initialData={view.initialData}
+          allApps={configuration?.apps ?? []}
+          variables={configuration?.variables ?? {}}
+          readOnly={!runtime.canUpdateConfiguration}
+          editMode={view.editMode}
+          onSubmit={onAppFormSubmit}
+          onCancel={onAppFormCancel}
+          onJsonValidChange={setViewJsonValid}
+        />
+      )}
+      {view.type === "start" && (
+        <Start
+          configurationLoaded={configurationLoaded}
+          hasApps={apps.length > 0}
+          onNewAppClick={onNewAppClick}
+          onConnectAgentClick={mcpControl ? onMcpClick : undefined}
+          canUpdateConfiguration={runtime.canUpdateConfiguration}
+          onOpenFinder={() => setFinder("first")}
+          onNewDraft={onNewDraft}
+          recent={recentFiles}
+          phone={isPhone}
+        />
+      )}
+      {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} readOnly={!runtime.canUpdateConfiguration} />}
+      {view.type === "shortcuts" && (
+        <KeyboardShortcuts
+          shortcuts={configuration?.shortcuts ?? {}}
+          canWriteFiles={canWriteFiles}
+          readOnly={!runtime.canUpdateConfiguration}
+          onSave={onShortcutsSave}
+          onResetAllChange={setResetShortcuts}
+        />
+      )}
+      {view.type === "variables" && (
+        <Variables
+          variables={configuration?.variables ?? {}}
+          status={variableStatus}
+          storeAvailable={runtime.variableStoreAvailable}
+          uses={variableUses}
+          scripts={scripts ?? []}
+          active={view.id === currentView?.id}
+          readOnly={!runtime.canUpdateConfiguration}
+          onSave={onVariablesSave}
+          onStoreValue={onStoreVariableValue}
+          onScriptSelect={(script) => void onScriptSelect(script)}
+          onRevealApp={(name) => setAutoExpandApp({ name })}
+        />
+      )}
+    </>
+  );
+
+  const bodyOf = (view: View) => (
+    <div key={view.id} style={{ display: view.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {renderBody(view)}
+    </div>
+  );
+
+  const phoneScript =
+    currentView && (currentView.type === "draft" || currentView.type === "script") && currentFileId !== undefined
+      ? {
+          fileId: currentFileId,
+          model: currentView.model,
+          readOnly: (currentView.type === "script" && !canWriteFiles) || (currentView.type === "draft" && agentViewName(currentView.draftId) !== undefined),
+        }
+      : undefined;
 
   return (
     <>
-      <div
-        className="fixed inset-0 flex flex-col bg-background text-foreground"
-        style={{
-          overflow,
-          WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
-          overscrollBehavior: isNarrow ? "contain" : "none",
-        }}
-      >
-        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          {!sidebarCollapsed && (
-            <div
-              style={{
-                width: isNarrow ? 250 : sidebarWidth,
-                minWidth: sidebarMinWidth,
-                maxWidth: 600,
-                display: "flex",
-                flexDirection: "column",
-                flexShrink: 0,
-                overflow: "hidden",
-              }}
-            >
-              <Sidebar
-                apps={apps}
-                canUpdateConfiguration={runtime.canUpdateConfiguration}
-                onSelect={onMethodSelect}
-                onShowCompileLog={onShowCompileLog}
-                onRecompileApp={onRecompile}
-                onNewAppClick={onNewAppClick}
-                onNewScript={onNewDraft}
-                onVariablesClick={onVariablesClick}
-                onMcpClick={mcpControl ? onMcpClick : undefined}
-                mcpState={mcpBandState}
-                autoExpandApp={autoExpandApp}
-                reserveTrafficLights={isDesktopMac}
-                onEditApp={onEditApp}
-                onDeleteApp={onDeleteApp}
-                scriptsRegion={
-                  <ScriptsRegion
-                    scripts={scripts ?? []}
-                    folders={scriptFolders}
-                    drafts={drafts}
-                    currentDraftId={currentView?.type === "draft" ? currentView.draftId : undefined}
-                    currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
-                    runningFileIds={runningFiles}
-                    agentFileIds={agentFiles}
-                    waitingFileIds={waitingFiles}
-                    canWrite={canWriteFiles}
-                    onDraftSelect={onDraftSelect}
-                    onSaveDraftAsFile={onSaveDraftAsFile}
-                    onDiscardDraft={onDiscardDraft}
-                    onDiscardAllDrafts={onDiscardAllDrafts}
-                    onScriptSelect={onScriptSelect}
-                    onRenameScript={canWriteFiles ? onRenameScript : undefined}
-                    onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
-                    onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
-                    onCopyScriptLink={(script) => void onCopyScriptLink(script)}
-                    onCreateScript={canWriteFiles ? onCreateScript : undefined}
-                    onCopyScript={canWriteFiles ? onCopyScript : undefined}
-                    onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
-                    onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
-                    onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
-                    onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
-                    onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
-                    onChooseScriptsFolder={isWailsEnvironment() ? onChooseScriptsFolder : undefined}
-                    onUseDefaultScriptsFolder={isWailsEnvironment() ? onUseDefaultScriptsFolder : undefined}
-                  />
-                }
-              />
-            </div>
-          )}
-          <Splitter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
-            <CommandRow
-              leftInset={commandRowInset}
-              sidebarCollapsed={sidebarCollapsed}
-              onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
-              finder={
-                <Finder
-                  recent={recent}
-                  elsewhere={elsewhere}
-                  errorCount={currentIsEditor ? syntaxErrors.count : 0}
-                  open={finder !== undefined}
-                  onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
-                  highlightPrevious={finder === "previous"}
-                />
-              }
-              fileActions={fileActions}
-              action={action}
-              layout={editorLayout}
-              onToggleLayout={onToggleEditorLayout}
+      {isPhone ? (
+        <PhoneFrame
+          finder={
+            <PhoneFinder
+              recent={recent}
+              elsewhere={elsewhere}
+              workspace={phoneWorkspace}
+              apps={apps}
+              onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
+              onNewApp={runtime.canUpdateConfiguration ? onNewAppClick : undefined}
+              errorCount={currentIsEditor ? syntaxErrors.count : 0}
+              open={finder !== undefined}
+              onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
             />
-            <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
+          }
+          action={action}
+          script={phoneScript}
+          editor={editorBodies.map(bodyOf)}
+          console={(phone) => (
+            <Console
+              fileId={currentFileId}
+              onAnswer={onAnswerAsk}
+              onCancelAsk={onCancelAsk}
+              onDecide={onDecideApproval}
+              tableViews={tableViews}
+              onTableView={onTableView}
+              onTablePull={onTablePull}
+              onTableCells={onTableCells}
+              onRunScript={onRunScriptCell}
+              onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
+              present={present}
+              onPresented={() => setPresent(undefined)}
+              phone={phone}
+            />
+          )}
+        >
+          {otherBodies.map(bodyOf)}
+        </PhoneFrame>
+      ) : (
+        <div
+          className="fixed inset-0 flex flex-col bg-background text-foreground"
+          style={{
+            overflow,
+            WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
+            overscrollBehavior: isNarrow ? "contain" : "none",
+          }}
+        >
+          <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+            {!sidebarCollapsed && (
               <div
                 style={{
-                  height: currentIsEditor && !isHorizontalLayout ? effectiveEditorHeight : undefined,
-                  width: currentIsEditor && isHorizontalLayout ? editorWidth : undefined,
-                  flexGrow: currentIsEditor ? 0 : 1,
-                  flexShrink: 0,
-                  flexBasis: currentIsEditor ? "auto" : 0,
+                  width: isNarrow ? 250 : sidebarWidth,
+                  minWidth: sidebarMinWidth,
+                  maxWidth: 600,
                   display: "flex",
                   flexDirection: "column",
-                  minHeight: 0,
-                  minWidth: 0,
-                  overflow,
+                  flexShrink: 0,
+                  overflow: "hidden",
                 }}
               >
-                {bodies.map((view) => (
-                  <div key={view.id} style={{ display: view.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                    {view.type === "compiler" && (
-                      <CompileLog
-                        apps={apps}
-                        configurationLoaded={configurationLoaded}
-                        onNewAppClick={onNewAppClick}
-                        onConnectAgentClick={mcpControl ? onMcpClick : undefined}
-                        canUpdateConfiguration={runtime.canUpdateConfiguration}
-                        expandApp={compileLogExpandApp}
-                      />
-                    )}
-                    {(view.type === "draft" || view.type === "script") && (
-                      <div className="relative flex min-h-0 flex-1 flex-col">
-                        {/* Somebody else is writing in this one, so the editor
-                            follows rather than pretending you can type into a
-                            buffer that is being rewritten under you. */}
-                        {view.type === "draft" && agentViewName(view.draftId) && (
-                          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
-                            <Plug size={13} className="shrink-0 text-muted-foreground" />
-                            <span className="shrink-0 text-sm text-foreground">{agentViewName(view.draftId)}</span>
-                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">agent draft · following {agentViewName(view.draftId)}</span>
-                            <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
-                              Take over
-                            </Button>
-                          </div>
-                        )}
-                        {/* A file the server can't write is a file you read and
-                            run, not one you edit into a change nothing would
-                            keep. A draft beside it is unaffected: it lives in
-                            this browser, so it is as writable here as anywhere. */}
-                        <Editor
-                          model={view.model}
-                          onMount={(editor) => onEditorReady(view.id, editor)}
-                          onGoToDefinition={onGoToDefinition}
-                          viewState={view.viewState}
-                          readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewName(view.draftId) !== undefined)}
-                        />
-                      </div>
-                    )}
-                    {view.type === "definition" && (
-                      <Definition
-                        model={view.model}
-                        onGoToDefinition={onGoToDefinition}
-                        startLineNumber={view.startLineNumber}
-                        startColumn={view.startColumn}
-                      />
-                    )}
-                    {view.type === "appForm" && (
-                      <AppForm
-                        mode={view.mode}
-                        initialData={view.initialData}
-                        allApps={configuration?.apps ?? []}
-                        variables={configuration?.variables ?? {}}
-                        readOnly={!runtime.canUpdateConfiguration}
-                        editMode={view.editMode}
-                        onSubmit={onAppFormSubmit}
-                        onCancel={onAppFormCancel}
-                        onJsonValidChange={setViewJsonValid}
-                      />
-                    )}
-                    {view.type === "start" && (
-                      <Start
-                        configurationLoaded={configurationLoaded}
-                        hasApps={apps.length > 0}
-                        onNewAppClick={onNewAppClick}
-                        onConnectAgentClick={mcpControl ? onMcpClick : undefined}
-                        canUpdateConfiguration={runtime.canUpdateConfiguration}
-                        onOpenFinder={() => setFinder("first")}
-                        onNewDraft={onNewDraft}
-                        recent={recentFiles}
-                      />
-                    )}
-                    {view.type === "mcp" && mcpControl && (
-                      <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} readOnly={!runtime.canUpdateConfiguration} />
-                    )}
-                    {view.type === "shortcuts" && (
-                      <KeyboardShortcuts
-                        shortcuts={configuration?.shortcuts ?? {}}
-                        canWriteFiles={canWriteFiles}
-                        readOnly={!runtime.canUpdateConfiguration}
-                        onSave={onShortcutsSave}
-                        onResetAllChange={setResetShortcuts}
-                      />
-                    )}
-                    {view.type === "variables" && (
-                      <Variables
-                        variables={configuration?.variables ?? {}}
-                        status={variableStatus}
-                        storeAvailable={runtime.variableStoreAvailable}
-                        uses={variableUses}
-                        scripts={scripts ?? []}
-                        active={view.id === currentView?.id}
-                        readOnly={!runtime.canUpdateConfiguration}
-                        onSave={onVariablesSave}
-                        onStoreValue={onStoreVariableValue}
-                        onScriptSelect={(script) => void onScriptSelect(script)}
-                        onRevealApp={(name) => setAutoExpandApp({ name })}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {currentIsEditor && (
-                <>
-                  <Splitter orientation={isHorizontalLayout ? "vertical" : "horizontal"} onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize} />
-                  <div
-                    style={{
-                      flex: 1,
-                      minHeight: isHorizontalLayout ? 0 : 100,
-                      minWidth: isHorizontalLayout ? 100 : 0,
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    <Console
-                      fileId={currentFileId}
-                      reserveTrafficLights={isDesktopMac}
-                      onAnswer={onAnswerAsk}
-                      onCancelAsk={onCancelAsk}
-                      onDecide={onDecideApproval}
-                      tableViews={tableViews}
-                      onTableView={onTableView}
-                      onTablePull={onTablePull}
-                      onTableCells={onTableCells}
-                      onRunScript={onRunScriptCell}
-                      onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
-                      present={present}
-                      onPresented={() => setPresent(undefined)}
-                      runControl={runButton}
+                <Sidebar
+                  apps={apps}
+                  canUpdateConfiguration={runtime.canUpdateConfiguration}
+                  onSelect={onMethodSelect}
+                  onShowCompileLog={onShowCompileLog}
+                  onRecompileApp={onRecompile}
+                  onNewAppClick={onNewAppClick}
+                  onNewScript={onNewDraft}
+                  onVariablesClick={onVariablesClick}
+                  onMcpClick={mcpControl ? onMcpClick : undefined}
+                  mcpState={mcpBandState}
+                  autoExpandApp={autoExpandApp}
+                  reserveTrafficLights={isDesktopMac}
+                  onEditApp={onEditApp}
+                  onDeleteApp={onDeleteApp}
+                  scriptsRegion={
+                    <ScriptsRegion
+                      scripts={scripts ?? []}
+                      folders={scriptFolders}
+                      drafts={drafts}
+                      currentDraftId={currentView?.type === "draft" ? currentView.draftId : undefined}
+                      currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
+                      runningFileIds={runningFiles}
+                      agentFileIds={agentFiles}
+                      waitingFileIds={waitingFiles}
+                      canWrite={canWriteFiles}
+                      onDraftSelect={onDraftSelect}
+                      onSaveDraftAsFile={onSaveDraftAsFile}
+                      onDiscardDraft={onDiscardDraft}
+                      onDiscardAllDrafts={onDiscardAllDrafts}
+                      onScriptSelect={onScriptSelect}
+                      onRenameScript={canWriteFiles ? onRenameScript : undefined}
+                      onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
+                      onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
+                      onCopyScriptLink={(script) => void onCopyScriptLink(script)}
+                      onCreateScript={canWriteFiles ? onCreateScript : undefined}
+                      onCopyScript={canWriteFiles ? onCopyScript : undefined}
+                      onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
+                      onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
+                      onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
+                      onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
+                      onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+                      onChooseScriptsFolder={isWailsEnvironment() ? onChooseScriptsFolder : undefined}
+                      onUseDefaultScriptsFolder={isWailsEnvironment() ? onUseDefaultScriptsFolder : undefined}
                     />
-                  </div>
-                </>
-              )}
+                  }
+                />
+              </div>
+            )}
+            <Splitter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+              <CommandRow
+                leftInset={commandRowInset}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                finder={
+                  <Finder
+                    recent={recent}
+                    elsewhere={elsewhere}
+                    errorCount={currentIsEditor ? syntaxErrors.count : 0}
+                    open={finder !== undefined}
+                    onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
+                    highlightPrevious={finder === "previous"}
+                  />
+                }
+                fileActions={fileActions}
+                action={action}
+                layout={editorLayout}
+                onToggleLayout={onToggleEditorLayout}
+              />
+              <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
+                <div
+                  style={{
+                    height: currentIsEditor && !isHorizontalLayout ? effectiveEditorHeight : undefined,
+                    width: currentIsEditor && isHorizontalLayout ? editorWidth : undefined,
+                    flexGrow: currentIsEditor ? 0 : 1,
+                    flexShrink: 0,
+                    flexBasis: currentIsEditor ? "auto" : 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: 0,
+                    minWidth: 0,
+                    overflow,
+                  }}
+                >
+                  {bodies.map(bodyOf)}
+                </div>
+                {currentIsEditor && (
+                  <>
+                    <Splitter
+                      orientation={isHorizontalLayout ? "vertical" : "horizontal"}
+                      onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize}
+                    />
+                    <div
+                      style={{
+                        flex: 1,
+                        minHeight: isHorizontalLayout ? 0 : 100,
+                        minWidth: isHorizontalLayout ? 100 : 0,
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <Console
+                        fileId={currentFileId}
+                        reserveTrafficLights={isDesktopMac}
+                        onAnswer={onAnswerAsk}
+                        onCancelAsk={onCancelAsk}
+                        onDecide={onDecideApproval}
+                        tableViews={tableViews}
+                        onTableView={onTableView}
+                        onTablePull={onTablePull}
+                        onTableCells={onTableCells}
+                        onRunScript={onRunScriptCell}
+                        onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
+                        present={present}
+                        onPresented={() => setPresent(undefined)}
+                        runControl={runButton}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          <StatusBar
+            colorMode={colorMode}
+            onToggleColorMode={onToggleColorMode}
+            zoom={zoom}
+            onResetZoom={() => setZoom(DEFAULT_ZOOM)}
+            gitRef={runtime.gitRef}
+            buildNumber={runtime.buildNumber}
+            featurePreviews={featurePreviews}
+            onToggleFeaturePreview={onToggleFeaturePreview}
+            apps={apps}
+            configurationLoaded={configurationLoaded}
+            onShowCompileLog={onShowCompileLog}
+            onRecompile={onRecompile}
+            onShowShortcuts={onShortcutsClick}
+          />
         </div>
-        <StatusBar
-          colorMode={colorMode}
-          onToggleColorMode={onToggleColorMode}
-          zoom={zoom}
-          onResetZoom={() => setZoom(DEFAULT_ZOOM)}
-          gitRef={runtime.gitRef}
-          buildNumber={runtime.buildNumber}
-          featurePreviews={featurePreviews}
-          onToggleFeaturePreview={onToggleFeaturePreview}
-          apps={apps}
-          configurationLoaded={configurationLoaded}
-          onShowCompileLog={onShowCompileLog}
-          onRecompile={onRecompile}
-          onShowShortcuts={onShortcutsClick}
-        />
-      </div>
+      )}
       {/* Naming a draft is what moves it into Files, so the sheet asks for the
           two things a file has that a draft doesn't: a name and a folder.
           Renaming a file is not this sheet — a file has both already, so its

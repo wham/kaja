@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { FileName } from "./FileName";
+import { MethodTag } from "./phone";
 
 // The trigger caps here; over it the app label goes first, then the name truncates
 // from the left so its tail — the part that identifies the call — survives.
@@ -34,7 +35,19 @@ export interface Destination {
   // A call the API deprecated. Dimmed and struck through, as it is in the tree and
   // in the editor; it is still a call, so it keeps its place and its ⏎.
   deprecated?: boolean;
+  // A method, which the phone's finder names by its service rather than by an icon.
+  call?: boolean;
+  // The one word the phone's finder puts beside a method: what calling it does.
+  tag?: MethodTag;
+  // A dot and a word for a row that reports on something — Kaja's own MCP server, the
+  // compilation — where the phone has no status bar to say it in.
+  status?: { dot?: string; note?: string };
   go: () => void;
+}
+
+// One rule for what a query reaches, shared by both finders: the name and the place.
+export function matchesDestination(destination: Destination, term: string): boolean {
+  return `${destination.name} ${destination.path}`.toLowerCase().includes(term);
 }
 
 interface FinderProps {
@@ -64,7 +77,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
 
   const { recentRows, otherRows } = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const matches = (destination: Destination) => `${destination.name} ${destination.path}`.toLowerCase().includes(term);
+    const matches = (destination: Destination) => matchesDestination(destination, term);
     const been = recent.filter(matches);
     const rest = elsewhere.filter(matches);
     return { recentRows: been, otherRows: term ? rest : rest.slice(0, RESTING_OTHERS) };

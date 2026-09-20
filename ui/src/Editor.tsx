@@ -490,13 +490,31 @@ interface EditorProps {
   startLineNumber?: number;
   startColumn?: number;
   viewState?: monaco.editor.ICodeEditorViewState;
+  // A phone's column has no room for a gutter: no line numbers, no folding.
+  phone?: boolean;
+}
+
+function gutterOptions(phone: boolean): monaco.editor.IEditorOptions {
+  return phone
+    ? { lineNumbers: "off", folding: false, glyphMargin: false, lineDecorationsWidth: 8 }
+    : { lineNumbers: "on", folding: true, glyphMargin: false, lineDecorationsWidth: 10 };
 }
 
 export interface onGoToDefinition {
   (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
 }
 
-export function Editor({ model, onMount, onGoToDefinition, readOnly = false, format = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
+export function Editor({
+  model,
+  onMount,
+  onGoToDefinition,
+  readOnly = false,
+  format = false,
+  startLineNumber = 0,
+  startColumn = 0,
+  viewState,
+  phone = false,
+}: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -541,6 +559,7 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
         // a line too long to fit wraps instead.
         wordWrap: "on",
         readOnly,
+        ...gutterOptions(phone),
         fixedOverflowWidgets: true,
         renderLineHighlight: "none",
         formatOnPaste: true,
@@ -635,6 +654,10 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, for
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
+
+  useEffect(() => {
+    editorRef.current?.updateOptions(gutterOptions(phone));
+  }, [phone]);
 
   return <div ref={containerRef} className="h-full w-full bg-background" />;
 }

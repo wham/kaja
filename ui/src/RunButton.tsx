@@ -26,6 +26,8 @@ interface RunButtonProps {
   onDiscardDraft?: () => void;
   // A read-only file's only route to a copy you can change.
   onDuplicateAsDraft?: () => void;
+  // The phone's header is taller than the command row and has no keyboard to hint at.
+  size?: "default" | "lg";
 }
 
 // Run is the last control before the utility icons in the command row. Running keeps
@@ -51,7 +53,9 @@ export function RunButton({
   onSaveAsFile,
   onDiscardDraft,
   onDuplicateAsDraft,
+  size = "default",
 }: RunButtonProps) {
+  const large = size === "lg";
   const elapsedMs = useElapsed(running, startedAt);
   const runLabel = useShortcutLabel("run");
   const runWithParametersLabel = useShortcutLabel("runWithParameters");
@@ -67,7 +71,8 @@ export function RunButton({
   return (
     <div
       className={cn(
-        "flex h-[26px] shrink-0 items-stretch overflow-hidden rounded-md",
+        "flex shrink-0 items-stretch overflow-hidden rounded-md",
+        large ? "h-[36px]" : "h-[26px]",
         running ? "border border-border bg-secondary text-secondary-foreground" : "bg-emerald-600 text-white",
         disabled && "opacity-45",
       )}
@@ -77,16 +82,21 @@ export function RunButton({
         disabled={disabled}
         title={error}
         onClick={() => (running ? onStop() : onRun())}
-        className={cn("flex items-center gap-1.5 px-2.5", !running && !disabled && "hover:bg-emerald-700", disabled && "cursor-default")}
+        className={cn(
+          "flex items-center",
+          large ? "gap-2 px-4" : "gap-1.5 px-2.5",
+          !running && !disabled && "hover:bg-emerald-700",
+          disabled && "cursor-default",
+        )}
       >
-        {running ? <Spinner className="size-[13px] text-muted-foreground" /> : <Play size={13} />}
-        <span className="text-xs font-medium">{running ? "Stop" : "Run"}</span>
+        {running ? <Spinner className={cn("text-muted-foreground", large ? "size-[15px]" : "size-[13px]")} /> : <Play size={large ? 15 : 13} />}
+        <span className={cn("font-medium", large ? "text-sm" : "text-xs")}>{running ? "Stop" : "Run"}</span>
         {running ? (
           <span className="font-mono text-xs tabular-nums text-muted-foreground">{(elapsedMs / 1000).toFixed(1)}s</span>
         ) : (
           // The hint is the first thing to go as the command row narrows: the screens that
           // narrow it that far have no keyboard to press.
-          !disabled && runLabel !== "" && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runLabel}</span>
+          !disabled && !large && runLabel !== "" && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runLabel}</span>
         )}
       </button>
       {split && (
@@ -98,9 +108,14 @@ export function RunButton({
                 type="button"
                 disabled={disabled}
                 aria-label="More run options"
-                className={cn("flex w-[22px] items-center justify-center", !disabled && "hover:bg-emerald-700", disabled && "cursor-default")}
+                className={cn(
+                  "flex items-center justify-center",
+                  large ? "w-[32px]" : "w-[22px]",
+                  !disabled && "hover:bg-emerald-700",
+                  disabled && "cursor-default",
+                )}
               >
-                <ChevronDown size={13} />
+                <ChevronDown size={large ? 15 : 13} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[260px]">
