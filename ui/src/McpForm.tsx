@@ -58,6 +58,29 @@ function inspectionKey(parameters: Record<string, string>): string {
   return (parameters.url ?? "").trim();
 }
 
+// The fields that make up the credential, which is the server's rather than the
+// form's: a token typed for one host may not be sent to the next one typed.
+const CREDENTIAL_KEYS = ["auth", "token", "apiKeyName", "clientId", "scope"];
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url.trim()).host.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+// withEndpoint is the parameters with a new endpoint typed in. Typing another host, or
+// clearing the field, drops the credential with the server it was for; a path corrected
+// on the same host keeps it, a typo being the most common edit made to a URL that has
+// just been read.
+export function withEndpoint(previous: Record<string, string>, url: string): Record<string, string> {
+  if (hostOf(previous.url ?? "") === hostOf(url)) return { ...previous, url };
+  const next: Record<string, string> = { ...previous, url };
+  for (const key of CREDENTIAL_KEYS) delete next[key];
+  return next;
+}
+
 // Reads already on the wire, so two forms ask the server the same question once.
 const reading = new Map<string, Promise<InspectMcpResponse>>();
 
@@ -247,12 +270,21 @@ export function McpForm({
 
   useEffect(() => onSurfaceChange(server ? { count: surfaceCount(server) } : undefined), [server, onSurfaceChange]);
 
-  // Derive the name from what the server calls itself until the user types one.
+  // Derive the name from what the server calls itself until the user types one. A
+  // name derived from one server is dropped when the endpoint stops naming it, so an
+  // endpoint nothing has read yet is not added under the previous server's name.
   useEffect(() => {
-    if (!server || nameTouched) return;
+    if (nameTouched) return;
+    if (!server) {
+      onNameChange("");
+      return;
+    }
     const derived = uniqueAppName(deriveAppName(parametersRef.current.url ?? "", server.name), takenNames);
     if (derived) onNameChange(derived);
   }, [server, nameTouched, takenNames, onNameChange]);
+
+  // A sign-in that failed is about the server it was tried against.
+  useEffect(() => setSignIn({ status: "idle" }), [source]);
 
   // A server that won't say what it exposes without a credential is asking for the one
   // MCP's own authorization framework hands out. A server Kaja is set up for asks for
@@ -304,7 +336,7 @@ export function McpForm({
             value={url}
             onValueChange={(value) => {
               typedRef.current = true;
-              setParameter("url", value);
+              onParametersChange((previous) => withEndpoint(previous, value));
             }}
             variables={variables}
             placeholder="https://example.com/mcp"

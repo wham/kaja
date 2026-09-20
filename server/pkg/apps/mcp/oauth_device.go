@@ -106,8 +106,8 @@ func requestDeviceAuthorization(client *http.Client, server *authorizationServer
 // beginDevice starts a sign-in the person finishes by typing a code, and reports
 // how it went on the channel the redirect flow reports on. Nothing about it is
 // kept until it finishes, the same as the other flow.
-func (a *Authorizer) beginDevice(resource, scope string, server *authorizationServer, registered *registration) (SignInPrompt, <-chan error, error) {
-	issued, err := requestDeviceAuthorization(a.client, server, registered, scope, resource)
+func (a *Authorizer) beginDevice(resource, audience, scope string, server *authorizationServer, registered *registration) (SignInPrompt, <-chan error, error) {
+	issued, err := requestDeviceAuthorization(a.client, server, registered, scope, audience)
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
@@ -117,6 +117,7 @@ func (a *Authorizer) beginDevice(resource, scope string, server *authorizationSe
 	}
 	pending := &flow{
 		resource:   resource,
+		audience:   audience,
 		scope:      scope,
 		server:     server,
 		registered: registered,
@@ -148,7 +149,7 @@ func (a *Authorizer) pollDevice(key string, pending *flow, issued *deviceAuthori
 		form := url.Values{}
 		form.Set("grant_type", deviceGrantType)
 		form.Set("device_code", issued.DeviceCode)
-		form.Set("resource", pending.resource)
+		form.Set("resource", pending.audience)
 		token, err := requestToken(a.client, pending.server, pending.registered, form)
 		var refusal *tokenRefusal
 		if errors.As(err, &refusal) {
@@ -167,11 +168,7 @@ func (a *Authorizer) pollDevice(key string, pending *flow, issued *deviceAuthori
 		if token.Scope == "" {
 			token.Scope = pending.scope
 		}
-		a.settle(key, a.store.SaveGrant(pending.resource, &grant{
-			Server:   pending.server,
-			Token:    token,
-			ClientID: pending.registered.ClientID,
-		}))
+		a.settle(key, a.store.SaveGrant(pending.resource, pending.grant(token)))
 		return
 	}
 }

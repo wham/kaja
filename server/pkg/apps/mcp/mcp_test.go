@@ -957,3 +957,45 @@ func TestZeroValuedArgumentsReachTheServer(t *testing.T) {
 		t.Errorf("units was sent though nothing set it: %v", arguments)
 	}
 }
+
+// A probe that reached no server has said nothing about its era, so the
+// handshake is not tried after it: a server that hangs would cost the form twice
+// its timeout before it said so.
+func TestAServerThatNeverAnsweredIsAskedOnce(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Fatalf("hijack: %v", err)
+		}
+		conn.Close()
+	}))
+	defer server.Close()
+
+	_, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil)
+	if problem == nil || problem.Kind != ProblemUnreachable {
+		t.Fatalf("problem = %#v, want unreachable", problem)
+	}
+	if attempts != 1 {
+		t.Errorf("attempts = %d, want the probe alone", attempts)
+	}
+}
+
+// An endpoint answering JSON that is not a JSON-RPC message is not speaking MCP,
+// whatever it is speaking.
+func TestJSONThatIsNotJSONRPCIsNotMCP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"args":{},"url":"https://example.com/post"}`)
+	}))
+	defer server.Close()
+
+	_, problem := Inspect(map[string]string{"url": server.URL + "/post"}, nil)
+	if problem == nil || problem.Kind != ProblemNotMCP {
+		t.Fatalf("problem = %#v, want not MCP", problem)
+	}
+	if !strings.Contains(problem.Detail, "neither a result nor an error") || !strings.Contains(problem.Detail, "example.com/post") {
+		t.Errorf("detail = %q, want the answer named", problem.Detail)
+	}
+}

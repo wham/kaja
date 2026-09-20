@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -202,8 +203,22 @@ func (c *Client) ensureEra() error {
 		}
 		return c.handshake()
 	}
+	// A server that never answered has said nothing about its era, and the
+	// handshake would be the same wait a second time: a server that hangs cost
+	// the form twice its timeout before it said so.
+	var transport *url.Error
+	if errors.As(err, &transport) {
+		return err
+	}
 	return c.toLegacy()
 }
+
+// notMCP is an answer that is not a JSON-RPC message. Whatever is at the
+// endpoint, it is not speaking MCP, and the form says so rather than reporting
+// a server that could not be read.
+type notMCP struct{ reason string }
+
+func (e *notMCP) Error() string { return e.reason }
 
 func (c *Client) toLegacy() error {
 	c.mu.Lock()
@@ -404,13 +419,13 @@ func decodeResponse(contentType string, body io.Reader) (payload []byte, result 
 		Error  *jsonRPCError   `json:"error"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(payload), &envelope); err != nil {
-		return payload, nil, notices, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
+		return payload, nil, notices, nil, &notMCP{"the response is not JSON-RPC: " + summarize(payload)}
 	}
 	if envelope.Error != nil {
 		return payload, nil, notices, envelope.Error, nil
 	}
 	if envelope.Result == nil {
-		return payload, nil, notices, nil, fmt.Errorf("the response carried neither a result nor an error")
+		return payload, nil, notices, nil, &notMCP{"the response carried neither a result nor an error: " + summarize(payload)}
 	}
 	return payload, envelope.Result, notices, nil, nil
 }

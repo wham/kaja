@@ -68,7 +68,10 @@ type Authorizer struct {
 // flow is one sign-in in progress: what it will need to finish, and where to say
 // it has.
 type flow struct {
-	resource   string
+	resource string
+	// audience is the resource a token is asked for, which is the endpoint or
+	// the parent its metadata says one token covers.
+	audience   string
 	scope      string
 	server     *authorizationServer
 	registered *registration
@@ -129,7 +132,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	}
 
 	challenged, metadataURL := a.probe(app)
-	server, described, err := a.signInAt(app.Endpoint, resource, metadataURL)
+	server, described, audience, err := a.signInAt(app.Endpoint, resource, metadataURL)
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
@@ -140,7 +143,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 		if registered == nil {
 			return SignInPrompt{}, nil, fmt.Errorf("the authorization server registers no clients, so it needs a client id of your own")
 		}
-		return a.beginDevice(resource, scope, server, registered)
+		return a.beginDevice(resource, audience, scope, server, registered)
 	}
 
 	// The listener comes first, because the address it is on is what kaja is
@@ -163,13 +166,14 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
-	target, err := authorizationURL(server, registered.ClientID, redirect, scope, resource, state, proof)
+	target, err := authorizationURL(server, registered.ClientID, redirect, scope, audience, state, proof)
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
 
 	pending := &flow{
 		resource:   resource,
+		audience:   audience,
 		scope:      scope,
 		server:     server,
 		registered: registered,
@@ -233,7 +237,7 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", held.Token.RefreshToken)
-	form.Set("resource", resource)
+	form.Set("resource", held.audience(resource))
 	if held.Token.Scope != "" {
 		form.Set("scope", held.Token.Scope)
 	}
@@ -324,38 +328,41 @@ func (a *Authorizer) probe(app AppAuthorization) (challenge, string) {
 	return parsed, parsed["resource_metadata"]
 }
 
-// signInAt is the authorization server to sign in at, and the resource's own
-// document where it published one. A server that publishes none is signed in to
-// at its own origin: that is what the revision of MCP before RFC 9728 said an
-// MCP server was, and a document served by the host the endpoint is on is the
-// server's own word exactly as the missing one would have been.
-func (a *Authorizer) signInAt(endpoint string, resource string, named string) (*authorizationServer, *protectedResource, error) {
-	described, missing := a.readProtectedResource(endpoint, resource, named)
+// signInAt is the authorization server to sign in at, the resource's own
+// document where it published one, and the resource a token is asked for. A
+// server that publishes no document is signed in to at its own origin: that is
+// what the revision of MCP before RFC 9728 said an MCP server was, and a
+// document served by the host the endpoint is on is the server's own word
+// exactly as the missing one would have been.
+func (a *Authorizer) signInAt(endpoint string, resource string, named string) (*authorizationServer, *protectedResource, string, error) {
+	described, audience, missing := a.readProtectedResource(endpoint, resource, named)
 	if missing == nil {
 		server, err := a.readAuthorizationServer(described.AuthorizationServers[0])
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, "", err
 		}
-		return server, described, nil
+		return server, described, audience, nil
 	}
 	origin, err := serverOrigin(endpoint)
 	if err != nil {
-		return nil, nil, missing
+		return nil, nil, "", missing
 	}
 	// The missing document is what is reported when the fallback is not there
 	// either: it is the one the specification asks this server for.
 	server, err := a.readAuthorizationServer(origin)
 	if err != nil {
-		return nil, nil, missing
+		return nil, nil, "", missing
 	}
-	return server, nil, nil
+	return server, nil, resource, nil
 }
 
 // readProtectedResource reads the document naming the authorization server that
-// issues tokens for this resource. A document that is about something else is
-// passed over rather than taken: a host serving several MCP endpoints publishes
-// one at its root about the root, and that is not this endpoint's.
-func (a *Authorizer) readProtectedResource(endpoint string, resource string, named string) (*protectedResource, error) {
+// issues tokens for this resource, and the resource that document says a token
+// is for. A document about something else - a sibling path, another host - is
+// passed over rather than taken: a host serving several MCP endpoints may
+// publish one per endpoint, and the path-carrying address is asked first so
+// that each is found before the root's.
+func (a *Authorizer) readProtectedResource(endpoint string, resource string, named string) (*protectedResource, string, error) {
 	candidates := protectedResourceURLs(endpoint, named)
 	var reported error
 	for _, target := range candidates {
@@ -373,7 +380,8 @@ func (a *Authorizer) readProtectedResource(endpoint string, resource string, nam
 			}
 			continue
 		}
-		if !describes(described, resource) {
+		audience, ok := covers(described, resource)
+		if !ok {
 			if reported == nil {
 				reported = fmt.Errorf("%s is about %q rather than about %q", target, described.Resource, resource)
 			}
@@ -385,12 +393,12 @@ func (a *Authorizer) readProtectedResource(endpoint string, resource string, nam
 			}
 			continue
 		}
-		return described, nil
+		return described, audience, nil
 	}
 	if reported == nil {
 		reported = fmt.Errorf("%q is not a URL", endpoint)
 	}
-	return nil, fmt.Errorf("no protected resource metadata: %w", reported)
+	return nil, "", fmt.Errorf("no protected resource metadata: %w", reported)
 }
 
 // readAuthorizationServer tries each well-known form in turn and takes the first
@@ -528,7 +536,7 @@ func (a *Authorizer) finish(pending *flow, query url.Values) error {
 	form.Set("code", code)
 	form.Set("redirect_uri", pending.redirect)
 	form.Set("code_verifier", pending.proof.verifier)
-	form.Set("resource", pending.resource)
+	form.Set("resource", pending.audience)
 	issued, err := requestToken(a.client, pending.server, pending.registered, form)
 	if err != nil {
 		return err
@@ -536,11 +544,17 @@ func (a *Authorizer) finish(pending *flow, query url.Values) error {
 	if issued.Scope == "" {
 		issued.Scope = pending.scope
 	}
-	return a.store.SaveGrant(pending.resource, &grant{
-		Server:   pending.server,
-		Token:    issued,
-		ClientID: pending.registered.ClientID,
-	})
+	return a.store.SaveGrant(pending.resource, pending.grant(issued))
+}
+
+// grant is what a finished flow keeps: the token, and everything a renewal has
+// to present with it.
+func (f *flow) grant(issued *tokenSet) *grant {
+	held := &grant{Server: f.server, Token: issued, ClientID: f.registered.ClientID}
+	if f.audience != f.resource {
+		held.Audience = f.audience
+	}
+	return held
 }
 
 // settle reports a flow's outcome once and lets go of it, closing the listener
