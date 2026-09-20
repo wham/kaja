@@ -206,7 +206,7 @@ export function McpForm({
       }
       setSignIn({ status: "idle" });
     } catch (error) {
-      failed({ kind: McpProblemKind.MCP_PROBLEM_AUTHORIZATION, message: "Kaja could not sign in to that server.", detail: rpcErrorMessage(error) });
+      failed({ kind: McpProblemKind.MCP_PROBLEM_AUTHORIZATION, message: "The sign-in failed.", detail: rpcErrorMessage(error) });
     }
   }, [read]);
 
@@ -520,25 +520,30 @@ function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: ()
   );
 }
 
+// Not everything the read comes back with is a failure. A sign-in Kaja has not done
+// yet is the next step in a form that has just asked for one, so it is drawn in the
+// chrome's own colours and offers no Retry: the move is the button below it, and
+// reading again before that is pressed answers exactly the same.
 function ProblemBanner({ problem, readOnly, onRetry }: { problem: McpProblem; readOnly: boolean; onRetry: () => void }) {
+  const step = problem.kind === McpProblemKind.MCP_PROBLEM_SIGN_IN;
   const warning = problem.kind === McpProblemKind.MCP_PROBLEM_EMPTY || problem.kind === McpProblemKind.MCP_PROBLEM_UNAUTHORIZED;
-  const Icon: LucideIcon = warning ? TriangleAlert : problem.kind === McpProblemKind.MCP_PROBLEM_NOT_MCP ? CircleAlert : CircleX;
+  const Icon: LucideIcon = step ? ShieldCheck : warning ? TriangleAlert : problem.kind === McpProblemKind.MCP_PROBLEM_NOT_MCP ? CircleAlert : CircleX;
 
   return (
     <div
       className={cn(
         "flex items-start gap-2 rounded-md border px-3 py-2",
-        warning ? "border-amber-500/40 bg-amber-500/10" : "border-destructive/40 bg-destructive/10",
+        step ? "border-border bg-card" : warning ? "border-amber-500/40 bg-amber-500/10" : "border-destructive/40 bg-destructive/10",
       )}
     >
-      <div className={cn("pt-0.5", warning ? "text-amber-600 dark:text-amber-400" : "text-destructive")}>
+      <div className={cn("pt-0.5", step ? "text-muted-foreground" : warning ? "text-amber-600 dark:text-amber-400" : "text-destructive")}>
         <Icon size={15} />
       </div>
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="text-sm text-foreground">{problem.message}</p>
         {problem.detail && <p className="break-words font-mono text-xs text-muted-foreground">{problem.detail}</p>}
       </div>
-      {!readOnly && (
+      {!readOnly && !step && (
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onRetry}>
             Retry

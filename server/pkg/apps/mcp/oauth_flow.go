@@ -340,19 +340,28 @@ func (a *Authorizer) probe(app AppAuthorization) (challenge, string) {
 
 func (a *Authorizer) readProtectedResource(endpoint string, named string) (*protectedResource, error) {
 	candidates := protectedResourceURLs(endpoint, named)
-	var last error
+	var reported error
 	for _, target := range candidates {
 		described := &protectedResource{}
 		if err := fetchJSON(a.client, target, described); err != nil {
-			last = err
+			// The first candidate is the one the failure names, because it is the
+			// address the specification puts first and the one a server publishing
+			// this document publishes it at. Reporting the last one instead named
+			// the fallback, so a person was told about a URL their server was never
+			// going to answer at while the address that mattered went unsaid. What
+			// is reported is the request and its answer: a document kaja was not
+			// served is not a document the server does not publish.
+			if reported == nil {
+				reported = err
+			}
 			continue
 		}
 		return described, nil
 	}
-	if last == nil {
-		last = fmt.Errorf("%q is not a URL", endpoint)
+	if reported == nil {
+		reported = fmt.Errorf("%q is not a URL", endpoint)
 	}
-	return nil, fmt.Errorf("the server does not say where to sign in: %w", last)
+	return nil, fmt.Errorf("no protected resource metadata: %w", reported)
 }
 
 // readAuthorizationServer tries each well-known form in turn and takes the first

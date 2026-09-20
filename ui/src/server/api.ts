@@ -1829,7 +1829,14 @@ export enum McpProblemKind {
      *
      * @generated from protobuf enum value: MCP_PROBLEM_AUTHORIZATION = 9;
      */
-    MCP_PROBLEM_AUTHORIZATION = 9
+    MCP_PROBLEM_AUTHORIZATION = 9,
+    /**
+     * The app signs in and kaja has not. Nothing has gone wrong and the server was
+     * never called: the next move is the sign-in the app already asks for.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_SIGN_IN = 10;
+     */
+    MCP_PROBLEM_SIGN_IN = 10
 }
 /**
  * @generated from protobuf enum CompileStatus

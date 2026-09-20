@@ -483,11 +483,13 @@ func (s *ApiService) mcpAuthorization(app *McpApp) mcp.AppAuthorization {
 }
 
 // authorizationProblem is a sign-in that did not happen, said the way the form
-// says every other failure: one line, and the error under it.
+// says every other failure: one line, and the error under it. The line names the
+// step and nothing else, because which step it was is all it can say before the
+// error under it says what happened.
 func authorizationProblem(err error) *McpProblem {
 	return &McpProblem{
 		Kind:    McpProblemKind_MCP_PROBLEM_AUTHORIZATION,
-		Message: "Kaja could not sign in to that server.",
+		Message: "The sign-in failed.",
 		Detail:  err.Error(),
 	}
 }
@@ -497,6 +499,7 @@ var mcpProblemKinds = map[mcp.ProblemKind]McpProblemKind{
 	mcp.ProblemUnreachable:  McpProblemKind_MCP_PROBLEM_UNREACHABLE,
 	mcp.ProblemTimeout:      McpProblemKind_MCP_PROBLEM_TIMEOUT,
 	mcp.ProblemUnauthorized: McpProblemKind_MCP_PROBLEM_UNAUTHORIZED,
+	mcp.ProblemSignIn:       McpProblemKind_MCP_PROBLEM_SIGN_IN,
 	mcp.ProblemForbidden:    McpProblemKind_MCP_PROBLEM_FORBIDDEN,
 	mcp.ProblemHTTPError:    McpProblemKind_MCP_PROBLEM_HTTP_ERROR,
 	mcp.ProblemNotMCP:       McpProblemKind_MCP_PROBLEM_NOT_MCP,
