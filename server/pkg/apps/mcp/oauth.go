@@ -125,14 +125,26 @@ type protectedResource struct {
 	ScopesSupported      []string `json:"scopes_supported"`
 }
 
-// describes reports whether a document is about the resource it was read for. A
-// document naming no resource does not say, which is taken on trust.
-func describes(document *protectedResource, resource string) bool {
+// covers reports whether a document is about the resource it was read for, and
+// the identifier a token is asked for under. A document naming no resource does
+// not say, which is taken on trust. One naming the endpoint is the plain case.
+// One naming a parent path on the same host covers the endpoint too: a server
+// guarding everything under one path with one token says so by publishing one
+// document about that path, and the token it issues is for the path it named,
+// which is why that is what comes back as the audience. A sibling path or
+// another host is a document about something else.
+func covers(document *protectedResource, resource string) (string, bool) {
 	if document.Resource == "" {
-		return true
+		return resource, true
 	}
 	declared, err := canonicalResource(document.Resource)
-	return err == nil && declared == resource
+	if err != nil {
+		return "", false
+	}
+	if declared == resource || strings.HasPrefix(resource, declared+"/") {
+		return declared, true
+	}
+	return "", false
 }
 
 // protectedResourceURLs is where the resource's metadata is looked for. A
@@ -368,10 +380,15 @@ func requestToken(client *http.Client, server *authorizationServer, registered *
 	// A client kaja registered asks for no secret, so it usually has none. One
 	// issued anyway is sent the way the server said it wants it, and over the
 	// authorization header where it said nothing: that is what RFC 7591 defaults
-	// a registration to.
-	postSecret := registered.ClientSecret != "" && registered.TokenAuthMethod == "client_secret_post"
+	// a registration to. A server that issued one beside `none` has said the
+	// client is public, and a public client presenting a secret is refused.
+	secret := registered.ClientSecret
+	if registered.TokenAuthMethod == "none" {
+		secret = ""
+	}
+	postSecret := secret != "" && registered.TokenAuthMethod == "client_secret_post"
 	if postSecret {
-		form.Set("client_secret", registered.ClientSecret)
+		form.Set("client_secret", secret)
 	}
 	request, err := http.NewRequest(http.MethodPost, server.TokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -379,8 +396,8 @@ func requestToken(client *http.Client, server *authorizationServer, registered *
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("Accept", "application/json")
-	if registered.ClientSecret != "" && !postSecret {
-		request.SetBasicAuth(url.QueryEscape(registered.ClientID), url.QueryEscape(registered.ClientSecret))
+	if secret != "" && !postSecret {
+		request.SetBasicAuth(url.QueryEscape(registered.ClientID), url.QueryEscape(secret))
 	}
 
 	response, err := client.Do(request)

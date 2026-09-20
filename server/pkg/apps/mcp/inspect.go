@@ -144,7 +144,8 @@ func classify(err error) *Problem {
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		return &Problem{Kind: ProblemTimeout, Message: "The server didn't answer in time.", Detail: detail}
 	}
-	if strings.Contains(detail, "is not JSON-RPC") {
+	var other *notMCP
+	if errors.As(err, &other) {
 		return &Problem{Kind: ProblemNotMCP, Message: "That endpoint answered, but not with MCP.", Detail: detail}
 	}
 	if isTransport(err) {

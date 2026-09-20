@@ -86,7 +86,7 @@ func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := testAuthorizer(t).readProtectedResource(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+	_, _, err := testAuthorizer(t).readProtectedResource(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
 	if err == nil {
 		t.Fatal("expected the discovery to fail")
 	}
@@ -102,15 +102,15 @@ func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
 }
 
 // A server that publishes no document about itself is signed in to at its own
-// origin, the way the revision of MCP before RFC 9728 read one - and the
-// document it publishes at its root about its root is passed over on the way,
-// being about another resource than the endpoint the app names.
+// origin, the way the revision of MCP before RFC 9728 read one - and a document
+// it publishes about another of its endpoints is passed over on the way, being
+// about another resource than the one the app names.
 func TestSignsInAtTheOriginWhereThereIsNoResourceMetadata(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"resource": server.URL + "/", "authorization_servers": []string{"https://elsewhere.example"}})
+		writeJSON(w, map[string]any{"resource": server.URL + "/v2/mcp", "authorization_servers": []string{"https://elsewhere.example"}})
 	})
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
@@ -121,15 +121,91 @@ func TestSignsInAtTheOriginWhereThereIsNoResourceMetadata(t *testing.T) {
 	})
 
 	authorizer := testAuthorizer(t)
-	found, described, err := authorizer.signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+	found, described, audience, err := authorizer.signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
 	if err != nil {
 		t.Fatalf("signInAt: %v", err)
 	}
 	if described != nil {
-		t.Errorf("described = %#v, want the root's document passed over", described)
+		t.Errorf("described = %#v, want the other endpoint's document passed over", described)
 	}
 	if found.Issuer != server.URL || found.TokenEndpoint != server.URL+"/token" {
 		t.Errorf("found = %#v, want the server's own metadata", found)
+	}
+	if audience != server.URL+"/v1/mcp" {
+		t.Errorf("audience = %q, want the endpoint itself", audience)
+	}
+}
+
+// A document about a parent of the endpoint covers it: a host guarding
+// everything it serves with one token publishes one document about its root,
+// and the token is asked for the resource that document named.
+func TestADocumentAboutAParentCoversTheEndpoint(t *testing.T) {
+	for _, declared := range []string{"/", "", "/v1"} {
+		t.Run("about "+declared, func(t *testing.T) {
+			mux := http.NewServeMux()
+			server := httptest.NewServer(mux)
+			defer server.Close()
+			mux.HandleFunc("GET /.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(w, map[string]any{"resource": server.URL + declared, "authorization_servers": []string{server.URL + "/auth"}})
+			})
+			mux.HandleFunc("GET /.well-known/oauth-authorization-server/auth", func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(w, map[string]any{"issuer": server.URL + "/auth", "authorization_endpoint": server.URL + "/authorize", "token_endpoint": server.URL + "/token"})
+			})
+
+			_, described, audience, err := testAuthorizer(t).signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+			if err != nil {
+				t.Fatalf("signInAt: %v", err)
+			}
+			if described == nil {
+				t.Fatal("want the parent's document taken")
+			}
+			if want := strings.TrimSuffix(server.URL+declared, "/"); audience != want {
+				t.Errorf("audience = %q, want %q", audience, want)
+			}
+		})
+	}
+	if _, ok := covers(&protectedResource{Resource: "https://example.com/v1"}, "https://example.com/v10/mcp"); ok {
+		t.Error("a path that merely starts with the declared one is not under it")
+	}
+	if _, ok := covers(&protectedResource{Resource: "https://other.example/"}, "https://example.com/mcp"); ok {
+		t.Error("another host is another resource")
+	}
+}
+
+// A registration answered with a secret beside `none` is a public client: the
+// server has said not to expect one, and a public client presenting a secret
+// is refused.
+func TestAPublicClientPresentsNoSecret(t *testing.T) {
+	var received url.Values
+	var authorization string
+	as := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		received = r.PostForm
+		authorization = r.Header.Get("Authorization")
+		writeJSON(w, map[string]any{"access_token": "t", "token_type": "Bearer"})
+	}))
+	defer as.Close()
+	server := &authorizationServer{TokenEndpoint: as.URL + "/token"}
+	for _, method := range []string{"none", "", "client_secret_post", "client_secret_basic"} {
+		registered := &registration{ClientID: "c", ClientSecret: "s", TokenAuthMethod: method}
+		if _, err := requestToken(&http.Client{}, server, registered, url.Values{"grant_type": {"refresh_token"}}); err != nil {
+			t.Fatalf("%q: %v", method, err)
+		}
+		posted, basic := received.Get("client_secret") != "", authorization != ""
+		switch method {
+		case "none":
+			if posted || basic {
+				t.Errorf("%q: the secret was sent (posted=%v basic=%v)", method, posted, basic)
+			}
+		case "client_secret_post":
+			if !posted || basic {
+				t.Errorf("%q: posted=%v basic=%v", method, posted, basic)
+			}
+		default:
+			if posted || !basic {
+				t.Errorf("%q: posted=%v basic=%v", method, posted, basic)
+			}
+		}
 	}
 }
 
@@ -139,7 +215,7 @@ func TestTheMissingResourceMetadataIsWhatIsReported(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()
 
-	_, _, err := testAuthorizer(t).signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
+	_, _, _, err := testAuthorizer(t).signInAt(server.URL+"/v1/mcp", server.URL+"/v1/mcp", "")
 	if err == nil {
 		t.Fatal("expected the sign-in to have nowhere to go")
 	}

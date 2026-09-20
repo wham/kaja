@@ -29,6 +29,19 @@ type grant struct {
 	Server   *authorizationServer `json:"server"`
 	Token    *tokenSet            `json:"token"`
 	ClientID string               `json:"client_id,omitempty"`
+	// Audience is the resource the token was asked for, where the resource
+	// metadata named a parent of the endpoint rather than the endpoint itself.
+	// Empty is the endpoint, which is what every grant before it was for.
+	Audience string `json:"audience,omitempty"`
+}
+
+// audience is what a renewal names as the resource: the one the token was
+// issued for, which is the key it is held under unless the grant says otherwise.
+func (g *grant) audience(resource string) string {
+	if g.Audience != "" {
+		return g.Audience
+	}
+	return resource
 }
 
 type storeFile struct {
