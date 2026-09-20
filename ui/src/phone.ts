@@ -8,20 +8,55 @@ import { streamingKind } from "./streaming";
  */
 export const PHONE_QUERY = "(max-width: 639px)";
 
-export type SheetPosition = "rest" | "up";
+/**
+ * Where the script's sheet sits. `rest` is the grabber alone, `half` shows the code
+ * over the run it produced, and `full` is what editing needs — a keyboard leaves
+ * nothing over for the run anyway.
+ */
+export type SheetPosition = "rest" | "half" | "full";
 
-// A flick decides by its direction; anything slower by which end is nearer.
+export interface SheetStop {
+  position: SheetPosition;
+  // How far down from `full` this place sits.
+  offset: number;
+}
+
+// A flick decides by its direction; anything slower by which place is nearest.
 const FLICK_VELOCITY = 0.4;
 
+// Where the middle place sits, as a share of the way from full down to rest.
+const HALF_SHARE = 0.45;
+
 /**
- * Where a sheet lands when it is let go. `offset` is how far down from `up` it sits,
- * `restOffset` is where it sits at rest, and `velocity` is in px/ms, positive
- * downward.
+ * The three places a sheet has, given how far down its resting place is. Ordered
+ * from the top down, which is what makes a flick one step through the list.
  */
-export function snapSheet(offset: number, restOffset: number, velocity: number): SheetPosition {
-  if (velocity > FLICK_VELOCITY) return "rest";
-  if (velocity < -FLICK_VELOCITY) return "up";
-  return offset < restOffset / 2 ? "up" : "rest";
+export function sheetStops(restOffset: number): SheetStop[] {
+  return [
+    { position: "full", offset: 0 },
+    { position: "half", offset: Math.round(restOffset * HALF_SHARE) },
+    { position: "rest", offset: restOffset },
+  ];
+}
+
+/**
+ * Where a sheet lands when it is let go. `offset` is how far down from `full` it was
+ * left, `from` is where the drag started, and `velocity` is in px/ms, positive
+ * downward. A flick moves one place in its own direction rather than to the end, so
+ * the middle place is reachable by the same gesture that leaves it.
+ */
+export function snapSheet(offset: number, stops: SheetStop[], velocity: number, from: SheetPosition): SheetPosition {
+  const step = velocity > FLICK_VELOCITY ? 1 : velocity < -FLICK_VELOCITY ? -1 : 0;
+  if (step !== 0) {
+    const at = stops.findIndex((stop) => stop.position === from);
+    return stops[Math.max(0, Math.min(stops.length - 1, (at === -1 ? 0 : at) + step))].position;
+  }
+  return stops.reduce((nearest, stop) => (Math.abs(stop.offset - offset) < Math.abs(nearest.offset - offset) ? stop : nearest)).position;
+}
+
+/** A tap on the chrome raises a resting sheet and drops a raised one. */
+export function tapSheet(position: SheetPosition): SheetPosition {
+  return position === "rest" ? "half" : "rest";
 }
 
 export type MethodTag = "write" | "stream";
