@@ -249,6 +249,11 @@ const (
 	// The app signs in and kaja has not. Nothing has gone wrong and the server was
 	// never called: the next move is the sign-in the app already asks for.
 	McpProblemKind_MCP_PROBLEM_SIGN_IN McpProblemKind = 10
+	// The endpoint names a variable this kaja doesn't define, so the server can't
+	// be read here. Nothing has gone wrong: the app is read where it opens.
+	McpProblemKind_MCP_PROBLEM_UNRESOLVED McpProblemKind = 11
+	// The endpoint speaks the older HTTP+SSE transport, which kaja doesn't.
+	McpProblemKind_MCP_PROBLEM_LEGACY_SSE McpProblemKind = 12
 )
 
 // Enum value maps for McpProblemKind.
@@ -265,6 +270,8 @@ var (
 		8:  "MCP_PROBLEM_EMPTY",
 		9:  "MCP_PROBLEM_AUTHORIZATION",
 		10: "MCP_PROBLEM_SIGN_IN",
+		11: "MCP_PROBLEM_UNRESOLVED",
+		12: "MCP_PROBLEM_LEGACY_SSE",
 	}
 	McpProblemKind_value = map[string]int32{
 		"MCP_PROBLEM_UNKNOWN":       0,
@@ -278,6 +285,8 @@ var (
 		"MCP_PROBLEM_EMPTY":         8,
 		"MCP_PROBLEM_AUTHORIZATION": 9,
 		"MCP_PROBLEM_SIGN_IN":       10,
+		"MCP_PROBLEM_UNRESOLVED":    11,
+		"MCP_PROBLEM_LEGACY_SSE":    12,
 	}
 )
 
@@ -5579,7 +5588,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15OPEN_API_PROBLEM_HTML\x10\x04\x12#\n" +
 	"\x1fOPEN_API_PROBLEM_NOT_A_DOCUMENT\x10\x05\x12\x1d\n" +
 	"\x19OPEN_API_PROBLEM_SWAGGER2\x10\x06\x12\x1e\n" +
-	"\x1aOPEN_API_PROBLEM_MALFORMED\x10\a*\xb4\x02\n" +
+	"\x1aOPEN_API_PROBLEM_MALFORMED\x10\a*\xec\x02\n" +
 	"\x0eMcpProblemKind\x12\x17\n" +
 	"\x13MCP_PROBLEM_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12MCP_PROBLEM_TARGET\x10\x01\x12\x1b\n" +
@@ -5592,7 +5601,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x11MCP_PROBLEM_EMPTY\x10\b\x12\x1d\n" +
 	"\x19MCP_PROBLEM_AUTHORIZATION\x10\t\x12\x17\n" +
 	"\x13MCP_PROBLEM_SIGN_IN\x10\n" +
-	"*[\n" +
+	"\x12\x1a\n" +
+	"\x16MCP_PROBLEM_UNRESOLVED\x10\v\x12\x1a\n" +
+	"\x16MCP_PROBLEM_LEGACY_SSE\x10\f*[\n" +
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +

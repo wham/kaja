@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -30,6 +33,8 @@ const (
 	ProblemHTTPError    ProblemKind = "httpError"
 	ProblemNotMCP       ProblemKind = "notMcp"
 	ProblemEmpty        ProblemKind = "empty"
+	ProblemUnresolved   ProblemKind = "unresolved"
+	ProblemLegacySSE    ProblemKind = "legacySse"
 )
 
 // Problem is a server that couldn't be read: a headline addressed to the user
@@ -54,6 +59,15 @@ func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *P
 	if endpoint == "" {
 		return nil, &Problem{Kind: ProblemTarget, Message: "Enter the server's MCP endpoint."}
 	}
+	// The references were expanded before this was called, so one still here
+	// names a variable this kaja doesn't define. The app can still be added: it
+	// is read where it opens, which may be a kaja that does define it.
+	if names := unresolvedReferences(endpoint); len(names) > 0 {
+		return nil, &Problem{
+			Kind:    ProblemUnresolved,
+			Message: strings.Join(names, ", ") + " isn't defined here, so the server can't be read yet. Kaja reads it when the app opens.",
+		}
+	}
 	if err := requireHTTPScheme(endpoint); err != nil {
 		return nil, &Problem{Kind: ProblemTarget, Message: "That isn't an HTTP endpoint.", Detail: err.Error()}
 	}
@@ -71,7 +85,15 @@ func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *P
 	client := NewClient(endpoint, credential, &http.Client{Timeout: inspectTimeout})
 	surface, err := client.ReadSurface(nil)
 	if err != nil {
-		return nil, classify(err)
+		problem := classify(err)
+		if problem.Kind == ProblemNotMCP && speaksLegacySSE(endpoint, client.http) {
+			return nil, &Problem{
+				Kind:    ProblemLegacySSE,
+				Message: "This server speaks the older HTTP+SSE transport, which Kaja doesn't. Ask for its Streamable HTTP endpoint, which usually ends in /mcp.",
+				Detail:  problem.Detail,
+			}
+		}
+		return nil, problem
 	}
 	if len(surface.Tools) == 0 && len(surface.Resources) == 0 && len(surface.ResourceTemplates) == 0 && len(surface.Prompts) == 0 {
 		return surface, &Problem{
@@ -89,6 +111,7 @@ func classify(err error) *Problem {
 
 	var upstream *apps.UpstreamError
 	if errors.As(err, &upstream) {
+		detail = upstreamDetail(upstream)
 		switch {
 		case upstream.Status == http.StatusUnauthorized:
 			return &Problem{Kind: ProblemUnauthorized, Message: "The server wants a credential.", Detail: detail}
@@ -128,6 +151,55 @@ func classify(err error) *Problem {
 		return &Problem{Kind: ProblemUnreachable, Message: "The server couldn't be reached.", Detail: detail}
 	}
 	return &Problem{Kind: ProblemUnreachable, Message: "The server couldn't be read.", Detail: detail}
+}
+
+// unresolvedReferences names the ${NAME} references left in an endpoint after
+// expansion, which are the variables nothing here defines.
+func unresolvedReferences(endpoint string) []string {
+	var names []string
+	for _, match := range variableReference.FindAllStringSubmatch(endpoint, -1) {
+		names = append(names, match[1])
+	}
+	return names
+}
+
+var variableReference = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// upstreamDetail is the failed exchange in one line. The body's own words are
+// worth a line when they are words; a 404 page is markup nobody reads in a
+// caption, and says nothing the status line hasn't.
+func upstreamDetail(upstream *apps.UpstreamError) string {
+	line := fmt.Sprintf("%s %s returned %d %s", upstream.Method, upstream.URL, upstream.Status, upstream.StatusText)
+	message := strings.TrimSpace(upstream.Message)
+	if message == "" || message == upstream.StatusText || strings.HasPrefix(message, "<") {
+		return line
+	}
+	return line + ": " + message
+}
+
+// speaksLegacySSE asks whether an endpoint that refused a POST is the older
+// transport's event stream: a GET that answers with an `endpoint` event is
+// exactly that, and nothing else answers one. The stream stays open, so only
+// its first bytes are read.
+func speaksLegacySSE(endpoint string, httpClient *http.Client) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false
+	}
+	request.Header.Set("Accept", "text/event-stream")
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream") {
+		return false
+	}
+	head := make([]byte, 512)
+	n, _ := io.ReadAtLeast(response.Body, head, len("event: endpoint"))
+	return strings.Contains(string(head[:n]), "event: endpoint")
 }
 
 func isTransport(err error) bool {

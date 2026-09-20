@@ -1836,7 +1836,20 @@ export enum McpProblemKind {
      *
      * @generated from protobuf enum value: MCP_PROBLEM_SIGN_IN = 10;
      */
-    MCP_PROBLEM_SIGN_IN = 10
+    MCP_PROBLEM_SIGN_IN = 10,
+    /**
+     * The endpoint names a variable this kaja doesn't define, so the server can't
+     * be read here. Nothing has gone wrong: the app is read where it opens.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_UNRESOLVED = 11;
+     */
+    MCP_PROBLEM_UNRESOLVED = 11,
+    /**
+     * The endpoint speaks the older HTTP+SSE transport, which kaja doesn't.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_LEGACY_SSE = 12;
+     */
+    MCP_PROBLEM_LEGACY_SSE = 12
 }
 /**
  * @generated from protobuf enum CompileStatus

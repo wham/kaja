@@ -29,8 +29,10 @@ type schema struct {
 
 // schemaType reads the `type` keyword, which is a string in every dialect and
 // may also be an array in 2020-12. A union with "null" is the same field as its
-// non-null counterpart - a proto3 field already models an absent value - so the
-// first entry that isn't "null" is the type.
+// non-null counterpart - a proto3 field already models an absent value - so an
+// array naming one type beside "null" is that type. An array naming two types is
+// a field that takes either, which no proto scalar does, so it reads as no type
+// and becomes a JSON value.
 type schemaType string
 
 func (t *schemaType) UnmarshalJSON(data []byte) error {
@@ -43,12 +45,17 @@ func (t *schemaType) UnmarshalJSON(data []byte) error {
 	if json.Unmarshal(data, &many) != nil {
 		return nil
 	}
+	found := ""
 	for _, entry := range many {
-		if entry != "null" {
-			*t = schemaType(entry)
+		if entry == "null" {
+			continue
+		}
+		if found != "" {
 			return nil
 		}
+		found = entry
 	}
+	*t = schemaType(found)
 	return nil
 }
 

@@ -1,4 +1,4 @@
-import { Blocks, CircleAlert, CircleCheck, CircleX, Copy, Key, RefreshCw, ShieldCheck, Sparkles, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Blocks, CircleAlert, CircleCheck, CircleX, Copy, Key, RefreshCw, ShieldCheck, Sparkles, TriangleAlert, Variable, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
@@ -140,6 +140,9 @@ export function McpForm({
   const picking = picker && !readOnly && !known && offered.length > 0;
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
+  // The endpoint names a variable this kaja doesn't define. The server is read where
+  // the app opens, so the app can still be added, under a name of the person's own.
+  const unresolved = problem?.kind === McpProblemKind.MCP_PROBLEM_UNRESOLVED;
   const source = inspectionKey(parameters);
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
@@ -261,8 +264,8 @@ export function McpForm({
   }, [problem, readOnly, onParametersChange]);
 
   useEffect(() => {
-    onReadyChange(Boolean(server) && isReadableEndpoint(parametersRef.current.url ?? ""));
-  }, [server, url, onReadyChange]);
+    onReadyChange((Boolean(server) || unresolved) && isReadableEndpoint(parametersRef.current.url ?? ""));
+  }, [server, unresolved, url, onReadyChange]);
 
   const setParameter = (key: string, value: string) => onParametersChange((previous) => ({ ...previous, [key]: value }));
 
@@ -275,7 +278,10 @@ export function McpForm({
   };
 
   const demo = getAppType("mcp")?.demo;
-  const auth = (parameters.auth ?? "").trim() || AUTH_BEARER;
+  // An app that names no credential sends none, and the form says so rather than
+  // showing a bearer card with nothing in it. A token with no scheme beside it is a
+  // bearer token, which is what the server reads it as.
+  const auth = (parameters.auth ?? "").trim() || ((parameters.token ?? "").trim() ? AUTH_BEARER : AUTH_NONE);
 
   // A credential the server wants is asked for before anything has been read: it is the
   // whole reason nothing has been.
@@ -340,11 +346,11 @@ export function McpForm({
         />
       </div>
 
-      {(server || showAuthentication) && (
+      {(server || unresolved || showAuthentication) && (
         <>
           <div className="h-px bg-border" />
 
-          {server && (
+          {(server || unresolved) && (
             <AppNameField
               id="mcp-name"
               name={name}
@@ -354,7 +360,7 @@ export function McpForm({
               }}
               duplicate={duplicateName}
               readOnly={readOnly}
-              caption={nameTouched ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}.`}
+              caption={nameTouched || !server ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}.`}
             />
           )}
 
@@ -525,9 +531,11 @@ function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: ()
 // chrome's own colours and offers no Retry: the move is the button below it, and
 // reading again before that is pressed answers exactly the same.
 function ProblemBanner({ problem, readOnly, onRetry }: { problem: McpProblem; readOnly: boolean; onRetry: () => void }) {
-  const step = problem.kind === McpProblemKind.MCP_PROBLEM_SIGN_IN;
+  const unresolved = problem.kind === McpProblemKind.MCP_PROBLEM_UNRESOLVED;
+  const step = problem.kind === McpProblemKind.MCP_PROBLEM_SIGN_IN || unresolved;
   const warning = problem.kind === McpProblemKind.MCP_PROBLEM_EMPTY || problem.kind === McpProblemKind.MCP_PROBLEM_UNAUTHORIZED;
-  const Icon: LucideIcon = step ? ShieldCheck : warning ? TriangleAlert : problem.kind === McpProblemKind.MCP_PROBLEM_NOT_MCP ? CircleAlert : CircleX;
+  const notMcp = problem.kind === McpProblemKind.MCP_PROBLEM_NOT_MCP || problem.kind === McpProblemKind.MCP_PROBLEM_LEGACY_SSE;
+  const Icon: LucideIcon = unresolved ? Variable : step ? ShieldCheck : warning ? TriangleAlert : notMcp ? CircleAlert : CircleX;
 
   return (
     <div

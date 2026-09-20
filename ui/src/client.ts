@@ -4,7 +4,7 @@ import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@
 import { APP_HEADER, appHeaders, appType, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import { rpcErrorMessage } from "./rpcMessage";
-import { UPSTREAM_TRAILER, parseUpstream } from "./upstream";
+import { TOOL_ERROR_CODE, ToolFailure, UPSTREAM_TRAILER, parseUpstream } from "./upstream";
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
 import { getBaseUrlForApp, GRPC_WEB_FORMAT } from "./server/connection";
@@ -86,6 +86,8 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     }
     return meta;
   };
+
+  const mcp = appType(appRef.configuration) === "mcp";
 
   // What a method needs that the run has no say in, resolved once rather than per run.
   const prepared = service.methods.map((method) => ({
@@ -181,6 +183,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
             methodCall.durationMs = elapsed();
             methodCall.output = response;
+            methodCall.error = toolFailure(mcp, response);
             methodCall.inputTypeName = call.method?.I?.typeName;
             methodCall.inputType = call.method?.I;
             methodCall.outputTypeName = call.method?.O?.typeName;
@@ -238,6 +241,18 @@ function refuseReservedHeaders(callOptions: CallOptions | undefined): void {
       throw new Error(`${APP_HEADER} is kaja's own: it names the app a call belongs to and cannot be set on a call.`);
     }
   }
+}
+
+// An MCP tool that ran and reported failure answers with an ordinary result carrying
+// `isError`. The exchange succeeded, so nothing else marks the row; this does, the way
+// a non-2xx marks a fetch: reported as a failure, handed back as the response.
+function toolFailure(mcp: boolean, response: unknown): ToolFailure | undefined {
+  if (!mcp) return undefined;
+  const result = response as { isError?: unknown; content?: unknown } | null;
+  if (!result || result.isError !== true) return undefined;
+  const blocks = Array.isArray(result.content) ? (result.content as { type?: unknown; text?: unknown }[]) : [];
+  const text = blocks.find((block) => block.type === "text" && typeof block.text === "string")?.text as string | undefined;
+  return { message: text ?? "The tool reported failure.", code: TOOL_ERROR_CODE, body: response };
 }
 
 function lcfirst(str: string): string {

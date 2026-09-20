@@ -35,6 +35,13 @@ const codeKinds: { [code: string]: FailureKind } = {
   unavailable: "TRANSPORT",
   deadline_exceeded: "TRANSPORT",
   cancelled: "TRANSPORT",
+  // What an MCP server refuses a call with, in the names its specification
+  // reserves; a tool that ran and reported failure is the server's own verdict.
+  invalid_params: "INVALID_REQUEST",
+  invalid_request: "INVALID_REQUEST",
+  method_not_found: "NOT_FOUND",
+  resource_not_found: "NOT_FOUND",
+  tool_error: "SERVER",
 };
 
 export function classifyFailure(error: unknown): CallFailure {

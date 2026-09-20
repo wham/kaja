@@ -504,6 +504,8 @@ var mcpProblemKinds = map[mcp.ProblemKind]McpProblemKind{
 	mcp.ProblemHTTPError:    McpProblemKind_MCP_PROBLEM_HTTP_ERROR,
 	mcp.ProblemNotMCP:       McpProblemKind_MCP_PROBLEM_NOT_MCP,
 	mcp.ProblemEmpty:        McpProblemKind_MCP_PROBLEM_EMPTY,
+	mcp.ProblemUnresolved:   McpProblemKind_MCP_PROBLEM_UNRESOLVED,
+	mcp.ProblemLegacySSE:    McpProblemKind_MCP_PROBLEM_LEGACY_SSE,
 }
 
 func mcpProblemKind(kind mcp.ProblemKind) McpProblemKind {
@@ -511,8 +513,13 @@ func mcpProblemKind(kind mcp.ProblemKind) McpProblemKind {
 }
 
 func describeMcpServer(surface *mcp.Surface) *McpServer {
+	// The title is the name meant for a person, where the name is a handle.
+	name := surface.ServerInfo.Title
+	if name == "" {
+		name = surface.ServerInfo.Name
+	}
 	return &McpServer{
-		Name:                  surface.ServerInfo.Name,
+		Name:                  name,
 		Version:               surface.ServerInfo.Version,
 		ProtocolVersion:       surface.ProtocolVersion,
 		Handshake:             surface.Legacy,

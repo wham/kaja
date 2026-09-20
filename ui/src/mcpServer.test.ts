@@ -36,8 +36,9 @@ describe("deriveAppName", () => {
     expect(deriveAppName("https://example.com/mcp", "io.github.owner/notion")).toBe("notion");
   });
 
-  test("keeps the words when they are all it has", () => {
-    expect(deriveAppName("https://mcp.example.com/mcp", "MCP Server")).toBe("MCPServer");
+  test("names a server by its host when its name is nothing but noise", () => {
+    expect(deriveAppName("https://mcp.example.com/mcp", "MCP Server")).toBe("example");
+    expect(deriveAppName("https://huggingface.co/mcp", "huggingface.co/mcp")).toBe("huggingface.co");
   });
 
   test("falls back to the host when the server names itself nothing", () => {

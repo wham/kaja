@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/wham/kaja/v2/pkg/apps"
@@ -37,7 +38,7 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 
 	result, exchange, err := in.client.Call(method.binding.method, params, call.Headers, mirroredValues(method.binding.headerParams, arguments))
 	if err != nil {
-		return nil, withExchange(err, exchange)
+		return nil, withExchange(refusal(in.client.endpoint, err), exchange)
 	}
 
 	body, err := encodeResult(method, result)
@@ -153,6 +154,46 @@ func rejectInputRequired(result json.RawMessage) error {
 		return nil
 	}
 	return fmt.Errorf("the server asked for input to finish this call (sampling, elicitation or roots), which kaja does not provide")
+}
+
+// refusal turns a JSON-RPC error into the failure the client shows: the server
+// answered, so the exchange is a success and the failure is the server's own
+// code and message, with the error object it sent as the body. Left as a bare
+// error it would reach the console as the gRPC status it was tunnelled through,
+// with nothing of the exchange beside it.
+func refusal(endpoint string, err error) error {
+	var rpcErr *jsonRPCError
+	if !asRPC(err, &rpcErr) {
+		return err
+	}
+	status := rpcErr.Status
+	if status == 0 {
+		status = 200
+	}
+	body, _ := json.Marshal(rpcErr)
+	return apps.NewRefusedCall("POST", endpoint, status, rpcErrorName(rpcErr.Code), rpcErr.Error(), body)
+}
+
+// rpcErrorName is the JSON-RPC code as the row labels it, in the words the
+// specification gives the codes it reserves. A server's own code is the number.
+func rpcErrorName(code int) string {
+	switch code {
+	case -32700:
+		return "PARSE_ERROR"
+	case -32600:
+		return "INVALID_REQUEST"
+	case -32601:
+		return "METHOD_NOT_FOUND"
+	case -32602:
+		return "INVALID_PARAMS"
+	case -32603:
+		return "INTERNAL_ERROR"
+	case -32002:
+		return "RESOURCE_NOT_FOUND"
+	case -32001:
+		return "SESSION_NOT_FOUND"
+	}
+	return strconv.Itoa(code)
 }
 
 // withExchange attaches the headers a failed call exchanged to the error, so the

@@ -96,13 +96,12 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 		return result, exchange, nil
 	}
 
-	// A legacy server that has dropped the session answers 404; one handshake
-	// later the same request works. Anything else is the caller's to see.
-	var upstream *apps.UpstreamError
+	// A legacy server that has dropped the session refuses the request; one
+	// handshake later the same request works. Anything else is the caller's to see.
 	c.mu.Lock()
 	legacy, session := c.legacy, c.session
 	c.mu.Unlock()
-	if legacy && session != "" && asUpstream(err, &upstream) && upstream.Status == http.StatusNotFound {
+	if legacy && session != "" && sessionLost(err) {
 		c.mu.Lock()
 		c.session, c.handshook = "", false
 		c.mu.Unlock()
@@ -127,6 +126,30 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 		}
 	}
 	return nil, exchange, err
+}
+
+// sessionLost reads a refusal as the server having forgotten the session. The
+// specification says a terminated session is a 404, and the reference server
+// answers an unknown one with a 400 that names the session; either arrives as a
+// bare status or as a JSON-RPC error under it, and every server built on the
+// reference SDK answers with the second.
+func sessionLost(err error) bool {
+	var upstream *apps.UpstreamError
+	var rpcErr *jsonRPCError
+	status, message := 0, ""
+	switch {
+	case asUpstream(err, &upstream):
+		status, message = upstream.Status, string(upstream.Body)
+	case asRPC(err, &rpcErr):
+		status, message = rpcErr.Status, rpcErr.Message
+	}
+	switch status {
+	case http.StatusNotFound:
+		return true
+	case http.StatusBadRequest:
+		return strings.Contains(strings.ToLower(message), "session")
+	}
+	return false
 }
 
 func (c *Client) currentVersion() string {
@@ -253,14 +276,22 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 	if params == nil {
 		params = map[string]any{}
 	}
+	meta := map[string]any{}
 	if !legacy && method != "initialize" {
 		// The modern era carries the protocol metadata in the body; the headers
 		// below only mirror it.
-		params["_meta"] = map[string]any{
-			metaProtocolVersion:    version,
-			metaClientInfo:         map[string]any{"name": clientName, "version": "2"},
-			metaClientCapabilities: map[string]any{},
-		}
+		meta[metaProtocolVersion] = version
+		meta[metaClientInfo] = map[string]any{"name": clientName, "version": "2"}
+		meta[metaClientCapabilities] = map[string]any{}
+	}
+	if reportsProgress[method] {
+		// A server sends progress only to a caller that asked for it, and the
+		// token is what asks. The request id is as good a token as any: one
+		// request travels per exchange, so nothing has to match them up.
+		meta["progressToken"] = id
+	}
+	if len(meta) > 0 {
+		params["_meta"] = meta
 	}
 	if len(params) > 0 {
 		message["params"] = params
@@ -325,20 +356,16 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 		Status:          response.StatusCode,
 		StatusText:      http.StatusText(response.StatusCode),
 	}
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 32<<20))
-	if err != nil {
-		return nil, exchange, fmt.Errorf("reading %s response: %w", method, err)
-	}
-
 	if notification {
 		return nil, exchange, nil
 	}
 
 	// A JSON-RPC error may arrive under a 4xx status, so the body is read before
 	// the status is judged.
-	result, notices, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), payload)
+	payload, result, notices, rpcErr, decodeErr := decodeResponse(response.Header.Get("Content-Type"), io.LimitReader(response.Body, 32<<20))
 	exchange.Notices = notices
 	if rpcErr != nil {
+		rpcErr.Status = response.StatusCode
 		return nil, exchange, rpcErr
 	}
 	if response.StatusCode >= 400 {
@@ -354,46 +381,57 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 	return result, exchange, nil
 }
 
+// reportsProgress names the requests a server does work for, which are the ones
+// worth hearing about while they run.
+var reportsProgress = map[string]bool{"tools/call": true, "prompts/get": true, "resources/read": true}
+
 // decodeResponse reads the JSON-RPC message out of a response body, which is
-// either a single JSON object or an SSE stream whose last data event carries the
-// response, and what the server said on the way there.
-func decodeResponse(contentType string, payload []byte) (json.RawMessage, []string, *jsonRPCError, error) {
-	var notices []string
+// either a single JSON object or an SSE stream carrying the response after the
+// notifications the server sent on the way there. The message's bytes come back
+// beside what was read out of them, because a body that isn't JSON-RPC usually
+// arrived under a failure status, and the failure wants it whole.
+func decodeResponse(contentType string, body io.Reader) (payload []byte, result json.RawMessage, notices []string, rpcErr *jsonRPCError, err error) {
 	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
-		payload, notices = readSSE(payload)
+		payload, notices = readSSE(body)
 		if payload == nil {
-			return nil, notices, nil, fmt.Errorf("the event stream carried no response")
+			return nil, nil, notices, nil, fmt.Errorf("the event stream carried no response")
 		}
+	} else if payload, err = io.ReadAll(body); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("reading the response: %w", err)
 	}
 	var envelope struct {
 		Result json.RawMessage `json:"result"`
 		Error  *jsonRPCError   `json:"error"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(payload), &envelope); err != nil {
-		return nil, notices, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
+		return payload, nil, notices, nil, fmt.Errorf("the response is not JSON-RPC: %s", summarize(payload))
 	}
 	if envelope.Error != nil {
-		return nil, notices, envelope.Error, nil
+		return payload, nil, notices, envelope.Error, nil
 	}
 	if envelope.Result == nil {
-		return nil, notices, nil, fmt.Errorf("the response carried neither a result nor an error")
+		return payload, nil, notices, nil, fmt.Errorf("the response carried neither a result nor an error")
 	}
-	return envelope.Result, notices, nil, nil
+	return payload, envelope.Result, notices, nil, nil
 }
 
-// readSSE reads a response stream: the data of the last event carrying the
-// response, and a line for each notification the server sent ahead of it. Those
+// readSSE reads a response stream: the data of the event carrying the response,
+// and a line for each notification the server sent ahead of it. Those
 // notifications are what a slow call has to say about itself while it is being
 // made, and a call that says nothing for a minute is indistinguishable from one
 // that failed.
-func readSSE(payload []byte) ([]byte, []string) {
+//
+// It stops at the response rather than at the end of the stream. A server is
+// meant to close the stream once it has answered, and one that keeps it open to
+// send keep-alives instead would otherwise hold the call until it timed out.
+func readSSE(body io.Reader) ([]byte, []string) {
 	// A notice rides in the same trailer the exchange does, so a server that logs
 	// in a loop must not be what pushes the failure out of it.
 	const (
 		noticeLimit = 50
 		noticeChars = 500
 	)
-	scanner := bufio.NewScanner(bytes.NewReader(payload))
+	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 32<<20)
 
 	var last []byte
@@ -416,7 +454,7 @@ func readSSE(payload []byte) ([]byte, []string) {
 			notices = append(notices, notice)
 		}
 	}
-	for scanner.Scan() {
+	for last == nil && scanner.Scan() {
 		line := strings.TrimSuffix(scanner.Text(), "\r")
 		switch {
 		case line == "":
