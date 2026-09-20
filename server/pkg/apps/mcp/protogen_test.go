@@ -42,11 +42,11 @@ func TestScalarFields(t *testing.T) {
 		}
 	}`)
 	requireLines(t, proto,
-		`string name = 1 [json_name = "name"];`,
-		`int32 count = 2 [json_name = "count"];`,
-		`int64 total = 3 [json_name = "total"];`,
-		`double ratio = 4 [json_name = "ratio"];`,
-		`bool enabled = 5 [json_name = "enabled"];`,
+		`optional string name = 1 [json_name = "name"];`,
+		`optional double count = 2 [json_name = "count"];`,
+		`optional double total = 3 [json_name = "total"];`,
+		`optional double ratio = 4 [json_name = "ratio"];`,
+		`optional bool enabled = 5 [json_name = "enabled"];`,
 	)
 }
 
@@ -297,7 +297,7 @@ func TestReadSSE(t *testing.T) {
 		"data: {\"jsonrpc\":\"2.0\",\"id\":1,\r\n" +
 		"data: \"result\":{\"ok\":true}}\r\n" +
 		"\r\n"
-	response, notices := readSSE([]byte(stream))
+	response, notices := readSSE(strings.NewReader(stream))
 	got := string(response)
 	if !strings.Contains(got, `"result"`) || strings.Contains(got, "notifications/") {
 		t.Errorf("readSSE response = %s", got)
@@ -340,4 +340,20 @@ func keys[T any](m map[string]T) []string {
 		out = append(out, key)
 	}
 	return out
+}
+
+// A `type` naming two types is a field that takes either, which no scalar does;
+// one naming a type beside "null" is that type.
+func TestUnionOfTypesIsAValue(t *testing.T) {
+	proto := generate(t, `{
+		"type": "object",
+		"properties": {
+			"either": {"type": ["string", "number"]},
+			"maybe": {"type": ["string", "null"]}
+		}
+	}`)
+	requireLines(t, proto,
+		`optional google.protobuf.Value either = 1 [json_name = "either"];`,
+		`optional string maybe = 2 [json_name = "maybe"];`,
+	)
 }

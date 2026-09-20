@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -731,5 +732,194 @@ func TestReportsWhatTheServerSaidWhileWorking(t *testing.T) {
 	}
 	if len(result.Notices) == 0 {
 		t.Fatal("expected the call to report what the server said")
+	}
+}
+
+// A legacy server that has forgotten the session refuses the next request. The
+// specification says so with a 404; the reference server says so with a 400 that
+// names the session; and both put a JSON-RPC error under the status. The client
+// handshakes again and repeats the request, once.
+func TestRecoversALostSession(t *testing.T) {
+	for _, refusal := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"404 with the specification's error", http.StatusNotFound, `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"Session not found"}}`},
+		{"400 naming the session", http.StatusBadRequest, `{"jsonrpc":"2.0","id":null,"error":{"code":-32000,"message":"Bad Request: No valid session ID provided"}}`},
+		{"404 with no body", http.StatusNotFound, ""},
+	} {
+		t.Run(refusal.name, func(t *testing.T) {
+			fake := &fakeServer{era: "legacy", session: "first", results: map[string]string{
+				"initialize": `{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"Legacy","version":"1"}}`,
+				"tools/list": weatherTools,
+				"tools/call": weatherResult,
+			}}
+			forgotten := false
+			handshakes := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				if strings.Contains(string(body), `"initialize"`) {
+					handshakes++
+					fake.session = fmt.Sprintf("session-%d", handshakes)
+				}
+				if forgotten && r.Header.Get("Mcp-Session-Id") == "session-1" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(refusal.status)
+					fmt.Fprint(w, refusal.body)
+					return
+				}
+				fake.handler()(w, r)
+			}))
+			defer server.Close()
+
+			in, _ := openApp(t, server.URL+"/mcp", nil)
+			bound := in.methods["mcp.Tools/GetWeather"]
+			forgotten = true
+
+			result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+			if err != nil {
+				t.Fatalf("expected the call to be repeated on a fresh session, got %v", err)
+			}
+			if !strings.Contains(decodeResponseJSON(t, bound, result.Body), "Partly cloudy") {
+				t.Errorf("response = %s", result.Body)
+			}
+			if handshakes != 2 {
+				t.Errorf("handshakes = %d, want 2", handshakes)
+			}
+			if got := fake.requests[len(fake.requests)-1].Headers.Get("Mcp-Session-Id"); got != "session-2" {
+				t.Errorf("the repeated call was sent under session %q", got)
+			}
+		})
+	}
+}
+
+// A server that keeps the stream open after answering, sending keep-alives, must
+// not hold the call until it times out: the response is the end of what is read.
+func TestStopsReadingAtTheResponse(t *testing.T) {
+	fake := &fakeServer{era: "modern", sse: true, results: map[string]string{
+		"server/discover": `{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{"tools":{}},"_meta":{}}`,
+		"tools/list":      weatherTools,
+		"tools/call":      weatherResult,
+	}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fake.handler()(w, r)
+		flusher, _ := w.(http.Flusher)
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+				fmt.Fprint(w, ": keepalive\n\n")
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+		}
+	}))
+	defer server.Close()
+
+	started := time.Now()
+	in, _ := openApp(t, server.URL+"/mcp", nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+	result, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if !strings.Contains(decodeResponseJSON(t, bound, result.Body), "Partly cloudy") {
+		t.Errorf("response = %s", result.Body)
+	}
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Errorf("opening and calling took %s: the client waited for a stream that never ends", elapsed)
+	}
+}
+
+// A server reports progress only to a caller that asked, and a call is what asks:
+// a listing has nothing to report on.
+func TestAsksForProgressOnACall(t *testing.T) {
+	fake, endpoint := modernServer(t, nil)
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+	if _, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Seattle"}`), nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	token := func(method string) string {
+		var meta map[string]json.RawMessage
+		_ = json.Unmarshal(fake.asked(method).Params["_meta"], &meta)
+		return string(meta["progressToken"])
+	}
+	if token("tools/call") == "" {
+		t.Error("expected tools/call to carry a progress token")
+	}
+	if token("tools/list") != "" {
+		t.Error("expected tools/list to carry no progress token")
+	}
+}
+
+// A JSON-RPC error is the server's own refusal of a call it received: the exchange
+// succeeded, and what the client is shown is the server's code and message, with
+// the error object as the body.
+func TestRefusalIsTheServersOwn(t *testing.T) {
+	_, endpoint := modernServer(t, nil)
+	in, _ := openApp(t, endpoint, nil)
+	bound := in.methods["mcp.Tools/GetWeather"]
+
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Unknown location","data":{"field":"location"}}}`)
+	}))
+	defer refusing.Close()
+	in.client.endpoint = refusing.URL + "/mcp"
+
+	_, err := invoke(in, "mcp.Tools/GetWeather", encodeRequest(t, bound, `{"location":"Atlantis"}`), nil)
+	var upstream *apps.UpstreamError
+	if !asUpstream(err, &upstream) {
+		t.Fatalf("expected the refusal as an upstream error, got %v", err)
+	}
+	if upstream.Code != "INVALID_PARAMS" || upstream.Message != "Unknown location" || upstream.Status != http.StatusOK || !upstream.Unreadable {
+		t.Errorf("upstream = %+v", upstream)
+	}
+	if !strings.Contains(string(upstream.Body), `"field":"location"`) {
+		t.Errorf("body = %s", upstream.Body)
+	}
+	if upstream.RequestHeaders == nil {
+		t.Error("expected the request headers on the refusal")
+	}
+}
+
+// A variable this kaja doesn't define leaves the endpoint unreadable here, which
+// is not the server's fault and not a reason to refuse the app.
+func TestInspectNamesAnUnresolvedVariable(t *testing.T) {
+	_, problem := Inspect(map[string]string{"url": "${MCP_URL}/mcp"}, nil)
+	if problem == nil || problem.Kind != ProblemUnresolved || !strings.Contains(problem.Message, "MCP_URL") {
+		t.Fatalf("problem = %+v", problem)
+	}
+}
+
+// An endpoint of the older transport refuses the POST and answers a GET with the
+// event naming its message endpoint, which is how it is told from a path nothing
+// serves.
+func TestInspectRecognisesTheLegacyTransport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "<!DOCTYPE html><html><body><pre>Cannot POST /sse</pre></body></html>", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: endpoint\ndata: /message?sessionId=abc\n\n")
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	_, problem := Inspect(map[string]string{"url": server.URL + "/sse"}, nil)
+	if problem == nil || problem.Kind != ProblemLegacySSE {
+		t.Fatalf("problem = %+v", problem)
+	}
+	if strings.Contains(problem.Detail, "<") {
+		t.Errorf("the detail carries the markup: %s", problem.Detail)
 	}
 }

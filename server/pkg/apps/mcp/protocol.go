@@ -37,6 +37,10 @@ type jsonRPCError struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data,omitempty"`
+	// Status is the HTTP status the error arrived under. The protocol lets a
+	// server put a JSON-RPC error under a 4xx, and what the status says - that
+	// the session is gone, above all - is read beside what the error says.
+	Status int `json:"-"`
 }
 
 func (e *jsonRPCError) Error() string {
@@ -63,6 +67,8 @@ func (e *jsonRPCError) supportedVersions() []string {
 type Implementation struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	// Title is the name meant for a person, where Name is a handle.
+	Title string `json:"title,omitempty"`
 }
 
 // Capabilities is what a server says it serves. Only the presence of a block

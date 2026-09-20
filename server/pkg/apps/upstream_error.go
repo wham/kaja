@@ -25,6 +25,10 @@ type UpstreamError struct {
 	// taken out of it - which is why both are shown, and why the status is reported
 	// as the answer's rather than as the failure's.
 	Unreadable bool
+	// Code is the API's own name for the failure where it has one beside the
+	// status: the JSON-RPC error an MCP server answered with. It labels the call
+	// where an HTTP failure is labelled by its status.
+	Code string
 	// RequestHeaders/ResponseHeaders are the headers exchanged with the upstream,
 	// surfaced in the client's Headers view even though the call failed. A 401 is
 	// exactly when they matter most.
@@ -78,6 +82,17 @@ func NewUnreadableResponse(method, url string, status int, body []byte, reason s
 	return e
 }
 
+// NewRefusedCall builds an UpstreamError for a call the API answered with a
+// failure of its own under a success status: a JSON-RPC error is one. It is the
+// unreadable shape - the exchange itself succeeded, so the status is the
+// answer's - with the API's own code and message on it, and the error object it
+// sent as the body.
+func NewRefusedCall(method, url string, status int, code, message string, body []byte) *UpstreamError {
+	e := NewUnreadableResponse(method, url, status, body, message)
+	e.Code = code
+	return e
+}
+
 // TransportStatus is the status the gRPC-Web lane maps to a status code, which needs
 // a failure to map: an unreadable response arrived with a success status, and mapping
 // that would answer a broken exchange with OK. It is kaja failing as the gateway it is
@@ -111,6 +126,9 @@ func (e *UpstreamError) JSON() []byte {
 		"message": e.Message,
 		"request": e.Method + " " + e.URL,
 		"body":    body,
+	}
+	if e.Code != "" {
+		payload["code"] = e.Code
 	}
 	if e.Unreadable {
 		payload["responseStatus"] = e.Status

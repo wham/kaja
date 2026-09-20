@@ -43,7 +43,12 @@ type fieldDef struct {
 	repeated bool
 	// mapKey renders the field as map<mapKey, typ>. Only ever "string".
 	mapKey string
-	doc    string
+	// optional tracks presence: a field the document doesn't insist on is sent
+	// only when the script set it, and drawn only when the server did. Without it
+	// a zero the script wrote is dropped on the way out and every field the server
+	// left out is drawn as its zero on the way back.
+	optional bool
+	doc      string
 }
 
 type messageDef struct {
@@ -90,7 +95,7 @@ func generateProto(surface *Surface) (*generated, error) {
 	}
 	// The shapes every server shares are written out verbatim, so their names are
 	// spoken for before anything the server named can claim them.
-	for _, name := range []string{"Content", "ResourceContents"} {
+	for _, name := range []string{"Content", "Annotations", "ResourceContents"} {
 		g.usedNames[name] = true
 	}
 
@@ -133,11 +138,11 @@ func (g *generator) addTools(tools []Tool) {
 		response.fields = append(response.fields,
 			fieldDef{typ: "Content", name: "content", number: 1, jsonName: "content", repeated: true,
 				doc: "What the tool returned, as the blocks it chose to return it in."},
-			fieldDef{typ: "bool", name: "is_error", number: 2, jsonName: "isError",
-				doc: "The tool itself failed. The reason is in content; the call did not."})
+			fieldDef{typ: "bool", name: "is_error", number: 2, jsonName: "isError", optional: true,
+				doc: "The tool itself failed. The reason is in content, and the call is reported as failed."})
 		typ, repeated := g.structuredType(method, tool.OutputSchema)
 		response.fields = append(response.fields, fieldDef{
-			typ: typ, name: "structured_content", number: 3, jsonName: "structuredContent", repeated: repeated,
+			typ: typ, name: "structured_content", number: 3, jsonName: "structuredContent", repeated: repeated, optional: !repeated,
 			doc: "The result as data, for a tool that declares an output schema.",
 		})
 		g.messages = append(g.messages, response)
@@ -321,7 +326,7 @@ func (g *generator) addPrompts(prompts []Prompt) {
 				doc = strings.TrimSpace(doc + "\n\n[required]")
 			}
 			request.fields = append(request.fields, fieldDef{
-				typ: "string", name: protoFieldName(argument.Name), number: i + 1, jsonName: argument.Name, doc: doc,
+				typ: "string", name: protoFieldName(argument.Name), number: i + 1, jsonName: argument.Name, optional: !argument.Required, doc: doc,
 			})
 		}
 		g.messages = append(g.messages, request)
@@ -388,6 +393,7 @@ func (w *walker) fieldsOf(s *schema, owner string) []fieldDef {
 			jsonName: entry.Name,
 			repeated: repeated,
 			mapKey:   mapKey,
+			optional: !repeated && mapKey == "" && !required[entry.Name],
 			doc:      fieldDoc(entry.Schema, required[entry.Name]),
 		})
 	}
@@ -427,11 +433,10 @@ func (w *walker) typeOf(s *schema, nameHint string) (typ string, repeated bool, 
 	case "string":
 		return "string", false, ""
 	case "integer":
-		switch merged.Format {
-		case "int64", "uint64", "uint32":
-			return "int64", false, ""
-		}
-		return "int32", false, ""
+		// A JSON integer has no size, and a script's number is a double: an id or
+		// a timestamp in milliseconds overflows int32, and int64 would reach the
+		// script as a string. A double carries every integer JavaScript can.
+		return "double", false, ""
 	case "number":
 		return "double", false, ""
 	case "boolean":
@@ -783,6 +788,8 @@ func fieldTypeText(field fieldDef) string {
 		return "map<" + field.mapKey + ", " + field.typ + ">"
 	case field.repeated:
 		return "repeated " + field.typ
+	case field.optional:
+		return "optional " + field.typ
 	}
 	return field.typ
 }
@@ -832,24 +839,38 @@ message Content {
   // text, image, audio, resource_link or resource.
   string type = 1 [json_name = "type"];
   // The text, for a text block.
-  string text = 2 [json_name = "text"];
+  optional string text = 2 [json_name = "text"];
   // Base64-encoded bytes, for an image or audio block.
-  string data = 3 [json_name = "data"];
-  string mime_type = 4 [json_name = "mimeType"];
+  optional string data = 3 [json_name = "data"];
+  optional string mime_type = 4 [json_name = "mimeType"];
   // The resource pointed at, for a resource_link block.
-  string uri = 5 [json_name = "uri"];
-  string name = 6 [json_name = "name"];
-  string description = 7 [json_name = "description"];
+  optional string uri = 5 [json_name = "uri"];
+  optional string name = 6 [json_name = "name"];
+  optional string title = 7 [json_name = "title"];
+  optional string description = 8 [json_name = "description"];
+  // Size in bytes, for a resource_link block whose server knows it.
+  optional double size = 9 [json_name = "size"];
   // The resource itself, for a resource block.
-  ResourceContents resource = 8 [json_name = "resource"];
+  optional ResourceContents resource = 10 [json_name = "resource"];
+  optional Annotations annotations = 11 [json_name = "annotations"];
+}
+
+// What the server says about who a block is for and how much it matters.
+message Annotations {
+  // user, assistant, or both.
+  repeated string audience = 1 [json_name = "audience"];
+  // 0 to 1, where 1 is required and 0 is optional.
+  optional double priority = 2 [json_name = "priority"];
+  // ISO 8601, when the block was last changed.
+  optional string last_modified = 3 [json_name = "lastModified"];
 }
 
 // The contents of one resource: text or bytes, never both.
 message ResourceContents {
   string uri = 1 [json_name = "uri"];
-  string mime_type = 2 [json_name = "mimeType"];
-  string text = 3 [json_name = "text"];
+  optional string mime_type = 2 [json_name = "mimeType"];
+  optional string text = 3 [json_name = "text"];
   // Base64-encoded, when the resource is binary.
-  string blob = 4 [json_name = "blob"];
+  optional string blob = 4 [json_name = "blob"];
 }
 `

@@ -88,8 +88,10 @@ function nameFromServer(serverName: string): string {
   const tail = serverName.slice(0, MAX_SERVER_NAME).split("/").pop() ?? "";
   const words = splitWords(tail);
   const kept = words.filter((word) => !NAME_NOISE.has(word.toLowerCase()));
-  const chosen = kept.length > 0 ? kept : words;
-  if (chosen.length === 0) return "";
+  // A name that is nothing but noise ("huggingface.co/mcp" ends in "mcp") says
+  // where the server is rather than what it is, which is the endpoint's to say.
+  if (kept.length === 0) return "";
+  const chosen = kept;
   // A name that is already one word is a handle; leave it exactly as written.
   return chosen.length === 1 ? sanitize(chosen[0]) : sanitize(chosen.map(capitalize).join(""));
 }

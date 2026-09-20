@@ -46,6 +46,29 @@ export interface UpstreamFailure {
   statusText: string;
   request: string;
   body: unknown;
+  // The API's own name for the failure, where it has one beside the status: the
+  // JSON-RPC error an MCP server answered with.
+  code?: string;
+}
+
+// TOOL_ERROR_CODE labels a tool that ran and reported failure (`isError` on its
+// result). The exchange succeeded and the server answered; what failed is the tool,
+// which is the server's own verdict and worth a red row.
+export const TOOL_ERROR_CODE = "TOOL_ERROR";
+
+// ToolFailure is that verdict as the call's error: the result the tool returned is
+// the body, since the reason is in its content.
+export interface ToolFailure {
+  message: string;
+  code: typeof TOOL_ERROR_CODE;
+  body: unknown;
+}
+
+function asToolFailure(error: unknown): ToolFailure | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const candidate = error as Partial<ToolFailure>;
+  if (candidate.code !== TOOL_ERROR_CODE || candidate.body === undefined) return undefined;
+  return candidate as ToolFailure;
 }
 
 // parseUpstream reads the trailer. RpcMetadata gives either a string or a
@@ -132,6 +155,8 @@ function asUpstreamFailure(error: unknown): UpstreamFailure | undefined {
 // The error object is untouched — a script still catches `status`, which is what
 // classifyFailure reads — so this only decides what gets displayed.
 export function unwrapFailure(error: unknown): unknown {
+  const tool = asToolFailure(error);
+  if (tool) return tool.body;
   const failure = asUpstreamFailure(error);
   if (!failure) return error;
   const body = failure.body;
