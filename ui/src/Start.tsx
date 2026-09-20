@@ -13,6 +13,7 @@ interface StartProps {
   onOpenFinder: () => void;
   onNewDraft: () => void;
   recent: RecentFile[];
+  phone?: boolean;
 }
 
 /**
@@ -32,6 +33,7 @@ export function Start({
   onOpenFinder,
   onNewDraft,
   recent,
+  phone,
 }: StartProps) {
   if (!configurationLoaded) return <div className="flex-1" />;
 
@@ -39,5 +41,5 @@ export function Start({
     return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateConfiguration={canUpdateConfiguration} />;
   }
 
-  return <NoFileBlankslate onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} recent={recent} />;
+  return <NoFileBlankslate onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} recent={recent} phone={phone} />;
 }

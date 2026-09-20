@@ -20,6 +20,8 @@ interface NoFileBlankslateProps {
   // The last few things you looked at. This is the only moment the cache behind
   // the finder is worth showing as a list.
   recent: RecentFile[];
+  // On a phone the tree is in the finder and there is no key to press.
+  phone?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface NoFileBlankslateProps {
  * absent rather than an empty box, which is the right amount for someone who has
  * nothing yet.
  */
-export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBlankslateProps) {
+export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent, phone = false }: NoFileBlankslateProps) {
   const finderKey = useShortcutLabel("finder");
   const newDraftKey = useShortcutLabel("newDraft");
 
@@ -41,7 +43,7 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
       <div className="flex flex-col items-center gap-2">
         <FileCode size={28} className="text-muted-foreground" />
-        <p className="m-0 text-sm text-foreground">Pick a method in the sidebar and Kaja drafts a script.</p>
+        <p className="m-0 text-sm text-foreground">Pick a method in the {phone ? "finder" : "sidebar"} and Kaja drafts a script.</p>
         <p className="m-0 text-xs text-muted-foreground">Edit it, run it, save it as a file.</p>
       </div>
       {recent.length > 0 && (
@@ -62,11 +64,11 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBla
       )}
       <div className="flex items-center gap-3">
         <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{finderKey}</span> find a call
+          {!phone && <span className="font-mono">{finderKey}</span>} find a call
         </button>
         <div className="h-3 w-px bg-border" />
         <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
-          <span className="font-mono">{newDraftKey}</span> blank script
+          {!phone && <span className="font-mono">{newDraftKey}</span>} blank script
         </button>
       </div>
     </div>

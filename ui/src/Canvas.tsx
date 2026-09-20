@@ -176,6 +176,8 @@ export function Canvas({
 interface RunStripProps {
   group: RunGroup;
   onSelectCall: (itemId: string) => void;
+  // Inside a row something else owns, rather than a row of its own.
+  inline?: boolean;
 }
 
 /**
@@ -183,7 +185,7 @@ interface RunStripProps {
  * the room, not by a count: one tick per call for as long as a tick can still be a
  * tick, and buckets past that.
  */
-Canvas.RunStrip = function ({ group, onSelectCall }: RunStripProps) {
+Canvas.RunStrip = function ({ group, onSelectCall, inline }: RunStripProps) {
   const row = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -205,7 +207,11 @@ Canvas.RunStrip = function ({ group, onSelectCall }: RunStripProps) {
   const label = group.strip.methodLabel;
 
   return (
-    <div ref={row} data-testid="run-strip" className="@container flex h-[28px] shrink-0 items-center gap-2 border-b border-border px-3 font-mono text-xs">
+    <div
+      ref={row}
+      data-testid="run-strip"
+      className={cn("@container flex items-center gap-2 font-mono text-xs", inline ? "min-w-0 flex-1" : "h-[28px] shrink-0 border-b border-border px-3")}
+    >
       {view.slots.length > 0 && (
         <span
           className={cn("flex min-w-0 shrink overflow-hidden", view.mode === "bars" && "items-end")}
