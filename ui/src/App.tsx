@@ -36,7 +36,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
-import { appModulesMoved, appNeedsRecompile, appReferencesChangedVariable, detectAppRenames } from "./appRenames";
+import { appModulesMoved, appNeedsRecompile, appReferencesChangedVariable, appReferencesVariable, detectAppRenames } from "./appRenames";
 import { AgentRun, AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -936,26 +936,52 @@ export function App() {
     setShortcutOverrides(configuration?.shortcuts);
   }, [configuration?.shortcuts]);
 
+  // What a script reads as kaja.variables. Desktop only: its UI runs inside the app's
+  // own process, so a resolved value is one it already holds. On the web the
+  // configuration's own text is all there is.
+  const readResolvedVariables = useCallback((variables: { [key: string]: string }) => {
+    if (!hostRef.current) return;
+    if (!isWailsEnvironment()) {
+      hostRef.current.variables = variables;
+      return;
+    }
+    desktop()
+      .then((app) => app.ResolvedVariables())
+      .then((resolved) => {
+        // A Go map reaches TypeScript with optional values, because a JSON object may
+        // omit any key. What Go sent has a value for every key it carried.
+        if (hostRef.current) hostRef.current.variables = resolved as Record<string, string>;
+      })
+      .catch((error) => console.error("Failed to read the resolved variables", error));
+  }, []);
+
   useEffect(() => {
     const variables = configuration?.variables ?? {};
     setVariables(variables);
     registerKajaModule(Object.keys(variables));
-    if (!hostRef.current) return;
-    // Desktop only: its UI runs inside the app's own process, so a resolved value is
-    // one it already holds. On the web the configuration's own text is all there is.
-    if (isWailsEnvironment()) {
-      desktop()
-        .then((app) => app.ResolvedVariables())
-        .then((resolved) => {
-          // A Go map reaches TypeScript with optional values, because a JSON object may
-          // omit any key. What Go sent has a value for every key it carried.
-          if (hostRef.current) hostRef.current.variables = resolved as Record<string, string>;
-        })
-        .catch((error) => console.error("Failed to read the resolved variables", error));
-    } else {
-      hostRef.current.variables = variables;
-    }
-  }, [configuration?.variables]);
+    readResolvedVariables(variables);
+  }, [configuration?.variables, readResolvedVariables]);
+
+  /**
+   * What a stored value moving has to say for itself. The value lives on this machine
+   * rather than in kaja.json, so the file is unchanged by the write and nothing reading
+   * it can tell that ${NAME} now expands to something else: the apps that expanded it
+   * when they were opened go on sending the value it replaced until something opens
+   * them again, and the resolved values a script reads are the ones read last time. So
+   * the write says so — the same thing a configuration write says when the name's own
+   * text moves. An app naming it in a header alone is left alone, a header being
+   * expanded per call.
+   */
+  const applyStoredValue = useCallback(
+    (name: string) => {
+      readResolvedVariables(configurationRef.current?.variables ?? {});
+      const names = new Set([name]);
+      setApps((prevApps) =>
+        prevApps.map((app) => (appReferencesVariable(app.configuration, names) ? { ...app, compilation: { status: "pending" as const, logs: [] } } : app)),
+      );
+    },
+    [readResolvedVariables],
+  );
 
   const handleConfigurationFileChange = useCallback(
     (response: GetConfigurationResponse) => {
@@ -2379,6 +2405,7 @@ export function App() {
   const onStoreVariableValue = async (name: string, value: string) => {
     const { response } = await queueVariableWrite(() => getApiClient().setStoredValue({ name, value }));
     setVariableStatus(response.variableStatus);
+    applyStoredValue(name);
   };
 
   const onDeleteApp = async (appName: string) => {
