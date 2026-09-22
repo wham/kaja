@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { appModulesMoved, detectAppRenames } from "./appRenames";
+import { appModulesMoved, appReferencesVariable, detectAppRenames } from "./appRenames";
 import { ConfigurationApp } from "./server/api";
 
 function grpc(name: string, url: string): ConfigurationApp {
@@ -63,5 +63,17 @@ describe("appModulesMoved", () => {
     const before = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: {} } } } as unknown as ConfigurationApp;
     const after = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer t" } } } } as unknown as ConfigurationApp;
     expect(appModulesMoved([before], [after], none, none)).toBe(false);
+  });
+});
+
+describe("appReferencesVariable", () => {
+  it("names an app that expands it in a parameter", () => {
+    expect(appReferencesVariable(grpc("a", "dns:${HOST}:443"), new Set(["HOST"]))).toBe(true);
+    expect(appReferencesVariable(grpc("a", "dns:${HOST}:443"), new Set(["TOKEN"]))).toBe(false);
+  });
+
+  it("leaves an app that only sends it as a header, which is expanded per call", () => {
+    const app = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer ${TOKEN}" } } } } as unknown as ConfigurationApp;
+    expect(appReferencesVariable(app, new Set(["TOKEN"]))).toBe(false);
   });
 });

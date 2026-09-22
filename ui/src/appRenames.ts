@@ -7,9 +7,26 @@ export function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boo
   return appType(a) !== appType(b) || JSON.stringify(appParameters(a)) !== JSON.stringify(appParameters(b));
 }
 
+// The variables an app expands when it is opened. Headers are excluded for the reason
+// above: they are expanded per call, so a call already carries what a name resolves to
+// now.
+function parameterReferences(app: ConfigurationApp): string[] {
+  return Object.values(appParameters(app)).flatMap(variableReferences);
+}
+
 // Parameters are expanded when the app is opened, so a changed ${NAME} forces a recompile too.
 export function appReferencesChangedVariable(app: ConfigurationApp, previous: { [key: string]: string }, next: { [key: string]: string }): boolean {
-  return Object.values(appParameters(app)).some((value) => variableReferences(value).some((name) => previous[name] !== next[name]));
+  return parameterReferences(app).some((name) => previous[name] !== next[name]);
+}
+
+/**
+ * Whether an app expands one of these names. A value this machine stores lives outside
+ * kaja.json, so writing one leaves the file saying exactly what it said before and
+ * comparing the two says nothing moved. The write is the only thing that knows, and
+ * this is how it names the apps still holding the value it replaced.
+ */
+export function appReferencesVariable(app: ConfigurationApp, names: Set<string>): boolean {
+  return parameterReferences(app).some((name) => names.has(name));
 }
 
 /**
