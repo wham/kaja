@@ -18,6 +18,7 @@ import {
 } from "./blocks";
 import { RateLimitState } from "./rateLimit";
 import { formatBytes, formatDuration } from "./callFormat";
+import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
@@ -31,6 +32,7 @@ import {
   numericColumns,
   pendingCells,
   pullNeeded,
+  rowText,
   searchesLocally,
   searchRefused,
   tableSummary,
@@ -543,6 +545,11 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
   const numeric = numericColumns(drawn, block.columns.length);
   const refused = searchRefused(block);
+  const [menu, setMenu] = useState<{ top: number; left: number; row: number; column: number } | null>(null);
+  const menuAnchor = useRef<HTMLDivElement>(null);
+  const menuRow = menu === null ? undefined : block.rows[menu.row];
+  // A cell that is waiting or stopped holds no value of its own to copy.
+  const menuCell = menu === null || menuRow === undefined || cellStatus(block, menu.row, menu.column) !== undefined ? undefined : menuRow[menu.column];
 
   useEffect(() => {
     if (needed) onPull(id, search, want);
@@ -686,6 +693,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
                       {row.map((cell, cellIndex) => (
                         <Canvas.TableCell
                           key={cellIndex}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            setMenu({ top: event.clientY, left: event.clientX, row: drawnIndices[rowIndex], column: cellIndex });
+                          }}
                           cell={cell}
                           column={cellIndex}
                           numeric={numeric[cellIndex]}
@@ -727,6 +738,13 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
           </div>
         )}
       </div>
+      <div ref={menuAnchor} style={{ position: "fixed", top: menu?.top ?? 0, left: menu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <DropdownMenu open={menu !== null} onOpenChange={(open) => !open && setMenu(null)}>
+        <DropdownMenuContent align="start" anchor={menuAnchor} className="w-40">
+          {menuCell !== undefined && menuCell !== "" && <DropdownMenuItem onSelect={() => void copyText(menuCell)}>Copy value</DropdownMenuItem>}
+          {menuRow !== undefined && <DropdownMenuItem onSelect={() => void copyText(rowText(menuRow))}>Copy row</DropdownMenuItem>}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {block.error !== undefined && (
         <div className="flex h-10 items-center gap-2 border-t border-border bg-destructive/10 px-3 text-destructive">
           <span className="min-w-0 flex-1 truncate">{block.error}</span>
@@ -752,6 +770,7 @@ interface TableCellProps {
   expired: boolean;
   onRetry: () => void;
   onRun: (run: CellRun) => void;
+  onContextMenu: (event: React.MouseEvent) => void;
 }
 
 /**
@@ -767,14 +786,14 @@ interface TableCellProps {
  * than a closure, so it outlives the session that drew it and `expired` says nothing
  * about it.
  */
-Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRetry, onRun }: TableCellProps) {
+Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRetry, onRun, onContextMenu }: TableCellProps) {
   const className = cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
 
   // Underlined rather than coloured: the neutral theme's primary is the foreground
   // in both modes, so a column of destinations would read as a column of values.
   if (run !== undefined) {
     return (
-      <td className={cn(className, "p-0")}>
+      <td onContextMenu={onContextMenu} className={cn(className, "p-0")}>
         <button
           type="button"
           data-testid="canvas-table-run"
@@ -793,7 +812,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
 
   if (status === undefined) {
     return (
-      <td className={className} title={cell.length > 48 ? cell : undefined}>
+      <td onContextMenu={onContextMenu} className={className} title={cell.length > 48 ? cell : undefined}>
         {cell}
       </td>
     );
@@ -803,13 +822,13 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
     // A run read back has lost the closure that would have filled this.
     if (expired) {
       return (
-        <td className={cn(className, "text-muted-foreground")} title="Run to load">
+        <td onContextMenu={onContextMenu} className={cn(className, "text-muted-foreground")} title="Run to load">
           —
         </td>
       );
     }
     return (
-      <td className={className}>
+      <td onContextMenu={onContextMenu} className={className}>
         <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[column % SKELETON_WIDTHS.length] }} />
       </td>
     );
@@ -819,7 +838,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
   // a promise is finished whatever it settled as.
   const retry = status.retry === true && !expired;
   return (
-    <td className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
+    <td onContextMenu={onContextMenu} className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
       {retry ? (
         <button type="button" className={cn("group/cell flex h-full w-full items-center gap-1", numeric && "justify-end")} aria-label="Retry" onClick={onRetry}>
           <span>—</span>

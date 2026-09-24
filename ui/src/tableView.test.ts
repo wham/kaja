@@ -1,6 +1,18 @@
 import { describe, expect, it } from "bun:test";
 import { TableBlock } from "./blocks";
-import { bodyMinHeight, cellsKey, hasControls, numericColumns, pendingCells, pullNeeded, searchRefused, tableSummary, tableWindow, totalOf } from "./tableView";
+import {
+  bodyMinHeight,
+  cellsKey,
+  hasControls,
+  numericColumns,
+  pendingCells,
+  pullNeeded,
+  rowText,
+  searchRefused,
+  tableSummary,
+  tableWindow,
+  totalOf,
+} from "./tableView";
 
 function table(rows: number, extra: Partial<TableBlock> = {}): TableBlock {
   return {
@@ -367,5 +379,15 @@ describe("numericColumns", () => {
   it("calls an empty column nothing", () => {
     expect(numericColumns([["", ""]], 2)).toEqual([false, false]);
     expect(numericColumns([], 2)).toEqual([false, false]);
+  });
+});
+
+describe("rowText", () => {
+  it("separates cells with tabs", () => {
+    expect(rowText(["1", "show 1", ""])).toBe("1\tshow 1\t");
+  });
+
+  it("keeps a cell's own tabs and line breaks inside it", () => {
+    expect(rowText(["a\tb", "c\r\nd"])).toBe("a b\tc d");
   });
 });

@@ -281,3 +281,11 @@ export function numericColumns(rows: string[][], columns: number): boolean[] {
     return seen;
   });
 }
+
+/**
+ * A row as a spreadsheet takes it on paste: tab between cells. A tab or a line break
+ * inside a cell would start a cell or a row of its own there, so each is a space.
+ */
+export function rowText(row: string[]): string {
+  return row.map((cell) => cell.replace(/[\t\r\n]+/g, " ")).join("\t");
+}
