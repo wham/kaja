@@ -111,7 +111,6 @@ export const appTypes: AppTypeDefinition[] = [
     },
   },
   {
-    preview: true,
     type: "mcp",
     label: "MCP",
     description: "Explore another Model Context Protocol server: its tools, resources and prompts.",

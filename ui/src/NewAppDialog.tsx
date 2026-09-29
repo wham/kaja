@@ -5,7 +5,7 @@ import { appTypes } from "./appTypes";
 import { PreviewPill } from "./PreviewPill";
 
 interface NewAppDialogProps {
-  // When the Apps feature preview is off, only gRPC/Twirp/OpenAPI are offered.
+  // When the Apps feature preview is off, only gRPC/Twirp/OpenAPI/MCP are offered.
   appsPreviewEnabled: boolean;
   onClose: () => void;
   // Called with the chosen app type; the app's parameters are filled in afterwards
@@ -13,7 +13,7 @@ interface NewAppDialogProps {
   onSelect: (type: string) => void;
 }
 
-// NewAppDialog picks the type of app to create (gRPC, Twirp, OpenAPI, or a
+// NewAppDialog picks the type of app to create (gRPC, Twirp, OpenAPI, MCP, or a
 // built-in integration). Experimental built-ins appear only when the Apps
 // preview is on and carry a "Preview" pill.
 export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDialogProps) {
