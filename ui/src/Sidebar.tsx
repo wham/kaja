@@ -20,6 +20,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import { Splitter } from "./Splitter";
 import { usePersistedState } from "./usePersistedState";
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
@@ -74,6 +75,9 @@ const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1
 // on the row instead of behind a menu. Every one of them sits in an 18px box 8px in
 // from the panel's right edge — one column, from the band's tools down to the last
 // method in the tree.
+// Apps always keeps the rest, so dragging Scripts down never buries the tree.
+const MAX_SCRIPTS_SHARE = 0.7;
+
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 
 function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void }) {
@@ -142,6 +146,11 @@ export function Sidebar({
   // Remembered like every other fold in the panel.
   const [scriptsOpen, setScriptsOpen] = usePersistedState("scriptsSectionExpanded", true);
   const [appsOpen, setAppsOpen] = usePersistedState("appsSectionExpanded", true);
+  // A share of the panel rather than pixels, so a taller window keeps the proportion.
+  // Unset is content-sized, which is where a panel nobody has dragged starts.
+  const [scriptsShare, setScriptsShare] = usePersistedState<number | null>("scriptsSectionShare", null);
+  const sectionsRef = useRef<HTMLDivElement>(null);
+  const scriptsRef = useRef<HTMLDivElement>(null);
   // Anchored at the cursor.
   const [appMenu, setAppMenu] = useState<{ appName: string; top: number; left: number } | null>(null);
   const appMenuAnchorRef = useRef<HTMLDivElement>(null);
@@ -234,6 +243,19 @@ export function Sidebar({
     if (fold === "open") pendingScrollRef.current = nodeId;
   };
 
+  // Dragging up starts from what is drawn, so a ceiling above a short list moves the
+  // splitter on the first pixel rather than after the slack is taken up.
+  const onScriptsResize = (delta: number) => {
+    const sections = sectionsRef.current?.clientHeight;
+    const drawn = scriptsRef.current?.offsetHeight;
+    if (!sections || drawn === undefined) return;
+    setScriptsShare((share) => {
+      const ceiling = share === null ? drawn : share * sections;
+      const from = delta < 0 ? Math.min(ceiling, drawn) : ceiling;
+      return Math.min(MAX_SCRIPTS_SHARE, Math.max(0, (from + delta) / sections));
+    });
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-chrome">
       {/* 40px, the same as the command row next to it, so the two line up across
@@ -243,200 +265,205 @@ export function Sidebar({
           through. */}
       <GlobalBand reserveTrafficLights={reserveTrafficLights} onVariablesClick={onVariablesClick} onMcpClick={onMcpClick} mcpState={mcpState} />
 
-      {/* Both sections are the same 22px row now, which is what makes them read
+      <div ref={sectionsRef} className="flex min-h-0 flex-1 flex-col">
+        {/* Both sections are the same 22px row now, which is what makes them read
           as peers: a name, the verb that belongs to that list and no other, and
           nothing that governs the panel. */}
-      <SectionHeader
-        id="scripts-section"
-        title="Scripts"
-        open={scriptsOpen}
-        onToggle={() => setScriptsOpen((open) => !open)}
-        actions={onNewScript && <RowAction icon={Plus} label="New script" onClick={onNewScript} />}
-      />
-      {scriptsOpen && (
-        // Content-sized, so a short list of scripts leaves the room to the apps below. It
-        // never grows: the Apps header belongs directly under the last file, not pinned to
-        // the bottom where it would read as a footer.
-        <div className="min-h-0 flex-[0_1_auto] overflow-y-auto pb-1">{scriptsRegion}</div>
-      )}
+        <SectionHeader
+          id="scripts-section"
+          title="Scripts"
+          open={scriptsOpen}
+          onToggle={() => setScriptsOpen((open) => !open)}
+          actions={onNewScript && <RowAction icon={Plus} label="New script" onClick={onNewScript} />}
+        />
+        {scriptsOpen && (
+          // The share is a ceiling, not a height: a short list of scripts leaves the room to
+          // the apps below, and the Apps header sits directly under the last file rather than
+          // pinned to the bottom where it would read as a footer.
+          <div ref={scriptsRef} className="min-h-0 flex-[0_1_auto] overflow-y-auto pb-1" style={{ maxHeight: `${(scriptsShare ?? MAX_SCRIPTS_SHARE) * 100}%` }}>
+            {scriptsRegion}
+          </div>
+        )}
 
-      {/* A hairline is enough to say a new thing starts here, now that the two
+        {/* A hairline is enough to say a new thing starts here, now that the two
           headers are the same row and the band above says nothing about either.
           Its + is the one that makes an app. */}
-      <SectionHeader
-        id="apps-section"
-        title="Apps"
-        open={appsOpen}
-        onToggle={() => setAppsOpen((open) => !open)}
-        seam
-        actions={canUpdateConfiguration && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />}
-      />
-      {appsOpen && (
-        <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-          {/* Where there is an action, the empty list shows the action rather than
+        <SectionHeader
+          id="apps-section"
+          title="Apps"
+          open={appsOpen}
+          onToggle={() => setAppsOpen((open) => !open)}
+          seam
+          splitter={scriptsOpen && appsOpen && <Splitter orientation="horizontal" onResize={onScriptsResize} />}
+          actions={canUpdateConfiguration && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />}
+        />
+        {appsOpen && (
+          <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+            {/* Where there is an action, the empty list shows the action rather than
               a sentence about it: this list can be filled from here, so its one row
               is the verb, at the same 22px as the app rows it will be replaced by. */}
-          {apps.length === 0 &&
-            (canUpdateConfiguration ? (
-              <button
-                type="button"
-                onClick={onNewAppClick}
-                className={cn(
-                  SECTION_ROW,
-                  "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )}
-              >
-                <Plus size={12} className="shrink-0" />
-                <span>New app</span>
-              </button>
-            ) : (
-              <div className="px-2 py-1 text-xs text-muted-foreground">Apps named in kaja.json appear here.</div>
-            ))}
-          {apps.map((app, appIndex) => {
-            const appName = app.configuration.name;
-            const treeApp = treeApps[appIndex];
-            const appId = appNodeId(appName);
-            const isExpanded = isOpen(folds, appId);
-            // The row's own highlight stays the cursor's; only the verb on it is unconditional
-            // where there is no cursor to reveal it with.
-            const active = hoveredApp === appName || appMenu?.appName === appName;
+            {apps.length === 0 &&
+              (canUpdateConfiguration ? (
+                <button
+                  type="button"
+                  onClick={onNewAppClick}
+                  className={cn(
+                    SECTION_ROW,
+                    "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  <Plus size={12} className="shrink-0" />
+                  <span>New app</span>
+                </button>
+              ) : (
+                <div className="px-2 py-1 text-xs text-muted-foreground">Apps named in kaja.json appear here.</div>
+              ))}
+            {apps.map((app, appIndex) => {
+              const appName = app.configuration.name;
+              const treeApp = treeApps[appIndex];
+              const appId = appNodeId(appName);
+              const isExpanded = isOpen(folds, appId);
+              // The row's own highlight stays the cursor's; only the verb on it is unconditional
+              // where there is no cursor to reveal it with.
+              const active = hoveredApp === appName || appMenu?.appName === appName;
 
-            return (
-              <nav
-                key={appName}
-                ref={(el) => {
-                  if (el) elementRefs.current.set(appId, el);
-                  else elementRefs.current.delete(appId);
-                }}
-                aria-label="Services and methods"
-              >
-                {/* The app keeps its icon: it is the one place in the tree where
+              return (
+                <nav
+                  key={appName}
+                  ref={(el) => {
+                    if (el) elementRefs.current.set(appId, el);
+                    else elementRefs.current.delete(appId);
+                  }}
+                  aria-label="Services and methods"
+                >
+                  {/* The app keeps its icon: it is the one place in the tree where
                   the glyph says something the indent can't — gRPC or OpenAPI or
                   Folder. Everything below repeats itself, so it goes. */}
-                <div
-                  className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
-                  onMouseEnter={() => setHoveredApp(appName)}
-                  onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
-                  onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
-                  onContextMenu={(e: React.MouseEvent) => {
-                    e.preventDefault();
-                    setAppMenu({ appName, top: e.clientY, left: e.clientX });
-                  }}
-                >
-                  <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
-                  <AppTypeIcon type={appType(app.configuration)} size={13} />
-                  <span className="truncate">{appName}</span>
-                  <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
-                  <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
-                    {(touch || active) && (
-                      <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
-                    )}
-                  </span>
-                </div>
-                {isExpanded && (
-                  <TreeView guide aria-label="Services and methods">
-                    {app.compilation.status === "running" || app.compilation.status === "pending" ? (
-                      <LoadingTreeViewItem />
-                    ) : (
-                      (() => {
-                        const multiplePackages = hasMultiplePackages(app.services);
+                  <div
+                    className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
+                    onMouseEnter={() => setHoveredApp(appName)}
+                    onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
+                    onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
+                    onContextMenu={(e: React.MouseEvent) => {
+                      e.preventDefault();
+                      setAppMenu({ appName, top: e.clientY, left: e.clientX });
+                    }}
+                  >
+                    <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                    <AppTypeIcon type={appType(app.configuration)} size={13} />
+                    <span className="truncate">{appName}</span>
+                    <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
+                    <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
+                      {(touch || active) && (
+                        <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
+                      )}
+                    </span>
+                  </div>
+                  {isExpanded && (
+                    <TreeView guide aria-label="Services and methods">
+                      {app.compilation.status === "running" || app.compilation.status === "pending" ? (
+                        <LoadingTreeViewItem />
+                      ) : (
+                        (() => {
+                          const multiplePackages = hasMultiplePackages(app.services);
 
-                        const renderServiceItem = (service: Service) => {
-                          const svcId = serviceNodeId(appName, service);
-                          return (
-                            <TreeView.Item
-                              id={svcId}
-                              key={svcId}
-                              ref={(el: HTMLElement | null) => {
-                                if (el) elementRefs.current.set(svcId, el);
-                                else elementRefs.current.delete(svcId);
-                              }}
-                              expanded={isOpen(folds, svcId)}
-                              onExpandedChange={(expanded, event) => setFold(treeApp, svcId, expanded ? "open" : "shut", event.altKey)}
-                            >
-                              {service.name}
-                              <TreeView.SubTree leaf>
-                                {service.methods.map((method) => {
-                                  const mId = methodId(service, method);
-                                  // Listed, because the tree is what the app has. Dimmed and marked,
-                                  // because clicking it writes a script Kaja won't run.
-                                  const unsupported = unsupportedReason(method, appType(app.configuration));
-                                  return (
-                                    <TreeView.Item
-                                      id={mId}
-                                      key={mId}
-                                      ref={(el: HTMLElement | null) => {
-                                        if (el) {
-                                          elementRefs.current.set(mId, el);
-                                          // TreeView.Item doesn't forward these, so attach them to the node.
-                                          el.onmouseenter = () => setHoveredMethod(mId);
-                                          el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
-                                        } else elementRefs.current.delete(mId);
-                                      }}
-                                      onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
-                                    >
-                                      <MethodName name={method.name} unsupported={!!unsupported} deprecated={!!method.deprecated} />
-                                      <TreeView.TrailingVisual>
-                                        {/* Adding a call to the draft you already have open is
+                          const renderServiceItem = (service: Service) => {
+                            const svcId = serviceNodeId(appName, service);
+                            return (
+                              <TreeView.Item
+                                id={svcId}
+                                key={svcId}
+                                ref={(el: HTMLElement | null) => {
+                                  if (el) elementRefs.current.set(svcId, el);
+                                  else elementRefs.current.delete(svcId);
+                                }}
+                                expanded={isOpen(folds, svcId)}
+                                onExpandedChange={(expanded, event) => setFold(treeApp, svcId, expanded ? "open" : "shut", event.altKey)}
+                              >
+                                {service.name}
+                                <TreeView.SubTree leaf>
+                                  {service.methods.map((method) => {
+                                    const mId = methodId(service, method);
+                                    // Listed, because the tree is what the app has. Dimmed and marked,
+                                    // because clicking it writes a script Kaja won't run.
+                                    const unsupported = unsupportedReason(method, appType(app.configuration));
+                                    return (
+                                      <TreeView.Item
+                                        id={mId}
+                                        key={mId}
+                                        ref={(el: HTMLElement | null) => {
+                                          if (el) {
+                                            elementRefs.current.set(mId, el);
+                                            // TreeView.Item doesn't forward these, so attach them to the node.
+                                            el.onmouseenter = () => setHoveredMethod(mId);
+                                            el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
+                                          } else elementRefs.current.delete(mId);
+                                        }}
+                                        onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
+                                      >
+                                        <MethodName name={method.name} unsupported={!!unsupported} deprecated={!!method.deprecated} />
+                                        <TreeView.TrailingVisual>
+                                          {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. A call
                                           that can't be made is offered no way into a draft you
                                           are working in. */}
-                                        {unsupported ? (
-                                          <UnsupportedMarker reason={unsupported} />
-                                        ) : (
-                                          (touch || hoveredMethod === mId) && (
-                                            <RowAction
-                                              icon={PlusIcon}
-                                              label={`Add ${method.name} to the open draft`}
-                                              onClick={() => onSelect(method, service, app, "append")}
-                                            />
-                                          )
-                                        )}
-                                      </TreeView.TrailingVisual>
-                                    </TreeView.Item>
-                                  );
-                                })}
-                              </TreeView.SubTree>
-                            </TreeView.Item>
-                          );
-                        };
+                                          {unsupported ? (
+                                            <UnsupportedMarker reason={unsupported} />
+                                          ) : (
+                                            (touch || hoveredMethod === mId) && (
+                                              <RowAction
+                                                icon={PlusIcon}
+                                                label={`Add ${method.name} to the open draft`}
+                                                onClick={() => onSelect(method, service, app, "append")}
+                                              />
+                                            )
+                                          )}
+                                        </TreeView.TrailingVisual>
+                                      </TreeView.Item>
+                                    );
+                                  })}
+                                </TreeView.SubTree>
+                              </TreeView.Item>
+                            );
+                          };
 
-                        if (!multiplePackages) {
-                          return <>{app.services.map(renderServiceItem)}</>;
-                        }
+                          if (!multiplePackages) {
+                            return <>{app.services.map(renderServiceItem)}</>;
+                          }
 
-                        const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
-                          const packageId = packageNodeId(appName, packageName);
-                          return (
-                            <TreeView.Item
-                              id={packageId}
-                              key={packageId}
-                              ref={(el: HTMLElement | null) => {
-                                if (el) elementRefs.current.set(packageId, el);
-                                else elementRefs.current.delete(packageId);
-                              }}
-                              expanded={isOpen(folds, packageId)}
-                              onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
-                            >
-                              {/* No icon: every package row carried the same one,
+                          const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
+                            const packageId = packageNodeId(appName, packageName);
+                            return (
+                              <TreeView.Item
+                                id={packageId}
+                                key={packageId}
+                                ref={(el: HTMLElement | null) => {
+                                  if (el) elementRefs.current.set(packageId, el);
+                                  else elementRefs.current.delete(packageId);
+                                }}
+                                expanded={isOpen(folds, packageId)}
+                                onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
+                              >
+                                {/* No icon: every package row carried the same one,
                                 which is 20px per row spent saying what the guide
                                 already says. */}
-                              <span className="text-muted-foreground">{packageName}</span>
-                              <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
-                            </TreeView.Item>
-                          );
-                        });
-                        return <>{packageNodes}</>;
-                      })()
-                    )}
-                  </TreeView>
-                )}
-              </nav>
-            );
-          })}
-        </div>
-      )}
+                                <span className="text-muted-foreground">{packageName}</span>
+                                <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
+                              </TreeView.Item>
+                            );
+                          });
+                          return <>{packageNodes}</>;
+                        })()
+                      )}
+                    </TreeView>
+                  )}
+                </nav>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
         <DropdownMenuContent align="start" anchor={appMenuAnchorRef} className="w-48">
@@ -553,6 +580,7 @@ function SectionHeader({
   onToggle,
   actions,
   seam,
+  splitter,
 }: {
   id: string;
   title: string;
@@ -561,9 +589,11 @@ function SectionHeader({
   actions?: React.ReactNode;
   // The top section has nothing above it and takes none.
   seam?: boolean;
+  // Drawn in place of the seam's hairline, being one itself.
+  splitter?: React.ReactNode;
 }) {
-  return (
-    <div className={cn("flex h-[22px] shrink-0 items-center gap-1 pr-2", seam && "mt-1 h-[27px] border-t border-border pt-1")}>
+  const header = (
+    <div className={cn("flex h-[22px] shrink-0 items-center gap-1 pr-2", seam && (splitter ? "h-[26px] pt-1" : "mt-1 h-[27px] border-t border-border pt-1"))}>
       <h2 id={id} className="flex min-w-0">
         <button
           type="button"
@@ -586,6 +616,13 @@ function SectionHeader({
           for, and they were permanent while the band was theirs. */}
       <div className="ml-auto flex shrink-0 items-center">{actions}</div>
     </div>
+  );
+  if (!splitter) return header;
+  return (
+    <>
+      <div className="mt-1 shrink-0">{splitter}</div>
+      {header}
+    </>
   );
 }
 
