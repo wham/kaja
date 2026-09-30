@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package zoo;
+
+import "types.proto";
+
+// Named like the message it serves.
+service Pet {
+  rpc CreatePet(types.Pet) returns (types.Pet);
+  rpc GetPet(types.GetPetRequest) returns (types.Pet);
+}
+
+service Keeper {
+  rpc GetKeeper(types.GetPetRequest) returns (types.Keeper);
+  rpc StreamKeepers(types.GetPetRequest) returns (stream types.Keeper);
+}

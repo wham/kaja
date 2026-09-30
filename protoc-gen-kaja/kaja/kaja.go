@@ -2599,8 +2599,14 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
-	// Pre-compute import aliases for types that collide
-	g.precomputeImportAliases(depFiles)
+	// Pre-compute import aliases for types that collide. The file's services are
+	// declared here as values of the same name, so an imported type named like one
+	// collides too.
+	services := make(map[string]bool)
+	for _, service := range g.file.Service {
+		services[escapeTypescriptKeyword(service.GetName())] = true
+	}
+	g.precomputeImportAliases(depFiles, services)
 	
 	// Helper to generate import statement for a type
 	generateImport := func(typeName string) string {
@@ -3258,8 +3264,9 @@ func (g *generator) computeImportedTSName(typeName string, depFiles map[string]*
 // precomputeImportAliases detects import name collisions and pre-populates
 // g.importAliases. Types are scanned in protobuf-ts registration order
 // (input first, output second per method), which determines which type
-// keeps the original name and which gets the '$' suffix alias.
-func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.FileDescriptorProto) {
+// keeps the original name and which gets the '$' suffix alias. declared holds
+// names the file declares besides its types, which an import collides with too.
+func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.FileDescriptorProto, declared map[string]bool) {
 	type typeInfo struct {
 		protoName string
 		tsName    string
@@ -3317,10 +3324,13 @@ func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.Fi
 	// Detect collisions: first type to claim a name wins
 	claimed := make(map[string]string) // tsName → first proto type that claimed it
 	for _, info := range regOrder {
-		if g.localTypeNames[info.tsName] {
+		if g.localTypeNames[info.tsName] || declared[info.tsName] {
 			// Collision with local type — alias this imported type
 			taken := make(map[string]bool)
 			for k := range g.localTypeNames {
+				taken[k] = true
+			}
+			for k := range declared {
 				taken[k] = true
 			}
 			for _, v := range g.importAliases {
@@ -6639,7 +6649,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			depFiles[relPath] = pubFile
 		}
 	}
-	g.precomputeImportAliases(depFiles)
+	g.precomputeImportAliases(depFiles, nil)
 
 	// Build filtered list of services that need a generic client
 	var clientServices []*descriptorpb.ServiceDescriptorProto
@@ -6798,6 +6808,27 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 		if usedCallTypes[svcName] {
 			g.serviceImportAliases[svcName] = svcName + "$"
+		}
+	}
+	// A service named like a message one of the file's methods takes or returns
+	// yields the name to the message, whose name the method signatures are written in.
+	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
+		for _, method := range service.Method {
+			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
+				if _, aliased := g.importAliases[typeName]; aliased {
+					continue
+				}
+				tsName := g.stripPackage(typeName)
+				for _, other := range file.Service {
+					svcName := escapeTypescriptKeyword(other.GetName())
+					if svcName == tsName && serviceNeedsGenericClient(other) {
+						g.serviceImportAliases[svcName] = svcName + "$"
+					}
+				}
+			}
 		}
 	}
 	// Also check if any proto message type used in service methods collides with
@@ -8906,7 +8937,7 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 			depFiles[relPath] = pubFile
 		}
 	}
-	g.precomputeImportAliases(depFiles)
+	g.precomputeImportAliases(depFiles, nil)
 
 	// Collect message types needed by GRPC1_SERVER services using forward-iterate+prepend
 	// (matching TS plugin behavior: processes methods forward, prepending imports as encountered)
@@ -9205,7 +9236,7 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 			depFiles[relPath] = pubFile
 		}
 	}
-	g.precomputeImportAliases(depFiles)
+	g.precomputeImportAliases(depFiles, nil)
 
 	// Collect service value imports and message type imports using prepend-as-encountered
 	// (matching TS plugin behavior: forward method iteration, prepend imports as types are encountered)
@@ -9615,7 +9646,7 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 			depFiles[relPath] = pubFile
 		}
 	}
-	g.precomputeImportAliases(depFiles)
+	g.precomputeImportAliases(depFiles, nil)
 
 	// Build imports by simulating the TS plugin's prepend-as-encountered behavior.
 	// For each method (forward order), prepend input type, output type, then streaming

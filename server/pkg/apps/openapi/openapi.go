@@ -28,12 +28,15 @@ import (
 //go:embed http.proto
 var httpProto []byte
 
-// write lays the generated proto surface out in protoDir: the service itself
-// plus kaja/http.proto, which every generated method depends on. Both the app's
-// own compile and the client-facing one read the directory, so the marks survive
-// into the descriptors the client is generated from.
+// write lays the generated proto surface out in protoDir: the services, the
+// messages they take and return, and kaja/http.proto, which both depend on. Both
+// the app's own compile and the client-facing one read the directory, so the
+// marks survive into the descriptors the client is generated from.
 func (gen *generated) write(protoDir string) error {
-	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.service), 0o644); err != nil {
+		return fmt.Errorf("writing proto: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(protoDir, typesFile), []byte(gen.types), 0o644); err != nil {
 		return fmt.Errorf("writing proto: %w", err)
 	}
 	dir := filepath.Join(protoDir, "kaja")

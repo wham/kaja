@@ -3,8 +3,13 @@ import { App, createPendingApp } from "./apps";
 import { Source } from "./sources";
 import { barrel, moduleSpecifier, resolve } from "./appImports";
 
-function source(importPath: string, serviceNames: string[], enums: string[] = []): Source {
-  return { importPath, serviceNames, enums: Object.fromEntries(enums.map((name) => [name, { object: {} }])) } as unknown as Source;
+function source(importPath: string, serviceNames: string[], enums: string[] = [], interfaces: string[] = []): Source {
+  return {
+    importPath,
+    serviceNames,
+    enums: Object.fromEntries(enums.map((name) => [name, { object: {} }])),
+    interfaces: Object.fromEntries(interfaces.map((name) => [name, {}])),
+  } as unknown as Source;
 }
 
 // An app kaja generated the proto surface for: one module, named by a word kaja
@@ -79,5 +84,21 @@ describe("barrel", () => {
 
   it("leaves a name two modules declare unreachable, which is what makes the path required", () => {
     expect(barrel(fromDisk()).content).toBe('export * from "./quirks/v1/quirks";\nexport * from "./quirks/v2/quirks";\n');
+  });
+
+  it("re-exports a service and a message it shares a name with as the one name", () => {
+    const app = createPendingApp({ name: "zoo", app: { oneofKind: "openapi" } as any });
+    app.sources = [source("zoo/service", ["Pet", "Search"]), source("zoo/types", [], [], ["Pet", "Search", "GetPetRequest"])];
+    expect(barrel(app).content).toBe(
+      'export * from "./zoo/service";\n' +
+        'export * from "./zoo/types";\n' +
+        'import * as service from "./zoo/service";\n' +
+        'import * as types from "./zoo/types";\n' +
+        "export const Pet = service.Pet;\n" +
+        "export type Pet = types.Pet;\n" +
+        "export const Search = service.Search;\n" +
+        "export type Search = types.Search;\n",
+    );
+    expect(resolve(app, "zoo", "Pet")).toEqual({ source: app.sources[0] });
   });
 });

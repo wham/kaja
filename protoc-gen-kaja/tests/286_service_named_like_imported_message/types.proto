@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package zoo.types;
+
+message Pet {
+  string id = 1;
+  string name = 2;
+}
+
+message GetPetRequest {
+  string id = 1;
+}
+
+message Keeper {
+  string name = 1;
+}

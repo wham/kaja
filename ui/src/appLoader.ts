@@ -81,7 +81,9 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       });
 
       if (interfaceDeclaration && clientSource) {
-        serviceInterfaceDefinitions.push(createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, signatures));
+        serviceInterfaceDefinitions.push(
+          createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, localSignatures(signatures, clientSource.file, source.file)),
+        );
       }
     });
 
@@ -306,6 +308,37 @@ function readSignatures(
   });
 
   return signatures;
+}
+
+// localSignatures restates signatures read off the client module in the names the
+// service module has for the same types. The two differ where a message is named
+// like the service: the client imports the message under its own name and the
+// service module, which declares the service, has to import it as `Pet$`.
+function localSignatures(
+  signatures: { [name: string]: MethodSignature },
+  clientFile: ts.SourceFile,
+  serviceFile: ts.SourceFile,
+): { [name: string]: MethodSignature } {
+  const imported = importedNames(clientFile);
+  const local = new Map([...importedNames(serviceFile)].map(([name, origin]) => [origin, name]));
+  const rename = (type: string) => local.get(imported.get(type) ?? "") ?? type;
+  return Object.fromEntries(
+    Object.entries(signatures).map(([name, signature]) => [name, { ...signature, input: rename(signature.input), output: rename(signature.output) }]),
+  );
+}
+
+// importedNames maps each name a module imports from a sibling module to where it
+// came from, as the module and the name it was exported under.
+function importedNames(file: ts.SourceFile): Map<string, string> {
+  const names = new Map<string, string>();
+  file.statements.forEach((statement) => {
+    if (!ts.isImportDeclaration(statement) || !isAnotherSourceImport(statement, file)) return;
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) return;
+    const module = (statement.moduleSpecifier as ts.StringLiteral).text;
+    bindings.elements.forEach((element) => names.set(element.name.text, module + "#" + (element.propertyName ?? element.name).text));
+  });
+  return names;
 }
 
 // `import type { Call, CallOptions, Input } from "kaja";` — what a generated service's

@@ -41,17 +41,29 @@ func queryStyle(p *parameter) string {
 	return ""
 }
 
-// generated is the output of converting a spec: the proto file text, the
-// package-qualified type names of every generated service, and the per-method
+// generated is the output of converting a spec: the text of the two proto files,
+// the package-qualified type names of every generated service, and the per-method
 // HTTP bindings keyed by the gRPC method path "<serviceTypeName>/<MethodName>".
+//
+// The messages are a package of their own because a document names a resource and
+// the operations on it the same thing, and proto keeps services and messages in one
+// namespace per package. Two packages let both keep the document's name.
 type generated struct {
-	proto            string
+	types            string
+	service          string
 	serviceTypeNames []string
 	bindings         map[string]*methodBinding
 }
 
 // The (kaja.http_payload) values a generated envelope field carries. See
 // http.proto for what the option means.
+// The messages' file and the package it declares under the service's own. The
+// file's name is the module a script reaches a message type through.
+const (
+	typesFile    = "types.proto"
+	typesPackage = "types"
+)
+
 const (
 	payloadBody  = "HTTP_PAYLOAD_BODY"
 	payloadItems = "HTTP_PAYLOAD_ITEMS"
@@ -175,8 +187,6 @@ func generateProto(s *spec) (*generated, error) {
 		return nil, fmt.Errorf("spec has no operations to expose")
 	}
 
-	g.resolveServiceNameCollisions()
-
 	// Key bindings by full gRPC method path now that service names are settled.
 	bindings := map[string]*methodBinding{}
 	serviceTypeNames := make([]string, 0, len(g.services))
@@ -189,7 +199,8 @@ func generateProto(s *spec) (*generated, error) {
 	}
 
 	return &generated{
-		proto:            g.render(),
+		types:            g.renderTypes(),
+		service:          g.renderService(),
 		serviceTypeNames: serviceTypeNames,
 		bindings:         bindings,
 	}, nil
@@ -218,24 +229,6 @@ func (g *generator) serviceFor(op *operation) *serviceDef {
 	g.serviceIndex[name] = svc
 	g.services = append(g.services, svc)
 	return svc
-}
-
-// resolveServiceNameCollisions renames any service whose name clashes with a
-// generated message, since proto services and messages share one namespace.
-func (g *generator) resolveServiceNameCollisions() {
-	for _, svc := range g.services {
-		if !g.seenMsg[svc.name] {
-			continue
-		}
-		base := svc.name + "Service"
-		candidate := base
-		for i := 2; g.seenMsg[candidate] || g.serviceIndex[candidate] != nil; i++ {
-			candidate = fmt.Sprintf("%s%d", base, i)
-		}
-		delete(g.serviceIndex, svc.name)
-		g.serviceIndex[candidate] = svc
-		svc.name = candidate
-	}
 }
 
 func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
@@ -940,12 +933,10 @@ func (svc *serviceDef) uniqueRPCName(name string) string {
 	return candidate
 }
 
-func (g *generator) render() string {
+func (g *generator) renderTypes() string {
 	var b strings.Builder
 	b.WriteString("syntax = \"proto3\";\n\n")
-	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
-	// Every method carries (kaja.http_request), so the option file is always part
-	// of the generated surface.
+	fmt.Fprintf(&b, "package %s.%s;\n\n", g.pkg, typesPackage)
 	b.WriteString("import \"kaja/http.proto\";\n")
 	if g.usesValue {
 		b.WriteString("import \"google/protobuf/struct.proto\";\n")
@@ -980,6 +971,18 @@ func (g *generator) render() string {
 		b.WriteString("}\n\n")
 	}
 
+	return b.String()
+}
+
+func (g *generator) renderService() string {
+	var b strings.Builder
+	b.WriteString("syntax = \"proto3\";\n\n")
+	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
+	// Every method carries (kaja.http_request), so the option file is always part
+	// of the generated surface.
+	b.WriteString("import \"kaja/http.proto\";\n")
+	fmt.Fprintf(&b, "import %q;\n\n", typesFile)
+
 	for i, svc := range g.services {
 		if i > 0 {
 			b.WriteString("\n")
@@ -989,7 +992,7 @@ func (g *generator) render() string {
 			if r.summary != "" {
 				fmt.Fprintf(&b, "  // %s\n", strings.ReplaceAll(r.summary, "\n", " "))
 			}
-			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s) {\n", r.name, r.input, r.output)
+			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s) {\n", r.name, qualify(r.input), qualify(r.output))
 			fmt.Fprintf(&b, "    option (kaja.http_request) = %q;\n", r.httpRequest)
 			if r.deprecated {
 				b.WriteString("    option deprecated = true;\n")
@@ -999,6 +1002,12 @@ func (g *generator) render() string {
 		b.WriteString("}\n")
 	}
 	return b.String()
+}
+
+// qualify names a generated message from the service file. It has to be spelled
+// with its package, since the bare name may be a service declared right there.
+func qualify(message string) string {
+	return typesPackage + "." + message
 }
 
 // mergedParameters combines path-item-level and operation-level parameters,

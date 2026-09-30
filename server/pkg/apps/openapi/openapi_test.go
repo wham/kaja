@@ -136,6 +136,12 @@ func parseOrFatal(t *testing.T) *spec {
 	return s
 }
 
+// text is both generated files, for a test asserting on what was generated
+// wherever it landed.
+func (gen *generated) text() string {
+	return gen.types + gen.service
+}
+
 func TestGenerateProto(t *testing.T) {
 	gen, err := generateProto(parseOrFatal(t))
 	if err != nil {
@@ -152,10 +158,10 @@ func TestGenerateProto(t *testing.T) {
 		"message Pet {",
 		"int32 id = 1 [json_name = \"id\"];",
 		"string name = 2 [json_name = \"name\"];",
-		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse) {",
+		"rpc ListPets(types.ListPetsRequest) returns (types.ListPetsResponse) {",
 		// The body is the operation's whole input, so it is the request itself.
-		"rpc CreatePet(Pet) returns (Pet) {",
-		"rpc GetPetById(GetPetByIdRequest) returns (Pet) {",
+		"rpc CreatePet(types.Pet) returns (types.Pet) {",
+		"rpc GetPetById(types.GetPetByIdRequest) returns (types.Pet) {",
 		// An array response has no message to be, so it is wrapped - and the
 		// wrapper says it is one.
 		"repeated Pet items = 1 [json_name = \"items\", (kaja.http_payload) = HTTP_PAYLOAD_ITEMS];",
@@ -164,8 +170,8 @@ func TestGenerateProto(t *testing.T) {
 		"int32 pet_id = 1 [json_name = \"petId\", (kaja.http_in) = \"path\", (kaja.http_required) = true];",
 		"int32 limit = 1 [json_name = \"limit\", (kaja.http_in) = \"query\"];",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -261,13 +267,13 @@ paths:
 		"service Store {",
 		"service Pets {",
 		"service Orders {",
-		"rpc Health(HealthRequest) returns (HealthResponse) {",
-		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse) {",
-		"rpc DeletePet(DeletePetRequest) returns (DeletePetResponse) {",
-		"rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {",
+		"rpc Health(types.HealthRequest) returns (types.HealthResponse) {",
+		"rpc ListPets(types.ListPetsRequest) returns (types.ListPetsResponse) {",
+		"rpc DeletePet(types.DeletePetRequest) returns (types.DeletePetResponse) {",
+		"rpc CreateOrder(types.CreateOrderRequest) returns (types.CreateOrderResponse) {",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -372,13 +378,13 @@ func TestParameterRefsAndMaps(t *testing.T) {
 		`map<string, string> group_by = 2 [json_name = "groupBy"];`,
 		`map<string, string> metadata = 3 [json_name = "metadata"];`,
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 	for _, frag := range []string{"message SortOrder", "message Metadata"} {
-		if strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto should not contain %q\n---\n%s", frag, gen.proto)
+		if strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto should not contain %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -795,8 +801,8 @@ components:
 		`int32 count = 1 [json_name = "count"];`, // plain integer -> int32 (fields sorted)
 		`int64 id = 2 [json_name = "id"];`,       // format int64 -> int64
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 }
@@ -928,7 +934,7 @@ func TestUnionSchemas(t *testing.T) {
 	for _, frag := range []string{
 		// anyOf [Event, Event[]] models the single Event, which is the whole
 		// request and so needs no envelope around it.
-		`rpc IngestEvents(Event) returns (IngestEventsResponse) {`,
+		`rpc IngestEvents(types.Event) returns (types.IngestEventsResponse) {`,
 		// integer formats
 		`uint64 total = `,
 		`uint32 count = `,
@@ -939,14 +945,14 @@ func TestUnionSchemas(t *testing.T) {
 		`repeated string tiers = 3 [json_name = "tiers"];`,
 		`string type = 4 [json_name = "type", (kaja.enum_values) = "flat", (kaja.enum_values) = "tiered"];`,
 		// text/plain response becomes a string value.
-		`rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse) {`,
+		`rpc GetMetrics(types.GetMetricsRequest) returns (types.GetMetricsResponse) {`,
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
-	if strings.Contains(gen.proto, "message IngestEventsBody") {
-		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.proto)
+	if strings.Contains(gen.text(), "message IngestEventsBody") {
+		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.text())
 	}
 
 	ingest := gen.bindings["openapi.events.Events/IngestEvents"]
@@ -1451,8 +1457,8 @@ components:
 		"string next_performance_id = ",
 		"int64 capacity = ",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -1546,12 +1552,12 @@ components:
 		"double factor = ",
 		"int32 tiers = ",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
-	if strings.Contains(gen.proto, "google.protobuf.Value") {
-		t.Errorf("nullable union degraded to Value\n---\n%s", gen.proto)
+	if strings.Contains(gen.text(), "google.protobuf.Value") {
+		t.Errorf("nullable union degraded to Value\n---\n%s", gen.text())
 	}
 
 	// The generated proto must compile into descriptors.
@@ -1647,8 +1653,8 @@ components:
 		`// How many meters to return.`,
 		`int32 page_size = 1 [json_name = "pageSize", (kaja.http_in) = "query"];`,
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -1714,7 +1720,7 @@ components:
 		t.Fatalf("write: %v", err)
 	}
 
-	result, err := protoc.New(protoc.WithProtoPaths(dir)).Compile("service.proto", "kaja/http.proto")
+	result, err := protoc.New(protoc.WithProtoPaths(dir)).Compile("service.proto", "types.proto", "kaja/http.proto")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -1725,12 +1731,12 @@ components:
 
 	var ts string
 	for _, f := range files {
-		if strings.HasSuffix(f.Name, "service.ts") {
-			ts = f.Content
+		if strings.HasSuffix(f.Name, "service.ts") || strings.HasSuffix(f.Name, "types.ts") {
+			ts += f.Content
 		}
 	}
 	if ts == "" {
-		t.Fatalf("no service.ts generated from %v", files)
+		t.Fatalf("no TypeScript generated from %v", files)
 	}
 
 	// A field carrying values is still the string it was: the set is read beside
@@ -1840,26 +1846,26 @@ func TestDeclaredEnumValues(t *testing.T) {
 		// union and no more.
 		`string habitat = 1 [json_name = "habitat", (kaja.enum_values) = "indoor", (kaja.enum_values) = "outdoor"];`,
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
 	// An integer enum carries nothing: the values would be read back as the
 	// strings they are not. A number is written the same way in every document
 	// anyway.
-	if !strings.Contains(gen.proto, `int32 size = 3 [json_name = "size", (kaja.http_in) = "query"];`) {
-		t.Errorf("a non-string enum must carry no values\n---\n%s", gen.proto)
+	if !strings.Contains(gen.text(), `int32 size = 3 [json_name = "size", (kaja.http_in) = "query"];`) {
+		t.Errorf("a non-string enum must carry no values\n---\n%s", gen.text())
 	}
 	// One variant of the union takes any string, so the field takes more than
 	// the other variant lists and carries none of it.
-	if !strings.Contains(gen.proto, `string origin = 2 [json_name = "origin"];`) {
-		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.proto)
+	if !strings.Contains(gen.text(), `string origin = 2 [json_name = "origin"];`) {
+		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.text())
 	}
 	// Past the cap the set is dropped whole rather than cut short, which would
 	// claim the API takes less than it does.
-	if !strings.Contains(gen.proto, `string tally = 4 [json_name = "tally"];`) {
-		t.Errorf("a set past the cap must be dropped whole\n---\n%s", gen.proto)
+	if !strings.Contains(gen.text(), `string tally = 4 [json_name = "tally"];`) {
+		t.Errorf("a set past the cap must be dropped whole\n---\n%s", gen.text())
 	}
 }
 
@@ -1941,16 +1947,16 @@ func TestGenerateProtoTrimsRepeatedNames(t *testing.T) {
 		"service SequenceSchema {",
 		// A method is read inside its service, so it drops the service's name and
 		// keeps what it adds. Two services may both declare Get.
-		"rpc List(SequenceListRequest) returns (SequenceListResponse) {",
-		"rpc Get(SequenceGetRequest) returns (SequenceGetResponse) {",
-		"rpc AuthorsList(SequenceAuthorsListRequest) returns (SequenceAuthorsListResponse) {",
-		"rpc Get(SequenceSchemaGetRequest) returns (SequenceSchemaGetResponse) {",
+		"rpc List(types.SequenceListRequest) returns (types.SequenceListResponse) {",
+		"rpc Get(types.SequenceGetRequest) returns (types.SequenceGetResponse) {",
+		"rpc AuthorsList(types.SequenceAuthorsListRequest) returns (types.SequenceAuthorsListResponse) {",
+		"rpc Get(types.SequenceSchemaGetRequest) returns (types.SequenceSchemaGetResponse) {",
 		// An operationId that does not start with its own tag is left whole
 		// rather than trimmed at a guess.
-		"rpc BulkTaskGet(BulkTaskGetRequest) returns (BulkTaskGetResponse) {",
+		"rpc BulkTaskGet(types.BulkTaskGetRequest) returns (types.BulkTaskGetResponse) {",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 
@@ -2051,4 +2057,55 @@ func invoke(in *instance, method string, request []byte, headers map[string]stri
 		result.ResponseHeaders = report.ResponseHeaders
 	}
 	return result, nil
+}
+
+// A document names a resource and the operations on it the same word. The
+// messages are a package of their own, so the service keeps the word too.
+func TestServiceNamedLikeItsResource(t *testing.T) {
+	spec := `openapi: 3.0.0
+info: {title: Zoo, version: "1"}
+paths:
+  /pets/{id}:
+    get:
+      tags: [Pet]
+      operationId: getPet
+      parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+      responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Pet"}}}}}
+components:
+  schemas:
+    Pet: {type: object, properties: {id: {type: string}}}
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	if want := "openapi.zoo.Pet"; len(gen.serviceTypeNames) != 1 || gen.serviceTypeNames[0] != want {
+		t.Errorf("services = %v, want %v", gen.serviceTypeNames, want)
+	}
+	for _, frag := range []string{"package openapi.zoo.types;", "message Pet {"} {
+		if !strings.Contains(gen.types, frag) {
+			t.Errorf("types.proto missing %q\n---\n%s", frag, gen.types)
+		}
+	}
+	for _, frag := range []string{`import "types.proto";`, "service Pet {", "rpc GetPet(types.GetPetRequest) returns (types.Pet) {"} {
+		if !strings.Contains(gen.service, frag) {
+			t.Errorf("service.proto missing %q\n---\n%s", frag, gen.service)
+		}
+	}
+	if _, err := compileMethods(writeGenerated(t, gen), gen); err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+}
+
+func writeGenerated(t *testing.T, gen *generated) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := gen.write(dir); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return dir
 }
