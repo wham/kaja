@@ -426,11 +426,11 @@ The one error surface in the chrome (`appErrors.ts`, `ErrorStatus.tsx`), at the 
 
 ### An import names an app
 
-`import { Shows } from "theatre"` (`appImports.ts`). A module path follows the app only where the app declares one name in two of its modules and the app alone cannot say which is meant — which is the whole of what a path is for. Every app whose proto surface kaja generated has exactly one module, so a path there could never tell anything apart; an app built from proto files on disk has as many modules as you wrote.
+`import { Shows } from "theatre"` (`appImports.ts`). A module path follows the app only where the app declares one name in two of its modules and the app alone cannot say which is meant — which is the whole of what a path is for. An app whose proto surface kaja generated never declares a value twice, so a path there could never tell anything apart; an app built from proto files on disk has as many modules as you wrote.
 
 - **One decision, in one function.** `moduleSpecifier` is what generated code, the finder's example and the MCP catalog all write; `resolve` is what the runner reads. A name is looked up in the app's modules minus the `.client` ones, which declare the transport's interface and are not a surface a script writes against.
 - **Resolution is per name, not per import statement**, because one import may reach into two modules. A name nothing declares binds nothing rather than failing — that is an interface imported for its type.
-- **The editor is told the same rule by a barrel** (`barrel`), a model re-exporting each module. `export *` drops a name two modules declare, so the editor refuses exactly what `resolve` calls ambiguous.
+- **The editor is told the same rule by a barrel** (`barrel`), a model re-exporting each module. `export *` drops a name two modules declare, so the editor refuses exactly what `resolve` calls ambiguous. The one exception is a service named like a message in another module: the service is re-exported as the value and the message as the type under the one name, which is what `resolve` already does, since a type binds nothing at run time.
 
 ### Architecture
 
@@ -500,7 +500,8 @@ The API asking callers off a method says nothing about whether Kaja can make the
 
 - **A namespace every namespaced tag and operationId shares is the API naming itself**, which the app's name already does once at the import, so it is stripped from both. It is the whole leading dot-segment or nothing: one identifier disagreeing means the segment is telling them apart, and fewer than two namespaced identifiers is not a convention.
 - **A method drops its service's name from its front**, because the service is the scope it is read in. Prefix only, at a word boundary — an operationId that merely *contains* the resource is left whole rather than cut at a guess.
-- **A method name is unique within its service; a message name is unique across the file.** So the messages an operation generates hang off its untrimmed name rather than off the short method name — two services both declaring `Get` must not collide.
+- **The messages are a package of their own** (`types.proto`, `<pkg>.types`), because a document names a resource and the operations on it the same word and proto keeps services and messages in one namespace per package. With one file the service yielded, and a spec whose tags are its schema names came out as a column of `…Service`. So `import { Pet } from "zoo"` is the service and `Pet` the type, both the document's own word.
+- **A method name is unique within its service; a message name is unique across its package.** So the messages an operation generates hang off its untrimmed name rather than off the short method name — two services both declaring `Get` must not collide.
 
 **The HTTP envelope.** Carrying HTTP inside gRPC needs somewhere to put the parts protobuf has no shape for, and the rule is that the envelope exists only where it is unavoidable. An operation whose only input is an object body **is** that body. An envelope field appears only when the payload can't be the message: a body beside path/query/header parameters, a body that is an array, and every non-object response. Those fields carry `(kaja.http_payload)`, declared in `apps/openapi/http.proto`, which the app writes into the proto directory. The mark survives into the generated TypeScript, which is how the client tells an envelope from a property an API happens to call `items` (`ui/src/httpEnvelope.ts`): a message that is **nothing but** a marked field is an envelope, and the console shows the payload instead. **Only the response is unwrapped, and only for display** — the wire and the generated types are untouched, so a script still reads `response.items`.
 

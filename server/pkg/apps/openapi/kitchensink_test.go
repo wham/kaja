@@ -42,7 +42,7 @@ func TestKitchenSinkSpec(t *testing.T) {
 		// The ingest body is "anyOf: [Signal, Signal[]]"; the single Signal is
 		// the modeled happy path. It is the operation's whole input, so it is the
 		// request message itself rather than a field inside one.
-		"rpc IngestSignals(Signal) returns (IngestSignalsResponse) {",
+		"rpc IngestSignals(types.Signal) returns (types.IngestSignalsResponse) {",
 		"message Signal {",
 		`string id = `,
 		`string source = `,
@@ -73,11 +73,11 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`string deprecated_name = `,
 		// A component schema named like the request the operation would have
 		// generated simply is that request.
-		"rpc CreateProbe(CreateProbeRequest) returns (Probe) {",
+		"rpc CreateProbe(types.CreateProbeRequest) returns (types.Probe) {",
 		"message CreateProbeRequest {\n  string target = 1",
 		// Probe is "allOf: [Resource, CreateProbeRequest]".
 		"message Probe {",
-		`rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {`,
+		`rpc GetStatus(types.GetStatusRequest) returns (types.GetStatusResponse) {`,
 		// A body beside parameters keeps its envelope field, and says so.
 		`WidgetBase body = 4 [json_name = "body", (kaja.http_payload) = HTTP_PAYLOAD_BODY];`,
 		// Header parameters are ordinary fields carrying their header name.
@@ -93,20 +93,20 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`(kaja.enum_values) = "flat", (kaja.enum_values) = "tiered"];`,
 		// A deprecated operation is generated like any other; the mark is what
 		// the tree, the generated call and the agent read it off.
-		"rpc SearchReports(SearchReportsRequest) returns (SearchReportsResponse) {\n    option (kaja.http_request) = \"GET /reports/search\";\n    option deprecated = true;",
+		"rpc SearchReports(types.SearchReportsRequest) returns (types.SearchReportsResponse) {\n    option (kaja.http_request) = \"GET /reports/search\";\n    option deprecated = true;",
 	} {
-		if !strings.Contains(gen.proto, frag) {
-			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		if !strings.Contains(gen.text(), frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.text())
 		}
 	}
 	// Interval is "anyOf: [string, IntervalEnum]": one variant declares values
 	// and the other takes any string, so the field takes more than the enum
 	// lists and carries none of it.
-	if strings.Contains(gen.proto, `(kaja.enum_values) = "MINUTE"`) {
-		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.proto)
+	if strings.Contains(gen.text(), `(kaja.enum_values) = "MINUTE"`) {
+		t.Errorf("a union with an open-ended variant must carry no values\n---\n%s", gen.text())
 	}
-	if strings.Contains(gen.proto, "message IngestSignalsBody") {
-		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.proto)
+	if strings.Contains(gen.text(), "message IngestSignalsBody") {
+		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.text())
 	}
 
 	ingest := gen.bindings["openapi.kaja_kitchen_sink.Signals/IngestSignals"]
