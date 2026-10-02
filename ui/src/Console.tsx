@@ -372,7 +372,7 @@ export function Console({
       onTableCells={onTableCells}
     />
   ) : activeView === "stats" ? (
-    <Stats group={selectedGroup} onSelectCall={selectFromCanvas} />
+    <Stats group={selectedGroup} />
   ) : (
     runLog
   );
