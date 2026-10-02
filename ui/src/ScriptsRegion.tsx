@@ -901,10 +901,9 @@ function AgentRow({
           }
         }}
       >
-        {/* Hung into the chevron column the groups and the app rows use, so the
-            plug costs the name none of its width and every draft's name starts in
-            one place. */}
-        <span className="-ml-[18px] flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+        {/* Inline at the draft indent rather than hung into the chevron column: a mark
+            in that column reads as a group, and every draft under it as its child. */}
+        <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
           <Plug size={12} />
         </span>
         {/* An agent's buffer is the agent's own workbench rather than something you
