@@ -41,11 +41,9 @@ const MIN_FAILURE_SEGMENT = 2;
 
 interface StatsProps {
   group: RunGroup;
-  // Opens a call in the log, which is where the page hands off whenever it names one.
-  onSelectCall: (itemId: string) => void;
 }
 
-export function Stats({ group, onSelectCall }: StatsProps) {
+export function Stats({ group }: StatsProps) {
   const body = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -96,7 +94,7 @@ export function Stats({ group, onSelectCall }: StatsProps) {
             <Stats.Distribution stats={stats} />
           </>
         )}
-        <Stats.Methods stats={stats} onSelectCall={onSelectCall} />
+        <Stats.Methods stats={stats} />
       </div>
     </div>
   );
@@ -439,7 +437,7 @@ const COLUMN = "w-[56px] shrink-0 text-right";
  * The breakdown per method, and the one call worth naming. One method and one row is
  * fine — the table is where a run with no shape to it earns the page.
  */
-Stats.Methods = function ({ stats, onSelectCall }: { stats: RunStats; onSelectCall: (itemId: string) => void }) {
+Stats.Methods = function ({ stats }: { stats: RunStats }) {
   return (
     <div className="border-t border-border">
       <div className="flex h-[22px] items-center gap-2 border-b border-border px-3">
@@ -459,9 +457,6 @@ Stats.Methods = function ({ stats, onSelectCall }: { stats: RunStats; onSelectCa
           <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
             {[stats.slowest.method, stats.slowest.key, formatMs(stats.slowest.durationMs)].filter(Boolean).join(" · ")}
           </span>
-          <button type="button" className="ml-auto shrink-0 font-mono text-xs text-primary hover:underline" onClick={() => onSelectCall(stats.slowest!.itemId)}>
-            Open in log
-          </button>
         </div>
       )}
     </div>
