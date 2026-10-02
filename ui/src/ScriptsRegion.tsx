@@ -903,7 +903,20 @@ function AgentRow({
       >
         {/* Inline at the draft indent rather than hung into the chevron column: a mark
             in that column reads as a group, and every draft under it as its child. */}
-        <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+        <span
+          className={cn(
+            "relative flex size-3 shrink-0 items-center justify-center",
+            running ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+          )}
+          title={running ? `${draft.agentName} is running this` : undefined}
+        >
+          {/* The MCP plug's own ring, so the agent calling is visible on the row it is writing in. */}
+          {running && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -inset-1 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
+            />
+          )}
           <Plug size={12} />
         </span>
         {/* An agent's buffer is the agent's own workbench rather than something you
@@ -919,10 +932,6 @@ function AgentRow({
             <RowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={onDiscard} />
           ) : waiting ? (
             <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
-          ) : running ? (
-            // The only live indicator in the sidebar: it goes out the moment the call finishes
-            // and the row stays, name and all.
-            <span aria-hidden title={`${draft.agentName} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
           ) : null}
         </span>
       </div>
