@@ -303,9 +303,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const active = (key: string) => touch || hovered === key;
 
   return (
-    // Named by the band above it, which is the sidebar's: the heading is stated once.
+    // Named by the tab above it, which is the sidebar's: the heading is stated once.
     <nav
-      aria-labelledby="scripts-section"
+      aria-labelledby="scripts-tab"
       // dragend fires on the row that started it and bubbles, so one handler here ends
       // every drag — dropped, let go over nothing, or cancelled with Esc.
       onDragEnd={endDrag}

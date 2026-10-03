@@ -44,7 +44,7 @@ import { unsupportedReason } from "./streaming";
 import { RunButton } from "./RunButton";
 import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
 import { useSyntaxErrors } from "./syntaxErrors";
-import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
+import { Sidebar, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
 import { NewAppDialog } from "./NewAppDialog";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -240,6 +240,13 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
+  const [sidebarTab, setSidebarTab] = usePersistedState<SidebarTab>("sidebarTab", "apps");
+  // The key names a list, so a collapsed sidebar comes back showing it.
+  const showSidebarTab = (tab: SidebarTab) => {
+    setSidebarTab(tab);
+    setSidebarCollapsed(false);
+    sidebarCollapsedRef.current = false;
+  };
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
   // Until the gutter is dragged the editor pane is sized to its content; dragging
   // switches to the manual editorHeight for good.
@@ -1071,6 +1078,16 @@ export function App() {
       if (matchesShortcut(e, "toggleSidebar")) {
         e.preventDefault();
         setSidebarCollapsed((collapsed) => !collapsed);
+        return;
+      }
+      if (matchesShortcut(e, "showApps")) {
+        e.preventDefault();
+        showSidebarTab("apps");
+        return;
+      }
+      if (matchesShortcut(e, "showScripts")) {
+        e.preventDefault();
+        showSidebarTab("scripts");
         return;
       }
       if (matchesShortcut(e, "finder")) {
@@ -2854,6 +2871,8 @@ export function App() {
               >
                 <Sidebar
                   apps={apps}
+                  tab={sidebarTab}
+                  onTabChange={setSidebarTab}
                   canUpdateConfiguration={runtime.canUpdateConfiguration}
                   onSelect={onMethodSelect}
                   onShowCompileLog={onShowCompileLog}
