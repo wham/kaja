@@ -38,8 +38,8 @@ func TestTheAppsClientReadsThisServer(t *testing.T) {
 	if len(surface.Tools) == 0 {
 		t.Fatalf("no tools listed")
 	}
-	if len(surface.Resources) != 2 {
-		t.Errorf("resources = %d, want 2", len(surface.Resources))
+	if want := 2 + len(skills); len(surface.Resources) != want {
+		t.Errorf("resources = %d, want %d", len(surface.Resources), want)
 	}
 	contains(t, surface.Instructions, "describe_method")
 
