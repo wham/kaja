@@ -25,7 +25,10 @@ import (
 )
 
 //go:embed guide.md
-var guide string
+var guideText string
+
+// guide is what every session is handed: the page, ending on the skills it names.
+var guide = guideText + skillPointers()
 
 // ScriptInfo is a script on disk. Content is populated only for reads, creates and
 // renames.
@@ -503,16 +506,23 @@ func (s *Server) handlerFor(method string) handlerFunc {
 		return plain(s.handleResourcesList)
 	case "resources/read":
 		return withParams(s.handleResourceRead)
+	case "skills/list":
+		return plain(s.handleSkillsList)
+	case "skills/get":
+		return withParams(s.handleSkillsGet)
 	}
 	return nil
 }
 
-// capabilities is what this server serves, in both eras: the tools and the two
-// resources, and nothing that asks anything of the client.
+// capabilities is what this server serves, in both eras: the tools, the resources
+// and the skills among them, and nothing that asks anything of the client.
 func capabilities() map[string]interface{} {
 	return map[string]interface{}{
 		"tools":     map[string]interface{}{},
 		"resources": map[string]interface{}{},
+		"extensions": map[string]interface{}{
+			skillsExtension: map[string]interface{}{},
+		},
 	}
 }
 
