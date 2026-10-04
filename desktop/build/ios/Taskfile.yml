@@ -205,11 +205,15 @@ tasks:
       - build/config.yml
       - build/appicon.png
       - build/ios/Taskfile.yml
+      - build/ios/Info.plist.tmpl
     generates:
       - build/ios/xcode/main/main.m
       - build/ios/xcode/main.xcodeproj/project.pbxproj
     cmds:
       - wails3 ios xcode:gen -outdir build/ios/xcode -config build/config.yml
+      # Wails' own plist names the executable `wailsapp`, which is not what
+      # Xcode links, so a device refuses the bundle as having no executable.
+      - bash -c '. ../scripts/common && product_plist ios/Info.plist.tmpl' > build/ios/xcode/main/Info.plist
       # Xcode opened from the Dock runs the project's Go build with a PATH of
       # /usr/bin:/bin and nothing else, so the archive phase is handed the go
       # this project was generated with.
@@ -217,6 +221,17 @@ tasks:
         GO_DIR=$(dirname "$(command -v go)") perl -pi -e \
           's/(shellScript = "set -e\\n)/$1export PATH=\\"$ENV{GO_DIR}:\$PATH\\"\\n/' \
           build/ios/xcode/main.xcodeproj/project.pbxproj
+      # Wails writes the project with signing off, which builds an app only the
+      # simulator will take. Where this machine has a development certificate,
+      # its team (the certificate's OU) signs automatically instead.
+      - |
+        TEAM=$(security find-certificate -c "Apple Development" -p 2>/dev/null |
+          openssl x509 -noout -subject 2>/dev/null | sed -n 's/.*OU=\([A-Z0-9]*\).*/\1/p')
+        if [ -n "$TEAM" ]; then
+          TEAM="$TEAM" perl -pi -e \
+            's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = $ENV{TEAM};/' \
+            build/ios/xcode/main.xcodeproj/project.pbxproj
+        fi
 
   ensure-simulator:
     internal: true
