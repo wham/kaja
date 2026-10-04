@@ -14,6 +14,8 @@ import { useSyncExternalStore } from "react";
 export type ShortcutAction =
   | "finder"
   | "toggleSidebar"
+  | "showApps"
+  | "showScripts"
   | "fullScreenRun"
   | "newDraft"
   | "newFolder"
@@ -61,6 +63,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = ["Window", "Scripts", "Running"]
 export const SHORTCUTS: ShortcutDefinition[] = [
   { action: "finder", label: "Find a call, file or view", group: "Window", defaults: ["Mod+P"], scope: "Anywhere" },
   { action: "toggleSidebar", label: "Show or hide the sidebar", group: "Window", defaults: ["Mod+B"], scope: "Anywhere" },
+  { action: "showApps", label: "Show Apps", group: "Window", defaults: ["Mod+1"], scope: "Anywhere" },
+  { action: "showScripts", label: "Show Scripts", group: "Window", defaults: ["Mod+2"], scope: "Anywhere" },
   { action: "fullScreenRun", label: "Full-screen run", group: "Window", defaults: ["Mod+Shift+F"], scope: "In a run" },
   { action: "newDraft", label: "New script", group: "Scripts", defaults: ["Mod+N"], scope: "Anywhere" },
   { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], scope: "In Files", writesFiles: true },
