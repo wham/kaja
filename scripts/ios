@@ -1,0 +1,52 @@
+#!/bin/bash
+# Runs kaja on a booted iOS Simulator or a connected iPhone, and is the
+# bootstrap in front of desktop/build/ios/Taskfile.yml the way
+# scripts/desktop-build is in front of the Mac one: the wails3 that runs the
+# Taskfile is installed into server/build rather than onto the PATH, so the
+# Taskfile is not reachable without this.
+#
+#   scripts/ios            build and launch on a booted simulator
+#   scripts/ios device     the same build signed for real, onto a connected iPhone
+#   scripts/ios package    write the bundle without launching it
+#   scripts/ios xcode      open the project device signing is managed from
+#   scripts/ios logs       stream the simulator's log, filtered to this app
+#
+# Needs macOS with full Xcode, not just the command line tools.
+set -e
+
+source "$(dirname "$0")/common"
+cd "$(dirname "$0")/.."
+
+export GOBIN=$PWD/server/build
+export PATH=$GOBIN:$PATH
+
+# The version desktop/go.mod names, on the same rule scripts/desktop-build
+# follows: what is on the machine already is not what decides the build.
+install_go_tool github.com/wailsapp/wails/v3/cmd/wails3 \
+    "$(module_version github.com/wailsapp/wails/v3 desktop)"
+
+cd desktop
+
+# A device build is signed for real, so it needs an identity and the profile
+# that covers the bundle identifier. They go on the command line because a var
+# passed to a Task task does not reach the tasks that task then calls.
+if [ "${1:-}" = "device" ]; then
+    IDENTITY=$(security find-identity -v -p codesigning |
+        grep "Apple Development" | head -1 | sed -E 's/.*"(.*)"/\1/')
+    PROFILE=$(ios_profile)
+    if [ -z "$IDENTITY" ]; then
+        echo "No 'Apple Development' signing identity in the keychain." >&2
+        exit 1
+    fi
+    if [ -z "$PROFILE" ]; then
+        echo "No provisioning profile covers $(product_info productIdentifier)." >&2
+        echo "Open the project with 'scripts/ios xcode' and let Xcode make one." >&2
+        exit 1
+    fi
+    exec wails3 task ios:device \
+        IOS_PLATFORM=device \
+        CODESIGN_IDENTITY="$IDENTITY" \
+        PROVISIONING_PROFILE="$PROFILE"
+fi
+
+wails3 task "ios:${1:-run}"

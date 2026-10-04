@@ -33,53 +33,26 @@ vars:
   # different macOS than the one that ships can't report what will happen on it.
   MACOS_MIN_FLAG: '{{if eq OS "darwin"}} -mmacosx-version-min={{.MACOS_DEPLOYMENT_TARGET}}{{end}}'
 
+# build/Taskfile.yml is the steps the two platforms share; build/ios/Taskfile.yml
+# is the iOS build, which reaches those shared steps as `common:` itself.
+includes:
+  common: ./build/Taskfile.yml
+  ios: ./build/ios/Taskfile.yml
+
 tasks:
   build:
     desc: The bundle that ships - a production build with the UI embedded in it
-    deps: [generate:icons, build:frontend]
+    deps: [generate:icons, common:build:frontend]
     cmds:
       - task: bundle
         vars: { TAGS: production, PLIST: Info.plist.tmpl }
 
   build:dev:
     desc: The bundle `wails3 dev` runs - the UI is read off disk, so it isn't built here
-    deps: [generate:bindings, generate:icons]
+    deps: [common:generate:bindings, generate:icons]
     cmds:
       - task: bundle
         vars: { TAGS: development, PLIST: Info.dev.plist.tmpl }
-
-  build:frontend:
-    desc: Bundle the UI into frontend/dist
-    # The UI imports the bindings, so they are written before anything reads them.
-    deps: [install:ui, generate:bindings]
-    dir: ..
-    sources:
-      - ui/src/**/*
-      - ui/package.json
-      - ui/bun.lock
-      - server/cmd/build-ui/**/*.go
-      - server/internal/ui/**/*.go
-      - server/static/**/*
-    generates:
-      - desktop/frontend/dist/index.html
-    cmds:
-      - go -C server run ./cmd/build-ui -out ../desktop/frontend/dist -static static
-
-  generate:bindings:
-    desc: Regenerate ui/src/bindings from the Go this app binds
-    dir: ..
-    # The bindings are committed, and the Wails CLI writes them the way its own
-    # version does - so go.mod is an input as much as the Go it reads.
-    sources:
-      - desktop/*.go
-      - desktop/go.mod
-      - server/cmd/**/*.go
-      - server/internal/**/*.go
-      - server/pkg/**/*.go
-    generates:
-      - ui/src/bindings/github.com/wham/kaja/desktop/*.ts
-    cmds:
-      - cd desktop && wails3 generate bindings -d ../ui/src/bindings -ts -silent
 
   generate:icons:
     desc: Write the .icns the bundle carries, from the one PNG the repository keeps
@@ -90,12 +63,6 @@ tasks:
     cmds:
       # Only the Mac half of it: the .ico is for a Windows build there isn't one of.
       - wails3 generate icons -windowsfilename ""
-
-  install:ui:
-    internal: true
-    dir: ../ui
-    cmds:
-      - bun install
 
   # The bundle is four things in a directory, which is the whole of what
   # assembling one on macOS is - and what lets the shipped bundle and the
@@ -120,5 +87,5 @@ tasks:
       # directory on disk.
       - go build -tags "{{.TAGS}}" -ldflags "-X main.GitRef={{.GIT_REF}}" -o "{{.APP}}/Contents/MacOS/{{.NAME}}" .
       - cp build/darwin/icon.icns "{{.APP}}/Contents/Resources/icon.icns"
-      - bash -c '. ../scripts/common && product_plist "{{.PLIST}}"' > "{{.APP}}/Contents/Info.plist"
+      - bash -c '. ../scripts/common && product_plist "darwin/{{.PLIST}}"' > "{{.APP}}/Contents/Info.plist"
       - echo "Built desktop/{{.APP}}"

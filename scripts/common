@@ -128,15 +128,42 @@ product_info() {
     sed -n "s/^  $1: *\"\(.*\)\".*/\1/p" "$KAJA_ROOT/desktop/build/config.yml" | head -1
 }
 
-# One of desktop/build/darwin's plist templates, rendered to stdout. A plist is
-# the product's identity as macOS reads it, so it is filled from the same file
-# everything else reads that identity from.
+# The provisioning profile that can sign the iOS app, printed as a path. The
+# bundle identifier has no profile of its own, so what signs it is the team's
+# wildcard development profile; an exact one wins if it is ever created. Prints
+# nothing when the machine holds neither, which is what a device build without
+# an Apple developer account looks like.
 #
-# Usage: product_plist <template filename>
+# Usage: ios_profile
+ios_profile() {
+    local dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+    local bundle exact="" wildcard="" file id rest
+    bundle=$(product_info productIdentifier)
+    for file in "$dir"/*.mobileprovision; do
+        [ -f "$file" ] || continue
+        id=$(security cms -D -i "$file" 2>/dev/null |
+            plutil -extract Entitlements.application-identifier raw - 2>/dev/null)
+        # An application-identifier is the team prefix and then what it covers.
+        rest="${id#*.}"
+        if [ "$rest" = "$bundle" ]; then
+            exact="$file"
+        elif [ "$rest" = "*" ]; then
+            wildcard="$file"
+        fi
+    done
+    echo "${exact:-$wildcard}"
+}
+
+# One of desktop/build's plist templates, rendered to stdout. A plist is the
+# product's identity as an Apple platform reads it, so it is filled from the same
+# file everything else reads that identity from. The path is taken under
+# desktop/build because macOS and iOS each keep their own.
+#
+# Usage: product_plist <path under desktop/build>
 product_plist() {
     sed -e "s|{{ProductName}}|$(product_info productName)|g" \
         -e "s|{{ProductIdentifier}}|$(product_info productIdentifier)|g" \
         -e "s|{{Version}}|$(product_info version)|g" \
         -e "s|{{Copyright}}|$(product_info copyright)|g" \
-        "$KAJA_ROOT/desktop/build/darwin/$1"
+        "$KAJA_ROOT/desktop/build/$1"
 }
