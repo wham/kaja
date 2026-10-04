@@ -204,11 +204,19 @@ tasks:
     sources:
       - build/config.yml
       - build/appicon.png
+      - build/ios/Taskfile.yml
     generates:
       - build/ios/xcode/main/main.m
       - build/ios/xcode/main.xcodeproj/project.pbxproj
     cmds:
       - wails3 ios xcode:gen -outdir build/ios/xcode -config build/config.yml
+      # Xcode opened from the Dock runs the project's Go build with a PATH of
+      # /usr/bin:/bin and nothing else, so the archive phase is handed the go
+      # this project was generated with.
+      - |
+        GO_DIR=$(dirname "$(command -v go)") perl -pi -e \
+          's/(shellScript = "set -e\\n)/$1export PATH=\\"$ENV{GO_DIR}:\$PATH\\"\\n/' \
+          build/ios/xcode/main.xcodeproj/project.pbxproj
 
   ensure-simulator:
     internal: true
