@@ -1,3 +1,5 @@
+//go:build darwin && !ios
+
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 

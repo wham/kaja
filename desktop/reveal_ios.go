@@ -6,6 +6,6 @@ package main
 // platforms share would spawn one. A sandbox with no Finder in front of it is
 // nothing to reveal a path in.
 
-func revealInFinder(path string) {}
+func openFolderInFinder(path string) {}
 
-func revealFileInFinder(path string) {}
+func selectInFinder(path string) {}
