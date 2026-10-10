@@ -144,6 +144,7 @@ tasks:
       - mkdir -p "{{.BUNDLE}}"
       - cp "{{.BIN}}/{{.NAME}}" "{{.BUNDLE}}/{{.NAME}}"
       - bash -c '. ../scripts/common && product_plist ios/Info.plist.tmpl' > "{{.BUNDLE}}/Info.plist"
+      - cp build/ios/PrivacyInfo.xcprivacy "{{.BUNDLE}}/"
       - task: icons
       - |
         # Entitlements are for device builds alone: a simulator bundle carrying
@@ -172,7 +173,9 @@ tasks:
           --product-type com.apple.product-type.application \
           --target-device iphone --target-device ipad \
           --output-partial-info-plist "{{.BUNDLE}}/assetcatalog.plist" "$CATALOG"
-        if [ -f "$OUT/Assets.car" ]; then cp -f "$OUT/Assets.car" "{{.BUNDLE}}/Assets.car"; fi
+        # The loose PNGs too: CFBundleIconFiles names them, and App Store
+        # Connect refuses a bundle whose plist names an icon it does not carry.
+        cp -f "$OUT"/* "{{.BUNDLE}}/"
         rm -rf "$OUT"
         if [ -f "{{.BUNDLE}}/assetcatalog.plist" ]; then
           /usr/libexec/PlistBuddy -c "Merge {{.BUNDLE}}/assetcatalog.plist" "{{.BUNDLE}}/Info.plist"

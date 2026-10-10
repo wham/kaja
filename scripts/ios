@@ -11,6 +11,9 @@
 #   scripts/ios xcode      open the project device signing is managed from
 #   scripts/ios logs       stream the simulator's log, filtered to this app
 #
+# Anything after the task is handed to it as Task vars, which is how
+# scripts/testflight asks for `package IOS_PLATFORM=device`.
+#
 # Needs macOS with full Xcode, not just the command line tools.
 set -e
 
@@ -49,4 +52,4 @@ if [ "${1:-}" = "device" ]; then
         PROVISIONING_PROFILE="$PROFILE"
 fi
 
-wails3 task "ios:${1:-run}"
+wails3 task "ios:${1:-run}" "${@:2}"
