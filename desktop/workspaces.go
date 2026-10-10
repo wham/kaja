@@ -36,7 +36,22 @@ type workspaceEntries struct {
 }
 
 func newWorkspaceStore(kajaDir string) *workspaceStore {
-	return &workspaceStore{path: filepath.Join(kajaDir, workspacesFileName), defaultDir: kajaDir}
+	return &workspaceStore{path: filepath.Join(kajaDir, workspacesFileName), defaultDir: defaultWorkspaceDir(kajaDir)}
+}
+
+func defaultWorkspaceDir(kajaDir string) string {
+	return filepath.Join(kajaDir, "workspace")
+}
+
+func readableFolder(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a folder", dir)
+	}
+	return nil
 }
 
 func (s *workspaceStore) load() workspaceEntries {
@@ -253,10 +268,6 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	a.app.Menu.Set(a.buildAppMenu())
 	a.window.Reload()
 	slog.Info("Opened workspace", "path", dir)
-
-	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
-		go a.reportUnreachableScripts(unreachable)
-	}
 }
 
 func (a *App) clearRecentWorkspaces() {

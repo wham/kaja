@@ -27,10 +27,10 @@ func TestLinkedScriptNameReadsTheLinkGrammar(t *testing.T) {
 func TestWorkspaceHasScriptLooksInsideTheScriptsFolder(t *testing.T) {
 	dir := t.TempDir()
 	configurationPath := filepath.Join(dir, "kaja.json")
-	if err := os.WriteFile(configurationPath, []byte(`{"scripts_dir": "my-scripts"}`), 0644); err != nil {
+	if err := os.WriteFile(configurationPath, []byte(`{}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	scripts := filepath.Join(dir, "my-scripts", "reports")
+	scripts := filepath.Join(dir, "reports")
 	if err := os.MkdirAll(scripts, 0755); err != nil {
 		t.Fatal(err)
 	}

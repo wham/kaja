@@ -8,8 +8,8 @@ import (
 )
 
 func TestWorkspaceStoreRemembersWhatWasOpened(t *testing.T) {
-	kajaDir := t.TempDir()
-	store := newWorkspaceStore(kajaDir)
+	kajaDir := defaultWorkspaceDir(t.TempDir())
+	store := newWorkspaceStore(filepath.Dir(kajaDir))
 
 	if dir, missing := store.current(); dir != kajaDir || missing != "" {
 		t.Fatalf("a fresh store opens the default: got %q (missing %q)", dir, missing)
@@ -47,8 +47,8 @@ func TestWorkspaceStoreRemembersWhatWasOpened(t *testing.T) {
 }
 
 func TestWorkspaceStoreFallsBackWhenTheFolderIsGone(t *testing.T) {
-	kajaDir := t.TempDir()
-	store := newWorkspaceStore(kajaDir)
+	kajaDir := defaultWorkspaceDir(t.TempDir())
+	store := newWorkspaceStore(filepath.Dir(kajaDir))
 	gone := filepath.Join(t.TempDir(), "unplugged")
 	if err := store.open(gone); err != nil {
 		t.Fatal(err)
@@ -106,5 +106,22 @@ func TestPrepareWorkspaceWritesOnlyTheMissingFile(t *testing.T) {
 
 	if err := prepareWorkspace(filepath.Join(dir, "missing")); err == nil {
 		t.Error("a folder that is not there is refused rather than created")
+	}
+}
+
+func TestReadableFolderRefusesWhatIsNotAFolder(t *testing.T) {
+	dir := t.TempDir()
+	if err := readableFolder(dir); err != nil {
+		t.Fatalf("expected a folder to be usable: %v", err)
+	}
+	if err := readableFolder(filepath.Join(dir, "missing")); err == nil {
+		t.Error("expected a missing folder to be refused")
+	}
+	file := filepath.Join(dir, "notes.md")
+	if err := os.WriteFile(file, []byte("hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := readableFolder(file); err == nil {
+		t.Error("expected a file to be refused")
 	}
 }

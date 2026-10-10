@@ -25,7 +25,7 @@ func LinkedScriptName(link string) string {
 
 // WorkspaceHasScript reads the disk, so it can be asked of a workspace nothing has opened.
 func WorkspaceHasScript(configurationPath string, named string) bool {
-	dir, _ := workspaceScriptsRoot(configurationPath)
+	dir := workspaceDir(configurationPath)
 	found := false
 	_ = walkScripts(dir, func(relative string) {
 		if isLinkedScript(relative, named) {

@@ -12,9 +12,9 @@ import (
 	"strings"
 )
 
-// The workspace's scripts folder, and the directories inside it. A folder in Files is
-// a real directory under the scripts root: creating one, renaming it and moving a file
-// all hit disk immediately, so there is no staged state to reconcile.
+// The scripts are the .ts files in the workspace folder, the one holding kaja.json. A
+// folder in Files is a real directory under it: creating one, renaming it and moving a
+// file all hit disk immediately, so there is no staged state to reconcile.
 //
 // Every name crossing this boundary - the window's own sidebar, an agent, a browser -
 // is reduced to a relative path and opened through an os.Root, which is the whole
@@ -24,62 +24,9 @@ import (
 // Writing is refused where this kaja does not own the workspace it opened, which is
 // the one answer canUpdateConfiguration reports.
 
-// The path is absolute because it is what identifies a script to the client - its
-// console and its stored runs are keyed on it - and the configuration path a server is
-// started with is usually relative to wherever it was started.
-func defaultScriptsRoot(configurationPath string) string {
-	dir := filepath.Join(filepath.Dir(configurationPath), "scripts")
-	if absolute, err := filepath.Abs(dir); err == nil {
-		return absolute
-	}
-	return dir
-}
-
-// A folder that isn't there falls back to the default rather than being created: an
-// unplugged disk's mount point is a path that looks writable, and scripts written there
-// are ones the disk coming back would hide.
-func scriptsRoot(configurationPath string, configured string) (dir string, unreachable string) {
-	configured = strings.TrimSpace(configured)
-	if configured == "" {
-		return defaultScriptsRoot(configurationPath), ""
-	}
-
-	dir = configured
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(filepath.Dir(configurationPath), dir)
-	}
-	if absolute, err := filepath.Abs(dir); err == nil {
-		dir = absolute
-	}
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return defaultScriptsRoot(configurationPath), dir
-	}
-	return dir, ""
-}
-
+// Absolute because the path is what identifies a script to the client.
 func (s *ApiService) scriptsDir() string {
-	dir, _ := workspaceScriptsRoot(s.configurationFile())
-	return dir
-}
-
-func workspaceScriptsRoot(configurationPath string) (dir string, unreachable string) {
-	configuration := loadConfigurationFile(configurationPath, NewLogger())
-	return scriptsRoot(configurationPath, configuration.ScriptsDir)
-}
-
-// UnreachableScriptsDir is empty where the configured folder was usable.
-func (s *ApiService) UnreachableScriptsDir() string {
-	_, unreachable := workspaceScriptsRoot(s.configurationFile())
-	return unreachable
-}
-
-// SetScriptsDir writes the folder into kaja.json, an empty one clearing it back to the
-// folder beside it.
-func (s *ApiService) SetScriptsDir(dir string) error {
-	configurationPath := s.configurationFile()
-	configuration := LoadGetConfigurationResponse(configurationPath).Configuration
-	configuration.ScriptsDir = dir
-	return SaveConfiguration(configurationPath, configuration)
+	return s.WorkspaceDir()
 }
 
 // CanWriteWorkspace reports whether this kaja may write the workspace it opened. The
@@ -130,16 +77,53 @@ func (s *ApiService) ListScripts(ctx context.Context, req *ListScriptsRequest) (
 	return &ListScriptsResponse{Scripts: scripts}, nil
 }
 
-// ListScriptFolders returns every directory under the scripts root, sorted. An empty
-// directory is in the list: it is a directory, not a UI grouping, so nothing else
-// would report it.
+// A folder of protos or certificates is not a place a script is filed, so only a folder
+// holding a script, or nothing, is listed.
 func (s *ApiService) ListScriptFolders(ctx context.Context, req *ListScriptFoldersRequest) (*ListScriptFoldersResponse, error) {
-	folders := []string{}
-	if err := walkScripts(s.scriptsDir(), nil, func(relative string) { folders = append(folders, relative) }); err != nil {
+	dir := s.scriptsDir()
+	holds := map[string]bool{}
+	all := []string{}
+	err := walkScripts(dir, func(relative string) {
+		for parent := scriptDir(relative); parent != ""; parent = scriptDir(parent) {
+			holds[parent] = true
+		}
+	}, func(relative string) { all = append(all, relative) })
+	if err != nil {
 		return nil, fmt.Errorf("failed to list script folders: %w", err)
+	}
+	folders := []string{}
+	for _, folder := range all {
+		if holds[folder] || folderIsEmpty(filepath.Join(dir, filepath.FromSlash(folder))) {
+			folders = append(folders, folder)
+		}
 	}
 	sort.Strings(folders)
 	return &ListScriptFoldersResponse{Folders: folders}, nil
+}
+
+func folderIsEmpty(path string) bool {
+	entries, err := os.ReadDir(path)
+	return err == nil && len(entries) == 0
+}
+
+// Kaja shows only the scripts in a folder, so it moves or deletes one whole only when
+// that is all it holds.
+func holdsOnlyScripts(root *os.Root, relative string) error {
+	return fs.WalkDir(root.FS(), relative, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path != relative && strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if entry.IsDir() || isScriptFile(entry.Name()) && entry.Type().IsRegular() {
+			return nil
+		}
+		return fmt.Errorf("%s holds %s, which is not a script, so Kaja leaves the folder alone", relative, path)
+	})
 }
 
 // ReadScript reads one script.
@@ -353,6 +337,9 @@ func (s *ApiService) RenameScriptFolder(ctx context.Context, req *RenameScriptFo
 		if takenByAnother(root, from, to) {
 			return nil, fmt.Errorf("a folder named %q already exists", to)
 		}
+		if err := holdsOnlyScripts(root, from); err != nil {
+			return nil, err
+		}
 		if err := root.Rename(from, to); err != nil {
 			return nil, err
 		}
@@ -360,10 +347,6 @@ func (s *ApiService) RenameScriptFolder(ctx context.Context, req *RenameScriptFo
 	return &RenameScriptFolderResponse{Folder: to}, nil
 }
 
-// DeleteScriptFolder removes a folder and everything under it. It opens the root
-// itself rather than going through openScriptsForWriting, which makes the folder it is
-// about to write in: a workspace with no scripts folder has nothing to delete, and
-// making one to say so is the wrong answer.
 func (s *ApiService) DeleteScriptFolder(ctx context.Context, req *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error) {
 	if !s.canUpdateConfiguration {
 		return nil, ErrScriptsReadOnly
@@ -380,6 +363,15 @@ func (s *ApiService) DeleteScriptFolder(ctx context.Context, req *DeleteScriptFo
 		return nil, err
 	}
 	defer root.Close()
+	if _, err := root.Stat(relative); err != nil {
+		if os.IsNotExist(err) {
+			return &DeleteScriptFolderResponse{}, nil
+		}
+		return nil, err
+	}
+	if err := holdsOnlyScripts(root, relative); err != nil {
+		return nil, err
+	}
 	if err := root.RemoveAll(relative); err != nil {
 		return nil, err
 	}

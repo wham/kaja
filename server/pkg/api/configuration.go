@@ -90,11 +90,13 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 
 	projectsRaw, hasProjects := raw["projects"]
 	_, hasSystem := raw["system"]
-	if !hasProjects && !hasSystem && !migratedApps {
+	_, hasScriptsDir := raw["scripts_dir"]
+	if !hasProjects && !hasSystem && !hasScriptsDir && !migratedApps {
 		return content
 	}
 
 	delete(raw, "system")
+	delete(raw, "scripts_dir")
 
 	if hasProjects {
 		var projects []map[string]any

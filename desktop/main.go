@@ -93,7 +93,7 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
-	// The installation's own folder, which is also the default workspace.
+	// The installation's own folder; the default workspace is a folder inside it.
 	kajaDir string
 
 	// Guarded by workspaceMu.
@@ -149,9 +149,6 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 
 	// On their own goroutines because both end in a dialog or a reload, which wait on
 	// the main thread.
-	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
-	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
-
 	a.app.Event.On("workspace:choose", func(*application.CustomEvent) { go a.chooseWorkspace() })
 	a.app.Event.On("workspace:open", func(event *application.CustomEvent) {
 		if dir, ok := event.Data.(string); ok && dir != "" {
@@ -190,8 +187,6 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// goroutine because a dialog waits on the main thread, which is running this hook.
 	if a.missingWorkspace != "" {
 		go a.reportMissingWorkspace(a.missingWorkspace)
-	} else if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
-		go a.reportUnreachableScripts(unreachable)
 	}
 
 	return nil
@@ -376,67 +371,6 @@ func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
 }
 
-// The picker is what grants a sandboxed kaja access to a folder outside its container,
-// so the bookmark saved here is what makes the choice survive a restart.
-func (a *App) chooseScriptsFolder() {
-	dir, err := a.app.Dialog.OpenFile().
-		CanChooseFiles(false).
-		CanChooseDirectories(true).
-		CanCreateDirectories(true).
-		SetTitle("Scripts Folder").
-		SetMessage("Where to keep your scripts.").
-		SetButtonText("Use Folder").
-		PromptForSingleSelection()
-	if err != nil {
-		slog.Warn("Failed to pick a scripts folder", "error", err)
-		return
-	}
-	if dir == "" {
-		return
-	}
-	if a.bookmarkStore != nil {
-		if err := a.bookmarkStore.Save(dir, dir); err != nil {
-			slog.Warn("Failed to save bookmark", "path", dir, "error", err)
-		}
-	}
-	a.openScriptsFolder(dir)
-}
-
-// An empty dir is the default folder beside kaja.json. It reloads because every script
-// view, console and stored run names its file by an absolute path, and the page reads
-// the folder that is now open as it starts.
-func (a *App) openScriptsFolder(dir string) {
-	if dir != "" {
-		if err := readableFolder(dir); err != nil {
-			slog.Error("Failed to open the scripts folder", "path", dir, "error", err)
-			a.app.Dialog.Warning().
-				SetTitle("Kaja can't use that folder").
-				SetMessage(fmt.Sprintf("%s: %s. The scripts folder is unchanged.", dir, err)).
-				Show()
-			return
-		}
-	}
-
-	if err := a.api.SetScriptsDir(dir); err != nil {
-		slog.Error("Failed to record the chosen scripts folder", "path", dir, "error", err)
-		a.app.Dialog.Warning().
-			SetTitle("Kaja can't save that choice").
-			SetMessage(fmt.Sprintf("Writing kaja.json failed: %s. The scripts folder is unchanged.", err)).
-			Show()
-		return
-	}
-	a.window.Reload()
-
-	slog.Info("Opened scripts folder", "path", dir)
-}
-
-func (a *App) reportUnreachableScripts(dir string) {
-	a.app.Dialog.Warning().
-		SetTitle("Scripts folder not found").
-		SetMessage(fmt.Sprintf("%s isn't there, so Kaja is using its own folder instead. Nothing was changed: kaja.json still names it, and it is used again as soon as it is back.", dir)).
-		Show()
-}
-
 // OpenDirectoryDialog opens a native directory picker. On macOS it saves a
 // security-scoped bookmark so the sandbox remembers access across app restarts.
 func (a *App) OpenDirectoryDialog() (string, error) {
@@ -480,9 +414,9 @@ func (a *App) OpenFileDialog() (string, error) {
 	return path, nil
 }
 
-// restoreBookmarks resolves saved security-scoped bookmarks for all directories
-// referenced in the configuration, re-granting sandbox access on app restart.
-func restoreBookmarks(store *BookmarkStore, configurationPath string) {
+// restoreBookmarks resolves every saved security-scoped bookmark, re-granting sandbox
+// access on app restart.
+func restoreBookmarks(store *BookmarkStore) {
 	entries, err := store.loadEntries()
 	if err != nil {
 		return
@@ -539,34 +473,34 @@ func main() {
 
 	setupLogging(kajaDir)
 
-	configurationPath := filepath.Join(kajaDir, "kaja.json")
-
-	// Ensure the global scripts directory exists so it's discoverable.
-	if err := os.MkdirAll(filepath.Join(kajaDir, "scripts"), 0755); err != nil {
-		slog.Warn("Failed to create scripts directory", "error", err)
+	defaultDir := defaultWorkspaceDir(kajaDir)
+	if err := migrateDefaultWorkspace(kajaDir, func(path string) api.VariableStore { return NewKeychainStore(path) }); err != nil {
+		slog.Error("Failed to move the default workspace", "error", err)
+		println("Error:", err.Error())
+		return
 	}
-
-	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
-		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
-			slog.Error("Failed to create configuration file", "path", configurationPath, "error", err)
-			println("Error:", err.Error())
-			return
-		}
+	if err := os.MkdirAll(defaultDir, 0755); err == nil {
+		err = prepareWorkspace(defaultDir)
+	}
+	if err != nil {
+		slog.Error("Failed to create the default workspace", "path", defaultDir, "error", err)
+		println("Error:", err.Error())
+		return
 	}
 
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
-	restoreBookmarks(bookmarkStore, configurationPath)
+	restoreBookmarks(bookmarkStore)
 
 	// After the bookmarks, which is what grants access to a folder outside the container.
 	workspaces := newWorkspaceStore(kajaDir)
 	workspaceDir, missingWorkspace := workspaces.current()
-	if workspaceDir != kajaDir {
+	if workspaceDir != defaultDir {
 		if err := prepareWorkspace(workspaceDir); err != nil {
 			slog.Warn("Failed to open the last workspace", "path", workspaceDir, "error", err)
-			missingWorkspace, workspaceDir = workspaceDir, kajaDir
+			missingWorkspace, workspaceDir = workspaceDir, defaultDir
 		}
 	}
-	configurationPath = configurationPathIn(workspaceDir)
+	configurationPath := configurationPathIn(workspaceDir)
 
 	// Create API service. Variable values that kaja.json only names live in the
 	// OS keychain, filed under this configuration.
