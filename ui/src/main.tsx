@@ -7,10 +7,11 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { resetPayloadArchive } from "./payloadArchive";
-import { getPersistedValue, initializeStorage } from "./storage";
+import { getPersistedValue, initializeStorage, WorkspaceStorage } from "./storage";
 import { pruneTypeMemory } from "./typeMemory";
 import { installUiLog } from "./uiLog";
 import { preloadConfiguration } from "./useCompilation";
+import { desktop, isWailsEnvironment } from "./wails";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 
 export * from "@protobuf-ts/runtime";
@@ -19,24 +20,39 @@ export * from "@protobuf-ts/runtime-rpc";
 installUiLog();
 preloadConfiguration();
 
-initializeStorage().then(() => {
-  pruneTypeMemory();
-  // The shelf holds the payloads of rows a session was holding, and this session is
-  // holding none yet.
-  resetPayloadArchive();
+// The window's store is the workspace's, so which one is open is asked before the
+// store is. Only the desktop can be in more than one; a served kaja has the default.
+async function openWorkspace(): Promise<WorkspaceStorage | undefined> {
+  if (!isWailsEnvironment()) return undefined;
+  try {
+    const { current } = await (await desktop()).Workspaces();
+    return { dir: current.dir, default: current.default };
+  } catch (error) {
+    console.error("Failed to read the open workspace", error);
+    return undefined;
+  }
+}
 
-  // The zoom itself is the webview's, set by the process behind it; what is read here is
-  // the one thing the layout measures against it, before the first frame draws.
-  declareZoom(getPersistedValue<number>("zoom") ?? DEFAULT_ZOOM);
+openWorkspace()
+  .then(initializeStorage)
+  .then(() => {
+    pruneTypeMemory();
+    // The shelf holds the payloads of rows a session was holding, and this session is
+    // holding none yet.
+    resetPayloadArchive();
 
-  const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
-  monaco.editor.setTheme(monacoTheme(colorMode));
-  document.body.style.backgroundColor = surfaceColor(colorMode);
-  document.documentElement.classList.toggle("dark", colorMode === "night");
+    // The zoom itself is the webview's, set by the process behind it; what is read here is
+    // the one thing the layout measures against it, before the first frame draws.
+    declareZoom(getPersistedValue<number>("zoom") ?? DEFAULT_ZOOM);
 
-  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
-  );
-});
+    const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
+    monaco.editor.setTheme(monacoTheme(colorMode));
+    document.body.style.backgroundColor = surfaceColor(colorMode);
+    document.documentElement.classList.toggle("dark", colorMode === "night");
+
+    ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    );
+  });

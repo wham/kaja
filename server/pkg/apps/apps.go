@@ -237,6 +237,14 @@ func (m *Manager) Rename(oldName string, newName string) {
 	m.instances[newName] = instance
 }
 
+// Clear drops every open instance. A workspace that was closed has nothing open under
+// any name; what the next one opens is registered as it compiles.
+func (m *Manager) Clear() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.instances = map[string]Instance{}
+}
+
 // Invoke routes a call to the app registered under name.
 func (m *Manager) Invoke(ctx context.Context, name string, call *Call) (Stream, error) {
 	m.mu.Lock()

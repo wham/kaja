@@ -107,7 +107,7 @@ func (a *App) RegenerateMCPToken() MCPInfo {
 	return a.mcpInfoLocked()
 }
 
-// The token is reported whether or not the server is running: it is the workspace's,
+// The token is reported whether or not the server is running: it is the installation's,
 // not the listener's, so a stopped server still has the one every pasted configuration
 // names — and the page's snippets stay copyable. Startup mints it, which is why a
 // workspace whose server has never been turned on has one too.
@@ -233,7 +233,7 @@ func (a *App) stopMCPServer() {
 	slog.Info("MCP server stopped")
 }
 
-// loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
+// loadOrCreateMCPToken returns the bearer token persisted in the installation's folder,
 // generating one the first time (or if the stored file is missing, empty or
 // unreadable). Persisting it keeps an installed agent working when the server is
 // turned on again. Startup is what calls it: minting is a thing kaja does, never a
@@ -250,7 +250,7 @@ func (a *App) loadOrCreateMCPToken() string {
 	return token
 }
 
-// readMCPToken returns the token this workspace is reached under, or "" where none has
+// readMCPToken returns the token this kaja is reached under, or "" where none has
 // been written yet. It never writes one: reporting the state of the server must not be
 // what creates its credential.
 // Must be called with mcpMu held.
@@ -270,8 +270,11 @@ func (a *App) writeMCPToken(token string) error {
 	return os.WriteFile(a.mcpTokenPath(), []byte(token), 0600)
 }
 
+// The token is kept in the installation's own folder rather than the workspace's: an
+// agent is configured once, in a file of its own, and has to reach whichever
+// workspace is open.
 func (a *App) mcpTokenPath() string {
-	return filepath.Join(a.workspaceDir, "mcp-token")
+	return filepath.Join(a.kajaDir, "mcp-token")
 }
 
 func randomToken(n int) string {

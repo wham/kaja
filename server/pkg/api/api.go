@@ -23,11 +23,17 @@ import (
 )
 
 type ApiService struct {
-	configurationPath      string
+	// The workspace this kaja is serving: the configuration file, and where a
+	// "${secret}" variable's value lives on this machine. The desktop can open another
+	// workspace in the same process, so both are read through their accessors.
+	// Guarded by workspaceMu.
+	workspaceMu       sync.RWMutex
+	configurationPath string
+	variableStore     VariableStore
+
 	canUpdateConfiguration bool
 	gitRef                 string
 	buildNumber            string
-	variableStore          VariableStore
 	// mcpAuthorizer holds this installation's MCP sign-ins. It is nil where there
 	// is nowhere to keep one, and the verbs that use it are then absent.
 	mcpAuthorizer *mcp.Authorizer
@@ -81,19 +87,59 @@ func (s *ApiService) Apps() *apps.Manager {
 	return s.apps
 }
 
+// configurationFile is the kaja.json this kaja is serving right now.
+func (s *ApiService) configurationFile() string {
+	s.workspaceMu.RLock()
+	defer s.workspaceMu.RUnlock()
+	return s.configurationPath
+}
+
+// valueStore is where this workspace's "${secret}" values live, nil where nowhere.
+func (s *ApiService) valueStore() VariableStore {
+	s.workspaceMu.RLock()
+	defer s.workspaceMu.RUnlock()
+	return s.variableStore
+}
+
+// WorkspaceDir is the folder holding the configuration file, which every relative
+// path in it is resolved against.
+func (s *ApiService) WorkspaceDir() string {
+	return workspaceDir(s.configurationFile())
+}
+
+// SetWorkspace points the service at another configuration file. The file is read
+// per call everywhere, so the path is the one thing held; what else is let go is what
+// was derived from the old one - the watcher on it, and the instances opened from its
+// apps, which the window reopens as it recompiles. The streams watching the old file
+// are left to end with the window that opened them.
+func (s *ApiService) SetWorkspace(configurationPath string, variableStore VariableStore) {
+	if err := s.Close(); err != nil {
+		slog.Warn("Failed to stop watching the configuration", "error", err)
+	}
+
+	s.workspaceMu.Lock()
+	s.configurationPath = configurationPath
+	s.variableStore = variableStore
+	s.workspaceMu.Unlock()
+
+	s.apps.Clear()
+	slog.Info("Opened workspace", "path", configurationPath)
+}
+
 // Variables resolves the configured variables as they stand right now. The
 // request routers use it to expand the ${NAME} references in the headers the
 // client sends, and to mask resolved values back out of what an app reports
 // exchanging with its upstream.
 func (s *ApiService) Variables() *Resolver {
-	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	return NewResolver(configuration.Variables, s.variableStore)
+	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
+	return NewResolver(configuration.Variables, s.valueStore())
 }
 
 // variableStoreAvailable reports whether this machine can store a variable's
 // value outside kaja.json.
 func (s *ApiService) variableStoreAvailable() bool {
-	return s.variableStore != nil && s.variableStore.Available()
+	store := s.valueStore()
+	return store != nil && store.Available()
 }
 
 // InvokeApp is the one door every call goes through, whichever build it arrived on.
@@ -239,7 +285,7 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 		send(&CompileResponse{Status: CompileStatus_STATUS_RUNNING, Logs: []*Log{log}})
 	}))
 
-	sources, stub, err := compiler.run(req.ProtoDir)
+	sources, stub, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
 	if err != nil {
 		// The failure was logged as it happened, so the last message is the verdict
 		// and nothing else.
@@ -265,6 +311,7 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	// Expand ${NAME} variable references in the creation parameters (URLs,
 	// tokens, ...) from the variables configured in kaja.json.
 	expandAppParameters(parameters, s.Variables(), logger)
+	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
 	protoDir, err := tempdir.NewSourcesDir()
 	if err != nil {
@@ -321,7 +368,7 @@ func (s *ApiService) appConnection(name string) AppConnection {
 		return AppConnection{}
 	}
 
-	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
 	for _, app := range configuration.Apps {
 		if app.Name != name {
 			continue
@@ -330,7 +377,8 @@ func (s *ApiService) appConnection(name string) AppConnection {
 		if appType != "grpc" {
 			return AppConnection{}
 		}
-		expandAppParameters(parameters, NewResolver(configuration.Variables, s.variableStore), NewLogger())
+		expandAppParameters(parameters, NewResolver(configuration.Variables, s.valueStore()), NewLogger())
+		resolveWorkspacePaths(parameters, s.WorkspaceDir())
 		return AppConnection{Metadata: rpc.Metadata(parameters), TLS: rpc.TLS(parameters)}
 	}
 	return AppConnection{}
@@ -346,6 +394,7 @@ func (s *ApiService) InspectGrpc(ctx context.Context, req *InspectGrpcRequest) (
 
 	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Grpc{Grpc: req.Grpc}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
+	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
 	server, problem := rpc.Inspect(parameters, func(message string) { slog.Info(message) })
 	if problem != nil {
@@ -654,7 +703,7 @@ func (s *ApiService) WatchConfiguration(req *WatchConfigurationRequest, stream g
 // configurationResponse is the file plus the runtime it is being served by, which is
 // what both doors to the configuration answer with.
 func (s *ApiService) configurationResponse() *GetConfigurationResponse {
-	response := LoadGetConfigurationResponse(s.configurationPath)
+	response := LoadGetConfigurationResponse(s.configurationFile())
 
 	response.Runtime = &Runtime{
 		CanUpdateConfiguration: s.canUpdateConfiguration,
@@ -667,7 +716,7 @@ func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 	// The variables travel as kaja.json writes them - a literal value, or the
 	// source that holds it ("${secret}", "${env:X}"). A value this machine
 	// resolved from a source is never part of the response.
-	response.VariableStatus = NewResolver(response.Configuration.Variables, s.variableStore).Statuses()
+	response.VariableStatus = NewResolver(response.Configuration.Variables, s.valueStore()).Statuses()
 
 	return response
 }
@@ -682,9 +731,10 @@ func (s *ApiService) watchConfigurationFile(onChange func()) func() {
 	defer s.watcherMu.Unlock()
 
 	if s.watcher == nil {
-		watcher, err := NewConfigurationWatcher(s.configurationPath)
+		path := s.configurationFile()
+		watcher, err := NewConfigurationWatcher(path)
 		if err != nil {
-			slog.Warn("Failed to start configuration watcher", "path", s.configurationPath, "error", err)
+			slog.Warn("Failed to start configuration watcher", "path", path, "error", err)
 			return func() {}
 		}
 		s.watcher = watcher
@@ -721,13 +771,13 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 
 	slog.Info("Updating configuration")
 
-	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {
+	if err := SaveConfiguration(s.configurationFile(), req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
 	}
 
 	return &UpdateConfigurationResponse{
 		Configuration:  req.Configuration,
-		VariableStatus: NewResolver(req.Configuration.Variables, s.variableStore).Statuses(),
+		VariableStatus: NewResolver(req.Configuration.Variables, s.valueStore()).Statuses(),
 	}, nil
 }
 
@@ -735,7 +785,7 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 // the file rather than held in memory because the file is where the switch lives: the
 // desktop reads it at startup, before there is a window to ask.
 func (s *ApiService) McpEnabled() bool {
-	return loadConfigurationFile(s.configurationPath, NewLogger()).GetMcp().GetEnabled()
+	return loadConfigurationFile(s.configurationFile(), NewLogger()).GetMcp().GetEnabled()
 }
 
 // SetMcpEnabled writes the switch into kaja.json and leaves the rest of the file as it
@@ -748,7 +798,7 @@ func (s *ApiService) SetMcpEnabled(ctx context.Context, req *SetMcpEnabledReques
 		return nil, fmt.Errorf("updating configuration is not allowed")
 	}
 
-	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
 	if configuration.GetMcp().GetEnabled() != req.Enabled {
 		if req.Enabled {
 			configuration.Mcp = &McpSettings{Enabled: true}
@@ -758,7 +808,7 @@ func (s *ApiService) SetMcpEnabled(ctx context.Context, req *SetMcpEnabledReques
 
 		slog.Info("Updating MCP server setting", "enabled", req.Enabled)
 
-		if err := SaveConfiguration(s.configurationPath, configuration); err != nil {
+		if err := SaveConfiguration(s.configurationFile(), configuration); err != nil {
 			return nil, fmt.Errorf("failed to save configuration: %w", err)
 		}
 	}
@@ -781,7 +831,7 @@ func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequ
 
 	slog.Info("Storing variable value", "name", req.Name)
 
-	if err := s.variableStore.Set(req.Name, req.Value); err != nil {
+	if err := s.valueStore().Set(req.Name, req.Value); err != nil {
 		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
 	}
 
@@ -798,7 +848,7 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 
 	if s.variableStoreAvailable() {
 		slog.Info("Clearing stored variable value", "name", req.Name)
-		if err := s.variableStore.Delete(req.Name); err != nil {
+		if err := s.valueStore().Delete(req.Name); err != nil {
 			return nil, fmt.Errorf("failed to clear the value for %q: %w", req.Name, err)
 		}
 	}

@@ -9,7 +9,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, Code, FileCode, Folder, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
+import { Braces, Code, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -47,7 +47,7 @@ import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
 import { NewAppDialog } from "./NewAppDialog";
-import { StatusBar, ColorMode } from "./StatusBar";
+import { StatusBar, ColorMode, WorkspaceControl } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
@@ -113,7 +113,7 @@ import { setScriptListing, setScriptSource } from "./scriptParameters";
 import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput, repeatInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
-import type { MCPInfo } from "./bindings/github.com/wham/kaja/desktop/models";
+import type { MCPInfo, WorkspacesInfo } from "./bindings/github.com/wham/kaja/desktop/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
 
 // Also reads the legacy "scratches" key: drafts were called scratches before the rename.
@@ -277,6 +277,7 @@ export function App() {
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
   const [mcpInfo, setMcpInfo] = useState<MCPInfo | undefined>();
+  const [workspaces, setWorkspaces] = useState<WorkspacesInfo | undefined>();
   const mcpRequestRef = useRef(0);
   const [mcpActive, setMcpActive] = useState(false);
   const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
@@ -1565,6 +1566,46 @@ export function App() {
     return () => unsubscribe.forEach((off) => off());
   }, []);
 
+  // Which workspace this window is in, and which others the desktop knows. Read again
+  // when the list changes under the window; the open one cannot change without the
+  // window reloading, which reads it afresh.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    let cancelled = false;
+    const read = () =>
+      desktop()
+        .then((app) => app.Workspaces())
+        .then((info) => {
+          if (!cancelled) setWorkspaces(info);
+        })
+        .catch((err) => console.error(`Failed to read the workspaces: ${rpcErrorMessage(err)}`));
+    void read();
+    const off = onWailsEvent("workspace:changed", () => void read());
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  // Opening a workspace is the desktop's own, for the scripts folder's reason: it needs
+  // the native picker, and the window reloads under it once the folder is open.
+  const onOpenWorkspace = useCallback((dir: string) => emitWailsEvent("workspace:open", dir), []);
+  const onChooseWorkspace = useCallback(() => emitWailsEvent("workspace:choose"), []);
+  const onRevealWorkspace = useCallback(() => {
+    const dir = workspaces?.current.dir;
+    if (!dir) return;
+    desktop()
+      .then((app) => app.ShowFileInFinder(`${dir}/kaja.json`))
+      .catch(() => {});
+  }, [workspaces]);
+  const workspaceControl = useMemo<WorkspaceControl | undefined>(
+    () =>
+      workspaces
+        ? { current: workspaces.current, known: workspaces.known, onOpen: onOpenWorkspace, onChoose: onChooseWorkspace, onReveal: onRevealWorkspace }
+        : undefined,
+    [workspaces, onOpenWorkspace, onChooseWorkspace, onRevealWorkspace],
+  );
+
   // The desktop's token is the process's, persisted so the connection command stays
   // valid; taking it is how this window attaches to the session that command reaches.
   useEffect(() => {
@@ -2505,6 +2546,19 @@ export function App() {
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
+    // The other workspaces, so ⌘P and a folder's name is the switch. The open one is
+    // not a destination: the finder lists where you can go.
+    for (const workspace of workspaces?.known ?? []) {
+      if (workspace.dir === workspaces?.current.dir) continue;
+      destinations.push({
+        key: `workspace:${workspace.dir}`,
+        name: workspace.name,
+        path: "Workspaces",
+        origin: "",
+        icon: FolderOpen,
+        go: () => onOpenWorkspace(workspace.dir),
+      });
+    }
 
     for (const app of apps) {
       const packages = hasMultiplePackages(app.services);
@@ -2546,6 +2600,8 @@ export function App() {
     onMcpClick,
     onShortcutsClick,
     onShowCompileLog,
+    workspaces,
+    onOpenWorkspace,
   ]);
 
   // Kaja's own views on the phone's finder, each wearing the state the status bar
@@ -3009,6 +3065,7 @@ export function App() {
             onShowCompileLog={onShowCompileLog}
             onRecompile={onRecompile}
             onShowShortcuts={onShortcutsClick}
+            workspace={workspaceControl}
           />
         </div>
       )}

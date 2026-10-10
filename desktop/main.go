@@ -93,7 +93,17 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
-	workspaceDir  string // base for resolving relative protoDir; also holds kaja.json
+	// kajaDir is this installation's own folder: the logs, the MCP token, the
+	// bookmarks, the list of workspaces, and the default workspace itself.
+	kajaDir string
+
+	// The folder of the open workspace, and the record of which are known.
+	// Guarded by workspaceMu.
+	workspaceMu  sync.Mutex
+	workspaceDir string
+	workspaces   *workspaceStore
+	// The workspace the last session left open, where it was not there to open again.
+	missingWorkspace string
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
 	// Guarded by linkMu.
@@ -111,11 +121,13 @@ type App struct {
 	mcpError  string
 }
 
-func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, kajaDir string, workspaceDir string) *App {
 	app := &App{
 		api:           apiService,
 		bookmarkStore: bookmarkStore,
+		kajaDir:       kajaDir,
 		workspaceDir:  workspaceDir,
+		workspaces:    newWorkspaceStore(kajaDir),
 	}
 	// One session, one window, and no proxy between an agent and this process: the same
 	// switchboard the web runs, over the same scripts folder the window's own sidebar
@@ -143,6 +155,14 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
 	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
 
+	// Opening a workspace is the same shape: a native picker, and a reload under it.
+	a.app.Event.On("workspace:choose", func(*application.CustomEvent) { go a.chooseWorkspace() })
+	a.app.Event.On("workspace:open", func(event *application.CustomEvent) {
+		if dir, ok := event.Data.(string); ok && dir != "" {
+			go a.openWorkspace(dir, "")
+		}
+	})
+
 	// The window's zoom is the webview's own, so the window asks for it here rather than
 	// drawing it itself. The buttons in the corner are the system's and are not scaled by
 	// it, so the band they are centred on is a different number of points at every zoom.
@@ -155,9 +175,9 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 		alignTrafficLights(int(math.Round(headerBandHeight * factor)))
 	})
 
-	// The token is the workspace's address rather than the listener's, so it is minted
-	// when kaja starts rather than when its server does: the MCP page names it and every
-	// snippet on it is copyable before the switch has ever been turned on.
+	// The token is the installation's address rather than the listener's, so it is
+	// minted when kaja starts rather than when its server does: the MCP page names it
+	// and every snippet on it is copyable before the switch has ever been turned on.
 	a.mcpMu.Lock()
 	a.mcpToken = a.loadOrCreateMCPToken()
 	a.mcpMu.Unlock()
@@ -172,7 +192,9 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// Read here rather than in main because a folder outside the container is reachable
 	// only once the bookmarks are restored, which happens before this hook. On its own
 	// goroutine because a dialog waits on the main thread, which is running this hook.
-	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
+	if a.missingWorkspace != "" {
+		go a.reportMissingWorkspace(a.missingWorkspace)
+	} else if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
 		go a.reportUnreachableScripts(unreachable)
 	}
 
@@ -188,8 +210,14 @@ func (a *App) ServiceShutdown() error {
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
 // listening rather than emitted at once: a link is what launches the app as often as
 // not, and on a cold launch this runs long before there is a webview to hear it.
-// What the link means is the UI's to decide (scriptLink.ts).
+// What the link means is the UI's to decide (scriptLink.ts); what this process
+// decides is which workspace it means it in, because a link names a script and the
+// script may be in a workspace other than the open one.
 func (a *App) openLink(link string) {
+	if dir, elsewhere := a.workspaceForLink(link); elsewhere {
+		go a.openWorkspace(dir, link)
+		return
+	}
 	a.linkMu.Lock()
 	if !a.linksReady {
 		a.pendingLinks = append(a.pendingLinks, link)
@@ -234,6 +262,25 @@ func (a *App) buildAppMenu() *application.Menu {
 	fileMenu.Add("New App…").OnClick(func(*application.Context) {
 		a.app.Event.Emit("menu:newApp")
 	})
+	fileMenu.AddSeparator()
+	fileMenu.Add("Open Workspace…").OnClick(func(*application.Context) {
+		go a.chooseWorkspace()
+	})
+	// Rebuilt whenever the list changes, so it is a list of the folders known now and
+	// the one that is open is marked rather than offered.
+	recent := fileMenu.AddSubmenu("Open Recent")
+	info := a.Workspaces()
+	for _, workspace := range info.Known {
+		dir := workspace.Dir
+		item := recent.AddCheckbox(workspace.Name, dir == info.Current.Dir)
+		item.OnClick(func(*application.Context) {
+			go a.openWorkspace(dir, "")
+		})
+	}
+	recent.AddSeparator()
+	recent.Add("Clear Menu").OnClick(func(*application.Context) {
+		go a.clearRecentWorkspaces()
+	})
 
 	appMenu.AddRole(application.EditMenu)
 	viewMenu := appMenu.AddSubmenu("View")
@@ -253,16 +300,19 @@ func (a *App) buildAppMenu() *application.Menu {
 	return appMenu
 }
 
-// showConfigurationInFinder reveals kaja.json in the system file browser with
-// the file itself selected.
+// showConfigurationInFinder reveals the open workspace's kaja.json in the system file
+// browser with the file itself selected.
 func (a *App) showConfigurationInFinder() {
-	selectInFinder(filepath.Join(a.workspaceDir, "kaja.json"))
+	a.workspaceMu.Lock()
+	dir := a.workspaceDir
+	a.workspaceMu.Unlock()
+	selectInFinder(configurationPathIn(dir))
 }
 
 // showLogsInFinder reveals the logs directory (see LogFromUI) in the system
 // file browser, creating it first if it doesn't exist yet.
 func (a *App) showLogsInFinder() {
-	dir := filepath.Join(a.workspaceDir, "logs")
+	dir := filepath.Join(a.kajaDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		slog.Warn("Failed to create logs directory", "error", err)
 		return
@@ -310,7 +360,7 @@ func revealTarget(path string) string {
 // "[ui]". The webview console is otherwise only reachable through Web Inspector, so
 // this is how a TestFlight user captures frontend errors.
 func (a *App) LogFromUI(level string, message string) error {
-	dir := filepath.Join(a.workspaceDir, "logs")
+	dir := filepath.Join(a.kajaDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -513,11 +563,26 @@ func main() {
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
 	restoreBookmarks(bookmarkStore, configurationPath)
 
+	// The workspace the last session left open, now that the bookmark granting access
+	// to it is restored. One that isn't there falls back to the default and says so
+	// rather than being created: an unplugged disk's mount point is a path that looks
+	// writable.
+	workspaces := newWorkspaceStore(kajaDir)
+	workspaceDir, missingWorkspace := workspaces.current()
+	if workspaceDir != kajaDir {
+		if err := prepareWorkspace(workspaceDir); err != nil {
+			slog.Warn("Failed to open the last workspace", "path", workspaceDir, "error", err)
+			missingWorkspace, workspaceDir = workspaceDir, kajaDir
+		}
+	}
+	configurationPath = configurationPathIn(workspaceDir)
+
 	// Create API service. Variable values that kaja.json only names live in the
 	// OS keychain, filed under this configuration.
 	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
 
-	kaja := NewApp(apiService, bookmarkStore, kajaDir)
+	kaja := NewApp(apiService, bookmarkStore, kajaDir, workspaceDir)
+	kaja.missingWorkspace = missingWorkspace
 
 	// Creating the application, creating the window and running are three steps in v3.
 	// The About box is the application's Name and Description rather than a Mac option:

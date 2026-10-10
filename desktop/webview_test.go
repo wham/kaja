@@ -23,7 +23,7 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("the UI"))
 	})
-	kaja := NewApp(api.NewApiService(configurationPath, true, "", "", nil), nil, t.TempDir())
+	kaja := NewApp(api.NewApiService(configurationPath, true, "", "", nil), nil, t.TempDir(), filepath.Dir(configurationPath))
 	handler := webviewHandler(kaja.api, kaja.agents, assets)
 
 	// A gRPC-Web request body is binary frames: five zero bytes are the header of an

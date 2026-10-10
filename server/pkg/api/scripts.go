@@ -58,24 +58,31 @@ func scriptsRoot(configurationPath string, configured string) (dir string, unrea
 }
 
 func (s *ApiService) scriptsDir() string {
-	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	dir, _ := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	dir, _ := workspaceScriptsRoot(s.configurationFile())
 	return dir
+}
+
+// workspaceScriptsRoot is the scripts folder of the workspace a configuration file
+// names, which can be asked of a workspace that isn't open: a deeplink is resolved
+// across every known workspace before one of them is.
+func workspaceScriptsRoot(configurationPath string) (dir string, unreachable string) {
+	configuration := loadConfigurationFile(configurationPath, NewLogger())
+	return scriptsRoot(configurationPath, configuration.ScriptsDir)
 }
 
 // UnreachableScriptsDir is empty where the configured folder was usable.
 func (s *ApiService) UnreachableScriptsDir() string {
-	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
-	_, unreachable := scriptsRoot(s.configurationPath, configuration.ScriptsDir)
+	_, unreachable := workspaceScriptsRoot(s.configurationFile())
 	return unreachable
 }
 
 // SetScriptsDir writes the folder into kaja.json, an empty one clearing it back to the
 // folder beside it.
 func (s *ApiService) SetScriptsDir(dir string) error {
-	configuration := LoadGetConfigurationResponse(s.configurationPath).Configuration
+	configurationPath := s.configurationFile()
+	configuration := LoadGetConfigurationResponse(configurationPath).Configuration
 	configuration.ScriptsDir = dir
-	return SaveConfiguration(s.configurationPath, configuration)
+	return SaveConfiguration(configurationPath, configuration)
 }
 
 // CanWriteWorkspace reports whether this kaja may write the workspace it opened. The

@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { CircleDot, GitBranch, Keyboard, Moon, Sun } from "lucide-react";
+import { Check, CircleDot, ExternalLink, FolderOpen, GitBranch, Keyboard, Moon, Sun } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
@@ -10,6 +11,24 @@ import { App } from "./apps";
 import { DEFAULT_ZOOM } from "./zoom";
 
 export type ColorMode = "day" | "night";
+
+export interface Workspace {
+  dir: string;
+  name: string;
+  default: boolean;
+}
+
+/**
+ * The open workspace and the way to another. Desktop only: a served kaja is one
+ * workspace by nature, so the control is absent where there is nothing to switch.
+ */
+export interface WorkspaceControl {
+  current: Workspace;
+  known: Workspace[];
+  onOpen: (dir: string) => void;
+  onChoose: () => void;
+  onReveal: () => void;
+}
 
 // Every icon in the status bar is the same 14px glyph on the same hit area.
 export const statusBarIconClass = "h-6 w-6 [&_svg]:size-[14px]";
@@ -28,6 +47,7 @@ interface StatusBarProps {
   onShowCompileLog: (appName?: string) => void;
   onRecompile: (appName?: string) => void;
   onShowShortcuts: () => void;
+  workspace?: WorkspaceControl;
 }
 
 const FEEDBACK_URL = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
@@ -55,6 +75,7 @@ export function StatusBar({
   onShowCompileLog,
   onRecompile,
   onShowShortcuts,
+  workspace,
 }: StatusBarProps) {
   const appErrors = useAppErrors();
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
@@ -63,6 +84,11 @@ export function StatusBar({
   // The compile status sits at the end so its label can grow and shrink without moving
   // the ref and the build around.
   const leftItems: React.ReactNode[] = [];
+  // First, because it is the biggest fact about the session: everything else in the
+  // window is this workspace's.
+  if (workspace) {
+    leftItems.push(<WorkspaceMenu key="workspace" control={workspace} />);
+  }
   if (githubUrl && shortRef) {
     leftItems.push(
       <a key="ref" href={githubUrl} target="_blank" rel="noopener noreferrer" onClick={handleExternalLinkClick} className={externalLinkClass}>
@@ -152,5 +178,40 @@ export function StatusBar({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * The open workspace by name, and under it the others this Kaja knows, the picker
+ * and Finder. The list is the one File ▸ Open Recent holds; it is here as well
+ * because the name is here, and the name is where the question "which one?" is asked.
+ */
+function WorkspaceMenu({ control }: { control: WorkspaceControl }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`Workspace: ${control.current.name}`} className={externalLinkClass} title={control.current.dir}>
+          <FolderOpen size={14} />
+          <span className="max-w-[200px] truncate">{control.current.name}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-60">
+        {control.known.map((workspace) => (
+          <DropdownMenuItem key={workspace.dir} onSelect={() => control.onOpen(workspace.dir)} title={workspace.dir}>
+            <Check size={16} className={workspace.dir === control.current.dir ? "" : "invisible"} />
+            <span className="truncate">{workspace.name}</span>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={control.onChoose}>
+          <FolderOpen size={16} />
+          Open workspace…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={control.onReveal}>
+          <ExternalLink size={16} />
+          Reveal in Finder
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

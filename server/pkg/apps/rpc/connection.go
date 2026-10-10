@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
@@ -55,14 +54,15 @@ func Metadata(parameters map[string]string) map[string]string {
 	return nil
 }
 
-// TLS reads the transport options off an app's parameters. Certificate paths are
-// workspace-relative, like proto_dir.
+// TLS reads the transport options off an app's parameters. Certificate paths arrive
+// resolved, like proto_dir: a relative one was made absolute where the app was handed
+// its parameters.
 func TLS(parameters map[string]string) grpc.TLSOptions {
 	return grpc.TLSOptions{
 		Mode:       strings.TrimSpace(parameters["tls"]),
 		SkipVerify: strings.TrimSpace(parameters["insecure_skip_verify"]) == "true",
-		CAFile:     workspace.Resolve(strings.TrimSpace(parameters["ca_file"])),
-		CertFile:   workspace.Resolve(strings.TrimSpace(parameters["client_cert_file"])),
-		KeyFile:    workspace.Resolve(strings.TrimSpace(parameters["client_key_file"])),
+		CAFile:     strings.TrimSpace(parameters["ca_file"]),
+		CertFile:   strings.TrimSpace(parameters["client_cert_file"]),
+		KeyFile:    strings.TrimSpace(parameters["client_key_file"]),
 	}
 }

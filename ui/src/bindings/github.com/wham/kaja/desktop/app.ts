@@ -68,7 +68,8 @@ export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: strin
 }
 
 /**
- * SetMCPServerEnabled starts or stops the loopback server and returns its new state.
+ * SetMCPServerEnabled starts or stops the loopback server, writes the switch into
+ * kaja.json so the next launch comes up the same way, and returns its new state.
  */
 export function SetMCPServerEnabled(enabled: boolean): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(2384720219, enabled).then(($result: any) => {
@@ -77,14 +78,30 @@ export function SetMCPServerEnabled(enabled: boolean): $CancellablePromise<$mode
 }
 
 /**
- * ShowFileInFinder reveals a file in the system file browser with the file selected.
- * A path that isn't there yet opens the nearest directory that is, so the link always
- * lands somewhere.
+ * ShowFileInFinder reveals a path in the system file browser, selected in the folder
+ * holding it. A path that isn't there yet falls back to the nearest ancestor that is,
+ * so the link always lands somewhere.
+ * 
+ * Everything here goes through the selecting call rather than opening the folder,
+ * because a sandboxed kaja is not allowed to open a folder it has no access to and an
+ * agent's configuration file is one such folder every time. Revealing is not gated the
+ * same way: Finder does it on kaja's behalf, so it works wherever the path is.
  */
 export function ShowFileInFinder(path: string): $CancellablePromise<void> {
     return $Call.ByID(1900569253, path);
 }
 
+/**
+ * Workspaces reports the open workspace and every known one, for the status bar and
+ * the finder. Desktop only: a served kaja is one workspace by nature.
+ */
+export function Workspaces(): $CancellablePromise<$models.WorkspacesInfo> {
+    return $Call.ByID(3410208231).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
 // Private type creation functions
 const $$createType0 = $models.MCPInfo.createFrom;
 const $$createType1 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $models.WorkspacesInfo.createFrom;

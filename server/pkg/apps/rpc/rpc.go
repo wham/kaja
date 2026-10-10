@@ -1,7 +1,7 @@
 // Package rpc implements the built-in "grpc" app: a gRPC service kaja talks to
 // directly. Its proto surface comes either from a static directory on disk
-// (parameter "proto_dir", resolved against the workspace) or from server reflection
-// (parameter "reflection": "true").
+// (parameter "proto_dir", which arrives resolved against the workspace) or from server
+// reflection (parameter "reflection": "true").
 //
 // It is the one app that forwards rather than transcodes: the request the client
 // framed is the request that reaches the server, which is what carries a server
@@ -43,7 +43,6 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, fmt.Errorf("missing required parameter %q (set %q to use gRPC reflection)", "proto_dir", "reflection")
 	}
 	log("Proto directory: " + dir)
-	// A relative dir is resolved by the compiler against the workspace.
 	return &apps.Opened{ProtoDir: dir, Instance: &instance{url: url}}, nil
 }
 
