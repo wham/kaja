@@ -28,8 +28,6 @@ func main() {
 	// The server serves a workspace it does not own — a Git checkout, a mounted volume —
 	// so its configuration is read-only. --editable opts out of that for development.
 	editable := flag.Bool("editable", false, "allow the UI to write to the configuration file")
-	// A workspace is a folder holding a kaja.json. The default is where the Docker image
-	// mounts one and where scripts/server finds the demo.
 	workspace := flag.String("workspace", "../workspace", "the folder holding the kaja.json to serve")
 	flag.Parse()
 

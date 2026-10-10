@@ -1566,9 +1566,6 @@ export function App() {
     return () => unsubscribe.forEach((off) => off());
   }, []);
 
-  // Which workspace this window is in, and which others the desktop knows. Read again
-  // when the list changes under the window; the open one cannot change without the
-  // window reloading, which reads it afresh.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     let cancelled = false;
@@ -1587,8 +1584,6 @@ export function App() {
     };
   }, []);
 
-  // Opening a workspace is the desktop's own, for the scripts folder's reason: it needs
-  // the native picker, and the window reloads under it once the folder is open.
   const onOpenWorkspace = useCallback((dir: string) => emitWailsEvent("workspace:open", dir), []);
   const onChooseWorkspace = useCallback(() => emitWailsEvent("workspace:choose"), []);
   const onRevealWorkspace = useCallback(() => {
@@ -2546,8 +2541,6 @@ export function App() {
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
-    // The other workspaces, so ⌘P and a folder's name is the switch. The open one is
-    // not a destination: the finder lists where you can go.
     for (const workspace of workspaces?.known ?? []) {
       if (workspace.dir === workspaces?.current.dir) continue;
       destinations.push({

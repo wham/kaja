@@ -92,8 +92,7 @@ export function ShowFileInFinder(path: string): $CancellablePromise<void> {
 }
 
 /**
- * Workspaces reports the open workspace and every known one, for the status bar and
- * the finder. Desktop only: a served kaja is one workspace by nature.
+ * Workspaces reports the open workspace and every known one. Desktop only.
  */
 export function Workspaces(): $CancellablePromise<$models.WorkspacesInfo> {
     return $Call.ByID(3410208231).then(($result: any) => {

@@ -6,13 +6,9 @@ import (
 	"strings"
 )
 
-// A deeplink names a script and nothing about where the script is, so the process
-// that receives one has to find the workspace it is in before a window can run it.
-// The grammar is scriptLink.ts's: the verb is the host, the script is the path, with
-// or without its extension, and a name with no folder in it matches by base name.
+// The grammar is scriptLink.ts's; the two have to agree.
 
-// LinkedScriptName is the script a kaja://run/<script> link names, without its
-// extension, or "" where the link is not one that runs a script.
+// LinkedScriptName is the script a kaja://run/<script> link names, "" where it names none.
 func LinkedScriptName(link string) string {
 	parsed, err := url.Parse(strings.TrimSpace(link))
 	if err != nil || parsed.Scheme != "kaja" || !strings.EqualFold(parsed.Host, "run") {
@@ -27,9 +23,7 @@ func LinkedScriptName(link string) string {
 	return linkName(strings.TrimSpace(strings.Join(segments, "/")))
 }
 
-// WorkspaceHasScript reports whether the workspace a configuration file names holds
-// the script a link names, read off the disk rather than asked of a window, so it can
-// be asked of a workspace nothing has opened.
+// WorkspaceHasScript reads the disk, so it can be asked of a workspace nothing has opened.
 func WorkspaceHasScript(configurationPath string, named string) bool {
 	dir, _ := workspaceScriptsRoot(configurationPath)
 	found := false

@@ -93,16 +93,13 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
-	// kajaDir is this installation's own folder: the logs, the MCP token, the
-	// bookmarks, the list of workspaces, and the default workspace itself.
+	// The installation's own folder, which is also the default workspace.
 	kajaDir string
 
-	// The folder of the open workspace, and the record of which are known.
 	// Guarded by workspaceMu.
-	workspaceMu  sync.Mutex
-	workspaceDir string
-	workspaces   *workspaceStore
-	// The workspace the last session left open, where it was not there to open again.
+	workspaceMu      sync.Mutex
+	workspaceDir     string
+	workspaces       *workspaceStore
 	missingWorkspace string
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
@@ -155,7 +152,6 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
 	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
 
-	// Opening a workspace is the same shape: a native picker, and a reload under it.
 	a.app.Event.On("workspace:choose", func(*application.CustomEvent) { go a.chooseWorkspace() })
 	a.app.Event.On("workspace:open", func(event *application.CustomEvent) {
 		if dir, ok := event.Data.(string); ok && dir != "" {
@@ -210,9 +206,8 @@ func (a *App) ServiceShutdown() error {
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
 // listening rather than emitted at once: a link is what launches the app as often as
 // not, and on a cold launch this runs long before there is a webview to hear it.
-// What the link means is the UI's to decide (scriptLink.ts); what this process
-// decides is which workspace it means it in, because a link names a script and the
-// script may be in a workspace other than the open one.
+// What the link means is the UI's to decide (scriptLink.ts); which workspace it means
+// it in is decided here, since the script may be in one that isn't open.
 func (a *App) openLink(link string) {
 	if dir, elsewhere := a.workspaceForLink(link); elsewhere {
 		go a.openWorkspace(dir, link)
@@ -266,8 +261,7 @@ func (a *App) buildAppMenu() *application.Menu {
 	fileMenu.Add("Open Workspace…").OnClick(func(*application.Context) {
 		go a.chooseWorkspace()
 	})
-	// Rebuilt whenever the list changes, so it is a list of the folders known now and
-	// the one that is open is marked rather than offered.
+	// Rebuilt whenever the list changes.
 	recent := fileMenu.AddSubmenu("Open Recent")
 	info := a.Workspaces()
 	for _, workspace := range info.Known {
@@ -563,10 +557,7 @@ func main() {
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
 	restoreBookmarks(bookmarkStore, configurationPath)
 
-	// The workspace the last session left open, now that the bookmark granting access
-	// to it is restored. One that isn't there falls back to the default and says so
-	// rather than being created: an unplugged disk's mount point is a path that looks
-	// writable.
+	// After the bookmarks, which is what grants access to a folder outside the container.
 	workspaces := newWorkspaceStore(kajaDir)
 	workspaceDir, missingWorkspace := workspaces.current()
 	if workspaceDir != kajaDir {

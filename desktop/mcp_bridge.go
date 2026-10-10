@@ -270,9 +270,7 @@ func (a *App) writeMCPToken(token string) error {
 	return os.WriteFile(a.mcpTokenPath(), []byte(token), 0600)
 }
 
-// The token is kept in the installation's own folder rather than the workspace's: an
-// agent is configured once, in a file of its own, and has to reach whichever
-// workspace is open.
+// The installation's rather than the workspace's: an agent is configured once.
 func (a *App) mcpTokenPath() string {
 	return filepath.Join(a.kajaDir, "mcp-token")
 }

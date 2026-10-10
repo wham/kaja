@@ -23,10 +23,7 @@ import (
 )
 
 type ApiService struct {
-	// The workspace this kaja is serving: the configuration file, and where a
-	// "${secret}" variable's value lives on this machine. The desktop can open another
-	// workspace in the same process, so both are read through their accessors.
-	// Guarded by workspaceMu.
+	// Guarded by workspaceMu: the desktop swaps both when it opens another workspace.
 	workspaceMu       sync.RWMutex
 	configurationPath string
 	variableStore     VariableStore
@@ -87,31 +84,24 @@ func (s *ApiService) Apps() *apps.Manager {
 	return s.apps
 }
 
-// configurationFile is the kaja.json this kaja is serving right now.
 func (s *ApiService) configurationFile() string {
 	s.workspaceMu.RLock()
 	defer s.workspaceMu.RUnlock()
 	return s.configurationPath
 }
 
-// valueStore is where this workspace's "${secret}" values live, nil where nowhere.
 func (s *ApiService) valueStore() VariableStore {
 	s.workspaceMu.RLock()
 	defer s.workspaceMu.RUnlock()
 	return s.variableStore
 }
 
-// WorkspaceDir is the folder holding the configuration file, which every relative
-// path in it is resolved against.
 func (s *ApiService) WorkspaceDir() string {
 	return workspaceDir(s.configurationFile())
 }
 
-// SetWorkspace points the service at another configuration file. The file is read
-// per call everywhere, so the path is the one thing held; what else is let go is what
-// was derived from the old one - the watcher on it, and the instances opened from its
-// apps, which the window reopens as it recompiles. The streams watching the old file
-// are left to end with the window that opened them.
+// SetWorkspace is enough on its own because the file is read per call; the watcher and
+// the open instances are the only things derived from the old path.
 func (s *ApiService) SetWorkspace(configurationPath string, variableStore VariableStore) {
 	if err := s.Close(); err != nil {
 		slog.Warn("Failed to stop watching the configuration", "error", err)

@@ -7,16 +7,8 @@ const PAYLOAD_STORE = "call-payloads";
 const DB_VERSION = 3;
 const WRITE_DEBOUNCE_MS = 500;
 
-/**
- * The window's state is the workspace's: the views, the drafts, the runs, the tree,
- * the values seen in earlier calls are all about the apps and scripts of one
- * workspace, so each workspace gets a database of its own and a switch opens another.
- * The default workspace keeps the database there was before there were others.
- *
- * What is not the workspace's is how the window is drawn - its size, its theme, its
- * zoom - and that stays in the shared database whichever workspace is open, under the
- * keys named here.
- */
+// A database per workspace; the default keeps the one there was. The window's own
+// keys stay in the shared one whichever workspace is open.
 export interface WorkspaceStorage {
   dir: string;
   default: boolean;
@@ -41,8 +33,6 @@ function databaseName(workspace: WorkspaceStorage | undefined): string {
 
 let cache = new Map<string, any>();
 let typeMemoryCache = new Map<string, any>();
-// The workspace's database, and the shared one the window's keys live in. One object
-// where the open workspace is the default.
 let db: IDBDatabase | null = null;
 let windowDb: IDBDatabase | null = null;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;

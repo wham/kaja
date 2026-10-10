@@ -20,8 +20,6 @@ export * from "@protobuf-ts/runtime-rpc";
 installUiLog();
 preloadConfiguration();
 
-// The window's store is the workspace's, so which one is open is asked before the
-// store is. Only the desktop can be in more than one; a served kaja has the default.
 async function openWorkspace(): Promise<WorkspaceStorage | undefined> {
   if (!isWailsEnvironment()) return undefined;
   try {

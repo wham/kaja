@@ -18,10 +18,7 @@ export interface Workspace {
   default: boolean;
 }
 
-/**
- * The open workspace and the way to another. Desktop only: a served kaja is one
- * workspace by nature, so the control is absent where there is nothing to switch.
- */
+// Absent on the web, which serves one workspace.
 export interface WorkspaceControl {
   current: Workspace;
   known: Workspace[];
@@ -84,8 +81,6 @@ export function StatusBar({
   // The compile status sits at the end so its label can grow and shrink without moving
   // the ref and the build around.
   const leftItems: React.ReactNode[] = [];
-  // First, because it is the biggest fact about the session: everything else in the
-  // window is this workspace's.
   if (workspace) {
     leftItems.push(<WorkspaceMenu key="workspace" control={workspace} />);
   }
@@ -181,11 +176,6 @@ export function StatusBar({
   );
 }
 
-/**
- * The open workspace by name, and under it the others this Kaja knows, the picker
- * and Finder. The list is the one File ▸ Open Recent holds; it is here as well
- * because the name is here, and the name is where the question "which one?" is asked.
- */
 function WorkspaceMenu({ control }: { control: WorkspaceControl }) {
   return (
     <DropdownMenu>

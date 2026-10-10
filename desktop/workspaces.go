@@ -11,32 +11,20 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 )
 
-// A workspace is a folder holding a kaja.json. The desktop starts with one of its own,
-// in its container, and can open any other the person picks; one is open at a time
-// and the window reloads when it changes, because every view, console and stored run
-// names its file by an absolute path and the page reads the folder that is now open as
-// it starts. What this file holds is which folders are known and which is open, kept
-// in the container beside the bookmarks that grant access to them.
-
 const workspacesFileName = "workspaces.json"
 
-// Workspace is one the window can be in, as the UI names it.
 type Workspace struct {
-	Dir  string `json:"dir"`
-	Name string `json:"name"`
-	// The one in kaja's own container, which is where everything was before there
-	// were others and where a folder that has gone missing falls back to.
-	Default bool `json:"default"`
+	Dir     string `json:"dir"`
+	Name    string `json:"name"`
+	Default bool   `json:"default"`
 }
 
-// WorkspacesInfo is what the UI asks for: where it is, and where it could be.
 type WorkspacesInfo struct {
 	Current Workspace   `json:"current"`
 	Known   []Workspace `json:"known"`
 }
 
-// workspaceStore is the file naming the open workspace and every one opened before,
-// most recently opened first. The default is not written: it is always known.
+// The default is never written: it is always known.
 type workspaceStore struct {
 	path       string
 	defaultDir string
@@ -71,8 +59,8 @@ func (s *workspaceStore) save(entries workspaceEntries) error {
 	return os.WriteFile(s.path, data, 0644)
 }
 
-// current is the folder the last session left open, or the default where none was
-// recorded or the one recorded is not readable any more.
+// A folder that isn't there falls back to the default rather than being created: an
+// unplugged disk's mount point is a path that looks writable.
 func (s *workspaceStore) current() (dir string, missing string) {
 	entries := s.load()
 	if entries.Current == "" || entries.Current == s.defaultDir {
@@ -84,13 +72,10 @@ func (s *workspaceStore) current() (dir string, missing string) {
 	return entries.Current, ""
 }
 
-// known is every folder ever opened that is still named, the default first and the
-// rest most recently opened first.
 func (s *workspaceStore) known() []string {
 	return knownWorkspaces(s.defaultDir, s.load().Known)
 }
 
-// open records a folder as the one that is open, moving it to the front of the list.
 func (s *workspaceStore) open(dir string) error {
 	entries := s.load()
 	entries.Current = dir
@@ -98,8 +83,6 @@ func (s *workspaceStore) open(dir string) error {
 	return s.save(entries)
 }
 
-// clearRecent empties the list the way a Mac's Open Recent menu is cleared: the open
-// one and the default are not in the list, so they stay.
 func (s *workspaceStore) clearRecent() error {
 	entries := s.load()
 	entries.Known = nil
@@ -136,10 +119,7 @@ func forgetWorkspace(known []string, dir string) []string {
 	return kept
 }
 
-// describeWorkspaces names each folder. A workspace is named by its folder, and two
-// folders named alike are told apart by the folder above, the way an editor's list of
-// recent folders does it. The default is named for what it is rather than for its
-// folder, which is called kaja and says nothing.
+// Two folders named alike are told apart by the folder above.
 func describeWorkspaces(defaultDir string, dirs []string) []Workspace {
 	counts := map[string]int{}
 	for _, dir := range dirs {
@@ -162,13 +142,12 @@ func describeWorkspaces(defaultDir string, dirs []string) []Workspace {
 	return workspaces
 }
 
-// configurationPathIn is the file a workspace folder is read through.
 func configurationPathIn(dir string) string {
 	return filepath.Join(dir, "kaja.json")
 }
 
-// prepareWorkspace makes a folder a workspace: a kaja.json where there is none yet,
-// and nothing else, so opening a checkout adds one file to it at most.
+// Writes kaja.json where there is none and nothing else, so opening a checkout adds
+// one file to it at most.
 func prepareWorkspace(dir string) error {
 	if err := readableFolder(dir); err != nil {
 		return err
@@ -182,8 +161,7 @@ func prepareWorkspace(dir string) error {
 	return os.WriteFile(path, []byte("{}\n"), 0644)
 }
 
-// Workspaces reports the open workspace and every known one, for the status bar and
-// the finder. Desktop only: a served kaja is one workspace by nature.
+// Workspaces reports the open workspace and every known one. Desktop only.
 func (a *App) Workspaces() WorkspacesInfo {
 	a.workspaceMu.Lock()
 	defer a.workspaceMu.Unlock()
@@ -202,8 +180,6 @@ func (a *App) workspacesLocked() WorkspacesInfo {
 	return info
 }
 
-// The picker is what grants a sandboxed kaja access to a folder outside its container,
-// so the bookmark saved here is what makes the workspace reachable after a restart.
 func (a *App) chooseWorkspace() {
 	dir, err := a.app.Dialog.OpenFile().
 		CanChooseFiles(false).
@@ -228,9 +204,7 @@ func (a *App) chooseWorkspace() {
 	a.openWorkspace(dir, "")
 }
 
-// openWorkspace makes dir the open workspace and reloads the window into it. A link
-// handed over is delivered once the new page is listening, which is how a deeplink
-// into another workspace gets there.
+// A link handed over is delivered once the new page is listening.
 func (a *App) openWorkspace(dir string, pendingLink string) {
 	dir = filepath.Clean(dir)
 	if err := prepareWorkspace(dir); err != nil {
@@ -252,8 +226,6 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	}
 	a.workspaceMu.Unlock()
 
-	// The listener is the installation's, the switch is the workspace's: the old one
-	// comes down and the new one decides whether it goes back up.
 	a.stopMCPServer()
 
 	configurationPath := configurationPathIn(dir)
@@ -270,8 +242,7 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 		a.startMCPServer()
 	}
 
-	// The page about to load says when it is listening, and a link that arrived for it
-	// waits for that rather than for a page that is on its way out.
+	// Reset before the reload, or the link goes to the page on its way out.
 	a.linkMu.Lock()
 	a.linksReady = false
 	if pendingLink != "" {
@@ -307,10 +278,7 @@ func (a *App) reportMissingWorkspace(dir string) {
 		Show()
 }
 
-// workspaceForLink is the folder a deeplink's script is in: the open workspace where
-// it has one, else the most recently opened one that has, else nowhere - which is
-// delivered to the open window so it can say no such script. A workspace is read off
-// the disk here rather than opened, so asking costs no reload.
+// The open workspace first, then the known ones most recently opened first.
 func (a *App) workspaceForLink(link string) (dir string, elsewhere bool) {
 	named := api.LinkedScriptName(link)
 	a.workspaceMu.Lock()

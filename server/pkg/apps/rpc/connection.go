@@ -54,9 +54,7 @@ func Metadata(parameters map[string]string) map[string]string {
 	return nil
 }
 
-// TLS reads the transport options off an app's parameters. Certificate paths arrive
-// resolved, like proto_dir: a relative one was made absolute where the app was handed
-// its parameters.
+// TLS reads the transport options off an app's parameters.
 func TLS(parameters map[string]string) grpc.TLSOptions {
 	return grpc.TLSOptions{
 		Mode:       strings.TrimSpace(parameters["tls"]),

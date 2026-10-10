@@ -56,17 +56,9 @@ export class MCPInfo {
     }
 }
 
-/**
- * Workspace is one the window can be in, as the UI names it.
- */
 export class Workspace {
     "dir": string;
     "name": string;
-
-    /**
-     * The one in kaja's own container, which is where everything was before there
-     * were others and where a folder that has gone missing falls back to.
-     */
     "default": boolean;
 
     /** Creates a new Workspace instance. */
@@ -93,9 +85,6 @@ export class Workspace {
     }
 }
 
-/**
- * WorkspacesInfo is what the UI asks for: where it is, and where it could be.
- */
 export class WorkspacesInfo {
     "current": Workspace;
     "known": Workspace[];

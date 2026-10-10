@@ -1,7 +1,6 @@
 // Package rpc implements the built-in "grpc" app: a gRPC service kaja talks to
 // directly. Its proto surface comes either from a static directory on disk
-// (parameter "proto_dir", which arrives resolved against the workspace) or from server
-// reflection (parameter "reflection": "true").
+// (parameter "proto_dir") or from server reflection (parameter "reflection": "true").
 //
 // It is the one app that forwards rather than transcodes: the request the client
 // framed is the request that reaches the server, which is what carries a server

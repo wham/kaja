@@ -62,9 +62,6 @@ func (s *ApiService) scriptsDir() string {
 	return dir
 }
 
-// workspaceScriptsRoot is the scripts folder of the workspace a configuration file
-// names, which can be asked of a workspace that isn't open: a deeplink is resolved
-// across every known workspace before one of them is.
 func workspaceScriptsRoot(configurationPath string) (dir string, unreachable string) {
 	configuration := loadConfigurationFile(configurationPath, NewLogger())
 	return scriptsRoot(configurationPath, configuration.ScriptsDir)
