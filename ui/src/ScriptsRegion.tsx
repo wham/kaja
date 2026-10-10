@@ -131,10 +131,6 @@ export interface ScriptsRegionProps {
   onCopyScript?: (script: Script, name: string, folder: string) => Promise<void>;
   onCopyFolder?: (path: string, newPath: string) => Promise<void>;
   onRevealScripts?: () => void;
-  // Where the scripts are kept, which is the one thing about the list that is a
-  // question about the folder rather than about what is filed in it.
-  onChooseScriptsFolder?: () => void;
-  onUseDefaultScriptsFolder?: () => void;
 }
 
 export function ScriptsRegion(props: ScriptsRegionProps) {
@@ -178,7 +174,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [drag, setDrag] = useState<{ script: Script; folder: string | null } | null>(null);
   const spring = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const canMove = canWrite && props.onMoveScript !== undefined;
-  const filesActions = canWrite && Boolean(props.onCreateScript || props.onCreateFolder || props.onRevealScripts || props.onChooseScriptsFolder);
+  const filesActions = canWrite && Boolean(props.onCreateScript || props.onCreateFolder || props.onRevealScripts);
 
   const toggleFolder = (path: string) => setOpenFolders((open) => (open.includes(path) ? open.filter((candidate) => candidate !== path) : [...open, path]));
 
@@ -559,20 +555,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 <DropdownMenuItem key="reveal" onSelect={props.onRevealScripts}>
                   <ExternalLink size={16} />
                   Reveal in Finder
-                </DropdownMenuItem>
-              ),
-            ],
-            [
-              props.onChooseScriptsFolder && (
-                <DropdownMenuItem key="choose" onSelect={props.onChooseScriptsFolder}>
-                  <Folder size={16} />
-                  Scripts folder…
-                </DropdownMenuItem>
-              ),
-              props.onChooseScriptsFolder && props.onUseDefaultScriptsFolder && (
-                <DropdownMenuItem key="default" onSelect={props.onUseDefaultScriptsFolder}>
-                  <Folder size={16} />
-                  Use default folder
                 </DropdownMenuItem>
               ),
             ],

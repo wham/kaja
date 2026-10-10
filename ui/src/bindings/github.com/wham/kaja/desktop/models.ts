@@ -17,8 +17,8 @@ export class MCPInfo {
     "error": string;
 
     /**
-     * ConfigurationPaths is where each client keeps the file its snippet goes
-     * into, keyed by the client the footer shows it under.
+     * ConfigurationPaths is where each agent keeps the file its snippet goes
+     * into, keyed by the agent the MCP page shows it under.
      */
     "configurationPaths": { [_ in string]?: string };
 
@@ -56,5 +56,69 @@ export class MCPInfo {
     }
 }
 
+export class Workspace {
+    "dir": string;
+    "name": string;
+    "default": boolean;
+
+    /** Creates a new Workspace instance. */
+    constructor($$source: Partial<Workspace> = {}) {
+        if (!("dir" in $$source)) {
+            this["dir"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("default" in $$source)) {
+            this["default"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Workspace instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Workspace {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Workspace($$parsedSource as Partial<Workspace>);
+    }
+}
+
+export class WorkspacesInfo {
+    "current": Workspace;
+    "known": Workspace[];
+
+    /** Creates a new WorkspacesInfo instance. */
+    constructor($$source: Partial<WorkspacesInfo> = {}) {
+        if (!("current" in $$source)) {
+            this["current"] = (new Workspace());
+        }
+        if (!("known" in $$source)) {
+            this["known"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WorkspacesInfo instance from a string or object.
+     */
+    static createFrom($$source: any = {}): WorkspacesInfo {
+        const $$createField0_0 = $$createType1;
+        const $$createField1_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("current" in $$parsedSource) {
+            $$parsedSource["current"] = $$createField0_0($$parsedSource["current"]);
+        }
+        if ("known" in $$parsedSource) {
+            $$parsedSource["known"] = $$createField1_0($$parsedSource["known"]);
+        }
+        return new WorkspacesInfo($$parsedSource as Partial<WorkspacesInfo>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);
+const $$createType1 = Workspace.createFrom;
+const $$createType2 = $Create.Array($$createType1);

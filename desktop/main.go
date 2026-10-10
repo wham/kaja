@@ -93,7 +93,14 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
-	workspaceDir  string // base for resolving relative protoDir; also holds kaja.json
+	// The installation's own folder; the default workspace is a folder inside it.
+	kajaDir string
+
+	// Guarded by workspaceMu.
+	workspaceMu      sync.Mutex
+	workspaceDir     string
+	workspaces       *workspaceStore
+	missingWorkspace string
 
 	// Inbound kaja:// links, and whether the UI is listening for them yet.
 	// Guarded by linkMu.
@@ -111,11 +118,13 @@ type App struct {
 	mcpError  string
 }
 
-func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, kajaDir string, workspaceDir string) *App {
 	app := &App{
 		api:           apiService,
 		bookmarkStore: bookmarkStore,
+		kajaDir:       kajaDir,
 		workspaceDir:  workspaceDir,
+		workspaces:    newWorkspaceStore(kajaDir),
 	}
 	// One session, one window, and no proxy between an agent and this process: the same
 	// switchboard the web runs, over the same scripts folder the window's own sidebar
@@ -140,8 +149,12 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 
 	// On their own goroutines because both end in a dialog or a reload, which wait on
 	// the main thread.
-	a.app.Event.On("scripts:chooseFolder", func(*application.CustomEvent) { go a.chooseScriptsFolder() })
-	a.app.Event.On("scripts:useDefaultFolder", func(*application.CustomEvent) { go a.openScriptsFolder("") })
+	a.app.Event.On("workspace:choose", func(*application.CustomEvent) { go a.chooseWorkspace() })
+	a.app.Event.On("workspace:open", func(event *application.CustomEvent) {
+		if dir, ok := event.Data.(string); ok && dir != "" {
+			go a.openWorkspace(dir, "")
+		}
+	})
 
 	// The window's zoom is the webview's own, so the window asks for it here rather than
 	// drawing it itself. The buttons in the corner are the system's and are not scaled by
@@ -155,9 +168,9 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 		alignTrafficLights(int(math.Round(headerBandHeight * factor)))
 	})
 
-	// The token is the workspace's address rather than the listener's, so it is minted
-	// when kaja starts rather than when its server does: the MCP page names it and every
-	// snippet on it is copyable before the switch has ever been turned on.
+	// The token is the installation's address rather than the listener's, so it is
+	// minted when kaja starts rather than when its server does: the MCP page names it
+	// and every snippet on it is copyable before the switch has ever been turned on.
 	a.mcpMu.Lock()
 	a.mcpToken = a.loadOrCreateMCPToken()
 	a.mcpMu.Unlock()
@@ -172,8 +185,8 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// Read here rather than in main because a folder outside the container is reachable
 	// only once the bookmarks are restored, which happens before this hook. On its own
 	// goroutine because a dialog waits on the main thread, which is running this hook.
-	if unreachable := a.api.UnreachableScriptsDir(); unreachable != "" {
-		go a.reportUnreachableScripts(unreachable)
+	if a.missingWorkspace != "" {
+		go a.reportMissingWorkspace(a.missingWorkspace)
 	}
 
 	return nil
@@ -188,8 +201,13 @@ func (a *App) ServiceShutdown() error {
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
 // listening rather than emitted at once: a link is what launches the app as often as
 // not, and on a cold launch this runs long before there is a webview to hear it.
-// What the link means is the UI's to decide (scriptLink.ts).
+// What the link means is the UI's to decide (scriptLink.ts); which workspace it means
+// it in is decided here, since the script may be in one that isn't open.
 func (a *App) openLink(link string) {
+	if dir, elsewhere := a.workspaceForLink(link); elsewhere {
+		go a.openWorkspace(dir, link)
+		return
+	}
 	a.linkMu.Lock()
 	if !a.linksReady {
 		a.pendingLinks = append(a.pendingLinks, link)
@@ -234,6 +252,24 @@ func (a *App) buildAppMenu() *application.Menu {
 	fileMenu.Add("New App…").OnClick(func(*application.Context) {
 		a.app.Event.Emit("menu:newApp")
 	})
+	fileMenu.AddSeparator()
+	fileMenu.Add("Open Workspace…").OnClick(func(*application.Context) {
+		go a.chooseWorkspace()
+	})
+	// Rebuilt whenever the list changes.
+	recent := fileMenu.AddSubmenu("Open Recent")
+	info := a.Workspaces()
+	for _, workspace := range info.Known {
+		dir := workspace.Dir
+		item := recent.AddCheckbox(workspace.Name, dir == info.Current.Dir)
+		item.OnClick(func(*application.Context) {
+			go a.openWorkspace(dir, "")
+		})
+	}
+	recent.AddSeparator()
+	recent.Add("Clear Menu").OnClick(func(*application.Context) {
+		go a.clearRecentWorkspaces()
+	})
 
 	appMenu.AddRole(application.EditMenu)
 	viewMenu := appMenu.AddSubmenu("View")
@@ -253,16 +289,19 @@ func (a *App) buildAppMenu() *application.Menu {
 	return appMenu
 }
 
-// showConfigurationInFinder reveals kaja.json in the system file browser with
-// the file itself selected.
+// showConfigurationInFinder reveals the open workspace's kaja.json in the system file
+// browser with the file itself selected.
 func (a *App) showConfigurationInFinder() {
-	selectInFinder(filepath.Join(a.workspaceDir, "kaja.json"))
+	a.workspaceMu.Lock()
+	dir := a.workspaceDir
+	a.workspaceMu.Unlock()
+	selectInFinder(configurationPathIn(dir))
 }
 
 // showLogsInFinder reveals the logs directory (see LogFromUI) in the system
 // file browser, creating it first if it doesn't exist yet.
 func (a *App) showLogsInFinder() {
-	dir := filepath.Join(a.workspaceDir, "logs")
+	dir := filepath.Join(a.kajaDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		slog.Warn("Failed to create logs directory", "error", err)
 		return
@@ -310,7 +349,7 @@ func revealTarget(path string) string {
 // "[ui]". The webview console is otherwise only reachable through Web Inspector, so
 // this is how a TestFlight user captures frontend errors.
 func (a *App) LogFromUI(level string, message string) error {
-	dir := filepath.Join(a.workspaceDir, "logs")
+	dir := filepath.Join(a.kajaDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -330,67 +369,6 @@ func (a *App) LogFromUI(level string, message string) error {
 // shouldn't have.
 func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
-}
-
-// The picker is what grants a sandboxed kaja access to a folder outside its container,
-// so the bookmark saved here is what makes the choice survive a restart.
-func (a *App) chooseScriptsFolder() {
-	dir, err := a.app.Dialog.OpenFile().
-		CanChooseFiles(false).
-		CanChooseDirectories(true).
-		CanCreateDirectories(true).
-		SetTitle("Scripts Folder").
-		SetMessage("Where to keep your scripts.").
-		SetButtonText("Use Folder").
-		PromptForSingleSelection()
-	if err != nil {
-		slog.Warn("Failed to pick a scripts folder", "error", err)
-		return
-	}
-	if dir == "" {
-		return
-	}
-	if a.bookmarkStore != nil {
-		if err := a.bookmarkStore.Save(dir, dir); err != nil {
-			slog.Warn("Failed to save bookmark", "path", dir, "error", err)
-		}
-	}
-	a.openScriptsFolder(dir)
-}
-
-// An empty dir is the default folder beside kaja.json. It reloads because every script
-// view, console and stored run names its file by an absolute path, and the page reads
-// the folder that is now open as it starts.
-func (a *App) openScriptsFolder(dir string) {
-	if dir != "" {
-		if err := readableFolder(dir); err != nil {
-			slog.Error("Failed to open the scripts folder", "path", dir, "error", err)
-			a.app.Dialog.Warning().
-				SetTitle("Kaja can't use that folder").
-				SetMessage(fmt.Sprintf("%s: %s. The scripts folder is unchanged.", dir, err)).
-				Show()
-			return
-		}
-	}
-
-	if err := a.api.SetScriptsDir(dir); err != nil {
-		slog.Error("Failed to record the chosen scripts folder", "path", dir, "error", err)
-		a.app.Dialog.Warning().
-			SetTitle("Kaja can't save that choice").
-			SetMessage(fmt.Sprintf("Writing kaja.json failed: %s. The scripts folder is unchanged.", err)).
-			Show()
-		return
-	}
-	a.window.Reload()
-
-	slog.Info("Opened scripts folder", "path", dir)
-}
-
-func (a *App) reportUnreachableScripts(dir string) {
-	a.app.Dialog.Warning().
-		SetTitle("Scripts folder not found").
-		SetMessage(fmt.Sprintf("%s isn't there, so Kaja is using its own folder instead. Nothing was changed: kaja.json still names it, and it is used again as soon as it is back.", dir)).
-		Show()
 }
 
 // OpenDirectoryDialog opens a native directory picker. On macOS it saves a
@@ -436,9 +414,9 @@ func (a *App) OpenFileDialog() (string, error) {
 	return path, nil
 }
 
-// restoreBookmarks resolves saved security-scoped bookmarks for all directories
-// referenced in the configuration, re-granting sandbox access on app restart.
-func restoreBookmarks(store *BookmarkStore, configurationPath string) {
+// restoreBookmarks resolves every saved security-scoped bookmark, re-granting sandbox
+// access on app restart.
+func restoreBookmarks(store *BookmarkStore) {
 	entries, err := store.loadEntries()
 	if err != nil {
 		return
@@ -495,29 +473,41 @@ func main() {
 
 	setupLogging(kajaDir)
 
-	configurationPath := filepath.Join(kajaDir, "kaja.json")
-
-	// Ensure the global scripts directory exists so it's discoverable.
-	if err := os.MkdirAll(filepath.Join(kajaDir, "scripts"), 0755); err != nil {
-		slog.Warn("Failed to create scripts directory", "error", err)
+	defaultDir := defaultWorkspaceDir(kajaDir)
+	if err := migrateDefaultWorkspace(kajaDir, func(path string) api.VariableStore { return NewKeychainStore(path) }); err != nil {
+		slog.Error("Failed to move the default workspace", "error", err)
+		println("Error:", err.Error())
+		return
 	}
-
-	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
-		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
-			slog.Error("Failed to create configuration file", "path", configurationPath, "error", err)
-			println("Error:", err.Error())
-			return
-		}
+	if err := os.MkdirAll(defaultDir, 0755); err == nil {
+		err = prepareWorkspace(defaultDir)
+	}
+	if err != nil {
+		slog.Error("Failed to create the default workspace", "path", defaultDir, "error", err)
+		println("Error:", err.Error())
+		return
 	}
 
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
-	restoreBookmarks(bookmarkStore, configurationPath)
+	restoreBookmarks(bookmarkStore)
+
+	// After the bookmarks, which is what grants access to a folder outside the container.
+	workspaces := newWorkspaceStore(kajaDir)
+	workspaceDir, missingWorkspace := workspaces.current()
+	if workspaceDir != defaultDir {
+		if err := prepareWorkspace(workspaceDir); err != nil {
+			slog.Warn("Failed to open the last workspace", "path", workspaceDir, "error", err)
+			missingWorkspace, workspaceDir = workspaceDir, defaultDir
+		}
+	}
+	configurationPath := configurationPathIn(workspaceDir)
 
 	// Create API service. Variable values that kaja.json only names live in the
 	// OS keychain, filed under this configuration.
 	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
 
-	kaja := NewApp(apiService, bookmarkStore, kajaDir)
+	kaja := NewApp(apiService, bookmarkStore, kajaDir, workspaceDir)
+	kaja.missingWorkspace = missingWorkspace
 
 	// Creating the application, creating the window and running are three steps in v3.
 	// The About box is the application's Name and Description rather than a Mac option:

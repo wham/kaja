@@ -67,7 +67,7 @@ and pointing an agent at it are all documented on the website.
 
 The development scripts require [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh).
 
-- Run in local server: `scripts/server` (pass `--editable` to edit `workspace/kaja.json` from the UI)
+- Run in local server: `scripts/server` (pass `--editable` to edit `workspace/kaja.json` from the UI, or `--workspace <folder>` to serve another folder's kaja.json)
 - Run in Docker: `scripts/docker`
 - Run the desktop app: `scripts/desktop`. It builds the bundle from `desktop/Taskfile.yml`; `wails3 task --list` in `desktop/` names the steps, and `scripts/desktop-build` makes the one that ships.
 - Run on iOS: `scripts/ios` puts it on a booted simulator, `scripts/ios device` on a connected iPhone. `scripts/ios logs` streams the simulator's log and `scripts/ios xcode` opens the generated project. Needs macOS with full Xcode, not just the command line tools; a device also needs an Apple Development identity and a profile covering the bundle identifier.

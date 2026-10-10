@@ -8,7 +8,6 @@ import (
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
-	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
@@ -126,7 +125,6 @@ func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, err
 }
 
 func (c *Compiler) compile(sourcesDir string, protoDir string) error {
-	protoDir = workspace.Resolve(protoDir)
 	c.logger.debug("protoDir: " + protoDir)
 
 	compiler, protoFiles, err := c.compilerFor(protoDir)
