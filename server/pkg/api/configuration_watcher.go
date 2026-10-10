@@ -15,13 +15,9 @@ type ConfigurationWatcher struct {
 	done        chan struct{}
 }
 
-// NewConfigurationWatcher creates a new configuration file watcher.
+// NewConfigurationWatcher creates a new configuration file watcher. The file may not
+// exist yet: a workspace gets its kaja.json on the first write, and that is a change.
 func NewConfigurationWatcher(path string) (*ConfigurationWatcher, error) {
-	// Verify file exists
-	if _, err := os.Stat(path); err != nil {
-		return nil, err
-	}
-
 	cw := &ConfigurationWatcher{
 		path: path,
 		done: make(chan struct{}),

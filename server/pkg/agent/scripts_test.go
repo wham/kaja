@@ -18,7 +18,7 @@ func TestAChangeCarriesTheAbsolutePath(t *testing.T) {
 		t.Fatalf("write configuration: %v", err)
 	}
 	scripts := NewWorkspaceScripts(api.NewApiService(configuration, true, "", "", nil))
-	folder := filepath.Join(root, "scripts", "reports")
+	folder := filepath.Join(root, "reports")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatalf("make folder: %v", err)
 	}

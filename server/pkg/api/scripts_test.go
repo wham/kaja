@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -20,15 +21,8 @@ func workspaceWithScripts(t *testing.T, scripts map[string]string) string {
 	if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
 		t.Fatalf("failed to write configuration: %v", err)
 	}
-	if len(scripts) == 0 {
-		return configurationPath
-	}
-	scriptsDir := filepath.Join(dir, "scripts")
-	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
-		t.Fatalf("failed to create scripts dir: %v", err)
-	}
 	for name, content := range scripts {
-		path := filepath.Join(scriptsDir, filepath.FromSlash(name))
+		path := filepath.Join(dir, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			t.Fatalf("failed to create folder for %s: %v", name, err)
 		}
@@ -594,7 +588,7 @@ func TestWriteScript(t *testing.T) {
 func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 	writable := writableWorkspace(t)
 	createScript(t, writable, "reports/churn.ts", "// body")
-	served := NewApiService(filepath.Join(filepath.Dir(writable.scriptsDir()), "kaja.json"), false, "", "", nil)
+	served := NewApiService(writable.configurationFile(), false, "", "", nil)
 	ctx := context.Background()
 
 	writes := map[string]error{}
@@ -625,79 +619,40 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 	}
 }
 
-// Only the folder moves: the configuration stays where it is, so the apps a script
-// imports are unaffected by pointing the scripts somewhere the machine syncs.
-func TestScriptsDirNamedByTheConfiguration(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
-	service := NewApiService(configurationPath, false, "", "", nil)
+func TestFoldersOfOtherThingsAreNeitherListedNorDeleted(t *testing.T) {
+	configurationPath := workspaceWithScripts(t, map[string]string{
+		"reports/churn.ts": "// churn",
+		"protos/api.proto": "syntax = \"proto3\";",
+		"mixed/run.ts":     "// run",
+		"mixed/ca.pem":     "cert",
+	})
+	if err := os.MkdirAll(filepath.Join(filepath.Dir(configurationPath), "empty"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	service := NewApiService(configurationPath, true, "", "", nil)
+	ctx := context.Background()
 
-	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
+	listed, err := service.ListScriptFolders(ctx, &ListScriptFoldersRequest{})
 	if err != nil {
-		t.Fatalf("failed to list scripts: %v", err)
+		t.Fatal(err)
 	}
-	if len(response.Scripts) != 1 || response.Scripts[0].Name != "programme.ts" {
-		t.Fatalf("expected the folder beside kaja.json, got %v", response.Scripts)
-	}
-
-	shared := filepath.Join(t.TempDir(), "scripts")
-	if err := os.MkdirAll(shared, 0755); err != nil {
-		t.Fatalf("failed to create the folder: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(shared, "seat-map.ts"), []byte("// seats"), 0644); err != nil {
-		t.Fatalf("failed to write the script: %v", err)
-	}
-	if err := service.SetScriptsDir(shared); err != nil {
-		t.Fatalf("failed to write the folder: %v", err)
+	if got, want := listed.Folders, []string{"empty", "mixed", "reports"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("folders = %v, want %v", got, want)
 	}
 
-	response, err = service.ListScripts(context.Background(), &ListScriptsRequest{})
-	if err != nil {
-		t.Fatalf("failed to list scripts: %v", err)
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "mixed"}); err == nil {
+		t.Error("a folder holding a certificate was deleted")
 	}
-	if len(response.Scripts) != 1 || response.Scripts[0].Name != "seat-map.ts" {
-		t.Fatalf("expected the named folder's script, got %v", response.Scripts)
+	if _, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "mixed", NewName: "moved"}); err == nil {
+		t.Error("a folder holding a certificate was moved")
 	}
-	if service.configurationPath != configurationPath {
-		t.Errorf("expected the configuration left where it is, got %q", service.configurationPath)
+	if _, err := os.Stat(filepath.Join(filepath.Dir(configurationPath), "mixed", "ca.pem")); err != nil {
+		t.Errorf("the certificate is gone: %v", err)
 	}
-
-	if err := service.SetScriptsDir(""); err != nil {
-		t.Fatalf("failed to clear the folder: %v", err)
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "reports"}); err != nil {
+		t.Errorf("a folder of scripts was refused: %v", err)
 	}
-	if service.scriptsDir() != defaultScriptsRoot(configurationPath) {
-		t.Errorf("expected the default folder back, got %q", service.scriptsDir())
-	}
-}
-
-// A relative folder is resolved against kaja.json's own folder, so a checkout can
-// carry one; an absolute one names a folder elsewhere on this machine.
-func TestScriptsRootResolvesWhatTheConfigurationNames(t *testing.T) {
-	dir := t.TempDir()
-	configurationPath := filepath.Join(dir, "kaja.json")
-
-	if root, unreachable := scriptsRoot(configurationPath, ""); root != defaultScriptsRoot(configurationPath) || unreachable != "" {
-		t.Errorf("expected the folder beside kaja.json, got %q and %q", root, unreachable)
-	}
-
-	relative := filepath.Join(dir, "shared")
-	if err := os.MkdirAll(relative, 0755); err != nil {
-		t.Fatalf("failed to create the folder: %v", err)
-	}
-	if root, unreachable := scriptsRoot(configurationPath, "shared"); root != relative || unreachable != "" {
-		t.Errorf("expected %q, got %q and %q", relative, root, unreachable)
-	}
-
-	absolute := t.TempDir()
-	if root, unreachable := scriptsRoot(configurationPath, absolute); root != absolute || unreachable != "" {
-		t.Errorf("expected %q, got %q and %q", absolute, root, unreachable)
-	}
-
-	// A folder that isn't there falls back to the default and says which one it could
-	// not reach. The name is left in the file, so an unplugged disk coming back is all
-	// it takes for the folder to be used again.
-	gone := filepath.Join(dir, "elsewhere")
-	root, unreachable := scriptsRoot(configurationPath, gone)
-	if root != defaultScriptsRoot(configurationPath) || unreachable != gone {
-		t.Errorf("expected the fallback and the folder it could not reach, got %q and %q", root, unreachable)
+	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "empty"}); err != nil {
+		t.Errorf("an empty folder was refused: %v", err)
 	}
 }

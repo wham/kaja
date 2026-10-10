@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/ui"
@@ -27,9 +28,10 @@ func main() {
 	// The server serves a workspace it does not own — a Git checkout, a mounted volume —
 	// so its configuration is read-only. --editable opts out of that for development.
 	editable := flag.Bool("editable", false, "allow the UI to write to the configuration file")
+	workspace := flag.String("workspace", "../workspace", "the folder holding the kaja.json to serve")
 	flag.Parse()
 
-	configurationPath := "../workspace/kaja.json"
+	configurationPath := filepath.Join(*workspace, "kaja.json")
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath)
 	configuration := getConfigurationResponse.Configuration
 

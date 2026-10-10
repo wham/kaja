@@ -302,11 +302,11 @@ quit_kaja
 # using the app, and a cold start has to be one.
 if [ -d "$KAJA_HOME" ]; then mv "$KAJA_HOME" "$HOME_BACKUP"; fi
 if [ -d "$WEBSITE_DATA" ]; then mv "$WEBSITE_DATA" "$DATA_BACKUP"; fi
-mkdir -p "$KAJA_HOME/scripts"
+mkdir -p "$KAJA_HOME/workspace"
 
 # The first screen is the one a workspace with no apps shows, so the file starts
 # empty and the apps arrive between the second shot and the third.
-echo '{}' > "$KAJA_HOME/kaja.json"
+echo '{}' > "$KAJA_HOME/workspace/kaja.json"
 
 # -- Talking to the window -----------------------------------------------------
 
@@ -468,7 +468,7 @@ press 'key code 53'
 # is of a workspace that genuinely had nothing in it. All three are reached over
 # the wire and none needs a proto file on disk, which is what keeps the staged
 # workspace to this one file plus the scripts beside it.
-cat > "$KAJA_HOME/kaja.json" <<'CONFIGURATION'
+cat > "$KAJA_HOME/workspace/kaja.json" <<'CONFIGURATION'
 {
   "apps": [
     {
@@ -500,10 +500,10 @@ cat > "$KAJA_HOME/kaja.json" <<'CONFIGURATION'
 }
 CONFIGURATION
 
-cp "$REPO_ROOT"/workspace/scripts/*.ts "$KAJA_HOME/scripts/"
+cp "$REPO_ROOT"/workspace/*.ts "$KAJA_HOME/workspace/"
 
 say "Reloading, and waiting for the apps to compile"
-# The configuration is watched, but the scripts folder is read once at load, so
+# The configuration is watched, but the scripts are read once at load, so
 # the way to have both is the window's own Reload.
 press 'keystroke "r" using command down'
 pause "$WAIT_COMPILE"

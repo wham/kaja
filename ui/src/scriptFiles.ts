@@ -3,7 +3,7 @@ import { getApiClient } from "./server/connection";
 import { Runtime, Script as WireScript } from "./server/api";
 
 /**
- * The workspace's `scripts` folder, whichever process is holding the disk. Both
+ * The workspace's scripts, whichever process is holding the disk. Both
  * builds reach it the same way: the desktop's window fetches these calls over
  * the mux its webview already speaks, a browser fetches them over the wire, and
  * whichever process opened the workspace is the one that reads and writes it.
@@ -16,7 +16,7 @@ import { Runtime, Script as WireScript } from "./server/api";
 /**
  * Whether this kaja may write the workspace it opened. It is the one question
  * the process answers at startup and the configuration already reports: the
- * scripts folder and kaja.json are both in that workspace, so a kaja that may
+ * scripts and kaja.json are both in that workspace, so a kaja that may
  * not write one may not write the other.
  */
 export function canWriteScripts(runtime: Runtime): boolean {

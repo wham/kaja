@@ -7,5 +7,7 @@ export {
 };
 
 export {
-    MCPInfo
+    MCPInfo,
+    Workspace,
+    WorkspacesInfo
 } from "./models.js";

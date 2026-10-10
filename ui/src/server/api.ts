@@ -697,7 +697,7 @@ export interface GetConfigurationResponse {
 export interface Runtime {
     /**
      * Whether this kaja may write the workspace it opened - kaja.json and the
-     * scripts folder beside it alike. True in the desktop app, which owns its
+     * scripts beside it alike. True in the desktop app, which owns its
      * workspace; false in the server, which serves a workspace managed outside
      * kaja - unless it was started with --editable.
      *
@@ -726,12 +726,12 @@ export interface Runtime {
      */
     variableStoreAvailable: boolean;
     /**
-     * The scripts folder on the machine serving the workspace, for the one thing
-     * the UI needs the folder itself for: revealing it in the system file browser.
+     * The workspace folder on the machine serving it, for the one thing the UI
+     * needs the folder itself for: revealing it in the system file browser.
      *
-     * @generated from protobuf field: string scripts_dir = 5
+     * @generated from protobuf field: string workspace_dir = 5
      */
-    scriptsDir: string;
+    workspaceDir: string;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -1212,14 +1212,6 @@ export interface Configuration {
      * @generated from protobuf field: McpSettings mcp = 8
      */
     mcp?: McpSettings;
-    /**
-     * Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
-     * file; a relative path is resolved against this file's own folder. A folder that
-     * isn't there is not created: the default is used instead.
-     *
-     * @generated from protobuf field: string scripts_dir = 9
-     */
-    scriptsDir: string;
 }
 /**
  * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
@@ -2357,7 +2349,7 @@ class Runtime$Type extends MessageType<Runtime> {
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "workspace_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }
@@ -2776,8 +2768,7 @@ class Configuration$Type extends MessageType<Configuration> {
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 8, name: "mcp", kind: "message", T: () => McpSettings },
-            { no: 9, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 8, name: "mcp", kind: "message", T: () => McpSettings }
         ]);
     }
 }

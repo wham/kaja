@@ -20,9 +20,9 @@ type VariableStore interface {
 	Delete(name string) error
 }
 
-// secretSource is the whole value of a variable this machine holds the value
+// SecretSource is the whole value of a variable this machine holds the value
 // for: the keychain, or KAJA_<NAME> in the environment.
-const secretSource = "${secret}"
+const SecretSource = "${secret}"
 
 // envSourcePattern matches a ${env:X} reference, which may sit inside a longer
 // value (e.g. "https://${env:HOST}/v1").
@@ -87,7 +87,7 @@ func NewResolver(variables map[string]string, store VariableStore) *Resolver {
 // resolveVariable resolves one variable's configured value: literal, the value
 // this machine stores for it, or the environment variables it references.
 func resolveVariable(name string, configured string, store VariableStore) (string, *VariableStatus) {
-	if strings.TrimSpace(configured) == secretSource {
+	if strings.TrimSpace(configured) == SecretSource {
 		envName := storedEnvName(name)
 		if store != nil && store.Available() {
 			if stored, ok := store.Get(name); ok {
@@ -209,8 +209,8 @@ func validateVariables(variables map[string]string) error {
 			return fmt.Errorf("variable name %q must start with a letter or underscore and contain only letters, numbers and underscores", name)
 		}
 		value := variables[name]
-		if strings.Contains(value, secretSource) && strings.TrimSpace(value) != secretSource {
-			return fmt.Errorf("variable %q: %s must be the whole value", name, secretSource)
+		if strings.Contains(value, SecretSource) && strings.TrimSpace(value) != SecretSource {
+			return fmt.Errorf("variable %q: %s must be the whole value", name, SecretSource)
 		}
 	}
 	return nil

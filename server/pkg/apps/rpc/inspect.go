@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	grpccodes "google.golang.org/grpc/codes"
@@ -138,23 +137,22 @@ func inspectProtoDir(parameters map[string]string, log func(string)) (*Server, *
 		}
 	}
 
-	resolved := workspace.Resolve(dir)
-	files, err := protoFiles(resolved)
+	files, err := protoFiles(dir)
 	if err != nil || len(files) == 0 {
-		detail := fmt.Sprintf("Looked in %s", resolved)
+		detail := fmt.Sprintf("Looked in %s", dir)
 		if err != nil {
 			detail = err.Error()
 		}
 		return nil, &Problem{Kind: ProblemNoProtoFiles, Message: "No .proto files in that folder.", Detail: detail}
 	}
-	log(fmt.Sprintf("Found %d proto file(s) in %s", len(files), resolved))
+	log(fmt.Sprintf("Found %d proto file(s) in %s", len(files), dir))
 
-	compiled, err := protoc.New(protoc.WithProtoPaths(resolved)).Compile(files...)
+	compiled, err := protoc.New(protoc.WithProtoPaths(dir)).Compile(files...)
 	if err != nil {
 		return nil, &Problem{Kind: ProblemProtoInvalid, Message: "The proto files are there, but they don't compile.", Detail: err.Error()}
 	}
 
-	server := &Server{Source: SourceProtoDir, FileCount: len(files), ProtoDir: resolved}
+	server := &Server{Source: SourceProtoDir, FileCount: len(files), ProtoDir: dir}
 	describe(server, compiled.Files, nil)
 	if len(server.Services) == 0 {
 		return nil, &Problem{

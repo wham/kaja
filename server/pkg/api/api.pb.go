@@ -2434,7 +2434,7 @@ func (x *GetConfigurationResponse) GetRuntime() *Runtime {
 type Runtime struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Whether this kaja may write the workspace it opened - kaja.json and the
-	// scripts folder beside it alike. True in the desktop app, which owns its
+	// scripts beside it alike. True in the desktop app, which owns its
 	// workspace; false in the server, which serves a workspace managed outside
 	// kaja - unless it was started with --editable.
 	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
@@ -2447,9 +2447,9 @@ type Runtime struct {
 	// usable keyring, where "${secret}" variables can only come from the
 	// environment.
 	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
-	// The scripts folder on the machine serving the workspace, for the one thing
-	// the UI needs the folder itself for: revealing it in the system file browser.
-	ScriptsDir    string `protobuf:"bytes,5,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
+	// The workspace folder on the machine serving it, for the one thing the UI
+	// needs the folder itself for: revealing it in the system file browser.
+	WorkspaceDir  string `protobuf:"bytes,5,opt,name=workspace_dir,json=workspaceDir,proto3" json:"workspace_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2512,9 +2512,9 @@ func (x *Runtime) GetVariableStoreAvailable() bool {
 	return false
 }
 
-func (x *Runtime) GetScriptsDir() string {
+func (x *Runtime) GetWorkspaceDir() string {
 	if x != nil {
-		return x.ScriptsDir
+		return x.WorkspaceDir
 	}
 	return ""
 }
@@ -4149,11 +4149,7 @@ type Configuration struct {
 	// switch belongs to the browser, because the token does - so this is only where a
 	// browser that has never chosen starts, which is what lets a deployed workspace ship
 	// an agent session that is already on.
-	Mcp *McpSettings `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
-	// Where this kaja keeps its scripts. Empty is the `scripts` folder beside this
-	// file; a relative path is resolved against this file's own folder. A folder that
-	// isn't there is not created: the default is used instead.
-	ScriptsDir    string `protobuf:"bytes,9,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
+	Mcp           *McpSettings `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4221,13 +4217,6 @@ func (x *Configuration) GetMcp() *McpSettings {
 		return x.Mcp
 	}
 	return nil
-}
-
-func (x *Configuration) GetScriptsDir() string {
-	if x != nil {
-		return x.ScriptsDir
-	}
-	return ""
 }
 
 // McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
@@ -5370,14 +5359,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
 	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
-	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xda\x01\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xde\x01\n" +
 	"\aRuntime\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
 	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
-	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12\x1f\n" +
-	"\vscripts_dir\x18\x05 \x01(\tR\n" +
-	"scriptsDir\"h\n" +
+	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12#\n" +
+	"\rworkspace_dir\x18\x05 \x01(\tR\fworkspaceDir\"h\n" +
 	"\x0eVariableStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
 	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
@@ -5454,22 +5442,21 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xac\x03\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x9e\x03\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
 	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x12\x1e\n" +
-	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x12\x1f\n" +
-	"\vscripts_dir\x18\t \x01(\tR\n" +
-	"scriptsDir\x1a<\n" +
+	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
 	"\x0eShortcutsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"'\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\t\x10\n" +
+	"R\bprojectsR\x06systemR\vscripts_dir\"'\n" +
 	"\vMcpSettings\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\"\x92\x02\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
