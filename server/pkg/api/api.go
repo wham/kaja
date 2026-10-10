@@ -713,9 +713,7 @@ func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 
 // watchConfigurationFile subscribes to the configuration file and hands back the way to
 // stop. The watcher is started by the first subscriber rather than by the process, so a
-// kaja nobody is watching polls nothing. A file that cannot be watched leaves the
-// caller subscribed to nothing: a workspace with no configuration file has no change to
-// report, which is not a reason to refuse the call.
+// kaja nobody is watching polls nothing.
 func (s *ApiService) watchConfigurationFile(onChange func()) func() {
 	s.watcherMu.Lock()
 	defer s.watcherMu.Unlock()

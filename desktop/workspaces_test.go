@@ -77,38 +77,6 @@ func TestDescribeWorkspacesNamesFoldersAndTellsTwinsApart(t *testing.T) {
 	}
 }
 
-func TestPrepareWorkspaceWritesOnlyTheMissingFile(t *testing.T) {
-	dir := t.TempDir()
-	if err := prepareWorkspace(dir); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(configurationPathIn(dir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != "{}\n" {
-		t.Errorf("a new workspace's file = %q", data)
-	}
-	entries, _ := os.ReadDir(dir)
-	if len(entries) != 1 {
-		t.Errorf("opening a folder wrote more than kaja.json into it: %v", entries)
-	}
-
-	if err := os.WriteFile(configurationPathIn(dir), []byte(`{"apps": []}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := prepareWorkspace(dir); err != nil {
-		t.Fatal(err)
-	}
-	if data, _ := os.ReadFile(configurationPathIn(dir)); string(data) != `{"apps": []}` {
-		t.Errorf("a file that was there was rewritten: %q", data)
-	}
-
-	if err := prepareWorkspace(filepath.Join(dir, "missing")); err == nil {
-		t.Error("a folder that is not there is refused rather than created")
-	}
-}
-
 func TestReadableFolderRefusesWhatIsNotAFolder(t *testing.T) {
 	dir := t.TempDir()
 	if err := readableFolder(dir); err != nil {

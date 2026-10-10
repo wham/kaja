@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -161,21 +160,6 @@ func configurationPathIn(dir string) string {
 	return filepath.Join(dir, "kaja.json")
 }
 
-// Writes kaja.json where there is none and nothing else, so opening a checkout adds
-// one file to it at most.
-func prepareWorkspace(dir string) error {
-	if err := readableFolder(dir); err != nil {
-		return err
-	}
-	path := configurationPathIn(dir)
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return os.WriteFile(path, []byte("{}\n"), 0644)
-}
-
 // Workspaces reports the open workspace and every known one. Desktop only.
 func (a *App) Workspaces() WorkspacesInfo {
 	a.workspaceMu.Lock()
@@ -201,7 +185,7 @@ func (a *App) chooseWorkspace() {
 		CanChooseDirectories(true).
 		CanCreateDirectories(true).
 		SetTitle("Open Workspace").
-		SetMessage("A workspace is a folder with a kaja.json in it. Kaja writes one into a folder that has none.").
+		SetMessage("A workspace is a folder with a kaja.json in it. A folder without one gets it once there is something to write.").
 		SetButtonText("Open").
 		PromptForSingleSelection()
 	if err != nil {
@@ -222,7 +206,7 @@ func (a *App) chooseWorkspace() {
 // A link handed over is delivered once the new page is listening.
 func (a *App) openWorkspace(dir string, pendingLink string) {
 	dir = filepath.Clean(dir)
-	if err := prepareWorkspace(dir); err != nil {
+	if err := readableFolder(dir); err != nil {
 		slog.Error("Failed to open the workspace", "path", dir, "error", err)
 		a.app.Dialog.Warning().
 			SetTitle("Kaja can't open that folder").

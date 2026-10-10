@@ -479,10 +479,7 @@ func main() {
 		println("Error:", err.Error())
 		return
 	}
-	if err := os.MkdirAll(defaultDir, 0755); err == nil {
-		err = prepareWorkspace(defaultDir)
-	}
-	if err != nil {
+	if err := os.MkdirAll(defaultDir, 0755); err != nil {
 		slog.Error("Failed to create the default workspace", "path", defaultDir, "error", err)
 		println("Error:", err.Error())
 		return
@@ -495,7 +492,7 @@ func main() {
 	workspaces := newWorkspaceStore(kajaDir)
 	workspaceDir, missingWorkspace := workspaces.current()
 	if workspaceDir != defaultDir {
-		if err := prepareWorkspace(workspaceDir); err != nil {
+		if err := readableFolder(workspaceDir); err != nil {
 			slog.Warn("Failed to open the last workspace", "path", workspaceDir, "error", err)
 			missingWorkspace, workspaceDir = workspaceDir, defaultDir
 		}
