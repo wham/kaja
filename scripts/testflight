@@ -1,12 +1,16 @@
 #!/bin/bash
-# Build the Mac App Store version of Kaja and upload it to TestFlight.
+# Build the App Store version of Kaja for macOS or iOS and upload it to TestFlight.
 #
 # Usage:
 #   # Local (signing identities from the login keychain, loads .env if present):
-#   BUILD_NUMBER=42 scripts/testflight
+#   BUILD_NUMBER=42 scripts/testflight [macos|ios]
 #
 #   # CI (secrets are passed as env vars by .github/workflows/testflight.yml):
-#   scripts/testflight
+#   scripts/testflight [macos|ios]
+#
+# The two platforms share the API key and the "Apple Distribution" certificate;
+# the installer certificate is the Mac's alone, since an .ipa is not signed as a
+# package.
 #
 # Environment variables (same names as GitHub Actions secrets):
 #   APPLE_API_KEY_ID              - App Store Connect API key ID
@@ -14,12 +18,18 @@
 #   APPLE_API_KEY_BASE64          - Base64-encoded .p8 private key
 #   DISTRIBUTION_CERT_P12_BASE64  - Base64 "Apple Distribution" certificate (.p12)
 #   DISTRIBUTION_CERT_PASSWORD    - Password for the distribution .p12
-#   INSTALLER_CERT_P12_BASE64     - Base64 "3rd Party Mac Developer Installer" certificate (.p12)
-#   INSTALLER_CERT_PASSWORD       - Password for the installer .p12
+#   INSTALLER_CERT_P12_BASE64     - Base64 "3rd Party Mac Developer Installer" certificate (.p12, macOS only)
+#   INSTALLER_CERT_PASSWORD       - Password for the installer .p12 (macOS only)
 #   BUILD_NUMBER                  - CFBundleVersion to stamp on the build (required)
 #   SKIP_UPLOAD                   - Set to "true" to build and package only, skip upload
 
 set -euo pipefail
+
+PLATFORM="${1:-macos}"
+case "$PLATFORM" in
+    macos|ios) ;;
+    *) echo "error: unknown platform '$PLATFORM' (expected macos or ios)"; exit 1 ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -40,8 +50,13 @@ APP_SIGNING_IDENTITY="Apple Distribution: Tomas Vesely (U5DMD247UW)"
 INSTALLER_SIGNING_IDENTITY="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
 
 DESKTOP_DIR="$REPO_ROOT/desktop"
-APP_BUNDLE="$DESKTOP_DIR/build/bin/Kaja.app"
-PKG_PATH="$DESKTOP_DIR/build/bin/Kaja.pkg"
+if [ "$PLATFORM" = "ios" ]; then
+    APP_BUNDLE="$DESKTOP_DIR/build/bin/ios/Kaja.app"
+    PKG_PATH="$DESKTOP_DIR/build/bin/ios/Kaja.ipa"
+else
+    APP_BUNDLE="$DESKTOP_DIR/build/bin/Kaja.app"
+    PKG_PATH="$DESKTOP_DIR/build/bin/Kaja.pkg"
+fi
 KEYCHAIN_NAME="build-$(uuidgen).keychain-db"
 KEYCHAIN_PASSWORD="$(uuidgen)"
 CREATED_KEYCHAIN=false
@@ -66,6 +81,7 @@ fi
 PRODUCT_VERSION=$(product_info version)
 
 echo "=== Kaja TestFlight build ==="
+echo "Platform:     $PLATFORM"
 echo "Version:      $PRODUCT_VERSION"
 echo "Build number: $BUILD_NUMBER"
 
@@ -77,7 +93,7 @@ if [ -n "${CI:-}" ]; then
     [ -z "${APPLE_API_ISSUER_ID:-}" ]            && missing+=(APPLE_API_ISSUER_ID)
     [ -z "${APPLE_API_KEY_BASE64:-}" ]           && missing+=(APPLE_API_KEY_BASE64)
     [ -z "${DISTRIBUTION_CERT_P12_BASE64:-}" ]   && missing+=(DISTRIBUTION_CERT_P12_BASE64)
-    [ -z "${INSTALLER_CERT_P12_BASE64:-}" ]      && missing+=(INSTALLER_CERT_P12_BASE64)
+    [ "$PLATFORM" = "macos" ] && [ -z "${INSTALLER_CERT_P12_BASE64:-}" ] && missing+=(INSTALLER_CERT_P12_BASE64)
     if [ ${#missing[@]} -gt 0 ]; then
         echo ""
         echo "error: missing required secrets in CI: ${missing[*]}"
@@ -126,7 +142,7 @@ if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ] || [ -n "${INSTALLER_CERT_P12_BASE
     if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ]; then
         import_cert "$DISTRIBUTION_CERT_P12_BASE64" "${DISTRIBUTION_CERT_PASSWORD:-}"
     fi
-    if [ -n "${INSTALLER_CERT_P12_BASE64:-}" ]; then
+    if [ "$PLATFORM" = "macos" ] && [ -n "${INSTALLER_CERT_P12_BASE64:-}" ]; then
         import_cert "$INSTALLER_CERT_P12_BASE64" "${INSTALLER_CERT_PASSWORD:-}"
     fi
 
@@ -136,40 +152,99 @@ if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ] || [ -n "${INSTALLER_CERT_P12_BASE
     security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
 fi
 
-# -- Build --
+# -- Build, sign and package --
 
-echo ""
-echo "--- Building desktop app (store)"
-GIT_REF="$PRODUCT_VERSION" "$SCRIPT_DIR/desktop-build"
+build_macos() {
+    echo ""
+    echo "--- Building desktop app (store)"
+    GIT_REF="$PRODUCT_VERSION" "$SCRIPT_DIR/desktop-build"
 
-if [ ! -d "$APP_BUNDLE" ]; then
-    echo "error: app bundle was not created at $APP_BUNDLE"
-    exit 1
-fi
+    if [ ! -d "$APP_BUNDLE" ]; then
+        echo "error: app bundle was not created at $APP_BUNDLE"
+        exit 1
+    fi
 
-# TestFlight requires a unique CFBundleVersion per upload; stamp it before signing
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
+    # TestFlight requires a unique CFBundleVersion per upload; stamp it before signing
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
 
-# -- Sign and package --
+    echo ""
+    echo "--- Signing and packaging"
+    cp "$DESKTOP_DIR/build/darwin/embedded.provisionprofile" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
-echo ""
-echo "--- Signing and packaging"
-cp "$DESKTOP_DIR/build/darwin/embedded.provisionprofile" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+    # The App Store rejects packages whose files carry quarantine attributes.
+    # Must run before signing so the clean state is sealed in.
+    xattr -cr "$APP_BUNDLE"
 
-# The App Store rejects packages whose files carry quarantine attributes.
-# Must run before signing so the clean state is sealed in.
-xattr -cr "$APP_BUNDLE"
+    codesign --force --options runtime --deep \
+        --sign "$APP_SIGNING_IDENTITY" \
+        --entitlements "$DESKTOP_DIR/build/darwin/entitlements.plist" \
+        "$APP_BUNDLE"
 
-codesign --force --options runtime --deep \
-    --sign "$APP_SIGNING_IDENTITY" \
-    --entitlements "$DESKTOP_DIR/build/darwin/entitlements.plist" \
-    "$APP_BUNDLE"
+    rm -f "$PKG_PATH"
+    productbuild \
+        --component "$APP_BUNDLE" /Applications \
+        --sign "$INSTALLER_SIGNING_IDENTITY" \
+        "$PKG_PATH"
+}
 
-rm -f "$PKG_PATH"
-productbuild \
-    --component "$APP_BUNDLE" /Applications \
-    --sign "$INSTALLER_SIGNING_IDENTITY" \
-    "$PKG_PATH"
+build_ios() {
+    echo ""
+    echo "--- Building iOS app (store)"
+    GIT_REF="$PRODUCT_VERSION" "$SCRIPT_DIR/ios" package IOS_PLATFORM=device
+
+    if [ ! -d "$APP_BUNDLE" ]; then
+        echo "error: app bundle was not created at $APP_BUNDLE"
+        exit 1
+    fi
+
+    local plist="$APP_BUNDLE/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$plist"
+
+    # Xcode writes these into every bundle it builds, and App Store Connect
+    # reads them to decide the app was built with an SDK it still accepts. The
+    # bundle is linked outside Xcode, so they are stated from the same toolchain.
+    local sdk_version sdk_build xcode_version xcode_build
+    sdk_version=$(xcrun --sdk iphoneos --show-sdk-version)
+    sdk_build=$(xcrun --sdk iphoneos --show-sdk-build-version)
+    xcode_version=$(xcodebuild -version | sed -n 's/^Xcode //p' | awk -F. '{ printf "%d%d%d", $1, $2, $3 }')
+    xcode_build=$(xcodebuild -version | sed -n 's/^Build version //p')
+    plutil -replace CFBundleSupportedPlatforms -json '["iPhoneOS"]' "$plist"
+    plutil -replace DTPlatformName -string iphoneos "$plist"
+    plutil -replace DTPlatformVersion -string "$sdk_version" "$plist"
+    plutil -replace DTPlatformBuild -string "$sdk_build" "$plist"
+    plutil -replace DTSDKName -string "iphoneos$sdk_version" "$plist"
+    plutil -replace DTSDKBuild -string "$sdk_build" "$plist"
+    plutil -replace DTCompiler -string com.apple.compilers.llvm.clang.1_0 "$plist"
+    plutil -replace DTXcode -string "$(printf '%04d' "$xcode_version")" "$plist"
+    plutil -replace DTXcodeBuild -string "$xcode_build" "$plist"
+    plutil -replace BuildMachineOSBuild -string "$(sw_vers -buildVersion)" "$plist"
+
+    echo ""
+    echo "--- Signing and packaging"
+    cp "$DESKTOP_DIR/build/ios/embedded.mobileprovision" "$APP_BUNDLE/embedded.mobileprovision"
+
+    # The development entitlements less get-task-allow, which a distribution
+    # profile does not grant and App Store Connect refuses.
+    local entitlements
+    entitlements="$(mktemp -d)/entitlements.plist"
+    cp "$DESKTOP_DIR/build/ios/entitlements.plist" "$entitlements"
+    plutil -remove get-task-allow "$entitlements"
+    plutil -replace beta-reports-active -bool true "$entitlements"
+
+    xattr -cr "$APP_BUNDLE"
+    codesign --force --sign "$APP_SIGNING_IDENTITY" --entitlements "$entitlements" "$APP_BUNDLE"
+    rm -rf "$(dirname "$entitlements")"
+
+    local staging
+    staging="$(mktemp -d)"
+    mkdir "$staging/Payload"
+    cp -R "$APP_BUNDLE" "$staging/Payload/"
+    rm -f "$PKG_PATH"
+    (cd "$staging" && zip -qry "$PKG_PATH" Payload)
+    rm -rf "$staging"
+}
+
+"build_$PLATFORM"
 
 # -- Upload --
 
@@ -178,7 +253,7 @@ if [ "${SKIP_UPLOAD:-}" = "true" ] || [ -z "${APPLE_API_KEY_ID:-}" ] || [ -z "${
     echo "=== Build $PRODUCT_VERSION ($BUILD_NUMBER) packaged at $PKG_PATH (no upload) ==="
 else
     echo "--- Uploading to App Store Connect"
-    xcrun altool --upload-app -f "$PKG_PATH" -t macos \
+    xcrun altool --upload-app -f "$PKG_PATH" -t "$PLATFORM" \
         --apiKey "$APPLE_API_KEY_ID" \
         --apiIssuer "$APPLE_API_ISSUER_ID"
     echo ""

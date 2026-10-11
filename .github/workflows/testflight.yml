@@ -9,6 +9,15 @@ on:
         description: "Override build number (defaults to github.run_number)"
         required: false
         type: string
+      platform:
+        description: "Which app to upload"
+        required: false
+        type: choice
+        options:
+          - both
+          - macos
+          - ios
+        default: both
 
 concurrency:
   group: testflight
@@ -19,9 +28,13 @@ permissions:
 
 jobs:
   deploy:
-    name: Upload to TestFlight
+    name: Upload ${{ matrix.platform }} to TestFlight
     runs-on: macos-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON((inputs.platform == 'macos' || inputs.platform == 'ios') && format('["{0}"]', inputs.platform) || '["macos","ios"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -38,7 +51,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Build and upload
-        run: scripts/testflight
+        run: scripts/testflight ${{ matrix.platform }}
         env:
           BUILD_NUMBER: ${{ github.event.inputs.build_number || github.run_number }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -52,7 +65,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: Kaja.pkg
-          path: desktop/build/bin/Kaja.pkg
+          name: Kaja-${{ matrix.platform }}
+          path: |
+            desktop/build/bin/Kaja.pkg
+            desktop/build/bin/ios/Kaja.ipa
           if-no-files-found: ignore
           retention-days: 7
