@@ -63,6 +63,21 @@ func TestWorkspaceStoreFallsBackWhenTheFolderIsGone(t *testing.T) {
 	}
 }
 
+func TestWorkspaceStoreFollowsTheDefaultWhenTheContainerMoves(t *testing.T) {
+	before := t.TempDir()
+	if err := newWorkspaceStore(before).open(defaultWorkspaceDir(before)); err != nil {
+		t.Fatal(err)
+	}
+	after := t.TempDir()
+	if err := os.Rename(filepath.Join(before, workspacesFileName), filepath.Join(after, workspacesFileName)); err != nil {
+		t.Fatal(err)
+	}
+	dir, missing := newWorkspaceStore(after).current()
+	if dir != defaultWorkspaceDir(after) || missing != "" {
+		t.Errorf("current = %q (missing %q), want the default in the moved container", dir, missing)
+	}
+}
+
 func TestDescribeWorkspacesNamesFoldersAndTellsTwinsApart(t *testing.T) {
 	defaultDir := "/containers/kaja"
 	got := describeWorkspaces(defaultDir, []string{defaultDir, "/work/acme/api", "/home/me/api", "/work/site"})

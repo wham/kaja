@@ -92,7 +92,12 @@ func (s *workspaceStore) known() []string {
 
 func (s *workspaceStore) open(dir string) error {
 	entries := s.load()
+	// The default is written as nothing: iOS moves the app's container on an update,
+	// so its path read back later names a folder that is gone.
 	entries.Current = dir
+	if dir == s.defaultDir {
+		entries.Current = ""
+	}
 	entries.Known = rememberWorkspace(s.defaultDir, entries.Known, dir)
 	return s.save(entries)
 }
@@ -250,7 +255,7 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	a.linkMu.Unlock()
 
 	a.app.Menu.Set(a.buildAppMenu())
-	a.window.Reload()
+	a.reloadWindow()
 	slog.Info("Opened workspace", "path", dir)
 }
 
