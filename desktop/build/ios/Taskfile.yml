@@ -209,11 +209,21 @@ tasks:
       - build/appicon.png
       - build/ios/Taskfile.yml
       - build/ios/Info.plist.tmpl
+      - build/ios/appicon.png
     generates:
       - build/ios/xcode/main/main.m
       - build/ios/xcode/main.xcodeproj/project.pbxproj
     cmds:
       - wails3 ios xcode:gen -outdir build/ios/xcode -config build/config.yml
+      # Wails draws the icons from build/appicon.png, the Mac's: a tile with
+      # transparent margins. iOS masks its own corners and App Store Connect
+      # refuses an icon with an alpha channel, so each is redrawn from an
+      # opaque, full-bleed square at the size Wails wrote it.
+      - |
+        for ICON in build/ios/xcode/main/Assets.xcassets/AppIcon.appiconset/*.png; do
+          SIZE=$(sips -g pixelWidth "$ICON" | awk '/pixelWidth/ { print $2 }')
+          sips -z "$SIZE" "$SIZE" build/ios/appicon.png --out "$ICON" >/dev/null
+        done
       # Wails' own plist names the executable `wailsapp`, which is not what
       # Xcode links, so a device refuses the bundle as having no executable.
       - bash -c '. ../scripts/common && product_plist ios/Info.plist.tmpl' > build/ios/xcode/main/Info.plist
