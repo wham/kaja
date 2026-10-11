@@ -52,7 +52,7 @@ import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
-import { monacoTheme, surfaceColor } from "./monacoTheme";
+import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { logFileLevel } from "./scriptConsole";
@@ -90,7 +90,7 @@ import { setVariables } from "./variableExpansion";
 import { appVariableUses } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
-import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowTitle } from "./wails";
+import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowBackground, setWindowTitle } from "./wails";
 import {
   canWriteScripts,
   copyScriptFile,
@@ -1033,6 +1033,9 @@ export function App() {
     document.body.style.backgroundColor = surfaceColor(colorMode);
     // The class goes on <html> so Base UI portals (rendered into <body>) are themed too.
     document.documentElement.classList.toggle("dark", colorMode === "night");
+    if (isWailsEnvironment()) {
+      setWindowBackground(chromeColor(colorMode));
+    }
   }, [colorMode]);
 
   // Read from the list, not the view: running or appending re-derives the title

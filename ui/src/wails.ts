@@ -85,6 +85,13 @@ export function getClipboardText(): Promise<string> {
 }
 
 /** Sets the window's title. */
+export function setWindowBackground(hex: string): void {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  runtime()
+    .then(({ Window }) => Window.SetBackgroundColour(r, g, b, 255))
+    .catch(() => {});
+}
+
 export function setWindowTitle(title: string): void {
   runtime()
     .then(({ Window }) => Window.SetTitle(title))
