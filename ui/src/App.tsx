@@ -2857,6 +2857,7 @@ export function App() {
               recent={recent}
               elsewhere={elsewhere}
               workspace={phoneWorkspace}
+              workspaces={workspaceControl}
               apps={apps}
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
               onNewApp={runtime.canUpdateConfiguration ? onNewAppClick : undefined}

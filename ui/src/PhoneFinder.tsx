@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
-import { Ban, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, Plus, Search, X } from "lucide-react";
+import { Ban, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Method, Service } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
@@ -8,6 +8,7 @@ import { countMethods, isCompiling } from "./compileSummary";
 import { FileName } from "./FileName";
 import { Destination, matchesDestination } from "./Finder";
 import { matchParts, methodTag } from "./phone";
+import { WorkspaceControl } from "./StatusBar";
 import { unsupportedReason } from "./streaming";
 import { useMediaQuery } from "./useMediaQuery";
 
@@ -20,6 +21,8 @@ interface PhoneFinderProps {
   elsewhere: Destination[];
   // Kaja's own views, each carrying the state the status bar would have shown.
   workspace: Destination[];
+  // The status bar's workspace menu, which the phone has no status bar to hold.
+  workspaces?: WorkspaceControl;
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
   // Absent where the configuration can't be written.
@@ -36,7 +39,7 @@ interface PhoneFinderProps {
  * views; with one it is the same ranked list the desktop finder gives, with nothing
  * between the rows.
  */
-export function PhoneFinder({ recent, elsewhere, workspace, apps, onSelectMethod, onNewApp, errorCount, open, onOpenChange }: PhoneFinderProps) {
+export function PhoneFinder({ recent, elsewhere, workspace, workspaces, apps, onSelectMethod, onNewApp, errorCount, open, onOpenChange }: PhoneFinderProps) {
   const [query, setQuery] = useState("");
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -252,6 +255,37 @@ export function PhoneFinder({ recent, elsewhere, workspace, apps, onSelectMethod
                   {workspace.map((destination) => (
                     <DestinationRow key={destination.key} destination={destination} onSelect={() => select(destination)} />
                   ))}
+
+                  {workspaces && (
+                    <>
+                      <Divider />
+                      <SectionHeader>Workspace</SectionHeader>
+                      {workspaces.known.map((known) => {
+                        const current = known.dir === workspaces.current.dir;
+                        return (
+                          <Row
+                            key={known.dir}
+                            onClick={() => {
+                              if (!current) workspaces.onOpen(known.dir);
+                              onOpenChange(false);
+                            }}
+                          >
+                            <Check size={16} className={cn("shrink-0", !current && "invisible")} />
+                            <span className="min-w-0 flex-1 truncate text-sm">{known.name}</span>
+                          </Row>
+                        );
+                      })}
+                      <Row
+                        onClick={() => {
+                          workspaces.onChoose();
+                          onOpenChange(false);
+                        }}
+                      >
+                        <FolderOpen size={16} className="shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">Open workspace…</span>
+                      </Row>
+                    </>
+                  )}
                 </>
               )}
             </div>

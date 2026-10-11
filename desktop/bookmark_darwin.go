@@ -1,4 +1,4 @@
-//go:build darwin && !ios
+//go:build darwin
 
 package main
 
@@ -8,6 +8,17 @@ package main
 
 #import <Foundation/Foundation.h>
 #include <stdlib.h>
+#include <TargetConditionals.h>
+
+// iOS has no security-scope options: a bookmark made while a picked URL is being
+// accessed carries the scope on its own.
+#if TARGET_OS_IOS
+#define KAJA_BOOKMARK_CREATION 0
+#define KAJA_BOOKMARK_RESOLUTION 0
+#else
+#define KAJA_BOOKMARK_CREATION NSURLBookmarkCreationWithSecurityScope
+#define KAJA_BOOKMARK_RESOLUTION NSURLBookmarkResolutionWithSecurityScope
+#endif
 
 // createBookmark creates an app-scoped security-scoped bookmark from a file path.
 // Returns the bookmark data as bytes, or NULL on failure.
@@ -17,7 +28,7 @@ static void* createBookmark(const char* path, int* outLen) {
         NSURL *url = [NSURL fileURLWithPath:nsPath];
 
         NSError *error = nil;
-        NSData *bookmark = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+        NSData *bookmark = [url bookmarkDataWithOptions:KAJA_BOOKMARK_CREATION
                         includingResourceValuesForKeys:nil
                                          relativeToURL:nil
                                                  error:&error];
@@ -43,7 +54,7 @@ static const char* resolveBookmark(const void* data, int dataLen, int* isStale) 
         BOOL stale = NO;
         NSError *error = nil;
         NSURL *url = [NSURL URLByResolvingBookmarkData:bookmarkData
-                                               options:NSURLBookmarkResolutionWithSecurityScope
+                                               options:KAJA_BOOKMARK_RESOLUTION
                                          relativeToURL:nil
                                    bookmarkDataIsStale:&stale
                                                  error:&error];
