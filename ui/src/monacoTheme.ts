@@ -5,8 +5,8 @@ import * as monaco from "monaco-editor";
 // on --background, the deepest plane in the system, and the widgets it floats
 // (suggestions, hovers) sit on --popover with a --border hairline.
 const surfaces = {
-  night: { background: "#0a0a0a", widget: "#171717", border: "#ffffff1a", accent: "#404040", destructive: "#e57373" },
-  day: { background: "#ffffff", widget: "#ffffff", border: "#e5e5e5", accent: "#f5f5f5", destructive: "#e7000b" },
+  night: { background: "#0a0a0a", chrome: "#171717", widget: "#171717", border: "#ffffff1a", accent: "#404040", destructive: "#e57373" },
+  day: { background: "#ffffff", chrome: "#f5f5f5", widget: "#ffffff", border: "#e5e5e5", accent: "#f5f5f5", destructive: "#e7000b" },
 };
 
 // Three hues, all of them Kaja's own — emerald for strings, amber for numbers
@@ -103,6 +103,12 @@ export function monacoTheme(colorMode: ColorMode): string {
 // The window's own background, for the document body behind the app.
 export function surfaceColor(colorMode: ColorMode): string {
   return surfaces[colorMode].background;
+}
+
+// What the native window shows around the webview: on iOS the status bar and the
+// home indicator, which border the header and the code sheet's grabber.
+export function chromeColor(colorMode: ColorMode): string {
+  return surfaces[colorMode].chrome;
 }
 
 /**

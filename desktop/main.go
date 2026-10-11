@@ -539,7 +539,7 @@ func main() {
 		Height:           900,
 		MinWidth:         400,
 		MinHeight:        270,
-		BackgroundColour: application.NewRGB(27, 38, 54),
+		BackgroundColour: application.NewRGB(23, 23, 23),
 		Mac: application.MacWindow{
 			TitleBar: application.MacTitleBarHidden,
 		},
