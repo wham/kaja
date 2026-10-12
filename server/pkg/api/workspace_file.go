@@ -14,51 +14,51 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func LoadGetConfigurationResponse(configurationPath string) *GetConfigurationResponse {
+func LoadGetWorkspaceResponse(workspaceFile string) *GetWorkspaceResponse {
 	logger := NewLogger()
-	logger.info(fmt.Sprintf("configurationPath %s", configurationPath))
-	configuration := loadConfigurationFile(configurationPath, logger)
+	logger.info(fmt.Sprintf("Workspace file %s", workspaceFile))
+	workspace := loadWorkspaceFile(workspaceFile, logger)
 
-	applyEnvironmentVariables(configuration, logger)
-	normalize(configuration, logger)
-	validateApps(configuration, logger)
+	applyEnvironmentVariables(workspace, logger)
+	normalize(workspace, logger)
+	validateApps(workspace, logger)
 
-	return &GetConfigurationResponse{Configuration: configuration, Logs: logger.logs}
+	return &GetWorkspaceResponse{Workspace: workspace, Logs: logger.logs}
 }
 
-func loadConfigurationFile(configurationPath string, logger *Logger) *Configuration {
-	configuration := &Configuration{
-		Apps: []*ConfigurationApp{},
+func loadWorkspaceFile(workspaceFile string, logger *Logger) *Workspace {
+	workspace := &Workspace{
+		Apps: []*WorkspaceApp{},
 	}
 
-	logger.debug(fmt.Sprintf("Trying to load configuration from file %s", configurationPath))
-	file, err := os.Open(configurationPath)
+	logger.debug(fmt.Sprintf("Trying to load workspace from file %s", workspaceFile))
+	file, err := os.Open(workspaceFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.info(fmt.Sprintf("Configuration file %s not found.", configurationPath))
+			logger.info(fmt.Sprintf("Workspace file %s not found.", workspaceFile))
 		} else {
-			logger.error(fmt.Sprintf("Failed opening configuration file %s", configurationPath), err)
+			logger.error(fmt.Sprintf("Failed opening workspace file %s", workspaceFile), err)
 		}
-		return configuration
+		return workspace
 	}
 	defer file.Close()
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
-		logger.error(fmt.Sprintf("Failed to read configuration file %s", configurationPath), err)
-		return configuration
+		logger.error(fmt.Sprintf("Failed to read workspace file %s", workspaceFile), err)
+		return workspace
 	}
 
-	fileContent = migrateConfiguration(fileContent, logger)
+	fileContent = migrateWorkspace(fileContent, logger)
 
-	if err := protojson.Unmarshal(fileContent, configuration); err != nil {
-		logger.error(fmt.Sprintf("Failed to unmarshal configuration file %s", configurationPath), err)
+	if err := protojson.Unmarshal(fileContent, workspace); err != nil {
+		logger.error(fmt.Sprintf("Failed to unmarshal workspace file %s", workspaceFile), err)
 	}
 
-	return configuration
+	return workspace
 }
 
-// migrateConfiguration drops the config shapes kaja no longer declares. Reserving a
+// migrateWorkspace drops the config shapes kaja no longer declares. Reserving a
 // field only stops the schema from reusing it - protojson still rejects the key as
 // unknown and fails the whole file - so a retired shape has to be taken out here:
 //
@@ -67,11 +67,11 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 //     e.g. { "name", "grpc": { "url", ... } }. (The earlier "apps" form never
 //     shipped, so only "projects" needs migrating.)
 //   - a "system" block, which described the running kaja rather than the workspace.
-//     Earlier versions wrote it into every file they saved, so configurations in the
+//     Earlier versions wrote it into every file they saved, so workspaces in the
 //     wild still carry one. It is `Runtime` now, and is discarded rather than moved.
 //   - a "markdown" app, whose methods each rendered one Markdown construct into a
 //     file. It is the general "folder" app now, bound to the same folder.
-func migrateConfiguration(content []byte, logger *Logger) []byte {
+func migrateWorkspace(content []byte, logger *Logger) []byte {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(content, &raw); err != nil {
 		// Leave it to protojson to report the parse error.
@@ -124,7 +124,7 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 
 	migrated, err := json.Marshal(raw)
 	if err != nil {
-		logger.error("Failed to encode migrated configuration", err)
+		logger.error("Failed to encode migrated workspace", err)
 		return content
 	}
 	return migrated
@@ -178,7 +178,7 @@ func legacyProjectToApp(project map[string]any) map[string]any {
 // as a string map, the shape the in-process app contract consumes. The headers map
 // is excluded (it is forwarded per request, not a creation parameter); booleans
 // render as "true"/"false"; unset (default) fields are omitted.
-func flattenApp(app *ConfigurationApp) (string, map[string]string) {
+func flattenApp(app *WorkspaceApp) (string, map[string]string) {
 	params := map[string]string{}
 	if app == nil {
 		return "", params
@@ -249,61 +249,61 @@ func boolField(m map[string]any, keys ...string) bool {
 	return false
 }
 
-func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
+func applyEnvironmentVariables(workspace *Workspace, logger *Logger) {
 	// Reserved for future environment variable overrides
 }
 
-func normalize(configuration *Configuration, logger *Logger) {
-	pathPrefix := strings.Trim(configuration.PathPrefix, "/")
+func normalize(workspace *Workspace, logger *Logger) {
+	pathPrefix := strings.Trim(workspace.PathPrefix, "/")
 	if pathPrefix != "" {
 		pathPrefix = "/" + pathPrefix
 	}
-	if configuration.PathPrefix != pathPrefix {
-		configuration.PathPrefix = pathPrefix
-		logger.debug(fmt.Sprintf("pathPrefix normalized from \"%s\" to \"%s\"", configuration.PathPrefix, pathPrefix))
+	if workspace.PathPrefix != pathPrefix {
+		workspace.PathPrefix = pathPrefix
+		logger.debug(fmt.Sprintf("pathPrefix normalized from \"%s\" to \"%s\"", workspace.PathPrefix, pathPrefix))
 	}
 }
 
-func validateApps(configuration *Configuration, logger *Logger) {
-	validApps := []*ConfigurationApp{}
-	for _, app := range configuration.Apps {
+func validateApps(workspace *Workspace, logger *Logger) {
+	validApps := []*WorkspaceApp{}
+	for _, app := range workspace.Apps {
 		if appType, _ := flattenApp(app); appType == "" {
 			logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, folder, mcp.", app.Name), nil)
 			continue
 		}
 		validApps = append(validApps, app)
 	}
-	configuration.Apps = validApps
+	workspace.Apps = validApps
 }
 
-// SaveConfiguration writes kaja.json.
+// SaveWorkspace writes kaja.json.
 //
 // protojson lays the file out, and encoding/json lays it out again: protojson
 // varies its own whitespace on purpose - a space after the colon, or two,
-// settled per binary - so the same configuration written by two builds of kaja
+// settled per binary - so the same workspace written by two builds of kaja
 // is two files. kaja.json is a file people keep in a repository, and a diff
 // that touches every line because a variable was added is a diff nobody can
 // read. json.Indent writes its own separators over a compact encoding, so what
 // lands on disk depends on the content and nothing else. The trailing newline
 // is there for the same reason: it is what every other tool writing this file
 // would leave.
-func SaveConfiguration(configurationPath string, configuration *Configuration) error {
+func SaveWorkspace(workspaceFile string, workspace *Workspace) error {
 	compact, err := protojson.MarshalOptions{
 		// Emit snake_case field names (proto_dir, spec_url) in kaja.json.
 		UseProtoNames: true,
-	}.Marshal(configuration)
+	}.Marshal(workspace)
 	if err != nil {
-		return fmt.Errorf("failed to marshal configuration: %w", err)
+		return fmt.Errorf("failed to marshal workspace: %w", err)
 	}
 
 	var indented bytes.Buffer
 	if err := json.Indent(&indented, compact, "", "  "); err != nil {
-		return fmt.Errorf("failed to format configuration: %w", err)
+		return fmt.Errorf("failed to format workspace: %w", err)
 	}
 	indented.WriteByte('\n')
 
-	if err := os.WriteFile(configurationPath, indented.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write configuration file: %w", err)
+	if err := os.WriteFile(workspaceFile, indented.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write workspace file: %w", err)
 	}
 
 	return nil

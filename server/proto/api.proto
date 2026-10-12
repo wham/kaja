@@ -17,16 +17,12 @@ service Api {
   // and the last one says how it went once the server has sent the person back.
   rpc AuthorizeMcp(AuthorizeMcpRequest) returns (stream AuthorizeMcpResponse);
   rpc ForgetMcpAuthorization(ForgetMcpAuthorizationRequest) returns (ForgetMcpAuthorizationResponse);
-  rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
-  // WatchConfiguration streams the configuration file as it is edited: one message
-  // carrying the whole configuration each time the file changes. What changed is
-  // never asked for afterwards, because the message is the new configuration.
-  rpc WatchConfiguration(WatchConfigurationRequest) returns (stream GetConfigurationResponse);
-  rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
-  // SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
-  // an occasion to resend the apps and variables beside it, so the file is read again
-  // where it is written rather than travelling here and back.
-  rpc SetMcpEnabled(SetMcpEnabledRequest) returns (SetMcpEnabledResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+  // WatchWorkspace streams kaja.json as it is edited: one message carrying the
+  // whole workspace each time the file changes. What changed is never asked for
+  // afterwards, because the message is the new workspace.
+  rpc WatchWorkspace(WatchWorkspaceRequest) returns (stream GetWorkspaceResponse);
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
   rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
@@ -60,7 +56,7 @@ enum OpenStatus {
 // files to feed into Compile and an invocation target. The server flattens the app's
 // typed parameters to a string map for the in-process app contract.
 message OpenAppRequest {
-  ConfigurationApp app = 1;
+  WorkspaceApp app = 1;
 }
 
 message OpenAppResponse {
@@ -415,12 +411,12 @@ message Source {
   string content = 2;
 }
 
-message GetConfigurationRequest {}
+message GetWorkspaceRequest {}
 
-message WatchConfigurationRequest {}
+message WatchWorkspaceRequest {}
 
-message GetConfigurationResponse {
-  Configuration configuration = 1;
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
   repeated Log logs = 2;
   // Where each configured variable's value came from, one entry per variable.
   // Neither the file nor the process, but the result of resolving one against
@@ -438,7 +434,7 @@ message Runtime {
   // scripts beside it alike. True in the desktop app, which owns its
   // workspace; false in the server, which serves a workspace managed outside
   // kaja - unless it was started with --editable.
-  bool can_update_configuration = 1;
+  bool can_update_workspace = 1;
   // Git commit hash or tag for the currently running version
   string git_ref = 2;
   // TestFlight/App Store build number (CFBundleVersion), empty for other builds
@@ -496,7 +492,7 @@ message StoredValueResponse {
 // these RPCs over the mux its webview already speaks, a browser fetches them
 // over the wire - which is what puts a script mounted into a container in the
 // sidebar. Writing is the verb a kaja that does not own its workspace refuses,
-// on the one answer `can_update_configuration` reports.
+// on the one answer `can_update_workspace` reports.
 message Script {
   // Absolute path on the machine serving the workspace. It identifies the script
   // (the console and the run store are keyed on it) and is not a handle the
@@ -630,7 +626,7 @@ message CopyScriptFolderResponse {
 }
 
 // ScanScriptVariables reports which scripts reference the named variables. An
-// app's references are read out of the configuration the client already holds;
+// app's references are read out of the workspace the client already holds;
 // a script's cost a read of the file, so they are answered here, in one walk of
 // the scripts folder, rather than a search per variable the client has to pace.
 //
@@ -662,16 +658,16 @@ message ScanScriptVariablesResponse {
   bool truncated = 2;
 }
 
-message Configuration {
+message Workspace {
   // kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// This field is used to set the subpath.
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
   string path_prefix = 1;
-  // Apps are the single unit of configuration. A gRPC or Twirp service is just an
+  // Apps are the single unit of a workspace. A gRPC or Twirp service is just an
   // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
   // are apps too. kaja renders and invokes every app the same way.
-  repeated ConfigurationApp apps = 5;
+  repeated WorkspaceApp apps = 5;
   // User-defined variables, referenced as `${NAME}` in app configuration and read
   // from scripts as `kaja.variables.<name>`. A value is either literal, or names
   // the source that holds it outside this file: "${secret}" (the OS keychain, or
@@ -681,25 +677,24 @@ message Configuration {
   map<string, string> variables = 6;
   // Keyboard shortcut overrides, keyed by the action's own id ("run",
   // "finder", ...) and holding one binding written in the canonical form the UI
-  // parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
-  // keeps the shortcut kaja ships, and an empty binding is an action deliberately
-  // left without one. It is configuration rather than a preference of the machine
-  // so a workspace served to a browser can state its own.
+  // parses ("Mod+Shift+N"). An action nothing names keeps the shortcut kaja
+  // ships, and an empty binding is an action deliberately left without one. Only
+  // ever written by hand: a key somebody records is theirs and goes in their
+  // settings, which win over this. What the workspace says is where a person who
+  // has set nothing starts.
   map<string, string> shortcuts = 7;
-  // Whether this workspace offers an agent session at all. On the desktop it is the
-  // switch itself: the process reads it at startup to decide whether to open the
-  // loopback listener, and writes it back when the switch is flipped. In a browser the
-  // switch belongs to the browser, because the token does - so this is only where a
-  // browser that has never chosen starts, which is what lets a deployed workspace ship
-  // an agent session that is already on.
-  McpSettings mcp = 8;
+  // Where a browser that has never flipped the agent-session switch starts, which
+  // is what lets a deployed workspace ship a session that is already on. Only ever
+  // written by hand, and read by the web alone: the switch is the person's, and on
+  // the desktop a folder somebody cloned must not be what opens a listener.
+  WorkspaceMcp mcp = 8;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.
   reserved 2;
   reserved "projects";
   // Field 4 used to hold a `system` block describing the running kaja. Those are
-  // facts about the process, not configuration, and they live on `Runtime` now.
+  // facts about the process, not the workspace, and they live on `Runtime` now.
   reserved 4;
   reserved "system";
   // Field 9 named a scripts folder apart from this file's own. The scripts are
@@ -708,19 +703,17 @@ message Configuration {
   reserved "scripts_dir";
 }
 
-// McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
-// the endpoint and the token are addresses rather than configuration, so neither is
-// written here - the desktop persists its token beside this file and a browser keeps
-// its own.
-message McpSettings {
+// WorkspaceMcp is what kaja.json says about the agent session. Only `enabled`: the
+// endpoint and the token are addresses, and both are the person's.
+message WorkspaceMcp {
   bool enabled = 1;
 }
 
-// ConfigurationApp is one app: a name and exactly one typed block whose key is the
+// WorkspaceApp is one app: a name and exactly one typed block whose key is the
 // app's type. The block declares the parameters that type needs (so two types can
 // never be mixed in one app); the server flattens its scalar fields to a string map
 // for the app contract.
-message ConfigurationApp {
+message WorkspaceApp {
   string name = 1;
   oneof app {
     GrpcApp grpc = 2;
@@ -865,23 +858,12 @@ message McpApp {
   string scope = 7;
 }
 
-message UpdateConfigurationRequest {
-  Configuration configuration = 1;
+message UpdateWorkspaceRequest {
+  Workspace workspace = 1;
 }
 
-message UpdateConfigurationResponse {
-  Configuration configuration = 1;
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
   // Where each variable's value came from, re-resolved against what was saved.
   repeated VariableStatus variable_status = 2;
-}
-
-message SetMcpEnabledRequest {
-  bool enabled = 1;
-}
-
-message SetMcpEnabledResponse {
-  // What the file says now, which is what every window is about to be told by
-  // WatchConfiguration anyway - answered here so the window that asked need not wait
-  // for its own change to come back round.
-  McpSettings mcp = 1;
 }

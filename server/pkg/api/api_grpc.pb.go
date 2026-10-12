@@ -27,10 +27,9 @@ const (
 	Api_InspectMcp_FullMethodName             = "/Api/InspectMcp"
 	Api_AuthorizeMcp_FullMethodName           = "/Api/AuthorizeMcp"
 	Api_ForgetMcpAuthorization_FullMethodName = "/Api/ForgetMcpAuthorization"
-	Api_GetConfiguration_FullMethodName       = "/Api/GetConfiguration"
-	Api_WatchConfiguration_FullMethodName     = "/Api/WatchConfiguration"
-	Api_UpdateConfiguration_FullMethodName    = "/Api/UpdateConfiguration"
-	Api_SetMcpEnabled_FullMethodName          = "/Api/SetMcpEnabled"
+	Api_GetWorkspace_FullMethodName           = "/Api/GetWorkspace"
+	Api_WatchWorkspace_FullMethodName         = "/Api/WatchWorkspace"
+	Api_UpdateWorkspace_FullMethodName        = "/Api/UpdateWorkspace"
 	Api_SetStoredValue_FullMethodName         = "/Api/SetStoredValue"
 	Api_ClearStoredValue_FullMethodName       = "/Api/ClearStoredValue"
 	Api_ListScripts_FullMethodName            = "/Api/ListScripts"
@@ -66,16 +65,12 @@ type ApiClient interface {
 	// and the last one says how it went once the server has sent the person back.
 	AuthorizeMcp(ctx context.Context, in *AuthorizeMcpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AuthorizeMcpResponse], error)
 	ForgetMcpAuthorization(ctx context.Context, in *ForgetMcpAuthorizationRequest, opts ...grpc.CallOption) (*ForgetMcpAuthorizationResponse, error)
-	GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*GetConfigurationResponse, error)
-	// WatchConfiguration streams the configuration file as it is edited: one message
-	// carrying the whole configuration each time the file changes. What changed is
-	// never asked for afterwards, because the message is the new configuration.
-	WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error)
-	UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error)
-	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
-	// an occasion to resend the apps and variables beside it, so the file is read again
-	// where it is written rather than travelling here and back.
-	SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error)
+	GetWorkspace(ctx context.Context, in *GetWorkspaceRequest, opts ...grpc.CallOption) (*GetWorkspaceResponse, error)
+	// WatchWorkspace streams kaja.json as it is edited: one message carrying the
+	// whole workspace each time the file changes. What changed is never asked for
+	// afterwards, because the message is the new workspace.
+	WatchWorkspace(ctx context.Context, in *WatchWorkspaceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetWorkspaceResponse], error)
+	UpdateWorkspace(ctx context.Context, in *UpdateWorkspaceRequest, opts ...grpc.CallOption) (*UpdateWorkspaceResponse, error)
 	SetStoredValue(ctx context.Context, in *SetStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
@@ -199,23 +194,23 @@ func (c *apiClient) ForgetMcpAuthorization(ctx context.Context, in *ForgetMcpAut
 	return out, nil
 }
 
-func (c *apiClient) GetConfiguration(ctx context.Context, in *GetConfigurationRequest, opts ...grpc.CallOption) (*GetConfigurationResponse, error) {
+func (c *apiClient) GetWorkspace(ctx context.Context, in *GetWorkspaceRequest, opts ...grpc.CallOption) (*GetWorkspaceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetConfigurationResponse)
-	err := c.cc.Invoke(ctx, Api_GetConfiguration_FullMethodName, in, out, cOpts...)
+	out := new(GetWorkspaceResponse)
+	err := c.cc.Invoke(ctx, Api_GetWorkspace_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) WatchConfiguration(ctx context.Context, in *WatchConfigurationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConfigurationResponse], error) {
+func (c *apiClient) WatchWorkspace(ctx context.Context, in *WatchWorkspaceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetWorkspaceResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[2], Api_WatchConfiguration_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[2], Api_WatchWorkspace_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[WatchConfigurationRequest, GetConfigurationResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[WatchWorkspaceRequest, GetWorkspaceResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -226,22 +221,12 @@ func (c *apiClient) WatchConfiguration(ctx context.Context, in *WatchConfigurati
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Api_WatchConfigurationClient = grpc.ServerStreamingClient[GetConfigurationResponse]
+type Api_WatchWorkspaceClient = grpc.ServerStreamingClient[GetWorkspaceResponse]
 
-func (c *apiClient) UpdateConfiguration(ctx context.Context, in *UpdateConfigurationRequest, opts ...grpc.CallOption) (*UpdateConfigurationResponse, error) {
+func (c *apiClient) UpdateWorkspace(ctx context.Context, in *UpdateWorkspaceRequest, opts ...grpc.CallOption) (*UpdateWorkspaceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateConfigurationResponse)
-	err := c.cc.Invoke(ctx, Api_UpdateConfiguration_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) SetMcpEnabled(ctx context.Context, in *SetMcpEnabledRequest, opts ...grpc.CallOption) (*SetMcpEnabledResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SetMcpEnabledResponse)
-	err := c.cc.Invoke(ctx, Api_SetMcpEnabled_FullMethodName, in, out, cOpts...)
+	out := new(UpdateWorkspaceResponse)
+	err := c.cc.Invoke(ctx, Api_UpdateWorkspace_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -416,16 +401,12 @@ type ApiServer interface {
 	// and the last one says how it went once the server has sent the person back.
 	AuthorizeMcp(*AuthorizeMcpRequest, grpc.ServerStreamingServer[AuthorizeMcpResponse]) error
 	ForgetMcpAuthorization(context.Context, *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error)
-	GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error)
-	// WatchConfiguration streams the configuration file as it is edited: one message
-	// carrying the whole configuration each time the file changes. What changed is
-	// never asked for afterwards, because the message is the new configuration.
-	WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error
-	UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error)
-	// SetMcpEnabled writes the agent-session switch and nothing else. Flipping it is not
-	// an occasion to resend the apps and variables beside it, so the file is read again
-	// where it is written rather than travelling here and back.
-	SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error)
+	GetWorkspace(context.Context, *GetWorkspaceRequest) (*GetWorkspaceResponse, error)
+	// WatchWorkspace streams kaja.json as it is edited: one message carrying the
+	// whole workspace each time the file changes. What changed is never asked for
+	// afterwards, because the message is the new workspace.
+	WatchWorkspace(*WatchWorkspaceRequest, grpc.ServerStreamingServer[GetWorkspaceResponse]) error
+	UpdateWorkspace(context.Context, *UpdateWorkspaceRequest) (*UpdateWorkspaceResponse, error)
 	SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error)
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
@@ -474,17 +455,14 @@ func (UnimplementedApiServer) AuthorizeMcp(*AuthorizeMcpRequest, grpc.ServerStre
 func (UnimplementedApiServer) ForgetMcpAuthorization(context.Context, *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ForgetMcpAuthorization not implemented")
 }
-func (UnimplementedApiServer) GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetConfiguration not implemented")
+func (UnimplementedApiServer) GetWorkspace(context.Context, *GetWorkspaceRequest) (*GetWorkspaceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorkspace not implemented")
 }
-func (UnimplementedApiServer) WatchConfiguration(*WatchConfigurationRequest, grpc.ServerStreamingServer[GetConfigurationResponse]) error {
-	return status.Error(codes.Unimplemented, "method WatchConfiguration not implemented")
+func (UnimplementedApiServer) WatchWorkspace(*WatchWorkspaceRequest, grpc.ServerStreamingServer[GetWorkspaceResponse]) error {
+	return status.Error(codes.Unimplemented, "method WatchWorkspace not implemented")
 }
-func (UnimplementedApiServer) UpdateConfiguration(context.Context, *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UpdateConfiguration not implemented")
-}
-func (UnimplementedApiServer) SetMcpEnabled(context.Context, *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SetMcpEnabled not implemented")
+func (UnimplementedApiServer) UpdateWorkspace(context.Context, *UpdateWorkspaceRequest) (*UpdateWorkspaceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateWorkspace not implemented")
 }
 func (UnimplementedApiServer) SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetStoredValue not implemented")
@@ -681,67 +659,49 @@ func _Api_ForgetMcpAuthorization_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_GetConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetConfigurationRequest)
+func _Api_GetWorkspace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkspaceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).GetConfiguration(ctx, in)
+		return srv.(ApiServer).GetWorkspace(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Api_GetConfiguration_FullMethodName,
+		FullMethod: Api_GetWorkspace_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetConfiguration(ctx, req.(*GetConfigurationRequest))
+		return srv.(ApiServer).GetWorkspace(ctx, req.(*GetWorkspaceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_WatchConfiguration_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WatchConfigurationRequest)
+func _Api_WatchWorkspace_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchWorkspaceRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ApiServer).WatchConfiguration(m, &grpc.GenericServerStream[WatchConfigurationRequest, GetConfigurationResponse]{ServerStream: stream})
+	return srv.(ApiServer).WatchWorkspace(m, &grpc.GenericServerStream[WatchWorkspaceRequest, GetWorkspaceResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Api_WatchConfigurationServer = grpc.ServerStreamingServer[GetConfigurationResponse]
+type Api_WatchWorkspaceServer = grpc.ServerStreamingServer[GetWorkspaceResponse]
 
-func _Api_UpdateConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateConfigurationRequest)
+func _Api_UpdateWorkspace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateWorkspaceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).UpdateConfiguration(ctx, in)
+		return srv.(ApiServer).UpdateWorkspace(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Api_UpdateConfiguration_FullMethodName,
+		FullMethod: Api_UpdateWorkspace_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).UpdateConfiguration(ctx, req.(*UpdateConfigurationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_SetMcpEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetMcpEnabledRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).SetMcpEnabled(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Api_SetMcpEnabled_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).SetMcpEnabled(ctx, req.(*SetMcpEnabledRequest))
+		return srv.(ApiServer).UpdateWorkspace(ctx, req.(*UpdateWorkspaceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1048,16 +1008,12 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Api_ForgetMcpAuthorization_Handler,
 		},
 		{
-			MethodName: "GetConfiguration",
-			Handler:    _Api_GetConfiguration_Handler,
+			MethodName: "GetWorkspace",
+			Handler:    _Api_GetWorkspace_Handler,
 		},
 		{
-			MethodName: "UpdateConfiguration",
-			Handler:    _Api_UpdateConfiguration_Handler,
-		},
-		{
-			MethodName: "SetMcpEnabled",
-			Handler:    _Api_SetMcpEnabled_Handler,
+			MethodName: "UpdateWorkspace",
+			Handler:    _Api_UpdateWorkspace_Handler,
 		},
 		{
 			MethodName: "SetStoredValue",
@@ -1132,8 +1088,8 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "WatchConfiguration",
-			Handler:       _Api_WatchConfiguration_Handler,
+			StreamName:    "WatchWorkspace",
+			Handler:       _Api_WatchWorkspace_Handler,
 			ServerStreams: true,
 		},
 	},

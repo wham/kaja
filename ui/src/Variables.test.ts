@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { shouldAdoptIncomingVariables } from "./Variables";
 
 describe("shouldAdoptIncomingVariables", () => {
-  it("adopts an external update when the table still matches the previous configuration", () => {
+  it("adopts an external update when the table still matches the previous workspace", () => {
     expect(shouldAdoptIncomingVariables({ A: "old" }, { A: "old" }, { A: "external" }, { A: "saved" }, true)).toBe(true);
   });
 

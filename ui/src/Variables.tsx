@@ -804,7 +804,7 @@ function DeleteDialog({
   );
 }
 
-// A read-only configuration can't be edited into shape, so the row is the wiring
+// A read-only workspace can't be edited into shape, so the row is the wiring
 // information instead: the name, where the value comes from, and whether it arrived.
 function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?: VariableStatus; usedBy: ReactNode }) {
   const kind = variableKind(row.value);
@@ -837,7 +837,7 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
 }
 
 // The column is never a dead number: it states a finding, or shows the scan running,
-// or offers to run it again. App references are read from the configuration, so they
+// or offers to run it again. App references are read from the workspace, so they
 // are there on load; script references are the scan's.
 function UsedBy({
   name,

@@ -8,6 +8,6 @@ export {
 
 export {
     MCPInfo,
-    Workspace,
+    WorkspaceFolder,
     WorkspacesInfo
 } from "./models.js";

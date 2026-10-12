@@ -68,12 +68,28 @@ export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: strin
 }
 
 /**
- * SetMCPServerEnabled starts or stops the loopback server, writes the switch into
- * kaja.json so the next launch comes up the same way, and returns its new state.
+ * SetMCPServerEnabled starts or stops the loopback server, writes the switch into the
+ * settings so the next launch comes up the same way, and returns its new state.
  */
 export function SetMCPServerEnabled(enabled: boolean): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(2384720219, enabled).then(($result: any) => {
         return $$createType0($result);
+    });
+}
+
+/**
+ * SetShortcuts replaces the keys this person set.
+ */
+export function SetShortcuts(shortcuts: { [_ in string]?: string }): $CancellablePromise<void> {
+    return $Call.ByID(2916301934, shortcuts);
+}
+
+/**
+ * Shortcuts reports the keys this person set. Desktop only: a browser keeps its own.
+ */
+export function Shortcuts(): $CancellablePromise<{ [_ in string]?: string }> {
+    return $Call.ByID(2006984344).then(($result: any) => {
+        return $$createType1($result);
     });
 }
 

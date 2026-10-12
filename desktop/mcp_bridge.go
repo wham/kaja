@@ -12,10 +12,9 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
-	"github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 // MCP wiring. The switchboard is pkg/agent's, the same one a deployed kaja answers an
@@ -51,8 +50,8 @@ func (a *App) MCPServerInfo() MCPInfo {
 	return a.mcpInfoLocked()
 }
 
-// SetMCPServerEnabled starts or stops the loopback server, writes the switch into
-// kaja.json so the next launch comes up the same way, and returns its new state.
+// SetMCPServerEnabled starts or stops the loopback server, writes the switch into the
+// settings so the next launch comes up the same way, and returns its new state.
 func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
 	if enabled {
 		a.startMCPServer()
@@ -65,14 +64,26 @@ func (a *App) SetMCPServerEnabled(enabled bool) MCPInfo {
 	// What is written is what the switch actually did, not what was asked of it: a
 	// listener that refused to start is an error to report now rather than a state to
 	// come back up in and fail again.
-	if _, err := a.api.SetMcpEnabled(context.Background(), &api.SetMcpEnabledRequest{Enabled: a.mcpServer != nil}); err != nil {
+	running := a.mcpServer != nil
+	if err := a.settings.update(func(settings *Settings) { settings.Mcp.Enabled = running }); err != nil {
 		slog.Error("Failed to persist the MCP server setting", "error", err)
 		// Never over the reason the server itself failed, which is the more useful of the two.
 		if a.mcpError == "" {
-			a.mcpError = fmt.Sprintf("The switch could not be written to kaja.json: %s", err)
+			a.mcpError = fmt.Sprintf("The switch could not be written to %s: %s", settingsFileName, err)
 		}
 	}
 	return a.mcpInfoLocked()
+}
+
+// forgetCatalog empties what an agent is told is callable, so the workspace just left
+// does not go on answering until the reloaded window pushes its own.
+func (a *App) forgetCatalog() {
+	a.mcpMu.Lock()
+	token := a.mcpToken
+	a.mcpMu.Unlock()
+	if session, ok := a.agents.Session(token); ok {
+		session.SetCatalog(mcp.Catalog{})
+	}
 }
 
 // RegenerateMCPToken mints a new bearer token and moves a running session onto it.
@@ -95,7 +106,7 @@ func (a *App) RegenerateMCPToken() MCPInfo {
 	}
 	// Opened before the old one is dropped, so the window has somewhere to reattach.
 	if _, err := a.agents.Open(token); err != nil {
-		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Delete mcp-token and restart Kaja.", err)
+		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Regenerate it.", err)
 		slog.Error("Failed to open the agent session", "error", err)
 		return a.mcpInfoLocked()
 	}
@@ -188,7 +199,7 @@ func (a *App) startMCPServer() {
 	// Opened rather than waited for: the window attaches under this token a moment from
 	// now, and an agent pointed at it before then must not be told the token is wrong.
 	if _, err := a.agents.Open(a.mcpToken); err != nil {
-		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Delete mcp-token and restart Kaja.", err)
+		a.mcpError = fmt.Sprintf("The MCP token is unusable: %s. Regenerate it.", err)
 		slog.Error("Failed to open the agent session", "error", err)
 		return
 	}
@@ -233,11 +244,10 @@ func (a *App) stopMCPServer() {
 	slog.Info("MCP server stopped")
 }
 
-// loadOrCreateMCPToken returns the bearer token persisted in the installation's folder,
-// generating one the first time (or if the stored file is missing, empty or
-// unreadable). Persisting it keeps an installed agent working when the server is
-// turned on again. Startup is what calls it: minting is a thing kaja does, never a
-// thing reporting the state of the server does.
+// loadOrCreateMCPToken returns the token the settings hold, minting one the first time.
+// Persisting it keeps an installed agent working when the server is turned on again.
+// Startup is what calls it: minting is a thing kaja does, never a thing reporting the
+// state of the server does.
 // Must be called with mcpMu held.
 func (a *App) loadOrCreateMCPToken() string {
 	if token := a.readMCPToken(); token != "" {
@@ -258,21 +268,12 @@ func (a *App) readMCPToken() string {
 	if a.mcpToken != "" {
 		return a.mcpToken
 	}
-	data, err := os.ReadFile(a.mcpTokenPath())
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
+	return a.settings.load().Mcp.Token
 }
 
 // Must be called with mcpMu held.
 func (a *App) writeMCPToken(token string) error {
-	return os.WriteFile(a.mcpTokenPath(), []byte(token), 0600)
-}
-
-// The installation's rather than the workspace's: an agent is configured once.
-func (a *App) mcpTokenPath() string {
-	return filepath.Join(a.kajaDir, "mcp-token")
+	return a.settings.update(func(settings *Settings) { settings.Mcp.Token = token })
 }
 
 func randomToken(n int) string {

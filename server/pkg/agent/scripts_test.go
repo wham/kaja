@@ -13,11 +13,11 @@ import (
 // the file only caught up when it was opened again.
 func TestAChangeCarriesTheAbsolutePath(t *testing.T) {
 	root := t.TempDir()
-	configuration := filepath.Join(root, "kaja.json")
-	if err := os.WriteFile(configuration, []byte("{}"), 0o644); err != nil {
-		t.Fatalf("write configuration: %v", err)
+	workspace := filepath.Join(root, "kaja.json")
+	if err := os.WriteFile(workspace, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write workspace: %v", err)
 	}
-	scripts := NewWorkspaceScripts(api.NewApiService(configuration, true, "", "", nil))
+	scripts := NewWorkspaceScripts(api.NewApiService(workspace, true, "", "", nil))
 	folder := filepath.Join(root, "reports")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatalf("make folder: %v", err)

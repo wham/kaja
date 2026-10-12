@@ -10,10 +10,10 @@ import { appAddress } from "./compileSummary";
 
 interface CompileLogProps {
   apps: App[];
-  configurationLoaded: boolean;
+  workspaceLoaded: boolean;
   onNewAppClick?: () => void;
   onConnectAgentClick?: () => void;
-  canUpdateConfiguration?: boolean;
+  canUpdateWorkspace?: boolean;
   // The app the log was opened for; its logs are expanded and scrolled to.
   expandApp?: { name: string };
 }
@@ -21,7 +21,7 @@ interface CompileLogProps {
 const CHEVRON_SIZE = 16;
 const CHECK_ICON_SIZE = 12;
 
-export function CompileLog({ apps, configurationLoaded, onNewAppClick, onConnectAgentClick, canUpdateConfiguration, expandApp }: CompileLogProps) {
+export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgentClick, canUpdateWorkspace, expandApp }: CompileLogProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -73,18 +73,18 @@ export function CompileLog({ apps, configurationLoaded, onNewAppClick, onConnect
   };
 
   if (apps.length === 0) {
-    if (!configurationLoaded) {
+    if (!workspaceLoaded) {
       return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-background text-muted-foreground">
           <div>
             <Spinner />
-            <div className="mt-3">Loading configuration...</div>
+            <div className="mt-3">Loading workspace…</div>
           </div>
         </div>
       );
     }
 
-    return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateConfiguration={canUpdateConfiguration} />;
+    return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateWorkspace={canUpdateWorkspace} />;
   }
 
   return (

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,32 +9,24 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 )
 
-const workspacesFileName = "workspaces.json"
-
-type Workspace struct {
+type WorkspaceFolder struct {
 	Dir     string `json:"dir"`
 	Name    string `json:"name"`
 	Default bool   `json:"default"`
 }
 
 type WorkspacesInfo struct {
-	Current Workspace   `json:"current"`
-	Known   []Workspace `json:"known"`
+	Current WorkspaceFolder   `json:"current"`
+	Known   []WorkspaceFolder `json:"known"`
 }
 
-// The default is never written: it is always known.
 type workspaceStore struct {
-	path       string
+	settings   *settingsStore
 	defaultDir string
 }
 
-type workspaceEntries struct {
-	Current string   `json:"current,omitempty"`
-	Known   []string `json:"known,omitempty"`
-}
-
-func newWorkspaceStore(kajaDir string) *workspaceStore {
-	return &workspaceStore{path: filepath.Join(kajaDir, workspacesFileName), defaultDir: defaultWorkspaceDir(kajaDir)}
+func newWorkspaceStore(settings *settingsStore, kajaDir string) *workspaceStore {
+	return &workspaceStore{settings: settings, defaultDir: defaultWorkspaceDir(kajaDir)}
 }
 
 func defaultWorkspaceDir(kajaDir string) string {
@@ -53,24 +44,8 @@ func readableFolder(dir string) error {
 	return nil
 }
 
-func (s *workspaceStore) load() workspaceEntries {
-	var entries workspaceEntries
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		return entries
-	}
-	if err := json.Unmarshal(data, &entries); err != nil {
-		slog.Warn("Failed to read the workspaces file", "path", s.path, "error", err)
-	}
-	return entries
-}
-
-func (s *workspaceStore) save(entries workspaceEntries) error {
-	data, err := json.MarshalIndent(entries, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(s.path, data, 0644)
+func (s *workspaceStore) load() WorkspaceList {
+	return s.settings.load().Workspaces
 }
 
 // A folder that isn't there falls back to the default rather than being created: an
@@ -91,24 +66,24 @@ func (s *workspaceStore) known() []string {
 }
 
 func (s *workspaceStore) open(dir string) error {
-	entries := s.load()
-	// The default is written as nothing: iOS moves the app's container on an update,
-	// so its path read back later names a folder that is gone.
-	entries.Current = dir
-	if dir == s.defaultDir {
-		entries.Current = ""
-	}
-	entries.Known = rememberWorkspace(s.defaultDir, entries.Known, dir)
-	return s.save(entries)
+	return s.settings.update(func(settings *Settings) {
+		list := &settings.Workspaces
+		list.Current = dir
+		if dir == s.defaultDir {
+			list.Current = ""
+		}
+		list.Known = rememberWorkspace(s.defaultDir, list.Known, dir)
+	})
 }
 
 func (s *workspaceStore) clearRecent() error {
-	entries := s.load()
-	entries.Known = nil
-	if entries.Current != "" && entries.Current != s.defaultDir {
-		entries.Known = []string{entries.Current}
-	}
-	return s.save(entries)
+	return s.settings.update(func(settings *Settings) {
+		list := &settings.Workspaces
+		list.Known = nil
+		if list.Current != "" && list.Current != s.defaultDir {
+			list.Known = []string{list.Current}
+		}
+	})
 }
 
 func knownWorkspaces(defaultDir string, known []string) []string {
@@ -139,29 +114,29 @@ func forgetWorkspace(known []string, dir string) []string {
 }
 
 // Two folders named alike are told apart by the folder above.
-func describeWorkspaces(defaultDir string, dirs []string) []Workspace {
+func describeWorkspaces(defaultDir string, dirs []string) []WorkspaceFolder {
 	counts := map[string]int{}
 	for _, dir := range dirs {
 		if dir != defaultDir {
 			counts[filepath.Base(dir)]++
 		}
 	}
-	workspaces := make([]Workspace, 0, len(dirs))
+	workspaces := make([]WorkspaceFolder, 0, len(dirs))
 	for _, dir := range dirs {
 		if dir == defaultDir {
-			workspaces = append(workspaces, Workspace{Dir: dir, Name: "Default", Default: true})
+			workspaces = append(workspaces, WorkspaceFolder{Dir: dir, Name: "Default", Default: true})
 			continue
 		}
 		name := filepath.Base(dir)
 		if counts[name] > 1 {
 			name = filepath.Join(filepath.Base(filepath.Dir(dir)), name)
 		}
-		workspaces = append(workspaces, Workspace{Dir: dir, Name: name})
+		workspaces = append(workspaces, WorkspaceFolder{Dir: dir, Name: name})
 	}
 	return workspaces
 }
 
-func configurationPathIn(dir string) string {
+func workspaceFileIn(dir string) string {
 	return filepath.Join(dir, "kaja.json")
 }
 
@@ -230,10 +205,8 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	}
 	a.workspaceMu.Unlock()
 
-	a.stopMCPServer()
-
-	configurationPath := configurationPathIn(dir)
-	a.api.SetWorkspace(configurationPath, NewKeychainStore(configurationPath))
+	workspaceFile := workspaceFileIn(dir)
+	a.api.SetWorkspace(workspaceFile, NewKeychainStore(workspaceFile))
 
 	a.workspaceMu.Lock()
 	a.workspaceDir = dir
@@ -242,9 +215,7 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	}
 	a.workspaceMu.Unlock()
 
-	if a.api.McpEnabled() {
-		a.startMCPServer()
-	}
+	a.forgetCatalog()
 
 	// Reset before the reload, or the link goes to the page on its way out.
 	a.linkMu.Lock()
@@ -285,11 +256,11 @@ func (a *App) workspaceForLink(link string) (dir string, elsewhere bool) {
 	current := a.workspaceDir
 	known := a.workspaces.known()
 	a.workspaceMu.Unlock()
-	if named == "" || api.WorkspaceHasScript(configurationPathIn(current), named) {
+	if named == "" || api.WorkspaceHasScript(workspaceFileIn(current), named) {
 		return current, false
 	}
 	for _, candidate := range known {
-		if candidate != current && api.WorkspaceHasScript(configurationPathIn(candidate), named) {
+		if candidate != current && api.WorkspaceHasScript(workspaceFileIn(candidate), named) {
 			return candidate, true
 		}
 	}

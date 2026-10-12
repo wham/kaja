@@ -26,8 +26,8 @@ func TestLinkedScriptNameReadsTheLinkGrammar(t *testing.T) {
 
 func TestWorkspaceHasScriptLooksInsideTheScriptsFolder(t *testing.T) {
 	dir := t.TempDir()
-	configurationPath := filepath.Join(dir, "kaja.json")
-	if err := os.WriteFile(configurationPath, []byte(`{}`), 0644); err != nil {
+	workspaceFile := filepath.Join(dir, "kaja.json")
+	if err := os.WriteFile(workspaceFile, []byte(`{}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	scripts := filepath.Join(dir, "reports")
@@ -45,7 +45,7 @@ func TestWorkspaceHasScriptLooksInsideTheScriptsFolder(t *testing.T) {
 		"other/churn":   false,
 		"revenue":       false,
 	} {
-		if got := WorkspaceHasScript(configurationPath, named); got != want {
+		if got := WorkspaceHasScript(workspaceFile, named); got != want {
 			t.Errorf("WorkspaceHasScript(%q) = %v, want %v", named, got, want)
 		}
 	}

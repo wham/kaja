@@ -7,10 +7,11 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { resetPayloadArchive } from "./payloadArchive";
+import { startSettings } from "./settings";
 import { getPersistedValue, initializeStorage, WorkspaceStorage } from "./storage";
 import { pruneTypeMemory } from "./typeMemory";
 import { installUiLog } from "./uiLog";
-import { preloadConfiguration } from "./useCompilation";
+import { preloadWorkspace } from "./useCompilation";
 import { desktop, isWailsEnvironment } from "./wails";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 
@@ -18,7 +19,8 @@ export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";
 
 installUiLog();
-preloadConfiguration();
+startSettings();
+preloadWorkspace();
 
 async function openWorkspace(): Promise<WorkspaceStorage | undefined> {
   if (!isWailsEnvironment()) return undefined;

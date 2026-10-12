@@ -4,7 +4,7 @@ import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
 import { isUntouched, Draft } from "./drafts";
 import { draftTitleText } from "./draftTitle";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 
 // How many views the pane keeps mounted. There is no "open files" set: this is a
 // cache, so going back to something is instant and keeps its cursor. It has no UI and
@@ -51,7 +51,7 @@ export interface AppFormView extends ViewBase {
   type: "appForm";
   mode: "create" | "edit";
   editingAppName?: string;
-  initialData?: ConfigurationApp;
+  initialData?: WorkspaceApp;
   // Lives here rather than in the form because the command row owns the control that
   // switches it.
   editMode: "form" | "json";
@@ -167,7 +167,7 @@ export function showDefinition(views: View[], model: monaco.editor.ITextModel, s
   return show(views, { ...nextView("definition"), type: "definition", model, startLineNumber, startColumn });
 }
 
-export function showAppForm(views: View[], mode: "create" | "edit", initialData?: ConfigurationApp): View[] {
+export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp): View[] {
   const existing = views.find((view) => view.type === "appForm" && view.mode === mode && view.editingAppName === initialData?.name);
   if (existing) return visit(views, existing.id);
 
@@ -245,13 +245,13 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
     case "definition":
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
-      return { name: appFormName(view), path: "Settings", origin: "", icon: appFormIcon(view) };
+      return { name: appFormName(view), path: "Workspace", origin: "", icon: appFormIcon(view) };
     case "variables":
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
     case "mcp":
-      return { name: "MCP server", path: "Workspace", origin: "", icon: Plug };
+      return { name: "MCP server", path: "Settings", origin: "", icon: Plug };
     case "shortcuts":
-      return { name: "Keyboard shortcuts", path: "Workspace", origin: "", icon: Keyboard };
+      return { name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard };
     case "compiler":
       return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
     // No qualifier: it is one view of its own, and the finder row saying so twice is

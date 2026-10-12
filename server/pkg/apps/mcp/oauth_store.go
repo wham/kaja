@@ -11,7 +11,7 @@ import (
 // TokenStore is where what an authorization flow produced is kept: the token a
 // resource is called with, and the client an authorization server knows kaja as.
 //
-// It is deliberately not kaja.json. The configuration file names a workspace's
+// It is deliberately not kaja.json. kaja.json names a workspace's
 // apps and is meant to be committed, so the one thing it may never hold is a
 // credential nobody typed into it - and a token that refreshes itself is not
 // something a person could keep in a file of theirs anyway. So it lives beside
@@ -58,7 +58,7 @@ func NewTokenStore(path string) *TokenStore { return &TokenStore{path: path} }
 
 // DefaultTokenStore is the store this installation keeps, under the directory the
 // platform gives a program for its own state. On a sandboxed desktop build that
-// is the app's container, which is the same place its log and its configuration
+// is the app's container, which is the same place its log and its settings
 // already live.
 func DefaultTokenStore() (*TokenStore, error) {
 	dir, err := os.UserConfigDir()

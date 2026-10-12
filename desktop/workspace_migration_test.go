@@ -38,8 +38,8 @@ func TestMigrateDefaultWorkspaceMovesTheFileTheScriptsAndTheValues(t *testing.T)
 
 	newDir := defaultWorkspaceDir(kajaDir)
 	stores := map[string]*memoryStore{
-		oldPath:                     {values: map[string]string{"TOKEN": "hunter2", "URL": "stale"}},
-		configurationPathIn(newDir): {values: map[string]string{}},
+		oldPath:                 {values: map[string]string{"TOKEN": "hunter2", "URL": "stale"}},
+		workspaceFileIn(newDir): {values: map[string]string{}},
 	}
 	storeFor := func(path string) api.VariableStore { return stores[path] }
 
@@ -60,13 +60,13 @@ func TestMigrateDefaultWorkspaceMovesTheFileTheScriptsAndTheValues(t *testing.T)
 	if _, err := os.Stat(filepath.Join(kajaDir, "mcp-token")); err != nil {
 		t.Error("the installation's own files were moved")
 	}
-	if got := stores[configurationPathIn(newDir)].values["TOKEN"]; got != "hunter2" {
+	if got := stores[workspaceFileIn(newDir)].values["TOKEN"]; got != "hunter2" {
 		t.Errorf("the stored value did not follow the file: %q", got)
 	}
 	if _, left := stores[oldPath].values["TOKEN"]; left {
 		t.Error("the old value was not removed")
 	}
-	if _, moved := stores[configurationPathIn(newDir)].values["URL"]; moved {
+	if _, moved := stores[workspaceFileIn(newDir)].values["URL"]; moved {
 		t.Error("a value written in the file is not in the store")
 	}
 

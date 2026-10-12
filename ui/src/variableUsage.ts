@@ -1,11 +1,11 @@
 import { Script } from "./apps";
 import { appHeaders, appParameters } from "./appTypes";
 import { ScriptReference } from "./scriptFiles";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 import { variableReferences } from "./variableExpansion";
 
 // Where a variable is used, which the Variables screen answers in two halves. An
-// app's references are in the configuration the window already holds, so they are
+// app's references are in the workspace the window already holds, so they are
 // read here; a script's are read off disk by the scan, because a folder is not
 // something the browser has.
 
@@ -16,7 +16,7 @@ export interface VariableUse {
   field: string;
 }
 
-export function appVariableUses(apps: ConfigurationApp[]): Map<string, VariableUse[]> {
+export function appVariableUses(apps: WorkspaceApp[]): Map<string, VariableUse[]> {
   const uses = new Map<string, VariableUse[]>();
   const add = (name: string, use: VariableUse) => {
     const existing = uses.get(name);

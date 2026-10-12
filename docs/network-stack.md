@@ -299,17 +299,17 @@ The one thing that differs by build is **whose disk**: yours on the desktop
 **server's** on the web — which is why a deployed kaja's folder app is a
 container's filesystem and not the reader's.
 
-### 6. Internal API — `GetConfiguration`
+### 6. Internal API — `GetWorkspace`
 
 Not an app call, so it leaves the spine at the address: no app, nothing for
 the door to look up, no upstream.
 
-1. `POST <origin>/Api/GetConfiguration` — `api.proto` declares no package, so
+1. `POST <origin>/Api/GetWorkspace` — `api.proto` declares no package, so
    the path is `/Api/<Method>`.
 2. The same `grpc.Serve` de-frames the message → `ApiService.Invoke`, which
    dispatches off the generated `Api_ServiceDesc` and hands back the stream
    its responses arrive on — here, a stream of one.
-3. `GetConfiguration` reads `kaja.json`, migrates, resolves variables and
+3. `GetWorkspace` reads `kaja.json`, migrates, resolves variables and
    builds `Runtime`. The one build difference in the whole trace: the desktop
    has a `VariableStore`, so a value can resolve `KEYCHAIN`; the web resolves
    against the environment alone.
@@ -320,8 +320,8 @@ the door to look up, no upstream.
 Two methods here stream, and nothing in a request says which kind of call it
 is: the door is the same `grpc.Serve`, writing more data frames before the same
 trailer. `Compile` streams the log as it is written, then the verdict.
-`WatchConfiguration` stays open for the life of the window and sends the whole
-configuration each time `kaja.json` changes on disk — the file being watched is
+`WatchWorkspace` stays open for the life of the window and sends the whole
+workspace each time `kaja.json` changes on disk — the file being watched is
 read where the change is noticed, so nothing is fetched after being told, and
 neither build has a notification transport of its own.
 
@@ -374,6 +374,6 @@ alone. Either way a `${NAME}` in a header is **not** expanded: the script reads
 `kaja.variables` and passes the value.
 
 What `kaja.variables` holds is the build's other difference: resolved values on
-the **desktop** (the UI runs inside the app's process), the configuration's
+the **desktop** (the UI runs inside the app's process), the workspace's
 own text on the **web**, where `kaja.variables.TOKEN` reads back the literal
 `${secret}`.

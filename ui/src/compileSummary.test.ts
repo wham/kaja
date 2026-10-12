@@ -13,7 +13,7 @@ const WARN = { level: LogLevel.LEVEL_WARN, message: "deprecated option" };
 const ERROR = { level: LogLevel.LEVEL_ERROR, message: "unknown type Foo" };
 
 describe("summarizeCompilation", () => {
-  test("no apps yet and no configuration is still loading", () => {
+  test("no apps yet and no workspace is still loading", () => {
     expect(summarizeCompilation([], false)).toMatchObject({ state: "loading", label: "Loading…" });
   });
 

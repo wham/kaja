@@ -15,7 +15,7 @@ import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 import { formatJson } from "./formatter";
 import { codeFontSize } from "./monacoTheme";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
@@ -63,27 +63,27 @@ interface HeaderEntry {
 
 interface AppFormProps {
   mode: "create" | "edit";
-  initialData?: ConfigurationApp;
-  allApps: ConfigurationApp[];
+  initialData?: WorkspaceApp;
+  allApps: WorkspaceApp[];
   // Usable in parameter values as ${NAME}, and offered when "${" is typed.
   variables: { [key: string]: string };
   readOnly?: boolean;
   // The control that switches it lives in the command row, so the view owns the choice.
   editMode: EditMode;
-  onSubmit: (app: ConfigurationApp, originalName?: string) => void;
+  onSubmit: (app: WorkspaceApp, originalName?: string) => void;
   onCancel: () => void;
   // Whether the JSON parses, which decides if the view can be switched back.
   onJsonValidChange: (valid: boolean) => void;
 }
 
-function createEmptyApp(): ConfigurationApp {
+function createEmptyApp(): WorkspaceApp {
   return buildApp("", "grpc", {}, {});
 }
 
 // appToJson renders an app as the on-disk shape: { name, <type>: { ...params, headers } }.
 // A parameter the app doesn't set is left out rather than written as an empty string,
 // because that is what protojson does with it on the way to kaja.json.
-function appToJson(app: ConfigurationApp): object {
+function appToJson(app: WorkspaceApp): object {
   const kind = app.app.oneofKind;
   const variant = (kind ? (app.app as Record<string, unknown>)[kind] : undefined) ?? {};
   const set = Object.fromEntries(Object.entries(variant as Record<string, unknown>).filter(([, value]) => !isUnset(value)));
@@ -98,12 +98,12 @@ function isUnset(value: unknown): boolean {
 // jsonToApp parses that shape back into a typed app, treating the one key that
 // isn't name as the app type and its object as the typed block.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function jsonToApp(json: any): ConfigurationApp {
+function jsonToApp(json: any): WorkspaceApp {
   const type = Object.keys(json ?? {}).find((key) => key !== "name") ?? "";
   const variant = (json?.[type] as Record<string, unknown>) ?? {};
   return {
     name: json?.name || "",
-    app: type ? ({ oneofKind: type, [type]: variant } as unknown as ConfigurationApp["app"]) : { oneofKind: undefined },
+    app: type ? ({ oneofKind: type, [type]: variant } as unknown as WorkspaceApp["app"]) : { oneofKind: undefined },
   };
 }
 
@@ -220,7 +220,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoModelRef = useRef<monaco.editor.ITextModel | null>(null);
 
-  const getCurrentApp = useCallback((): ConfigurationApp => {
+  const getCurrentApp = useCallback((): WorkspaceApp => {
     const definition = getAppType(type);
     const params: Record<string, string> = {};
     for (const parameter of definition?.parameters ?? []) {
@@ -235,7 +235,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     return buildApp(name, type, params, headerMap);
   }, [name, type, parameters, headers]);
 
-  const updateFormFromApp = useCallback((app: ConfigurationApp) => {
+  const updateFormFromApp = useCallback((app: WorkspaceApp) => {
     setName(app.name);
     setType(appType(app) || "grpc");
     setParameters(appParameters(app));
@@ -259,7 +259,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   // mode it is the full app. This runs during render rather than in an effect so the
   // fields are already the new app's when a keyed custom form below mounts — otherwise
   // it would mount against the previous app's parameters and read the wrong document.
-  const [loaded, setLoaded] = useState<{ mode: string; app?: ConfigurationApp } | null>(null);
+  const [loaded, setLoaded] = useState<{ mode: string; app?: WorkspaceApp } | null>(null);
   if (loaded?.mode !== mode || loaded?.app !== initialData) {
     setLoaded({ mode, app: initialData });
     updateFormFromApp(initialData ?? createEmptyApp());
@@ -372,7 +372,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   }
 
   const handleSubmit = () => {
-    let appToSubmit: ConfigurationApp;
+    let appToSubmit: WorkspaceApp;
 
     if (editMode === "json" && editorRef.current) {
       const jsonValue = editorRef.current.getValue();

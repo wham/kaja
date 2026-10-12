@@ -9,7 +9,7 @@ import (
 )
 
 // The scan behind the Variables screen's "Used by". An app's references are in the
-// configuration the UI already holds, so it answers those itself; a script's cost a
+// workspace the UI already holds, so it answers those itself; a script's cost a
 // read of the file, and reading a folder one file at a time over the wire is what
 // would make the column expensive. So it is one walk here: the names go down, the
 // references come back, and the screen has nothing to pace.
@@ -23,7 +23,7 @@ const (
 
 // Both spellings of a reference in one pass: what a script reads, and what it sends
 // for the request hop to expand. `${env:X}` is not one of them - the colon keeps it
-// out - because that form is the configuration's own.
+// out - because that form is kaja.json's own.
 var scriptVariableReference = regexp.MustCompile(
 	`\$\{([A-Za-z_][A-Za-z0-9_]*)\}` +
 		`|kaja\.variables\.([A-Za-z_][A-Za-z0-9_]*)` +

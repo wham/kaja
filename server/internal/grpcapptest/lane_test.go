@@ -23,7 +23,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// kaja is a running kaja: the configuration it read, the app it opened, and the mux
+// kaja is a running kaja: the workspace it read, the app it opened, and the mux
 // both builds mount. A test calls through it exactly as a browser does.
 type kaja struct {
 	Service *api.ApiService
@@ -38,17 +38,17 @@ func openKaja(t *testing.T, name string, parameters map[string]string, variables
 	t.Helper()
 
 	entry := map[string]any{"name": name, "grpc": grpcEntry(parameters)}
-	configuration := map[string]any{"apps": []any{entry}}
+	workspace := map[string]any{"apps": []any{entry}}
 	if len(variables) > 0 {
-		configuration["variables"] = variables
+		workspace["variables"] = variables
 	}
-	encoded, err := json.Marshal(configuration)
+	encoded, err := json.Marshal(workspace)
 	if err != nil {
-		t.Fatalf("configuration: %v", err)
+		t.Fatalf("workspace: %v", err)
 	}
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, encoded, 0o600); err != nil {
-		t.Fatalf("write configuration: %v", err)
+		t.Fatalf("write workspace: %v", err)
 	}
 
 	service := api.NewApiService(path, false, "", "", nil)
@@ -251,7 +251,7 @@ func inspect(t *testing.T, parameters map[string]string) *api.InspectGrpcRespons
 	t.Helper()
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
-		t.Fatalf("write configuration: %v", err)
+		t.Fatalf("write workspace: %v", err)
 	}
 	return inspectWith(t, api.NewApiService(path, false, "", "", nil), parameters)
 }

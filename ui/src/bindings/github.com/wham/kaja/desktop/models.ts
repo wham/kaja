@@ -56,13 +56,13 @@ export class MCPInfo {
     }
 }
 
-export class Workspace {
+export class WorkspaceFolder {
     "dir": string;
     "name": string;
     "default": boolean;
 
-    /** Creates a new Workspace instance. */
-    constructor($$source: Partial<Workspace> = {}) {
+    /** Creates a new WorkspaceFolder instance. */
+    constructor($$source: Partial<WorkspaceFolder> = {}) {
         if (!("dir" in $$source)) {
             this["dir"] = "";
         }
@@ -77,22 +77,22 @@ export class Workspace {
     }
 
     /**
-     * Creates a new Workspace instance from a string or object.
+     * Creates a new WorkspaceFolder instance from a string or object.
      */
-    static createFrom($$source: any = {}): Workspace {
+    static createFrom($$source: any = {}): WorkspaceFolder {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new Workspace($$parsedSource as Partial<Workspace>);
+        return new WorkspaceFolder($$parsedSource as Partial<WorkspaceFolder>);
     }
 }
 
 export class WorkspacesInfo {
-    "current": Workspace;
-    "known": Workspace[];
+    "current": WorkspaceFolder;
+    "known": WorkspaceFolder[];
 
     /** Creates a new WorkspacesInfo instance. */
     constructor($$source: Partial<WorkspacesInfo> = {}) {
         if (!("current" in $$source)) {
-            this["current"] = (new Workspace());
+            this["current"] = (new WorkspaceFolder());
         }
         if (!("known" in $$source)) {
             this["known"] = [];
@@ -120,5 +120,5 @@ export class WorkspacesInfo {
 
 // Private type creation functions
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);
-const $$createType1 = Workspace.createFrom;
+const $$createType1 = WorkspaceFolder.createFrom;
 const $$createType2 = $Create.Array($$createType1);

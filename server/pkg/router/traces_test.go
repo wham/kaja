@@ -60,13 +60,13 @@ func workspaceWith(t *testing.T, entry string, name string, appType string, para
 	t.Helper()
 	t.Setenv("KAJA_TOKEN", tokenValue)
 
-	configuration := fmt.Sprintf(`{
+	workspace := fmt.Sprintf(`{
 		"variables": {"TOKEN": "${secret}"},
 		"apps": [%s]
 	}`, entry)
 	path := t.TempDir() + "/kaja.json"
-	if err := os.WriteFile(path, []byte(configuration), 0o600); err != nil {
-		t.Fatalf("write configuration: %v", err)
+	if err := os.WriteFile(path, []byte(workspace), 0o600); err != nil {
+		t.Fatalf("write workspace: %v", err)
 	}
 
 	service := api.NewApiService(path, false, "", "", nil)
@@ -287,7 +287,7 @@ func TestForwardedServerCannotWriteIntoKajasChannel(t *testing.T) {
 
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
-		t.Fatalf("write configuration: %v", err)
+		t.Fatalf("write workspace: %v", err)
 	}
 	service := api.NewApiService(path, false, "", "", nil)
 	if _, err := service.Apps().Open(appName, "grpc", map[string]string{"url": address, "proto_dir": "unused"}, t.TempDir(), func(string) {}); err != nil {

@@ -648,7 +648,7 @@ export function Editor({
 
   // The option is read once, when the editor is created, and a view mounts before
   // the process has said whether it may write the workspace: a window restores its
-  // views synchronously and the answer arrives with the configuration. Without this
+  // views synchronously and the answer arrives with the workspace. Without this
   // the file that was open when the window last closed stays read-only for the
   // session, and reopening it revisits the same editor.
   useEffect(() => {

@@ -3,13 +3,13 @@ import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
 
 interface StartProps {
   // Which screen is right is a question about the workspace, so neither is drawn
-  // until the configuration has answered it.
-  configurationLoaded: boolean;
+  // until the workspace has answered it.
+  workspaceLoaded: boolean;
   hasApps: boolean;
   onNewAppClick: () => void;
   // Absent where this build has no MCP server to point an agent at.
   onConnectAgentClick?: () => void;
-  canUpdateConfiguration: boolean;
+  canUpdateWorkspace: boolean;
   onOpenFinder: () => void;
   onNewDraft: () => void;
   recent: RecentFile[];
@@ -25,20 +25,20 @@ interface StartProps {
  * picking a call in the tree writes you a script, over the last few things you were in.
  */
 export function Start({
-  configurationLoaded,
+  workspaceLoaded,
   hasApps,
   onNewAppClick,
   onConnectAgentClick,
-  canUpdateConfiguration,
+  canUpdateWorkspace,
   onOpenFinder,
   onNewDraft,
   recent,
   phone,
 }: StartProps) {
-  if (!configurationLoaded) return <div className="flex-1" />;
+  if (!workspaceLoaded) return <div className="flex-1" />;
 
   if (!hasApps) {
-    return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateConfiguration={canUpdateConfiguration} />;
+    return <FirstAppBlankslate onNewAppClick={onNewAppClick} onConnectAgentClick={onConnectAgentClick} canUpdateWorkspace={canUpdateWorkspace} />;
   }
 
   return <NoFileBlankslate onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} recent={recent} phone={phone} />;

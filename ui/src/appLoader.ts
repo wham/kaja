@@ -3,7 +3,7 @@ import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";
-import { Source as ApiSource, ConfigurationApp } from "./server/api";
+import { Source as ApiSource, WorkspaceApp } from "./server/api";
 import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
@@ -33,7 +33,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app, fields, method.deprecated === true);
 }
 
-export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp): Promise<App> {
+export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: WorkspaceApp): Promise<App> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];

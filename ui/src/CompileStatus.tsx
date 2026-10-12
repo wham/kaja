@@ -17,7 +17,7 @@ const ICON_SIZE = 14;
 
 interface CompileStatusProps {
   apps: App[];
-  configurationLoaded: boolean;
+  workspaceLoaded: boolean;
   // Opens the compile log, expanded on the given app.
   onShowLog: (appName?: string) => void;
   // Recompiles one app, or every app when no name is given.
@@ -112,10 +112,10 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
 
 // CompileStatus rolls the compile state of every app into one footer item, and
 // keeps the detail — per app, and the logs behind it — one click away.
-export function CompileStatus({ apps, configurationLoaded, onShowLog, onRecompile }: CompileStatusProps) {
+export function CompileStatus({ apps, workspaceLoaded, onShowLog, onRecompile }: CompileStatusProps) {
   const [open, setOpen] = useState(false);
   const [receipt, setReceipt] = useState<string>();
-  const summary = summarizeCompilation(apps, configurationLoaded);
+  const summary = summarizeCompilation(apps, workspaceLoaded);
 
   const batchStart = useRef<number | undefined>(undefined);
   const wasCompiling = useRef(false);

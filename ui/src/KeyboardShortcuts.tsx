@@ -49,11 +49,14 @@ export interface ResetAllControl {
 }
 
 interface KeyboardShortcutsProps {
+  // The person's, which is what this screen edits.
   shortcuts: Overrides;
+  // What the open workspace's kaja.json says, which is where a row nobody has set
+  // starts and what a reset goes back to.
+  workspaceShortcuts: Overrides;
   // Whether the workspace's scripts folder may be written, which is what the two keys
   // that write a file are listed on.
   canWriteFiles: boolean;
-  readOnly?: boolean;
   onSave: (shortcuts: Overrides) => Promise<void>;
   // Reset all lives in the CommandRow's action slot like every other view-level verb,
   // so the screen reports what the button should do rather than drawing it.
@@ -77,10 +80,11 @@ interface KeyboardShortcutsProps {
  * here can be edited.
  *
  * **The default is the absence of an override**, so revert removes the row's entry
- * rather than writing the shipped chord into the file. What kaja.json carries is
- * what this workspace disagreed with, which is what makes it worth committing.
+ * rather than writing a chord into the settings, and the row falls back to what the
+ * workspace says, or failing that to what Kaja ships. Nothing here writes kaja.json:
+ * a key recorded is the person's, in every workspace they open.
  */
-export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, onSave, onResetAllChange }: KeyboardShortcutsProps) {
+export function KeyboardShortcuts({ shortcuts, workspaceShortcuts, canWriteFiles, onSave, onResetAllChange }: KeyboardShortcutsProps) {
   const [overrides, setOverrides] = useState<Overrides>(() => ({ ...shortcuts }));
   const [recording, setRecording] = useState<Recording | null>(null);
   const [takeover, setTakeover] = useState<Takeover | null>(null);
@@ -103,13 +107,14 @@ export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, 
   }, [shortcuts]);
 
   const listed = useMemo(() => listedShortcuts(canWriteFiles), [canWriteFiles]);
-  const bindings = useMemo(() => resolveBindings(overrides), [overrides]);
+  const bindings = useMemo(() => resolveBindings({ ...workspaceShortcuts, ...overrides }), [workspaceShortcuts, overrides]);
+  const fallbacks = useMemo(() => resolveBindings(workspaceShortcuts), [workspaceShortcuts]);
 
   const dirty = !sameOverrides(overrides, shortcuts);
   dirtyRef.current = dirty;
 
   useEffect(() => {
-    if (readOnly || !dirty || saving) return;
+    if (!dirty || saving) return;
     const timer = setTimeout(() => {
       const snapshot = overrides;
       setSaving(true);
@@ -119,15 +124,15 @@ export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, 
         .finally(() => setSaving(false));
     }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [dirty, overrides, readOnly, saving]);
+  }, [dirty, overrides, saving]);
 
-  // A row is changed when what it answers to differs from what it shipped with,
-  // rather than when the file happens to name it: an override spelling out the
-  // default is the same key, and a revert icon over one would point at nothing. It is
+  // A row is changed when what it answers to differs from what it would fall back to,
+  // rather than when the settings happen to name it: an override spelling out the
+  // fallback is the same key, and a revert icon over one would point at nothing. It is
   // the count the confirmation names and the answer to whether Reset all is live. A
   // row nothing lists is left out of both, since resetting all must not quietly drop
   // an override for a verb this workspace hasn't got.
-  const changed = listed.filter((shortcut) => (bindings.get(shortcut.action) ?? []).join(" ") !== shortcut.defaults.join(" "));
+  const changed = listed.filter((shortcut) => (bindings.get(shortcut.action) ?? []).join(" ") !== (fallbacks.get(shortcut.action) ?? []).join(" "));
   const changedActions = new Set(changed.map((shortcut) => shortcut.action));
 
   const resetAll = useCallback(() => setConfirmingReset(true), []);
@@ -135,9 +140,9 @@ export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, 
   // Disabled rather than hidden: Reset all is the answer to "can I get back?", and
   // the answer has to be visible before anything is broken.
   useEffect(() => {
-    const available = !readOnly && recording === null && changed.length > 0;
+    const available = recording === null && changed.length > 0;
     onResetAllRef.current?.(available ? { count: changed.length, onReset: resetAll } : undefined);
-  }, [changed.length, readOnly, recording, resetAll]);
+  }, [changed.length, recording, resetAll]);
 
   useEffect(() => () => onResetAllRef.current?.(undefined), []);
 
@@ -237,11 +242,11 @@ export function KeyboardShortcuts({ shortcuts, canWriteFiles, readOnly = false, 
               label={shortcut.label}
               scope={shortcut.scope}
               bindings={bindings.get(shortcut.action) ?? []}
-              defaults={shortcut.defaults}
+              fallback={fallbacks.get(shortcut.action) ?? []}
+              fromWorkspace={shortcut.action in workspaceShortcuts}
               overridden={changedActions.has(shortcut.action)}
               recording={recording?.action === shortcut.action ? recording : undefined}
               takeover={takeover?.action === shortcut.action ? takeover : undefined}
-              readOnly={readOnly}
               mac={mac}
               onRecord={() => {
                 setTakeover(null);
@@ -320,11 +325,12 @@ interface ShortcutRowProps {
   label: string;
   scope: string;
   bindings: string[];
-  defaults: string[];
+  fallback: string[];
+  // The workspace's kaja.json names this action, so a reset goes back to its key.
+  fromWorkspace: boolean;
   overridden: boolean;
   recording?: Recording;
   takeover?: Takeover;
-  readOnly: boolean;
   mac: boolean;
   onRecord: () => void;
   onCancel: () => void;
@@ -344,11 +350,11 @@ function ShortcutRow({
   label,
   scope,
   bindings,
-  defaults,
+  fallback,
+  fromWorkspace,
   overridden,
   recording,
   takeover,
-  readOnly,
   mac,
   onRecord,
   onCancel,
@@ -372,7 +378,8 @@ function ShortcutRow({
   }, [takeover, onDismissTakeover]);
 
   const caption = recording ? (recording.refusal ?? "Hold the modifiers and press a key. Esc cancels, ⌫ leaves it with no shortcut.") : undefined;
-  const defaultLabel = defaults.length === 0 ? "no shortcut" : defaults.map((binding) => formatBinding(binding, mac)).join(" ");
+  const fallbackKeys = fallback.length === 0 ? "no shortcut" : fallback.map((binding) => formatBinding(binding, mac)).join(" ");
+  const fallbackLabel = fromWorkspace ? `the workspace's ${fallbackKeys}` : fallbackKeys;
 
   return (
     <div
@@ -383,7 +390,10 @@ function ShortcutRow({
       )}
     >
       <div className="flex items-center">
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">{label}</span>
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="min-w-0 truncate text-sm text-foreground">{label}</span>
+          {fromWorkspace && !overridden && <span className="shrink-0 text-xs text-muted-foreground">Workspace</span>}
+        </span>
         <span className="shrink-0 text-right text-xs text-muted-foreground" style={{ width: 100 }}>
           {scope}
         </span>
@@ -413,43 +423,39 @@ function ShortcutRow({
           )}
         </span>
 
-        {!readOnly && (
-          <>
-            <span className="flex shrink-0 items-center" style={{ width: 80 }}>
-              <Button size="sm" variant="outline" className="w-20 border-input bg-card" onClick={recording ? onCancel : onRecord}>
-                {recording ? "Cancel" : "Record"}
-              </Button>
-            </span>
-            {/* Two slots, held whether or not anything is in them, so setting a key
-                never moves the button you were about to click. */}
-            <span className="flex shrink-0 items-center justify-end gap-0.5" style={{ width: 60 }}>
-              {!recording && overridden ? (
-                <IconButton
-                  size="sm"
-                  variant="ghost"
-                  icon={Undo}
-                  aria-label={`Reset to ${defaultLabel}`}
-                  onClick={onReset}
-                  className="size-7 text-muted-foreground group-hover:text-foreground group-has-[:focus-visible]:text-foreground [&_svg]:size-[14px]"
-                />
-              ) : (
-                <span className="size-7" />
-              )}
-              {!recording && bindings.length > 0 ? (
-                <IconButton
-                  size="sm"
-                  variant="ghost"
-                  icon={X}
-                  aria-label="Remove shortcut"
-                  onClick={onClear}
-                  className={cn("size-7 [&_svg]:size-[14px]", revealed)}
-                />
-              ) : (
-                <span className="size-7" />
-              )}
-            </span>
-          </>
-        )}
+        <span className="flex shrink-0 items-center" style={{ width: 80 }}>
+          <Button size="sm" variant="outline" className="w-20 border-input bg-card" onClick={recording ? onCancel : onRecord}>
+            {recording ? "Cancel" : "Record"}
+          </Button>
+        </span>
+        {/* Two slots, held whether or not anything is in them, so setting a key
+            never moves the button you were about to click. */}
+        <span className="flex shrink-0 items-center justify-end gap-0.5" style={{ width: 60 }}>
+          {!recording && overridden ? (
+            <IconButton
+              size="sm"
+              variant="ghost"
+              icon={Undo}
+              aria-label={`Reset to ${fallbackLabel}`}
+              onClick={onReset}
+              className="size-7 text-muted-foreground group-hover:text-foreground group-has-[:focus-visible]:text-foreground [&_svg]:size-[14px]"
+            />
+          ) : (
+            <span className="size-7" />
+          )}
+          {!recording && bindings.length > 0 ? (
+            <IconButton
+              size="sm"
+              variant="ghost"
+              icon={X}
+              aria-label="Remove shortcut"
+              onClick={onClear}
+              className={cn("size-7 [&_svg]:size-[14px]", revealed)}
+            />
+          ) : (
+            <span className="size-7" />
+          )}
+        </span>
       </div>
 
       {caption !== undefined && <span className={cn("text-xs", recording?.refusal ? "text-destructive" : "text-muted-foreground")}>{caption}</span>}
@@ -478,8 +484,8 @@ function joinLabels(labels: string[]): string {
 const COUNT_WORDS = ["no", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
 
 function resetSentence(count: number): string {
-  const many = `${COUNT_WORDS[count] ?? count} commands use keys you set. Resetting returns every one of them to the key it shipped with.`;
-  return count === 1 ? "One command uses a key you set. Resetting returns it to the key it shipped with." : many;
+  const many = `${COUNT_WORDS[count] ?? count} commands use keys you set. Resetting returns every one of them to its default.`;
+  return count === 1 ? "One command uses a key you set. Resetting returns it to its default." : many;
 }
 
 function sameOverrides(a: Overrides, b: Overrides): boolean {

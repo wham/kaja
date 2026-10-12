@@ -106,9 +106,9 @@ interface SidebarProps {
   // Built by App and handed in whole: the sidebar's own subject is the API's catalog
   // on the Apps tab, and the two lists share nothing but the panel.
   scriptsRegion?: React.ReactNode;
-  // A read-only configuration doesn't disable the verbs that change apps, it doesn't
+  // A read-only workspace doesn't disable the verbs that change apps, it doesn't
   // offer them. Settings stays — reading an app's configuration is worth the trip.
-  canUpdateConfiguration?: boolean;
+  canUpdateWorkspace?: boolean;
   // Clicking goes to the call; ⌥click (or the + on the row) adds it to the script
   // already on screen.
   onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
@@ -135,7 +135,7 @@ export function Sidebar({
   tab,
   onTabChange,
   scriptsRegion,
-  canUpdateConfiguration = true,
+  canUpdateWorkspace = true,
   onSelect,
   onShowCompileLog,
   onRecompileApp,
@@ -264,7 +264,7 @@ export function Sidebar({
         onTabChange={onTabChange}
         action={
           tab === "apps"
-            ? canUpdateConfiguration && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
+            ? canUpdateWorkspace && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
             : onNewScript && <RowAction icon={Plus} label="New script" onClick={onNewScript} />
         }
       />
@@ -277,7 +277,7 @@ export function Sidebar({
               a sentence about it: this list can be filled from here, so its one row
               is the verb, at the same 22px as the app rows it will be replaced by. */}
           {apps.length === 0 &&
-            (canUpdateConfiguration ? (
+            (canUpdateWorkspace ? (
               <button
                 type="button"
                 onClick={onNewAppClick}
@@ -461,7 +461,7 @@ export function Sidebar({
             <RotateCw size={16} />
             Recompile
           </DropdownMenuItem>
-          {canUpdateConfiguration && (
+          {canUpdateWorkspace && (
             <DropdownMenuItem
               variant="danger"
               onSelect={() => {

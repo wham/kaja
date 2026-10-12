@@ -9,7 +9,7 @@ import (
 
 func TestWorkspaceStoreRemembersWhatWasOpened(t *testing.T) {
 	kajaDir := defaultWorkspaceDir(t.TempDir())
-	store := newWorkspaceStore(filepath.Dir(kajaDir))
+	store := newWorkspaceStore(newSettingsStore(filepath.Dir(kajaDir)), filepath.Dir(kajaDir))
 
 	if dir, missing := store.current(); dir != kajaDir || missing != "" {
 		t.Fatalf("a fresh store opens the default: got %q (missing %q)", dir, missing)
@@ -48,7 +48,7 @@ func TestWorkspaceStoreRemembersWhatWasOpened(t *testing.T) {
 
 func TestWorkspaceStoreFallsBackWhenTheFolderIsGone(t *testing.T) {
 	kajaDir := defaultWorkspaceDir(t.TempDir())
-	store := newWorkspaceStore(filepath.Dir(kajaDir))
+	store := newWorkspaceStore(newSettingsStore(filepath.Dir(kajaDir)), filepath.Dir(kajaDir))
 	gone := filepath.Join(t.TempDir(), "unplugged")
 	if err := store.open(gone); err != nil {
 		t.Fatal(err)
@@ -65,14 +65,14 @@ func TestWorkspaceStoreFallsBackWhenTheFolderIsGone(t *testing.T) {
 
 func TestWorkspaceStoreFollowsTheDefaultWhenTheContainerMoves(t *testing.T) {
 	before := t.TempDir()
-	if err := newWorkspaceStore(before).open(defaultWorkspaceDir(before)); err != nil {
+	if err := newWorkspaceStore(newSettingsStore(before), before).open(defaultWorkspaceDir(before)); err != nil {
 		t.Fatal(err)
 	}
 	after := t.TempDir()
-	if err := os.Rename(filepath.Join(before, workspacesFileName), filepath.Join(after, workspacesFileName)); err != nil {
+	if err := os.Rename(filepath.Join(before, settingsFileName), filepath.Join(after, settingsFileName)); err != nil {
 		t.Fatal(err)
 	}
-	dir, missing := newWorkspaceStore(after).current()
+	dir, missing := newWorkspaceStore(newSettingsStore(after), after).current()
 	if dir != defaultWorkspaceDir(after) || missing != "" {
 		t.Errorf("current = %q (missing %q), want the default in the moved container", dir, missing)
 	}
@@ -81,7 +81,7 @@ func TestWorkspaceStoreFollowsTheDefaultWhenTheContainerMoves(t *testing.T) {
 func TestDescribeWorkspacesNamesFoldersAndTellsTwinsApart(t *testing.T) {
 	defaultDir := "/containers/kaja"
 	got := describeWorkspaces(defaultDir, []string{defaultDir, "/work/acme/api", "/home/me/api", "/work/site"})
-	want := []Workspace{
+	want := []WorkspaceFolder{
 		{Dir: defaultDir, Name: "Default", Default: true},
 		{Dir: "/work/acme/api", Name: "acme/api"},
 		{Dir: "/home/me/api", Name: "me/api"},

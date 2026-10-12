@@ -187,7 +187,7 @@ func TestExpandAllHeaders(t *testing.T) {
 
 // The response the UI reads carries kaja.json's own text - the source, not what
 // it resolved to. This is the invariant the whole design rests on.
-func TestGetConfigurationSendsNoResolvedValues(t *testing.T) {
+func TestGetWorkspaceSendsNoResolvedValues(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "super-secret-value")
 	t.Setenv("SERVICE_HOST", "api.example.com")
 
@@ -201,12 +201,12 @@ func TestGetConfigurationSendsNoResolvedValues(t *testing.T) {
 	}
 
 	service := NewApiService(tmpfile.Name(), false, "", "", nil)
-	response, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
+	response, err := service.GetWorkspace(context.Background(), &GetWorkspaceRequest{})
 	if err != nil {
-		t.Fatalf("failed to get configuration: %v", err)
+		t.Fatalf("failed to get workspace: %v", err)
 	}
 
-	variables := response.Configuration.Variables
+	variables := response.Workspace.Variables
 	if variables["TOKEN"] != "${secret}" {
 		t.Errorf("expected the source to travel, got %q", variables["TOKEN"])
 	}

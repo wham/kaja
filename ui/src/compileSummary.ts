@@ -51,7 +51,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-export function summarizeCompilation(apps: App[], configurationLoaded: boolean): CompileSummary {
+export function summarizeCompilation(apps: App[], workspaceLoaded: boolean): CompileSummary {
   const compiling = apps.filter(isCompiling);
   const failed = apps.filter((app) => app.compilation.status === "error");
   const warned = apps.filter((app) => appWarnings(app).length > 0);
@@ -66,7 +66,7 @@ export function summarizeCompilation(apps: App[], configurationLoaded: boolean):
   };
 
   if (apps.length === 0) {
-    return configurationLoaded ? { ...summary, state: "empty", label: "" } : { ...summary, state: "loading", label: "Loading…" };
+    return workspaceLoaded ? { ...summary, state: "empty", label: "" } : { ...summary, state: "loading", label: "Loading…" };
   }
 
   if (failed.length > 0) {

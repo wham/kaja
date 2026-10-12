@@ -18,7 +18,7 @@ func invokeService(t *testing.T) *ApiService {
 	t.Helper()
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{"variables":{"TOKEN":"secret"}}`), 0o600); err != nil {
-		t.Fatalf("failed to write configuration: %v", err)
+		t.Fatalf("failed to write workspace: %v", err)
 	}
 	return NewApiService(path, false, "abc123", "", nil)
 }
@@ -48,7 +48,7 @@ func collect(service *ApiService, methodPath string, request []byte) ([][]byte, 
 func TestInvoke(t *testing.T) {
 	service := invokeService(t)
 
-	for _, methodPath := range []string{"Api/GetConfiguration", "GetConfiguration"} {
+	for _, methodPath := range []string{"Api/GetWorkspace", "GetWorkspace"} {
 		messages, err := collect(service, methodPath, nil)
 		if err != nil {
 			t.Fatalf("%s: %v", methodPath, err)
@@ -56,7 +56,7 @@ func TestInvoke(t *testing.T) {
 		if len(messages) != 1 {
 			t.Fatalf("%s: %d messages, want one", methodPath, len(messages))
 		}
-		response := &GetConfigurationResponse{}
+		response := &GetWorkspaceResponse{}
 		if err := proto.Unmarshal(messages[0], response); err != nil {
 			t.Fatalf("%s: %v", methodPath, err)
 		}
@@ -69,14 +69,14 @@ func TestInvoke(t *testing.T) {
 func TestInvokeDecodesTheRequest(t *testing.T) {
 	service := invokeService(t)
 
-	request, err := proto.Marshal(&UpdateConfigurationRequest{Configuration: &Configuration{}})
+	request, err := proto.Marshal(&UpdateWorkspaceRequest{Workspace: &Workspace{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// This service was opened read-only, so the method refuses - which it can only do
 	// having read the request it was handed.
-	if _, err := collect(service, "Api/UpdateConfiguration", request); err == nil {
-		t.Fatal("expected the read-only configuration to be refused")
+	if _, err := collect(service, "Api/UpdateWorkspace", request); err == nil {
+		t.Fatal("expected the read-only workspace to be refused")
 	}
 }
 
@@ -169,7 +169,7 @@ func TestInvokeAppLogsTheCallWithoutItsValues(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "s3cr3t-token-value")
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{"variables":{"TOKEN":"${secret}"}}`), 0o600); err != nil {
-		t.Fatalf("failed to write configuration: %v", err)
+		t.Fatalf("failed to write workspace: %v", err)
 	}
 	service := NewApiService(path, false, "", "", nil)
 	headers := map[string]string{"X-Kaja-App": "quirks", "Authorization": "Bearer ${TOKEN}"}

@@ -52,7 +52,7 @@ describe("kaja.variables injection", () => {
     let run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
     expect(run.result).toBe("old");
 
-    // Updating the same instance (as applyConfiguration does) is visible to the next run.
+    // Updating the same instance (as applyWorkspace does) is visible to the next run.
     kaja.variables = { TOKEN: "new" };
     run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
     expect(run.result).toBe("new");

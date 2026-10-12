@@ -9,18 +9,18 @@ import { Runtime, Script as WireScript } from "./server/api";
  * whichever process opened the workspace is the one that reads and writes it.
  *
  * The reads are always offered. The writes are refused where this kaja does not
- * own the workspace it serves — the rule the configuration already follows — so
+ * own the workspace it serves — the rule kaja.json already follows — so
  * a script on a deployed kaja is a file you can read and run.
  */
 
 /**
  * Whether this kaja may write the workspace it opened. It is the one question
- * the process answers at startup and the configuration already reports: the
+ * the process answers at startup and the workspace already reports: the
  * scripts and kaja.json are both in that workspace, so a kaja that may
  * not write one may not write the other.
  */
 export function canWriteScripts(runtime: Runtime): boolean {
-  return runtime.canUpdateConfiguration;
+  return runtime.canUpdateWorkspace;
 }
 
 function toScript(script: WireScript): Script {

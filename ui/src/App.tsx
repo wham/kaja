@@ -57,7 +57,7 @@ import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { deviceConsole, logScriptLine } from "./uiLog";
-import { Configuration, ConfigurationApp, GetConfigurationResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
+import { Workspace, WorkspaceApp, GetWorkspaceResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
@@ -80,11 +80,12 @@ import {
 } from "./views";
 import { Variables, VariablesSave } from "./Variables";
 import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
+import { effectiveShortcuts, saveMcpEnabled, saveShortcuts, useSettings } from "./settings";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
 import { mcpDotClass, mcpStatusOf, type McpControl } from "./mcpState";
 import { useCompilation } from "./useCompilation";
-import { useConfigurationChanges } from "./useConfigurationChanges";
+import { useWorkspaceChanges } from "./useWorkspaceChanges";
 import { usePersistedState } from "./usePersistedState";
 import { setVariables } from "./variableExpansion";
 import { appVariableUses } from "./variableUsage";
@@ -134,7 +135,7 @@ const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 const subscribeConsoleFlags = (notify: () => void) => consoles.subscribeFlags(notify);
 const consoleFlagsVersion = () => consoles.flagsVersion();
 
-function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
+function applyAppRename(app: AppModel, newConfig: WorkspaceApp): AppModel {
   const originalName = app.configuration.name;
   const remappedSources = remapSourcesToNewName(app.sources, originalName, newConfig.name);
   const remappedServices = app.services.map((service) => ({
@@ -220,7 +221,7 @@ function writeSourceModel(path: string, content: string): boolean {
 }
 
 export function App() {
-  const [configuration, setConfiguration] = useState<Configuration>();
+  const [workspace, setWorkspace] = useState<Workspace>();
   // The two keys the command row names. Read as labels here so rebinding one
   // redraws the row that states it.
   const saveAsFileLabel = useShortcutLabel("saveAsFile");
@@ -229,8 +230,8 @@ export function App() {
   // Whether the workspace on the other end of the Api service may be written, which
   // is what the verbs that write a file are offered on.
   const canWriteFiles = canWriteScripts(runtime);
-  const configurationRef = useRef(configuration);
-  configurationRef.current = configuration;
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
   const variableWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const [apps, setApps] = useState<AppModel[]>([]);
@@ -281,13 +282,12 @@ export function App() {
   const mcpRequestRef = useRef(0);
   const [mcpActive, setMcpActive] = useState(false);
   const agentState = useSyncExternalStore(agentSession.subscribe, agentSession.getState);
+  const settings = useSettings();
   // The endpoint and the token are this browser's address and are reported whether or
   // not the switch is on, so the MCP page names them — and every snippet stays
-  // copyable — with the server off. Only `enabled` is the switch.
-  // `mcp.enabled` is the switch on both builds. On the desktop the process read it at
-  // startup and reports what it did; here it is read straight off the configuration, so
-  // every window agrees and a read-only workspace cannot be argued with.
-  const mcpEnabled = configuration?.mcp?.enabled === true;
+  // copyable — with the server off. Only `enabled` is the switch. On the desktop the
+  // process read it at startup and reports what it did.
+  const mcpEnabled = settings.mcp.enabled ?? workspace?.mcp?.enabled === true;
   const mcpConnection = useMemo(() => {
     if (isWailsEnvironment()) return mcpInfo;
     if (!agentState.url || !agentState.token) return undefined;
@@ -295,18 +295,13 @@ export function App() {
   }, [mcpInfo, mcpEnabled, agentState.url, agentState.token]);
 
   // One door from the switch to the session, so the window that flipped it and the
-  // windows told by WatchConfiguration act on it the same way.
+  // tabs told by the settings act on it the same way.
   useEffect(() => {
     agentSession.setSwitch(mcpEnabled);
   }, [mcpEnabled]);
   const setMCPEnabled = useCallback((enabled: boolean) => {
     if (!isWailsEnvironment()) {
-      // The write is the whole of it: the effect above acts on what comes back, exactly
-      // as it acts on what the configuration stream brings the other windows.
-      void getApiClient()
-        .setMcpEnabled({ enabled })
-        .then(({ response }) => setConfiguration((current) => (current ? { ...current, mcp: response.mcp } : current)))
-        .catch((err) => console.error(`Failed to turn the MCP server ${enabled ? "on" : "off"}: ${rpcErrorMessage(err)}`));
+      saveMcpEnabled(enabled);
       return;
     }
     const request = ++mcpRequestRef.current;
@@ -405,7 +400,7 @@ export function App() {
   viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
-  // One-shot signal that a configuration write moved the modules a script imports: what
+  // One-shot signal that a workspace write moved the modules a script imports: what
   // it renamed, and whether anything an import resolves against moved at all.
   const [appsMoved, setAppsMoved] = useState<{ renames: Map<string, string>; modulesMoved: boolean }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
@@ -757,15 +752,11 @@ export function App() {
     });
   }, []);
 
-  const syncAppsFromConfiguration = useCallback(
-    (
-      newConfiguration: Configuration,
-      prevApps: AppModel[],
-      previousVariables: { [key: string]: string },
-    ): { updatedApps: AppModel[]; removedNames: Set<string> } => {
+  const syncAppsFromWorkspace = useCallback(
+    (newWorkspace: Workspace, prevApps: AppModel[], previousVariables: { [key: string]: string }): { updatedApps: AppModel[]; removedNames: Set<string> } => {
       const updatedApps: AppModel[] = [];
-      const newVariables = newConfiguration.variables ?? {};
-      const newApps = newConfiguration.apps || [];
+      const newVariables = newWorkspace.variables ?? {};
+      const newApps = newWorkspace.apps || [];
       const newConfigByName = new Map(newApps.map((a) => [a.name, a]));
       const prevByName = new Map(prevApps.map((p) => [p.configuration.name, p]));
 
@@ -887,17 +878,17 @@ export function App() {
     [applyDrafts, canWriteFiles, showFileError],
   );
 
-  const applyConfiguration = useCallback(
-    (newConfiguration: Configuration) => {
-      const previousConfiguration = configurationRef.current;
-      const previousVariables = previousConfiguration?.variables ?? {};
-      const previousApps = previousConfiguration?.apps ?? [];
-      const newApps = newConfiguration.apps ?? [];
+  const applyWorkspace = useCallback(
+    (newWorkspace: Workspace) => {
+      const previousWorkspace = workspaceRef.current;
+      const previousVariables = previousWorkspace?.variables ?? {};
+      const previousApps = previousWorkspace?.apps ?? [];
+      const newApps = newWorkspace.apps ?? [];
       // Read off the file rather than off what is compiled, so the answer is the same
       // whichever of the two the write reaches first.
-      const renames = detectAppRenames(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
-      const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newConfiguration.variables ?? {});
-      setConfiguration(newConfiguration);
+      const renames = detectAppRenames(previousApps, newApps, previousVariables, newWorkspace.variables ?? {});
+      const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newWorkspace.variables ?? {});
+      setWorkspace(newWorkspace);
 
       // The app is open on the server under the name it had, and the name is the whole
       // of how a call finds it - so a rename the server has not been told about is an
@@ -910,7 +901,7 @@ export function App() {
           .response.catch((err) => console.error(`Failed to rename the open app ${oldName} to ${newName}: ${rpcErrorMessage(err)}`));
       }
 
-      setApps((prevApps) => syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables).updatedApps);
+      setApps((prevApps) => syncAppsFromWorkspace(newWorkspace, prevApps, previousVariables).updatedApps);
 
       // Handed to an effect rather than done here: the renamed app's own models are
       // written by the updater above, which React runs at the next render, so a buffer
@@ -919,7 +910,7 @@ export function App() {
         setAppsMoved({ renames, modulesMoved });
       }
     },
-    [syncAppsFromConfiguration],
+    [syncAppsFromWorkspace],
   );
 
   useEffect(() => {
@@ -932,21 +923,19 @@ export function App() {
   }, [appsMoved, followAppRenames, revalidateOpenEditors]);
 
   useEffect(() => {
-    if (configurationRef.current) {
-      applyConfiguration(configurationRef.current);
+    if (workspaceRef.current) {
+      applyWorkspace(workspaceRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewApps]);
 
-  // The keys the window answers to. They ride the configuration rather than this
-  // machine's storage, so a reload of the file is what rebinds them.
   useEffect(() => {
-    setShortcutOverrides(configuration?.shortcuts);
-  }, [configuration?.shortcuts]);
+    setShortcutOverrides(effectiveShortcuts(workspace?.shortcuts, settings.shortcuts));
+  }, [workspace?.shortcuts, settings.shortcuts]);
 
   // What a script reads as kaja.variables. Desktop only: its UI runs inside the app's
   // own process, so a resolved value is one it already holds. On the web the
-  // configuration's own text is all there is.
+  // workspace's own text is all there is.
   const readResolvedVariables = useCallback((variables: { [key: string]: string }) => {
     if (!hostRef.current) return;
     if (!isWailsEnvironment()) {
@@ -964,11 +953,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const variables = configuration?.variables ?? {};
+    const variables = workspace?.variables ?? {};
     setVariables(variables);
     registerKajaModule(Object.keys(variables));
     readResolvedVariables(variables);
-  }, [configuration?.variables, readResolvedVariables]);
+  }, [workspace?.variables, readResolvedVariables]);
 
   /**
    * What a stored value moving has to say for itself. The value lives on this machine
@@ -976,13 +965,13 @@ export function App() {
    * it can tell that ${NAME} now expands to something else: the apps that expanded it
    * when they were opened go on sending the value it replaced until something opens
    * them again, and the resolved values a script reads are the ones read last time. So
-   * the write says so — the same thing a configuration write says when the name's own
+   * the write says so — the same thing a workspace write says when the name's own
    * text moves. An app naming it in a header alone is left alone, a header being
    * expanded per call.
    */
   const applyStoredValue = useCallback(
     (name: string) => {
-      readResolvedVariables(configurationRef.current?.variables ?? {});
+      readResolvedVariables(workspaceRef.current?.variables ?? {});
       const names = new Set([name]);
       setApps((prevApps) =>
         prevApps.map((app) => (appReferencesVariable(app.configuration, names) ? { ...app, compilation: { status: "pending" as const, logs: [] } } : app)),
@@ -991,17 +980,17 @@ export function App() {
     [readResolvedVariables],
   );
 
-  const handleConfigurationFileChange = useCallback(
-    (response: GetConfigurationResponse) => {
+  const handleWorkspaceFileChange = useCallback(
+    (response: GetWorkspaceResponse) => {
       setVariableStatus(response.variableStatus);
-      if (response.configuration) {
-        applyConfiguration(response.configuration);
+      if (response.workspace) {
+        applyWorkspace(response.workspace);
       }
     },
-    [applyConfiguration],
+    [applyWorkspace],
   );
 
-  useConfigurationChanges(handleConfigurationFileChange);
+  useWorkspaceChanges(handleWorkspaceFileChange);
 
   useEffect(() => {
     setValueCompletionApps(apps);
@@ -1185,9 +1174,9 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
-    if (response.configuration) {
-      setConfiguration(response.configuration);
+  const { workspaceLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
+    if (response.workspace) {
+      setWorkspace(response.workspace);
     }
     setVariableStatus(response.variableStatus);
     if (response.runtime) {
@@ -1625,9 +1614,9 @@ export function App() {
   // The catalog follows the apps, not the compiler: a change that compiles nothing —
   // deleting an app, above all the last one — must still be reflected.
   useEffect(() => {
-    const variableNames = Object.keys(configuration?.variables ?? {});
+    const variableNames = Object.keys(workspace?.variables ?? {});
     agentSession.setCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames)));
-  }, [apps, configuration?.variables]);
+  }, [apps, workspace?.variables]);
 
   // The source always arrives with the run: whichever process holds the disk reads the
   // file itself, and the window is only ever handed what to run and where it lands.
@@ -2313,12 +2302,12 @@ export function App() {
   }, [onRunCurrentTab]);
 
   useEffect(() => {
-    if (!configurationLoaded || apps.length > 0) return;
+    if (!workspaceLoaded || apps.length > 0) return;
     applyViews((views) => {
       const compiler = views.find((view) => view.type === "compiler");
       return compiler ? dropView(views, compiler.id) : views;
     });
-  }, [apps.length, configurationLoaded, applyViews]);
+  }, [apps.length, workspaceLoaded, applyViews]);
 
   const onShowCompileLog = useCallback(
     (appName?: string) => {
@@ -2340,7 +2329,7 @@ export function App() {
   };
 
   const onNewAppClick = () => {
-    if (!runtime.canUpdateConfiguration) return;
+    if (!runtime.canUpdateWorkspace) return;
     setNewAppOpen(true);
   };
   const onNewAppClickRef = useRef(onNewAppClick);
@@ -2365,25 +2354,25 @@ export function App() {
     });
   };
 
-  const onAppFormSubmit = async (app: ConfigurationApp, originalName?: string) => {
+  const onAppFormSubmit = async (app: WorkspaceApp, originalName?: string) => {
     dropAppForm();
 
-    if (!configuration) {
+    if (!workspace) {
       return;
     }
 
     const isEdit = originalName !== undefined;
     const isNewApp = !isEdit;
 
-    const updatedConfiguration: Configuration = {
-      ...configuration,
-      apps: isEdit ? (configuration.apps || []).map((a) => (a.name === originalName ? app : a)) : [...(configuration.apps || []), app],
+    const updatedWorkspace: Workspace = {
+      ...workspace,
+      apps: isEdit ? (workspace.apps || []).map((a) => (a.name === originalName ? app : a)) : [...(workspace.apps || []), app],
     };
 
     const client = getApiClient();
-    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
+    const { response } = await client.updateWorkspace({ workspace: updatedWorkspace });
+    if (response.workspace) {
+      applyWorkspace(response.workspace);
     }
 
     if (isNewApp) {
@@ -2396,7 +2385,7 @@ export function App() {
   };
 
   // Names no variable defines are in here too: the Variables view shows them as a warning.
-  const variableUses = useMemo(() => appVariableUses(configuration?.apps ?? []), [configuration?.apps]);
+  const variableUses = useMemo(() => appVariableUses(workspace?.apps ?? []), [workspace?.apps]);
 
   const onVariablesClick = useCallback(() => {
     applyViews(showVariables);
@@ -2420,13 +2409,13 @@ export function App() {
   }, []);
 
   const onVariablesSave = async ({ variables, cleared }: VariablesSave) => {
-    if (!configuration) {
+    if (!workspace) {
       return;
     }
 
     const { response, status } = await queueVariableWrite(async () => {
       const client = getApiClient();
-      const { response } = await client.updateConfiguration({ configuration: { ...configuration, variables } });
+      const { response } = await client.updateWorkspace({ workspace: { ...workspace, variables } });
       let status = response.variableStatus;
       for (const name of cleared) {
         status = (await client.clearStoredValue({ name })).response.variableStatus;
@@ -2435,18 +2424,8 @@ export function App() {
     });
     setVariableStatus(status);
 
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
-    }
-  };
-
-  const onShortcutsSave = async (shortcuts: { [key: string]: string }) => {
-    if (!configuration) {
-      return;
-    }
-    const { response } = await getApiClient().updateConfiguration({ configuration: { ...configuration, shortcuts } });
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
+    if (response.workspace) {
+      applyWorkspace(response.workspace);
     }
   };
 
@@ -2458,19 +2437,19 @@ export function App() {
   };
 
   const onDeleteApp = async (appName: string) => {
-    if (!configuration) {
+    if (!workspace) {
       return;
     }
 
-    const updatedConfiguration: Configuration = {
-      ...configuration,
-      apps: (configuration.apps || []).filter((a) => a.name !== appName),
+    const updatedWorkspace: Workspace = {
+      ...workspace,
+      apps: (workspace.apps || []).filter((a) => a.name !== appName),
     };
 
     const client = getApiClient();
-    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
+    const { response } = await client.updateWorkspace({ workspace: updatedWorkspace });
+    if (response.workspace) {
+      applyWorkspace(response.workspace);
     }
   };
 
@@ -2529,23 +2508,23 @@ export function App() {
       destinations.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, go: onVariablesClick });
     }
     if (mcpControl && !views.some((view) => view.type === "mcp")) {
-      destinations.push({ key: "mcp", name: "MCP server", path: "Workspace", origin: "", icon: Plug, go: onMcpClick });
+      destinations.push({ key: "mcp", name: "MCP server", path: "Settings", origin: "", icon: Plug, go: onMcpClick });
     }
     if (!views.some((view) => view.type === "shortcuts")) {
-      destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Workspace", origin: "", icon: Keyboard, go: onShortcutsClick });
+      destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard, go: onShortcutsClick });
     }
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
-    for (const workspace of workspaces?.known ?? []) {
-      if (workspace.dir === workspaces?.current.dir) continue;
+    for (const known of workspaces?.known ?? []) {
+      if (known.dir === workspaces?.current.dir) continue;
       destinations.push({
-        key: `workspace:${workspace.dir}`,
-        name: workspace.name,
+        key: `workspace:${known.dir}`,
+        name: known.name,
         path: "Workspaces",
         origin: "",
         icon: FolderOpen,
-        go: () => onOpenWorkspace(workspace.dir),
+        go: () => onOpenWorkspace(known.dir),
       });
     }
 
@@ -2609,7 +2588,7 @@ export function App() {
       });
     }
     if (apps.length > 0) {
-      const compile = summarizeCompilation(apps, configurationLoaded);
+      const compile = summarizeCompilation(apps, workspaceLoaded);
       const dot =
         compile.state === "failed"
           ? "bg-destructive"
@@ -2627,7 +2606,7 @@ export function App() {
       });
     }
     return rows;
-  }, [apps, configurationLoaded, mcpControl, mcpBandStatus, onVariablesClick, onMcpClick, onShowCompileLog]);
+  }, [apps, workspaceLoaded, mcpControl, mcpBandStatus, onVariablesClick, onMcpClick, onShowCompileLog]);
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
@@ -2703,7 +2682,7 @@ export function App() {
   // it is the answer to "can I get back?", which has to be readable before anything
   // is broken.
   const resetAllButton =
-    currentView?.type === "shortcuts" && runtime.canUpdateConfiguration ? (
+    currentView?.type === "shortcuts" && runtime.canUpdateWorkspace ? (
       <Button variant="ghost" size="sm" disabled={resetShortcuts === undefined} onClick={() => resetShortcuts?.onReset()}>
         Reset all
       </Button>
@@ -2737,10 +2716,10 @@ export function App() {
       {view.type === "compiler" && (
         <CompileLog
           apps={apps}
-          configurationLoaded={configurationLoaded}
+          workspaceLoaded={workspaceLoaded}
           onNewAppClick={onNewAppClick}
           onConnectAgentClick={mcpControl ? onMcpClick : undefined}
-          canUpdateConfiguration={runtime.canUpdateConfiguration}
+          canUpdateWorkspace={runtime.canUpdateWorkspace}
           expandApp={compileLogExpandApp}
         />
       )}
@@ -2780,9 +2759,9 @@ export function App() {
         <AppForm
           mode={view.mode}
           initialData={view.initialData}
-          allApps={configuration?.apps ?? []}
-          variables={configuration?.variables ?? {}}
-          readOnly={!runtime.canUpdateConfiguration}
+          allApps={workspace?.apps ?? []}
+          variables={workspace?.variables ?? {}}
+          readOnly={!runtime.canUpdateWorkspace}
           editMode={view.editMode}
           onSubmit={onAppFormSubmit}
           onCancel={onAppFormCancel}
@@ -2791,36 +2770,36 @@ export function App() {
       )}
       {view.type === "start" && (
         <Start
-          configurationLoaded={configurationLoaded}
+          workspaceLoaded={workspaceLoaded}
           hasApps={apps.length > 0}
           onNewAppClick={onNewAppClick}
           onConnectAgentClick={mcpControl ? onMcpClick : undefined}
-          canUpdateConfiguration={runtime.canUpdateConfiguration}
+          canUpdateWorkspace={runtime.canUpdateWorkspace}
           onOpenFinder={() => setFinder("first")}
           onNewDraft={onNewDraft}
           recent={recentFiles}
           phone={isPhone}
         />
       )}
-      {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} readOnly={!runtime.canUpdateConfiguration} />}
+      {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
       {view.type === "shortcuts" && (
         <KeyboardShortcuts
-          shortcuts={configuration?.shortcuts ?? {}}
+          shortcuts={settings.shortcuts}
+          workspaceShortcuts={workspace?.shortcuts ?? {}}
           canWriteFiles={canWriteFiles}
-          readOnly={!runtime.canUpdateConfiguration}
-          onSave={onShortcutsSave}
+          onSave={saveShortcuts}
           onResetAllChange={setResetShortcuts}
         />
       )}
       {view.type === "variables" && (
         <Variables
-          variables={configuration?.variables ?? {}}
+          variables={workspace?.variables ?? {}}
           status={variableStatus}
           storeAvailable={runtime.variableStoreAvailable}
           uses={variableUses}
           scripts={scripts ?? []}
           active={view.id === currentView?.id}
-          readOnly={!runtime.canUpdateConfiguration}
+          readOnly={!runtime.canUpdateWorkspace}
           onSave={onVariablesSave}
           onStoreValue={onStoreVariableValue}
           onScriptSelect={(script) => void onScriptSelect(script)}
@@ -2863,7 +2842,7 @@ export function App() {
               workspaces={workspaceControl}
               apps={apps}
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
-              onNewApp={runtime.canUpdateConfiguration ? onNewAppClick : undefined}
+              onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
               errorCount={currentIsEditor ? syntaxErrors.count : 0}
               open={finder !== undefined}
               onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
@@ -2919,7 +2898,7 @@ export function App() {
                   apps={apps}
                   tab={sidebarTab}
                   onTabChange={setSidebarTab}
-                  canUpdateConfiguration={runtime.canUpdateConfiguration}
+                  canUpdateWorkspace={runtime.canUpdateWorkspace}
                   onSelect={onMethodSelect}
                   onShowCompileLog={onShowCompileLog}
                   onRecompileApp={onRecompile}
@@ -3049,7 +3028,7 @@ export function App() {
             featurePreviews={featurePreviews}
             onToggleFeaturePreview={onToggleFeaturePreview}
             apps={apps}
-            configurationLoaded={configurationLoaded}
+            workspaceLoaded={workspaceLoaded}
             onShowCompileLog={onShowCompileLog}
             onRecompile={onRecompile}
             onShowShortcuts={onShortcutsClick}
