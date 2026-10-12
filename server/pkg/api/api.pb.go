@@ -528,7 +528,7 @@ func (x *CompileRequest) GetProtoDir() string {
 // typed parameters to a string map for the in-process app contract.
 type OpenAppRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	App           *ConfigurationApp      `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
+	App           *WorkspaceApp          `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -563,7 +563,7 @@ func (*OpenAppRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *OpenAppRequest) GetApp() *ConfigurationApp {
+func (x *OpenAppRequest) GetApp() *WorkspaceApp {
 	if x != nil {
 		return x.App
 	}
@@ -2284,26 +2284,26 @@ func (x *Source) GetContent() string {
 	return ""
 }
 
-type GetConfigurationRequest struct {
+type GetWorkspaceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetConfigurationRequest) Reset() {
-	*x = GetConfigurationRequest{}
+func (x *GetWorkspaceRequest) Reset() {
+	*x = GetWorkspaceRequest{}
 	mi := &file_proto_api_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetConfigurationRequest) String() string {
+func (x *GetWorkspaceRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetConfigurationRequest) ProtoMessage() {}
+func (*GetWorkspaceRequest) ProtoMessage() {}
 
-func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
+func (x *GetWorkspaceRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2315,31 +2315,31 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
-func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetWorkspaceRequest.ProtoReflect.Descriptor instead.
+func (*GetWorkspaceRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{28}
 }
 
-type WatchConfigurationRequest struct {
+type WatchWorkspaceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WatchConfigurationRequest) Reset() {
-	*x = WatchConfigurationRequest{}
+func (x *WatchWorkspaceRequest) Reset() {
+	*x = WatchWorkspaceRequest{}
 	mi := &file_proto_api_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WatchConfigurationRequest) String() string {
+func (x *WatchWorkspaceRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WatchConfigurationRequest) ProtoMessage() {}
+func (*WatchWorkspaceRequest) ProtoMessage() {}
 
-func (x *WatchConfigurationRequest) ProtoReflect() protoreflect.Message {
+func (x *WatchWorkspaceRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2351,15 +2351,15 @@ func (x *WatchConfigurationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WatchConfigurationRequest.ProtoReflect.Descriptor instead.
-func (*WatchConfigurationRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use WatchWorkspaceRequest.ProtoReflect.Descriptor instead.
+func (*WatchWorkspaceRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{29}
 }
 
-type GetConfigurationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
-	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
+type GetWorkspaceResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Workspace *Workspace             `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Logs      []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
 	// Where each configured variable's value came from, one entry per variable.
 	// Neither the file nor the process, but the result of resolving one against
 	// the other.
@@ -2369,20 +2369,20 @@ type GetConfigurationResponse struct {
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *GetConfigurationResponse) Reset() {
-	*x = GetConfigurationResponse{}
+func (x *GetWorkspaceResponse) Reset() {
+	*x = GetWorkspaceResponse{}
 	mi := &file_proto_api_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetConfigurationResponse) String() string {
+func (x *GetWorkspaceResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetConfigurationResponse) ProtoMessage() {}
+func (*GetWorkspaceResponse) ProtoMessage() {}
 
-func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
+func (x *GetWorkspaceResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2394,33 +2394,33 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
-func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetWorkspaceResponse.ProtoReflect.Descriptor instead.
+func (*GetWorkspaceResponse) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{30}
 }
 
-func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
+func (x *GetWorkspaceResponse) GetWorkspace() *Workspace {
 	if x != nil {
-		return x.Configuration
+		return x.Workspace
 	}
 	return nil
 }
 
-func (x *GetConfigurationResponse) GetLogs() []*Log {
+func (x *GetWorkspaceResponse) GetLogs() []*Log {
 	if x != nil {
 		return x.Logs
 	}
 	return nil
 }
 
-func (x *GetConfigurationResponse) GetVariableStatus() []*VariableStatus {
+func (x *GetWorkspaceResponse) GetVariableStatus() []*VariableStatus {
 	if x != nil {
 		return x.VariableStatus
 	}
 	return nil
 }
 
-func (x *GetConfigurationResponse) GetRuntime() *Runtime {
+func (x *GetWorkspaceResponse) GetRuntime() *Runtime {
 	if x != nil {
 		return x.Runtime
 	}
@@ -2437,7 +2437,7 @@ type Runtime struct {
 	// scripts beside it alike. True in the desktop app, which owns its
 	// workspace; false in the server, which serves a workspace managed outside
 	// kaja - unless it was started with --editable.
-	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
+	CanUpdateWorkspace bool `protobuf:"varint,1,opt,name=can_update_workspace,json=canUpdateWorkspace,proto3" json:"can_update_workspace,omitempty"`
 	// Git commit hash or tag for the currently running version
 	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
 	// TestFlight/App Store build number (CFBundleVersion), empty for other builds
@@ -2484,9 +2484,9 @@ func (*Runtime) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{31}
 }
 
-func (x *Runtime) GetCanUpdateConfiguration() bool {
+func (x *Runtime) GetCanUpdateWorkspace() bool {
 	if x != nil {
-		return x.CanUpdateConfiguration
+		return x.CanUpdateWorkspace
 	}
 	return false
 }
@@ -2732,7 +2732,7 @@ func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
 // these RPCs over the mux its webview already speaks, a browser fetches them
 // over the wire - which is what puts a script mounted into a container in the
 // sidebar. Writing is the verb a kaja that does not own its workspace refuses,
-// on the one answer `can_update_configuration` reports.
+// on the one answer `can_update_workspace` reports.
 type Script struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Absolute path on the machine serving the workspace. It identifies the script
@@ -3905,7 +3905,7 @@ func (x *CopyScriptFolderResponse) GetFolder() string {
 }
 
 // ScanScriptVariables reports which scripts reference the named variables. An
-// app's references are read out of the configuration the client already holds;
+// app's references are read out of the workspace the client already holds;
 // a script's cost a read of the file, so they are answered here, in one walk of
 // the scripts folder, rather than a search per variable the client has to pace.
 //
@@ -4118,17 +4118,17 @@ func (x *ScanScriptVariablesResponse) GetTruncated() bool {
 	return false
 }
 
-type Configuration struct {
+type Workspace struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// This field is used to set the subpath.
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
 	PathPrefix string `protobuf:"bytes,1,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
-	// Apps are the single unit of configuration. A gRPC or Twirp service is just an
+	// Apps are the single unit of a workspace. A gRPC or Twirp service is just an
 	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
 	// are apps too. kaja renders and invokes every app the same way.
-	Apps []*ConfigurationApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
+	Apps []*WorkspaceApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
 	// User-defined variables, referenced as `${NAME}` in app configuration and read
 	// from scripts as `kaja.variables.<name>`. A value is either literal, or names
 	// the source that holds it outside this file: "${secret}" (the OS keychain, or
@@ -4138,36 +4138,35 @@ type Configuration struct {
 	Variables map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Keyboard shortcut overrides, keyed by the action's own id ("run",
 	// "finder", ...) and holding one binding written in the canonical form the UI
-	// parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
-	// keeps the shortcut kaja ships, and an empty binding is an action deliberately
-	// left without one. It is configuration rather than a preference of the machine
-	// so a workspace served to a browser can state its own.
+	// parses ("Mod+Shift+N"). An action nothing names keeps the shortcut kaja
+	// ships, and an empty binding is an action deliberately left without one. Only
+	// ever written by hand: a key somebody records is theirs and goes in their
+	// settings, which win over this. What the workspace says is where a person who
+	// has set nothing starts.
 	Shortcuts map[string]string `protobuf:"bytes,7,rep,name=shortcuts,proto3" json:"shortcuts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Whether this workspace offers an agent session at all. On the desktop it is the
-	// switch itself: the process reads it at startup to decide whether to open the
-	// loopback listener, and writes it back when the switch is flipped. In a browser the
-	// switch belongs to the browser, because the token does - so this is only where a
-	// browser that has never chosen starts, which is what lets a deployed workspace ship
-	// an agent session that is already on.
-	Mcp           *McpSettings `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
+	// Where a browser that has never flipped the agent-session switch starts, which
+	// is what lets a deployed workspace ship a session that is already on. Only ever
+	// written by hand, and read by the web alone: the switch is the person's, and on
+	// the desktop a folder somebody cloned must not be what opens a listener.
+	Mcp           *WorkspaceMcp `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Configuration) Reset() {
-	*x = Configuration{}
+func (x *Workspace) Reset() {
+	*x = Workspace{}
 	mi := &file_proto_api_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Configuration) String() string {
+func (x *Workspace) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Configuration) ProtoMessage() {}
+func (*Workspace) ProtoMessage() {}
 
-func (x *Configuration) ProtoReflect() protoreflect.Message {
+func (x *Workspace) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4179,71 +4178,69 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
-func (*Configuration) Descriptor() ([]byte, []int) {
+// Deprecated: Use Workspace.ProtoReflect.Descriptor instead.
+func (*Workspace) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{65}
 }
 
-func (x *Configuration) GetPathPrefix() string {
+func (x *Workspace) GetPathPrefix() string {
 	if x != nil {
 		return x.PathPrefix
 	}
 	return ""
 }
 
-func (x *Configuration) GetApps() []*ConfigurationApp {
+func (x *Workspace) GetApps() []*WorkspaceApp {
 	if x != nil {
 		return x.Apps
 	}
 	return nil
 }
 
-func (x *Configuration) GetVariables() map[string]string {
+func (x *Workspace) GetVariables() map[string]string {
 	if x != nil {
 		return x.Variables
 	}
 	return nil
 }
 
-func (x *Configuration) GetShortcuts() map[string]string {
+func (x *Workspace) GetShortcuts() map[string]string {
 	if x != nil {
 		return x.Shortcuts
 	}
 	return nil
 }
 
-func (x *Configuration) GetMcp() *McpSettings {
+func (x *Workspace) GetMcp() *WorkspaceMcp {
 	if x != nil {
 		return x.Mcp
 	}
 	return nil
 }
 
-// McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
-// the endpoint and the token are addresses rather than configuration, so neither is
-// written here - the desktop persists its token beside this file and a browser keeps
-// its own.
-type McpSettings struct {
+// WorkspaceMcp is what kaja.json says about the agent session. Only `enabled`: the
+// endpoint and the token are addresses, and both are the person's.
+type WorkspaceMcp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *McpSettings) Reset() {
-	*x = McpSettings{}
+func (x *WorkspaceMcp) Reset() {
+	*x = WorkspaceMcp{}
 	mi := &file_proto_api_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *McpSettings) String() string {
+func (x *WorkspaceMcp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*McpSettings) ProtoMessage() {}
+func (*WorkspaceMcp) ProtoMessage() {}
 
-func (x *McpSettings) ProtoReflect() protoreflect.Message {
+func (x *WorkspaceMcp) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4255,52 +4252,52 @@ func (x *McpSettings) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use McpSettings.ProtoReflect.Descriptor instead.
-func (*McpSettings) Descriptor() ([]byte, []int) {
+// Deprecated: Use WorkspaceMcp.ProtoReflect.Descriptor instead.
+func (*WorkspaceMcp) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{66}
 }
 
-func (x *McpSettings) GetEnabled() bool {
+func (x *WorkspaceMcp) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
 	}
 	return false
 }
 
-// ConfigurationApp is one app: a name and exactly one typed block whose key is the
+// WorkspaceApp is one app: a name and exactly one typed block whose key is the
 // app's type. The block declares the parameters that type needs (so two types can
 // never be mixed in one app); the server flattens its scalar fields to a string map
 // for the app contract.
-type ConfigurationApp struct {
+type WorkspaceApp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Types that are valid to be assigned to App:
 	//
-	//	*ConfigurationApp_Grpc
-	//	*ConfigurationApp_Twirp
-	//	*ConfigurationApp_Openapi
-	//	*ConfigurationApp_Openai
-	//	*ConfigurationApp_Folder
-	//	*ConfigurationApp_Mcp
-	App           isConfigurationApp_App `protobuf_oneof:"app"`
+	//	*WorkspaceApp_Grpc
+	//	*WorkspaceApp_Twirp
+	//	*WorkspaceApp_Openapi
+	//	*WorkspaceApp_Openai
+	//	*WorkspaceApp_Folder
+	//	*WorkspaceApp_Mcp
+	App           isWorkspaceApp_App `protobuf_oneof:"app"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ConfigurationApp) Reset() {
-	*x = ConfigurationApp{}
+func (x *WorkspaceApp) Reset() {
+	*x = WorkspaceApp{}
 	mi := &file_proto_api_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ConfigurationApp) String() string {
+func (x *WorkspaceApp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ConfigurationApp) ProtoMessage() {}
+func (*WorkspaceApp) ProtoMessage() {}
 
-func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
+func (x *WorkspaceApp) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4312,118 +4309,118 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
-func (*ConfigurationApp) Descriptor() ([]byte, []int) {
+// Deprecated: Use WorkspaceApp.ProtoReflect.Descriptor instead.
+func (*WorkspaceApp) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{67}
 }
 
-func (x *ConfigurationApp) GetName() string {
+func (x *WorkspaceApp) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *ConfigurationApp) GetApp() isConfigurationApp_App {
+func (x *WorkspaceApp) GetApp() isWorkspaceApp_App {
 	if x != nil {
 		return x.App
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetGrpc() *GrpcApp {
+func (x *WorkspaceApp) GetGrpc() *GrpcApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Grpc); ok {
+		if x, ok := x.App.(*WorkspaceApp_Grpc); ok {
 			return x.Grpc
 		}
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetTwirp() *TwirpApp {
+func (x *WorkspaceApp) GetTwirp() *TwirpApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Twirp); ok {
+		if x, ok := x.App.(*WorkspaceApp_Twirp); ok {
 			return x.Twirp
 		}
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetOpenapi() *OpenApiApp {
+func (x *WorkspaceApp) GetOpenapi() *OpenApiApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Openapi); ok {
+		if x, ok := x.App.(*WorkspaceApp_Openapi); ok {
 			return x.Openapi
 		}
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetOpenai() *OpenAiApp {
+func (x *WorkspaceApp) GetOpenai() *OpenAiApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Openai); ok {
+		if x, ok := x.App.(*WorkspaceApp_Openai); ok {
 			return x.Openai
 		}
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetFolder() *FolderApp {
+func (x *WorkspaceApp) GetFolder() *FolderApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Folder); ok {
+		if x, ok := x.App.(*WorkspaceApp_Folder); ok {
 			return x.Folder
 		}
 	}
 	return nil
 }
 
-func (x *ConfigurationApp) GetMcp() *McpApp {
+func (x *WorkspaceApp) GetMcp() *McpApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Mcp); ok {
+		if x, ok := x.App.(*WorkspaceApp_Mcp); ok {
 			return x.Mcp
 		}
 	}
 	return nil
 }
 
-type isConfigurationApp_App interface {
-	isConfigurationApp_App()
+type isWorkspaceApp_App interface {
+	isWorkspaceApp_App()
 }
 
-type ConfigurationApp_Grpc struct {
+type WorkspaceApp_Grpc struct {
 	Grpc *GrpcApp `protobuf:"bytes,2,opt,name=grpc,proto3,oneof"`
 }
 
-type ConfigurationApp_Twirp struct {
+type WorkspaceApp_Twirp struct {
 	Twirp *TwirpApp `protobuf:"bytes,3,opt,name=twirp,proto3,oneof"`
 }
 
-type ConfigurationApp_Openapi struct {
+type WorkspaceApp_Openapi struct {
 	Openapi *OpenApiApp `protobuf:"bytes,4,opt,name=openapi,proto3,oneof"`
 }
 
-type ConfigurationApp_Openai struct {
+type WorkspaceApp_Openai struct {
 	Openai *OpenAiApp `protobuf:"bytes,5,opt,name=openai,proto3,oneof"`
 }
 
-type ConfigurationApp_Folder struct {
+type WorkspaceApp_Folder struct {
 	Folder *FolderApp `protobuf:"bytes,7,opt,name=folder,proto3,oneof"`
 }
 
-type ConfigurationApp_Mcp struct {
+type WorkspaceApp_Mcp struct {
 	Mcp *McpApp `protobuf:"bytes,8,opt,name=mcp,proto3,oneof"`
 }
 
-func (*ConfigurationApp_Grpc) isConfigurationApp_App() {}
+func (*WorkspaceApp_Grpc) isWorkspaceApp_App() {}
 
-func (*ConfigurationApp_Twirp) isConfigurationApp_App() {}
+func (*WorkspaceApp_Twirp) isWorkspaceApp_App() {}
 
-func (*ConfigurationApp_Openapi) isConfigurationApp_App() {}
+func (*WorkspaceApp_Openapi) isWorkspaceApp_App() {}
 
-func (*ConfigurationApp_Openai) isConfigurationApp_App() {}
+func (*WorkspaceApp_Openai) isWorkspaceApp_App() {}
 
-func (*ConfigurationApp_Folder) isConfigurationApp_App() {}
+func (*WorkspaceApp_Folder) isWorkspaceApp_App() {}
 
-func (*ConfigurationApp_Mcp) isConfigurationApp_App() {}
+func (*WorkspaceApp_Mcp) isWorkspaceApp_App() {}
 
 // GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
 // proto_dir, or from server reflection when reflection is set. headers are
@@ -5037,27 +5034,27 @@ func (x *McpApp) GetScope() string {
 	return ""
 }
 
-type UpdateConfigurationRequest struct {
+type UpdateWorkspaceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
+	Workspace     *Workspace             `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateConfigurationRequest) Reset() {
-	*x = UpdateConfigurationRequest{}
+func (x *UpdateWorkspaceRequest) Reset() {
+	*x = UpdateWorkspaceRequest{}
 	mi := &file_proto_api_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateConfigurationRequest) String() string {
+func (x *UpdateWorkspaceRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateConfigurationRequest) ProtoMessage() {}
+func (*UpdateWorkspaceRequest) ProtoMessage() {}
 
-func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
+func (x *UpdateWorkspaceRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -5069,41 +5066,41 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
-func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateWorkspaceRequest.ProtoReflect.Descriptor instead.
+func (*UpdateWorkspaceRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{74}
 }
 
-func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
+func (x *UpdateWorkspaceRequest) GetWorkspace() *Workspace {
 	if x != nil {
-		return x.Configuration
+		return x.Workspace
 	}
 	return nil
 }
 
-type UpdateConfigurationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
+type UpdateWorkspaceResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Workspace *Workspace             `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	// Where each variable's value came from, re-resolved against what was saved.
 	VariableStatus []*VariableStatus `protobuf:"bytes,2,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *UpdateConfigurationResponse) Reset() {
-	*x = UpdateConfigurationResponse{}
+func (x *UpdateWorkspaceResponse) Reset() {
+	*x = UpdateWorkspaceResponse{}
 	mi := &file_proto_api_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateConfigurationResponse) String() string {
+func (x *UpdateWorkspaceResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateConfigurationResponse) ProtoMessage() {}
+func (*UpdateWorkspaceResponse) ProtoMessage() {}
 
-func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
+func (x *UpdateWorkspaceResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -5115,112 +5112,21 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
-func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateWorkspaceResponse.ProtoReflect.Descriptor instead.
+func (*UpdateWorkspaceResponse) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{75}
 }
 
-func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
+func (x *UpdateWorkspaceResponse) GetWorkspace() *Workspace {
 	if x != nil {
-		return x.Configuration
+		return x.Workspace
 	}
 	return nil
 }
 
-func (x *UpdateConfigurationResponse) GetVariableStatus() []*VariableStatus {
+func (x *UpdateWorkspaceResponse) GetVariableStatus() []*VariableStatus {
 	if x != nil {
 		return x.VariableStatus
-	}
-	return nil
-}
-
-type SetMcpEnabledRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetMcpEnabledRequest) Reset() {
-	*x = SetMcpEnabledRequest{}
-	mi := &file_proto_api_proto_msgTypes[76]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetMcpEnabledRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetMcpEnabledRequest) ProtoMessage() {}
-
-func (x *SetMcpEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[76]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetMcpEnabledRequest.ProtoReflect.Descriptor instead.
-func (*SetMcpEnabledRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{76}
-}
-
-func (x *SetMcpEnabledRequest) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
-	}
-	return false
-}
-
-type SetMcpEnabledResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// What the file says now, which is what every window is about to be told by
-	// WatchConfiguration anyway - answered here so the window that asked need not wait
-	// for its own change to come back round.
-	Mcp           *McpSettings `protobuf:"bytes,1,opt,name=mcp,proto3" json:"mcp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetMcpEnabledResponse) Reset() {
-	*x = SetMcpEnabledResponse{}
-	mi := &file_proto_api_proto_msgTypes[77]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetMcpEnabledResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetMcpEnabledResponse) ProtoMessage() {}
-
-func (x *SetMcpEnabledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[77]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetMcpEnabledResponse.ProtoReflect.Descriptor instead.
-func (*SetMcpEnabledResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{77}
-}
-
-func (x *SetMcpEnabledResponse) GetMcp() *McpSettings {
-	if x != nil {
-		return x.Mcp
 	}
 	return nil
 }
@@ -5231,9 +5137,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\n" +
 	"\x0fproto/api.proto\"-\n" +
 	"\x0eCompileRequest\x12\x1b\n" +
-	"\tproto_dir\x18\x01 \x01(\tR\bprotoDir\"5\n" +
-	"\x0eOpenAppRequest\x12#\n" +
-	"\x03app\x18\x01 \x01(\v2\x11.ConfigurationAppR\x03app\"m\n" +
+	"\tproto_dir\x18\x01 \x01(\tR\bprotoDir\"1\n" +
+	"\x0eOpenAppRequest\x12\x1f\n" +
+	"\x03app\x18\x01 \x01(\v2\r.WorkspaceAppR\x03app\"m\n" +
 	"\x0fOpenAppResponse\x12#\n" +
 	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
@@ -5352,16 +5258,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"6\n" +
 	"\x06Source\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\"\x19\n" +
-	"\x17GetConfigurationRequest\"\x1b\n" +
-	"\x19WatchConfigurationRequest\"\xc8\x01\n" +
-	"\x18GetConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x15\n" +
+	"\x13GetWorkspaceRequest\"\x17\n" +
+	"\x15WatchWorkspaceRequest\"\xb8\x01\n" +
+	"\x14GetWorkspaceResponse\x12(\n" +
+	"\tworkspace\x18\x01 \x01(\v2\n" +
+	".WorkspaceR\tworkspace\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
 	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
-	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xde\x01\n" +
-	"\aRuntime\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xd6\x01\n" +
+	"\aRuntime\x120\n" +
+	"\x14can_update_workspace\x18\x01 \x01(\bR\x12canUpdateWorkspace\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
 	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
 	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12#\n" +
@@ -5442,24 +5349,24 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x9e\x03\n" +
-	"\rConfiguration\x12\x1f\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x8f\x03\n" +
+	"\tWorkspace\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
-	"pathPrefix\x12%\n" +
-	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
-	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x12;\n" +
-	"\tshortcuts\x18\a \x03(\v2\x1d.Configuration.ShortcutsEntryR\tshortcuts\x12\x1e\n" +
-	"\x03mcp\x18\b \x01(\v2\f.McpSettingsR\x03mcp\x1a<\n" +
+	"pathPrefix\x12!\n" +
+	"\x04apps\x18\x05 \x03(\v2\r.WorkspaceAppR\x04apps\x127\n" +
+	"\tvariables\x18\x06 \x03(\v2\x19.Workspace.VariablesEntryR\tvariables\x127\n" +
+	"\tshortcuts\x18\a \x03(\v2\x19.Workspace.ShortcutsEntryR\tshortcuts\x12\x1f\n" +
+	"\x03mcp\x18\b \x01(\v2\r.WorkspaceMcpR\x03mcp\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
 	"\x0eShortcutsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\t\x10\n" +
-	"R\bprojectsR\x06systemR\vscripts_dir\"'\n" +
-	"\vMcpSettings\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\"\x92\x02\n" +
-	"\x10ConfigurationApp\x12\x12\n" +
+	"R\bprojectsR\x06systemR\vscripts_dir\"(\n" +
+	"\fWorkspaceMcp\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\"\x8e\x02\n" +
+	"\fWorkspaceApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04grpc\x18\x02 \x01(\v2\b.GrpcAppH\x00R\x04grpc\x12!\n" +
 	"\x05twirp\x18\x03 \x01(\v2\t.TwirpAppH\x00R\x05twirp\x12'\n" +
@@ -5539,16 +5446,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x05scope\x18\a \x01(\tR\x05scope\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"R\n" +
-	"\x1aUpdateConfigurationRequest\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\x8d\x01\n" +
-	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x128\n" +
-	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"0\n" +
-	"\x14SetMcpEnabledRequest\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\"7\n" +
-	"\x15SetMcpEnabledResponse\x12\x1e\n" +
-	"\x03mcp\x18\x01 \x01(\v2\f.McpSettingsR\x03mcp*P\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"B\n" +
+	"\x16UpdateWorkspaceRequest\x12(\n" +
+	"\tworkspace\x18\x01 \x01(\v2\n" +
+	".WorkspaceR\tworkspace\"}\n" +
+	"\x17UpdateWorkspaceResponse\x12(\n" +
+	"\tworkspace\x18\x01 \x01(\v2\n" +
+	".WorkspaceR\tworkspace\x128\n" +
+	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus*P\n" +
 	"\n" +
 	"OpenStatus\x12\x17\n" +
 	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
@@ -5607,7 +5512,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\x80\x0e\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\x9c\r\n" +
 	"\x03Api\x12.\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x122\n" +
@@ -5617,11 +5522,10 @@ const file_proto_api_proto_rawDesc = "" +
 	"\n" +
 	"InspectMcp\x12\x12.InspectMcpRequest\x1a\x13.InspectMcpResponse\x12=\n" +
 	"\fAuthorizeMcp\x12\x14.AuthorizeMcpRequest\x1a\x15.AuthorizeMcpResponse0\x01\x12Y\n" +
-	"\x16ForgetMcpAuthorization\x12\x1e.ForgetMcpAuthorizationRequest\x1a\x1f.ForgetMcpAuthorizationResponse\x12G\n" +
-	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12M\n" +
-	"\x12WatchConfiguration\x12\x1a.WatchConfigurationRequest\x1a\x19.GetConfigurationResponse0\x01\x12P\n" +
-	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12>\n" +
-	"\rSetMcpEnabled\x12\x15.SetMcpEnabledRequest\x1a\x16.SetMcpEnabledResponse\x12>\n" +
+	"\x16ForgetMcpAuthorization\x12\x1e.ForgetMcpAuthorizationRequest\x1a\x1f.ForgetMcpAuthorizationResponse\x12;\n" +
+	"\fGetWorkspace\x12\x14.GetWorkspaceRequest\x1a\x15.GetWorkspaceResponse\x12A\n" +
+	"\x0eWatchWorkspace\x12\x16.WatchWorkspaceRequest\x1a\x15.GetWorkspaceResponse0\x01\x12D\n" +
+	"\x0fUpdateWorkspace\x12\x17.UpdateWorkspaceRequest\x1a\x18.UpdateWorkspaceResponse\x12>\n" +
 	"\x0eSetStoredValue\x12\x16.SetStoredValueRequest\x1a\x14.StoredValueResponse\x12B\n" +
 	"\x10ClearStoredValue\x12\x18.ClearStoredValueRequest\x1a\x14.StoredValueResponse\x128\n" +
 	"\vListScripts\x12\x13.ListScriptsRequest\x1a\x14.ListScriptsResponse\x125\n" +
@@ -5653,7 +5557,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 83)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                        // 0: OpenStatus
 	(GrpcProblemKind)(0),                   // 1: GrpcProblemKind
@@ -5690,9 +5594,9 @@ var file_proto_api_proto_goTypes = []any{
 	(*CompileResponse)(nil),                // 32: CompileResponse
 	(*Log)(nil),                            // 33: Log
 	(*Source)(nil),                         // 34: Source
-	(*GetConfigurationRequest)(nil),        // 35: GetConfigurationRequest
-	(*WatchConfigurationRequest)(nil),      // 36: WatchConfigurationRequest
-	(*GetConfigurationResponse)(nil),       // 37: GetConfigurationResponse
+	(*GetWorkspaceRequest)(nil),            // 35: GetWorkspaceRequest
+	(*WatchWorkspaceRequest)(nil),          // 36: WatchWorkspaceRequest
+	(*GetWorkspaceResponse)(nil),           // 37: GetWorkspaceResponse
 	(*Runtime)(nil),                        // 38: Runtime
 	(*VariableStatus)(nil),                 // 39: VariableStatus
 	(*SetStoredValueRequest)(nil),          // 40: SetStoredValueRequest
@@ -5727,29 +5631,27 @@ var file_proto_api_proto_goTypes = []any{
 	(*ScriptReference)(nil),                // 69: ScriptReference
 	(*VariableReferences)(nil),             // 70: VariableReferences
 	(*ScanScriptVariablesResponse)(nil),    // 71: ScanScriptVariablesResponse
-	(*Configuration)(nil),                  // 72: Configuration
-	(*McpSettings)(nil),                    // 73: McpSettings
-	(*ConfigurationApp)(nil),               // 74: ConfigurationApp
+	(*Workspace)(nil),                      // 72: Workspace
+	(*WorkspaceMcp)(nil),                   // 73: WorkspaceMcp
+	(*WorkspaceApp)(nil),                   // 74: WorkspaceApp
 	(*GrpcApp)(nil),                        // 75: GrpcApp
 	(*TwirpApp)(nil),                       // 76: TwirpApp
 	(*OpenApiApp)(nil),                     // 77: OpenApiApp
 	(*OpenAiApp)(nil),                      // 78: OpenAiApp
 	(*FolderApp)(nil),                      // 79: FolderApp
 	(*McpApp)(nil),                         // 80: McpApp
-	(*UpdateConfigurationRequest)(nil),     // 81: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil),    // 82: UpdateConfigurationResponse
-	(*SetMcpEnabledRequest)(nil),           // 83: SetMcpEnabledRequest
-	(*SetMcpEnabledResponse)(nil),          // 84: SetMcpEnabledResponse
-	nil,                                    // 85: Configuration.VariablesEntry
-	nil,                                    // 86: Configuration.ShortcutsEntry
-	nil,                                    // 87: GrpcApp.HeadersEntry
-	nil,                                    // 88: TwirpApp.HeadersEntry
-	nil,                                    // 89: OpenApiApp.HeadersEntry
-	nil,                                    // 90: OpenAiApp.HeadersEntry
-	nil,                                    // 91: McpApp.HeadersEntry
+	(*UpdateWorkspaceRequest)(nil),         // 81: UpdateWorkspaceRequest
+	(*UpdateWorkspaceResponse)(nil),        // 82: UpdateWorkspaceResponse
+	nil,                                    // 83: Workspace.VariablesEntry
+	nil,                                    // 84: Workspace.ShortcutsEntry
+	nil,                                    // 85: GrpcApp.HeadersEntry
+	nil,                                    // 86: TwirpApp.HeadersEntry
+	nil,                                    // 87: OpenApiApp.HeadersEntry
+	nil,                                    // 88: OpenAiApp.HeadersEntry
+	nil,                                    // 89: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	74, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	74, // 0: OpenAppRequest.app:type_name -> WorkspaceApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
 	33, // 2: OpenAppResponse.logs:type_name -> Log
 	75, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
@@ -5775,10 +5677,10 @@ var file_proto_api_proto_depIdxs = []int32{
 	33, // 23: CompileResponse.logs:type_name -> Log
 	34, // 24: CompileResponse.sources:type_name -> Source
 	5,  // 25: Log.level:type_name -> LogLevel
-	72, // 26: GetConfigurationResponse.configuration:type_name -> Configuration
-	33, // 27: GetConfigurationResponse.logs:type_name -> Log
-	39, // 28: GetConfigurationResponse.variable_status:type_name -> VariableStatus
-	38, // 29: GetConfigurationResponse.runtime:type_name -> Runtime
+	72, // 26: GetWorkspaceResponse.workspace:type_name -> Workspace
+	33, // 27: GetWorkspaceResponse.logs:type_name -> Log
+	39, // 28: GetWorkspaceResponse.variable_status:type_name -> VariableStatus
+	38, // 29: GetWorkspaceResponse.runtime:type_name -> Runtime
 	6,  // 30: VariableStatus.source:type_name -> VariableSource
 	39, // 31: StoredValueResponse.variable_status:type_name -> VariableStatus
 	43, // 32: ListScriptsResponse.scripts:type_name -> Script
@@ -5789,84 +5691,81 @@ var file_proto_api_proto_depIdxs = []int32{
 	43, // 37: CopyScriptResponse.script:type_name -> Script
 	69, // 38: VariableReferences.scripts:type_name -> ScriptReference
 	70, // 39: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
-	74, // 40: Configuration.apps:type_name -> ConfigurationApp
-	85, // 41: Configuration.variables:type_name -> Configuration.VariablesEntry
-	86, // 42: Configuration.shortcuts:type_name -> Configuration.ShortcutsEntry
-	73, // 43: Configuration.mcp:type_name -> McpSettings
-	75, // 44: ConfigurationApp.grpc:type_name -> GrpcApp
-	76, // 45: ConfigurationApp.twirp:type_name -> TwirpApp
-	77, // 46: ConfigurationApp.openapi:type_name -> OpenApiApp
-	78, // 47: ConfigurationApp.openai:type_name -> OpenAiApp
-	79, // 48: ConfigurationApp.folder:type_name -> FolderApp
-	80, // 49: ConfigurationApp.mcp:type_name -> McpApp
-	87, // 50: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	88, // 51: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	89, // 52: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	90, // 53: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	91, // 54: McpApp.headers:type_name -> McpApp.HeadersEntry
-	72, // 55: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	72, // 56: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	39, // 57: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
-	73, // 58: SetMcpEnabledResponse.mcp:type_name -> McpSettings
-	7,  // 59: Api.Compile:input_type -> CompileRequest
-	8,  // 60: Api.OpenApp:input_type -> OpenAppRequest
-	10, // 61: Api.RenameApp:input_type -> RenameAppRequest
-	17, // 62: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	12, // 63: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	24, // 64: Api.InspectMcp:input_type -> InspectMcpRequest
-	28, // 65: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
-	30, // 66: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
-	35, // 67: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	36, // 68: Api.WatchConfiguration:input_type -> WatchConfigurationRequest
-	81, // 69: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	83, // 70: Api.SetMcpEnabled:input_type -> SetMcpEnabledRequest
-	40, // 71: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	41, // 72: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	44, // 73: Api.ListScripts:input_type -> ListScriptsRequest
-	46, // 74: Api.ReadScript:input_type -> ReadScriptRequest
-	48, // 75: Api.WriteScript:input_type -> WriteScriptRequest
-	50, // 76: Api.CreateScript:input_type -> CreateScriptRequest
-	52, // 77: Api.RenameScript:input_type -> RenameScriptRequest
-	54, // 78: Api.DeleteScript:input_type -> DeleteScriptRequest
-	56, // 79: Api.CopyScript:input_type -> CopyScriptRequest
-	58, // 80: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
-	60, // 81: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
-	62, // 82: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
-	64, // 83: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
-	66, // 84: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
-	68, // 85: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
-	32, // 86: Api.Compile:output_type -> CompileResponse
-	9,  // 87: Api.OpenApp:output_type -> OpenAppResponse
-	11, // 88: Api.RenameApp:output_type -> RenameAppResponse
-	18, // 89: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	13, // 90: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	25, // 91: Api.InspectMcp:output_type -> InspectMcpResponse
-	29, // 92: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
-	31, // 93: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
-	37, // 94: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	37, // 95: Api.WatchConfiguration:output_type -> GetConfigurationResponse
-	82, // 96: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	84, // 97: Api.SetMcpEnabled:output_type -> SetMcpEnabledResponse
-	42, // 98: Api.SetStoredValue:output_type -> StoredValueResponse
-	42, // 99: Api.ClearStoredValue:output_type -> StoredValueResponse
-	45, // 100: Api.ListScripts:output_type -> ListScriptsResponse
-	47, // 101: Api.ReadScript:output_type -> ReadScriptResponse
-	49, // 102: Api.WriteScript:output_type -> WriteScriptResponse
-	51, // 103: Api.CreateScript:output_type -> CreateScriptResponse
-	53, // 104: Api.RenameScript:output_type -> RenameScriptResponse
-	55, // 105: Api.DeleteScript:output_type -> DeleteScriptResponse
-	57, // 106: Api.CopyScript:output_type -> CopyScriptResponse
-	59, // 107: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
-	61, // 108: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
-	63, // 109: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
-	65, // 110: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
-	67, // 111: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
-	71, // 112: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
-	86, // [86:113] is the sub-list for method output_type
-	59, // [59:86] is the sub-list for method input_type
-	59, // [59:59] is the sub-list for extension type_name
-	59, // [59:59] is the sub-list for extension extendee
-	0,  // [0:59] is the sub-list for field type_name
+	74, // 40: Workspace.apps:type_name -> WorkspaceApp
+	83, // 41: Workspace.variables:type_name -> Workspace.VariablesEntry
+	84, // 42: Workspace.shortcuts:type_name -> Workspace.ShortcutsEntry
+	73, // 43: Workspace.mcp:type_name -> WorkspaceMcp
+	75, // 44: WorkspaceApp.grpc:type_name -> GrpcApp
+	76, // 45: WorkspaceApp.twirp:type_name -> TwirpApp
+	77, // 46: WorkspaceApp.openapi:type_name -> OpenApiApp
+	78, // 47: WorkspaceApp.openai:type_name -> OpenAiApp
+	79, // 48: WorkspaceApp.folder:type_name -> FolderApp
+	80, // 49: WorkspaceApp.mcp:type_name -> McpApp
+	85, // 50: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	86, // 51: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	87, // 52: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	88, // 53: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	89, // 54: McpApp.headers:type_name -> McpApp.HeadersEntry
+	72, // 55: UpdateWorkspaceRequest.workspace:type_name -> Workspace
+	72, // 56: UpdateWorkspaceResponse.workspace:type_name -> Workspace
+	39, // 57: UpdateWorkspaceResponse.variable_status:type_name -> VariableStatus
+	7,  // 58: Api.Compile:input_type -> CompileRequest
+	8,  // 59: Api.OpenApp:input_type -> OpenAppRequest
+	10, // 60: Api.RenameApp:input_type -> RenameAppRequest
+	17, // 61: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	12, // 62: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	24, // 63: Api.InspectMcp:input_type -> InspectMcpRequest
+	28, // 64: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
+	30, // 65: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
+	35, // 66: Api.GetWorkspace:input_type -> GetWorkspaceRequest
+	36, // 67: Api.WatchWorkspace:input_type -> WatchWorkspaceRequest
+	81, // 68: Api.UpdateWorkspace:input_type -> UpdateWorkspaceRequest
+	40, // 69: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	41, // 70: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	44, // 71: Api.ListScripts:input_type -> ListScriptsRequest
+	46, // 72: Api.ReadScript:input_type -> ReadScriptRequest
+	48, // 73: Api.WriteScript:input_type -> WriteScriptRequest
+	50, // 74: Api.CreateScript:input_type -> CreateScriptRequest
+	52, // 75: Api.RenameScript:input_type -> RenameScriptRequest
+	54, // 76: Api.DeleteScript:input_type -> DeleteScriptRequest
+	56, // 77: Api.CopyScript:input_type -> CopyScriptRequest
+	58, // 78: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	60, // 79: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	62, // 80: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	64, // 81: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	66, // 82: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
+	68, // 83: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
+	32, // 84: Api.Compile:output_type -> CompileResponse
+	9,  // 85: Api.OpenApp:output_type -> OpenAppResponse
+	11, // 86: Api.RenameApp:output_type -> RenameAppResponse
+	18, // 87: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	13, // 88: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	25, // 89: Api.InspectMcp:output_type -> InspectMcpResponse
+	29, // 90: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
+	31, // 91: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
+	37, // 92: Api.GetWorkspace:output_type -> GetWorkspaceResponse
+	37, // 93: Api.WatchWorkspace:output_type -> GetWorkspaceResponse
+	82, // 94: Api.UpdateWorkspace:output_type -> UpdateWorkspaceResponse
+	42, // 95: Api.SetStoredValue:output_type -> StoredValueResponse
+	42, // 96: Api.ClearStoredValue:output_type -> StoredValueResponse
+	45, // 97: Api.ListScripts:output_type -> ListScriptsResponse
+	47, // 98: Api.ReadScript:output_type -> ReadScriptResponse
+	49, // 99: Api.WriteScript:output_type -> WriteScriptResponse
+	51, // 100: Api.CreateScript:output_type -> CreateScriptResponse
+	53, // 101: Api.RenameScript:output_type -> RenameScriptResponse
+	55, // 102: Api.DeleteScript:output_type -> DeleteScriptResponse
+	57, // 103: Api.CopyScript:output_type -> CopyScriptResponse
+	59, // 104: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	61, // 105: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	63, // 106: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	65, // 107: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	67, // 108: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
+	71, // 109: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
+	84, // [84:110] is the sub-list for method output_type
+	58, // [58:84] is the sub-list for method input_type
+	58, // [58:58] is the sub-list for extension type_name
+	58, // [58:58] is the sub-list for extension extendee
+	0,  // [0:58] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -5875,12 +5774,12 @@ func file_proto_api_proto_init() {
 		return
 	}
 	file_proto_api_proto_msgTypes[67].OneofWrappers = []any{
-		(*ConfigurationApp_Grpc)(nil),
-		(*ConfigurationApp_Twirp)(nil),
-		(*ConfigurationApp_Openapi)(nil),
-		(*ConfigurationApp_Openai)(nil),
-		(*ConfigurationApp_Folder)(nil),
-		(*ConfigurationApp_Mcp)(nil),
+		(*WorkspaceApp_Grpc)(nil),
+		(*WorkspaceApp_Twirp)(nil),
+		(*WorkspaceApp_Openapi)(nil),
+		(*WorkspaceApp_Openai)(nil),
+		(*WorkspaceApp_Folder)(nil),
+		(*WorkspaceApp_Mcp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5888,7 +5787,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   85,
+			NumMessages:   83,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

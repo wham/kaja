@@ -14,21 +14,18 @@
  * session. Being an address rather than a session, it is minted once and **outlives
  * the switch**: turning the server off closes the session under it and leaves every
  * configuration already pasted naming the same browser, which is why rolling it costs
- * the deliberate gesture Regenerate token is. It is the one thing kept in
- * `localStorage` rather than in `storage.ts`,
- * because localStorage is shared between an origin's tabs *and* says when it changes —
- * so connecting in one window attaches the others as they are. The IndexedDB store
- * reads itself once at startup, which would make a second window find out on its next
- * reload.
+ * the deliberate gesture Regenerate token is. Both it and the switch are this
+ * browser's settings (`settings.ts`), which every tab shares and hears change, so
+ * connecting in one window attaches the others as they are.
  *
  * On the **desktop** the process persists the token so installed agents keep working,
  * and hands it over (`adopt`) while its server is on. That is the whole of the
  * difference: one window attached on the mux the webview already fetches its calls on.
  */
 
+import { getSettings, saveMcpToken, subscribeSettings } from "./settings";
 import { isWailsEnvironment } from "./wails";
 
-const STORAGE_KEY = "kaja:agentSession";
 // How long the sidebar's plug stays lit after the last request is answered. An agent's
 // calls arrive in bursts of a few milliseconds.
 const ACTIVITY_LINGER_MS = 2500;
@@ -107,35 +104,10 @@ interface Message {
   progress?: boolean;
 }
 
-/**
- * What a browser keeps for itself, which is its address and nothing else. The switch is
- * `mcp.enabled` in kaja.json — one answer for the workspace, so a deployed one can ship
- * a session already on and a read-only one cannot be argued with. Earlier shapes of this
- * key carried the switch too; the flag is read no more, so a browser that had it off
- * follows the workspace like any other.
- */
-interface Stored {
-  token: string;
-}
-
-function readStored(): Stored | undefined {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as Stored;
-    return typeof parsed?.token === "string" && parsed.token.length >= 24 ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function writeStored(stored: Stored): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  } catch {
-    // A browser refusing storage is one the token cannot outlive a reload in; the
-    // session still works for as long as this window is open.
-  }
+// What an earlier build or a hand edit left behind is not an address the server accepts.
+function storedToken(): string | undefined {
+  const token = getSettings().mcp.token;
+  return typeof token === "string" && token.length >= 24 ? token : undefined;
 }
 
 // A token is 32 hex characters of the browser's own randomness, which is what the
@@ -195,15 +167,15 @@ class AgentSession {
     if (isWailsEnvironment()) return;
 
     void this.readAvailability();
-    window.addEventListener("storage", this.onStorage);
+    subscribeSettings(this.onSettings);
     // The address is this browser's whether or not the switch is on, so it is minted
     // here rather than by turning the server on: the page names an endpoint and a
     // token from the first time it is opened, and nothing about them changes when the
     // switch does.
-    if (!readStored()) writeStored({ token: newToken() });
+    if (!storedToken()) saveMcpToken(newToken());
     this.update(this.address());
-    // Nothing is attached here: the switch arrives with the configuration, and
-    // setSwitch is what acts on it.
+    // Nothing is attached here: the switch is the person's laid over the workspace's,
+    // and setSwitch is what acts on it.
   }
 
   /**
@@ -219,13 +191,11 @@ class AgentSession {
   }
 
   /**
-   * What the workspace says, applied. `mcp.enabled` is the switch and this is every
-   * window acting on it, so a change reaches the other tabs the way it reaches this one
-   * — down each window's own configuration stream — rather than through the storage
-   * event a per-browser flag needed. Off tells the server rather than leaving the
-   * session to time out: until it forgets the token, discovery would go on answering
-   * under it. The token stays either way, because it is where this browser is reached
-   * and not whether anything answers there.
+   * The switch, applied: this browser's setting, or the workspace's where it has never
+   * been flipped. Off tells the server rather than leaving the session to time out:
+   * until it forgets the token, discovery would go on answering under it. The token
+   * stays either way, because it is where this browser is reached and not whether
+   * anything answers there.
    */
   setSwitch(enabled: boolean): void {
     if (isWailsEnvironment()) return;
@@ -233,9 +203,9 @@ class AgentSession {
       this.attach();
       return;
     }
-    // Nothing to turn off, which is every load of a workspace that has it off.
+    // Nothing to turn off, which is every load of a browser that has it off.
     if (!this.state.connected) return;
-    const token = readStored()?.token;
+    const token = storedToken();
     this.detach();
     if (token) {
       void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
@@ -249,13 +219,13 @@ class AgentSession {
    * changes the address, which is why the page asks twice for it.
    */
   regenerateToken(): void {
-    const previous = readStored();
+    const previous = storedToken();
     const wasOn = this.state.connected;
     this.detach();
-    if (previous?.token) {
-      void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous.token}` } }).catch(() => {});
+    if (previous) {
+      void fetch("/agent-session/detach", { method: "POST", headers: { Authorization: `Bearer ${previous}` } }).catch(() => {});
     }
-    writeStored({ token: newToken() });
+    saveMcpToken(newToken());
     this.update(this.address());
     if (wasOn) this.attach();
   }
@@ -273,10 +243,10 @@ class AgentSession {
   }
 
   // A token rolled in another tab is a new address, and the stream this window holds is
-  // on the old one. The switch does not travel this way any more: it is the workspace's,
-  // and every window is told by its own configuration stream.
-  private onStorage = (event: StorageEvent) => {
-    if (event.key !== null && event.key !== STORAGE_KEY) return;
+  // on the old one.
+  private onSettings = () => {
+    if (isWailsEnvironment()) return;
+    this.update(this.address());
     if (this.state.connected) this.attach();
   };
 
@@ -293,7 +263,7 @@ class AgentSession {
 
   // The token this window attaches under: the desktop's, else this browser's own.
   private currentToken(): string | undefined {
-    return this.hostToken ?? readStored()?.token;
+    return this.hostToken ?? storedToken();
   }
 
   // Where this browser is reached, which is not a thing the switch decides. The

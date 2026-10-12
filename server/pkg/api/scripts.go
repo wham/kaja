@@ -22,7 +22,7 @@ import (
 // follow out of it.
 //
 // Writing is refused where this kaja does not own the workspace it opened, which is
-// the one answer canUpdateConfiguration reports.
+// the one answer canUpdateWorkspace reports.
 
 // Absolute because the path is what identifies a script to the client.
 func (s *ApiService) scriptsDir() string {
@@ -33,7 +33,7 @@ func (s *ApiService) scriptsDir() string {
 // agent switchboard asks it to decide whether the tools that write a script are
 // offered at all.
 func (s *ApiService) CanWriteWorkspace() bool {
-	return s.canUpdateConfiguration
+	return s.canUpdateWorkspace
 }
 
 // ScriptPath is the absolute path a name resolves to, which is what identifies a
@@ -348,7 +348,7 @@ func (s *ApiService) RenameScriptFolder(ctx context.Context, req *RenameScriptFo
 }
 
 func (s *ApiService) DeleteScriptFolder(ctx context.Context, req *DeleteScriptFolderRequest) (*DeleteScriptFolderResponse, error) {
-	if !s.canUpdateConfiguration {
+	if !s.canUpdateWorkspace {
 		return nil, ErrScriptsReadOnly
 	}
 	relative, err := relativeFolderPath(req.Name)
@@ -441,7 +441,7 @@ var ErrScriptsReadOnly = errors.New("this Kaja serves a workspace it does not ow
 // and resolving are never spelled out twice. The folder is created first: filing a
 // script somewhere new needs no trip to make the place.
 func (s *ApiService) openScriptsForWriting() (string, *os.Root, error) {
-	if !s.canUpdateConfiguration {
+	if !s.canUpdateWorkspace {
 		return "", nil, ErrScriptsReadOnly
 	}
 	dir := s.scriptsDir()

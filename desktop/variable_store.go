@@ -13,22 +13,22 @@ const keychainService = "kaja"
 const probeAccount = "kaja:probe"
 
 // keychainStore keeps a variable's value in the OS keychain, so kaja.json only
-// has to name it. Items are keyed by the configuration they belong to, so two
+// has to name it. Items are keyed by the kaja.json they belong to, so two
 // workspaces that both declare TOKEN keep their own value.
 type keychainStore struct {
-	configurationPath string
+	workspaceFile string
 
 	once      sync.Once
 	available bool
 }
 
 // NewKeychainStore binds the OS keychain as the place variable values live.
-func NewKeychainStore(configurationPath string) *keychainStore {
-	return &keychainStore{configurationPath: configurationPath}
+func NewKeychainStore(workspaceFile string) *keychainStore {
+	return &keychainStore{workspaceFile: workspaceFile}
 }
 
 func (s *keychainStore) account(name string) string {
-	return s.configurationPath + "#" + name
+	return s.workspaceFile + "#" + name
 }
 
 // Available probes the keychain once. A machine whose keychain can't be reached

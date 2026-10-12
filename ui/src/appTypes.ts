@@ -1,6 +1,6 @@
 import { FolderOpen, Sparkles, type LucideIcon } from "lucide-react";
 import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a native
 // picker on the desktop and a plain text field elsewhere; "upload" reads a chosen
@@ -201,11 +201,11 @@ export function appTypeLabel(type: string): string {
 }
 
 // appType returns an app's type: the set field of its `app` oneof (e.g. "grpc").
-export function appType(app: ConfigurationApp): string {
+export function appType(app: WorkspaceApp): string {
   return app.app.oneofKind ?? "";
 }
 
-function appVariant(app: ConfigurationApp): Record<string, unknown> | undefined {
+function appVariant(app: WorkspaceApp): Record<string, unknown> | undefined {
   const kind = app.app.oneofKind;
   if (!kind) return undefined;
   return (app.app as Record<string, unknown>)[kind] as Record<string, unknown> | undefined;
@@ -213,7 +213,7 @@ function appVariant(app: ConfigurationApp): Record<string, unknown> | undefined 
 
 // appParameters reads the fields the app's type declares into the string map the form
 // works with. Booleans become "true"/"". Keys are the camelCase field names.
-export function appParameters(app: ConfigurationApp): Record<string, string> {
+export function appParameters(app: WorkspaceApp): Record<string, string> {
   const variant = appVariant(app);
   const params: Record<string, string> = {};
   for (const parameter of getAppType(appType(app))?.parameters ?? []) {
@@ -225,7 +225,7 @@ export function appParameters(app: ConfigurationApp): Record<string, string> {
 
 // appHeaders reads the headers an app forwards upstream. They live inside the typed
 // block (every type but the local Folder app has them).
-export function appHeaders(app: ConfigurationApp): Record<string, string> {
+export function appHeaders(app: WorkspaceApp): Record<string, string> {
   return (appVariant(app)?.headers as Record<string, string>) ?? {};
 }
 
@@ -258,7 +258,7 @@ export function mergeHeaders(headers: Record<string, string>, overrides?: Record
 // transportHeaders is what a call actually sends: the headers it was made with, plus
 // the reserved one naming its app. `appHeaders` stays what the app is configured with,
 // and the call's own merged set is what the Headers view shows.
-export function transportHeaders(app: ConfigurationApp, requestHeaders: Record<string, string>): Record<string, string> {
+export function transportHeaders(app: WorkspaceApp, requestHeaders: Record<string, string>): Record<string, string> {
   return { ...requestHeaders, [APP_HEADER]: app.name };
 }
 
@@ -273,10 +273,10 @@ export function typeForwardsHeaders(type: string): boolean {
   return type !== "folder";
 }
 
-// buildApp constructs a ConfigurationApp from the generic form state: the typed block
+// buildApp constructs a WorkspaceApp from the generic form state: the typed block
 // for `type` with the declared params (coercing booleans) and, for types that forward
 // them, the headers.
-export function buildApp(name: string, type: string, params: Record<string, string>, headers: Record<string, string>): ConfigurationApp {
+export function buildApp(name: string, type: string, params: Record<string, string>, headers: Record<string, string>): WorkspaceApp {
   const variant: Record<string, unknown> = {};
   for (const parameter of getAppType(type)?.parameters ?? []) {
     const value = params[parameter.key] ?? "";
@@ -287,6 +287,6 @@ export function buildApp(name: string, type: string, params: Record<string, stri
   }
   return {
     name,
-    app: { oneofKind: type, [type]: variant } as unknown as ConfigurationApp["app"],
+    app: { oneofKind: type, [type]: variant } as unknown as WorkspaceApp["app"],
   };
 }

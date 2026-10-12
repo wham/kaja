@@ -14,13 +14,13 @@ import (
 func TestReflectionMatchesProtoDir(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"fidelity"}, Reflection: true, SourceInfo: true})
 
-	_, reflected, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, reflected, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
-	_, direct, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, direct, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "direct",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/fidelity")}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/fidelity")}},
 	})
 
 	reflectedText := sourceOf(t, reflected, "fidelity.ts")
@@ -42,9 +42,9 @@ func TestReflectionMatchesProtoDir(t *testing.T) {
 func TestReflectionKeepsWhatAMethodDeclares(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"fidelity"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 	generated := sourceText(sources)
 
@@ -102,13 +102,13 @@ func diffLines(want, got string) []string {
 func TestReflectionOfProto2(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"legacy"}, Reflection: true})
 
-	_, reflected, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, reflected, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
-	_, direct, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, direct, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "direct",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/legacy")}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/legacy")}},
 	})
 
 	if got, want := sourceOf(t, reflected, "legacy.ts"), sourceOf(t, direct, "legacy.ts"); got != want {

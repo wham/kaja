@@ -26,21 +26,20 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	// The server serves a workspace it does not own — a Git checkout, a mounted volume —
-	// so its configuration is read-only. --editable opts out of that for development.
-	editable := flag.Bool("editable", false, "allow the UI to write to the configuration file")
-	workspace := flag.String("workspace", "../workspace", "the folder holding the kaja.json to serve")
+	// so it serves it read-only. --editable opts out of that for development.
+	editable := flag.Bool("editable", false, "allow the UI to write the workspace")
+	workspaceDir := flag.String("workspace", "../workspace", "the folder holding the kaja.json to serve")
 	flag.Parse()
 
-	configurationPath := filepath.Join(*workspace, "kaja.json")
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath)
-	configuration := getConfigurationResponse.Configuration
+	workspaceFile := filepath.Join(*workspaceDir, "kaja.json")
+	workspace := api.LoadGetWorkspaceResponse(workspaceFile).Workspace
 
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
 	// No variable store on the web server: a "${secret}" variable's value comes from the
 	// environment.
-	apiService := api.NewApiService(configurationPath, *editable, GitRef, "", nil)
+	apiService := api.NewApiService(workspaceFile, *editable, GitRef, "", nil)
 
 	// The internal Api service and the per-app target lane, the same two the desktop
 	// mounts under its webview.
@@ -101,7 +100,7 @@ func main() {
 	mux.HandleFunc("GET /status", handleStatus)
 
 	root := http.NewServeMux()
-	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))
+	root.Handle(workspace.PathPrefix+"/", logRequest(http.StripPrefix(workspace.PathPrefix, mux)))
 
 	// Used in kaja launch scripts to determine if the server has started. slog.Info is
 	// not visible with Docker's -a STDOUT flag — its output is buffered. Ideally rewrite

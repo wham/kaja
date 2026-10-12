@@ -8,8 +8,8 @@ import (
 // A relative path in kaja.json is relative to the file, never to the working directory.
 var pathParameters = []string{"proto_dir", "ca_file", "client_cert_file", "client_key_file"}
 
-func workspaceDir(configurationPath string) string {
-	dir := filepath.Dir(configurationPath)
+func workspaceDir(workspaceFile string) string {
+	dir := filepath.Dir(workspaceFile)
 	if absolute, err := filepath.Abs(dir); err == nil {
 		return absolute
 	}

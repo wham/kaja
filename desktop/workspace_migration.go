@@ -12,10 +12,10 @@ import (
 // The installation's folder used to be the workspace. Done once, when the old layout
 // is found and the new one is not; the keychain keys values by the file's path, so
 // they move with it.
-func migrateDefaultWorkspace(kajaDir string, storeFor func(configurationPath string) api.VariableStore) error {
+func migrateDefaultWorkspace(kajaDir string, storeFor func(workspaceFile string) api.VariableStore) error {
 	oldPath := filepath.Join(kajaDir, "kaja.json")
 	newDir := defaultWorkspaceDir(kajaDir)
-	newPath := configurationPathIn(newDir)
+	newPath := workspaceFileIn(newDir)
 	if _, err := os.Stat(newPath); err == nil {
 		return nil
 	}
@@ -44,11 +44,11 @@ func migrateDefaultWorkspace(kajaDir string, storeFor func(configurationPath str
 	}
 
 	// The file goes last, so a move that failed halfway is found again next time.
-	configuration := api.LoadGetConfigurationResponse(oldPath).Configuration
+	workspace := api.LoadGetWorkspaceResponse(oldPath).Workspace
 	if err := os.Rename(oldPath, newPath); err != nil {
 		return err
 	}
-	moveStoredValues(configuration.GetVariables(), storeFor(oldPath), storeFor(newPath))
+	moveStoredValues(workspace.GetVariables(), storeFor(oldPath), storeFor(newPath))
 	slog.Info("Moved the default workspace", "from", kajaDir, "to", newDir)
 	return nil
 }

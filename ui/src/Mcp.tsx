@@ -7,7 +7,6 @@ import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Switch } from "./components/switch";
 import { mcpAgents, type McpEndpoint } from "./mcpAgents";
-import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { isListening, mcpDotClass, mcpStatusOf, type McpConnection, type McpControl } from "./mcpState";
 import { desktop, isWailsEnvironment, openInBrowser } from "./wails";
 
@@ -41,7 +40,7 @@ type CopyTarget = "url" | "token" | "snippet";
  * token stay copyable while nothing is listening. What Kaja is for is said on the empty
  * state, which is the screen that has nothing else to say.
  */
-export function Mcp({ info, control, active, readOnly }: { info?: McpConnection; control: McpControl; active: boolean; readOnly?: boolean }) {
+export function Mcp({ info, control, active }: { info?: McpConnection; control: McpControl; active: boolean }) {
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState<CopyTarget>();
   const [armed, setArmed] = useState(false);
@@ -101,7 +100,6 @@ export function Mcp({ info, control, active, readOnly }: { info?: McpConnection;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {readOnly && <ReadOnlyBanner>The MCP server is set in kaja.json.</ReadOnlyBanner>}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-5 py-[18px]">
         <section aria-label="MCP server" className="flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3">
           <div className="flex items-center gap-2">
@@ -116,19 +114,9 @@ export function Mcp({ info, control, active, readOnly }: { info?: McpConnection;
               </span>
             )}
             <span className="flex-1" />
-            {/* Retry writes the switch, so it goes where the workspace cannot be written. The
-                switch itself stays and is disabled, on the exception the app form is drawn
-                under: it is the clearest statement of whether a session is offered at all,
-                and a reader who cannot find it reads the page as broken rather than as
-                settled. Where the answer came from is the banner's to say. */}
-            {!readOnly && status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
+            {status.state === "error" && <Verb icon={RotateCw} label="Retry" onClick={() => control.setEnabled(true)} />}
             <span className="shrink-0 text-xs text-muted-foreground">{control.enabled ? "on" : "off"}</span>
-            <Switch
-              checked={control.enabled}
-              disabled={readOnly}
-              onCheckedChange={(checked) => control.setEnabled(checked === true)}
-              aria-label="Enable MCP server"
-            />
+            <Switch checked={control.enabled} onCheckedChange={(checked) => control.setEnabled(checked === true)} aria-label="Enable MCP server" />
           </div>
           <div className="flex items-end gap-7">
             <Field label="endpoint" value={endpoint.url} lit={listening} copied={copied === "url"} onCopy={() => copy("url", endpoint.url)} />

@@ -1,14 +1,13 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Every key the window states, in one table. A shortcut is a workspace's own
- * (`shortcuts` in kaja.json) rather than this machine's, so a kaja served to a
- * browser can ship the keys it wants and a checkout carries them.
+ * Every key the window states, in one table. A key is the person's (their settings),
+ * laid over what the workspace's kaja.json says, laid over what kaja ships — so a key
+ * recorded follows them into every workspace, and a kaja served to a browser can still
+ * suggest its own to somebody who has set nothing.
  *
- * The bindings in the file are overrides and nothing else: an action nothing names
- * keeps what kaja ships, so a workspace that has never opened this view writes
- * nothing. An action named with an empty binding is one deliberately left without a
- * key.
+ * Both layers hold overrides and nothing else: an action nothing names keeps what kaja
+ * ships. An action named with an empty binding is one deliberately left without a key.
  */
 
 export type ShortcutAction =
@@ -354,8 +353,8 @@ export function formatPartialChord(event: KeyboardEvent, mac = isMacPlatform()):
   return [...MODIFIERS.filter((modifier) => held.has(modifier)).map((modifier) => OTHER_MODIFIER_LABEL[modifier]), PENDING_KEY].join("+");
 }
 
-// The overrides the window is running, kept beside the configuration the way the
-// variables registry is, so a keydown handler never has to be handed them.
+// The overrides the window is running, kept in a module the way the variables
+// registry is, so a keydown handler never has to be handed them.
 let bindings = resolveBindings(undefined);
 let version = 0;
 const listeners = new Set<() => void>();

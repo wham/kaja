@@ -16,26 +16,27 @@ import (
 // has to answer the same lanes the web server does — the two call lanes and the agent
 // switchboard it offers itself to — and leave everything else to the UI.
 func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
-	configurationPath := filepath.Join(t.TempDir(), "kaja.json")
-	if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
+	workspaceFile := filepath.Join(t.TempDir(), "kaja.json")
+	if err := os.WriteFile(workspaceFile, []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("the UI"))
 	})
-	kaja := NewApp(api.NewApiService(configurationPath, true, "", "", nil), nil, t.TempDir(), filepath.Dir(configurationPath))
+	kajaDir := t.TempDir()
+	kaja := NewApp(api.NewApiService(workspaceFile, true, "", "", nil), nil, newSettingsStore(kajaDir), kajaDir, filepath.Dir(workspaceFile))
 	handler := webviewHandler(kaja.api, kaja.agents, assets)
 
 	// A gRPC-Web request body is binary frames: five zero bytes are the header of an
-	// empty message, which is what GetConfiguration takes.
+	// empty message, which is what GetWorkspace takes.
 	emptyMessage := func() *bytes.Reader { return bytes.NewReader(make([]byte, 5)) }
-	request := httptest.NewRequest("POST", "/Api/GetConfiguration", emptyMessage())
+	request := httptest.NewRequest("POST", "/Api/GetWorkspace", emptyMessage())
 	request.Header.Set("Content-Type", "application/grpc-web+proto")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("POST /Api/GetConfiguration = %d, want 200", response.Code)
+		t.Fatalf("POST /Api/GetWorkspace = %d, want 200", response.Code)
 	}
 	if got := response.Header().Get("Content-Type"); got != "application/grpc-web+proto" {
 		t.Fatalf("Content-Type = %q", got)
@@ -80,7 +81,7 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 	// Everything else is the UI's. The Api lane is POST-only, so a GET under it is
 	// the assets' too rather than a call that lost its body. So is a GET on the fetch
 	// lane, which is POST-only for the same reason.
-	for _, path := range []string{"/", "/main.js", "/Api/GetConfiguration", fetchPath} {
+	for _, path := range []string{"/", "/main.js", "/Api/GetWorkspace", fetchPath} {
 		response = httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest("GET", path, nil))
 		if response.Body.String() != "the UI" {

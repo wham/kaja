@@ -23,9 +23,9 @@ export interface CompileRequest {
  */
 export interface OpenAppRequest {
     /**
-     * @generated from protobuf field: ConfigurationApp app = 1
+     * @generated from protobuf field: WorkspaceApp app = 1
      */
-    app?: ConfigurationApp;
+    app?: WorkspaceApp;
 }
 /**
  * @generated from protobuf message OpenAppResponse
@@ -652,23 +652,23 @@ export interface Source {
     content: string;
 }
 /**
- * @generated from protobuf message GetConfigurationRequest
+ * @generated from protobuf message GetWorkspaceRequest
  */
-export interface GetConfigurationRequest {
+export interface GetWorkspaceRequest {
 }
 /**
- * @generated from protobuf message WatchConfigurationRequest
+ * @generated from protobuf message WatchWorkspaceRequest
  */
-export interface WatchConfigurationRequest {
+export interface WatchWorkspaceRequest {
 }
 /**
- * @generated from protobuf message GetConfigurationResponse
+ * @generated from protobuf message GetWorkspaceResponse
  */
-export interface GetConfigurationResponse {
+export interface GetWorkspaceResponse {
     /**
-     * @generated from protobuf field: Configuration configuration = 1
+     * @generated from protobuf field: Workspace workspace = 1
      */
-    configuration?: Configuration;
+    workspace?: Workspace;
     /**
      * @generated from protobuf field: repeated Log logs = 2
      */
@@ -701,9 +701,9 @@ export interface Runtime {
      * workspace; false in the server, which serves a workspace managed outside
      * kaja - unless it was started with --editable.
      *
-     * @generated from protobuf field: bool can_update_configuration = 1
+     * @generated from protobuf field: bool can_update_workspace = 1
      */
-    canUpdateConfiguration: boolean;
+    canUpdateWorkspace: boolean;
     /**
      * Git commit hash or tag for the currently running version
      *
@@ -798,7 +798,7 @@ export interface StoredValueResponse {
  * these RPCs over the mux its webview already speaks, a browser fetches them
  * over the wire - which is what puts a script mounted into a container in the
  * sidebar. Writing is the verb a kaja that does not own its workspace refuses,
- * on the one answer `can_update_configuration` reports.
+ * on the one answer `can_update_workspace` reports.
  *
  * @generated from protobuf message Script
  */
@@ -1089,7 +1089,7 @@ export interface CopyScriptFolderResponse {
 }
 /**
  * ScanScriptVariables reports which scripts reference the named variables. An
- * app's references are read out of the configuration the client already holds;
+ * app's references are read out of the workspace the client already holds;
  * a script's cost a read of the file, so they are answered here, in one walk of
  * the scripts folder, rather than a search per variable the client has to pace.
  *
@@ -1155,9 +1155,9 @@ export interface ScanScriptVariablesResponse {
     truncated: boolean;
 }
 /**
- * @generated from protobuf message Configuration
+ * @generated from protobuf message Workspace
  */
-export interface Configuration {
+export interface Workspace {
     /**
      * kaja can be deployed at a subpath - i.e. kaja.tools/demo
      * This field is used to set the subpath.
@@ -1168,13 +1168,13 @@ export interface Configuration {
      */
     pathPrefix: string;
     /**
-     * Apps are the single unit of configuration. A gRPC or Twirp service is just an
+     * Apps are the single unit of a workspace. A gRPC or Twirp service is just an
      * app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
      * are apps too. kaja renders and invokes every app the same way.
      *
-     * @generated from protobuf field: repeated ConfigurationApp apps = 5
+     * @generated from protobuf field: repeated WorkspaceApp apps = 5
      */
-    apps: ConfigurationApp[];
+    apps: WorkspaceApp[];
     /**
      * User-defined variables, referenced as `${NAME}` in app configuration and read
      * from scripts as `kaja.variables.<name>`. A value is either literal, or names
@@ -1191,10 +1191,11 @@ export interface Configuration {
     /**
      * Keyboard shortcut overrides, keyed by the action's own id ("run",
      * "finder", ...) and holding one binding written in the canonical form the UI
-     * parses ("Mod+Shift+N"). Only overrides are written: an action nothing names
-     * keeps the shortcut kaja ships, and an empty binding is an action deliberately
-     * left without one. It is configuration rather than a preference of the machine
-     * so a workspace served to a browser can state its own.
+     * parses ("Mod+Shift+N"). An action nothing names keeps the shortcut kaja
+     * ships, and an empty binding is an action deliberately left without one. Only
+     * ever written by hand: a key somebody records is theirs and goes in their
+     * settings, which win over this. What the workspace says is where a person who
+     * has set nothing starts.
      *
      * @generated from protobuf field: map<string, string> shortcuts = 7
      */
@@ -1202,40 +1203,36 @@ export interface Configuration {
         [key: string]: string;
     };
     /**
-     * Whether this workspace offers an agent session at all. On the desktop it is the
-     * switch itself: the process reads it at startup to decide whether to open the
-     * loopback listener, and writes it back when the switch is flipped. In a browser the
-     * switch belongs to the browser, because the token does - so this is only where a
-     * browser that has never chosen starts, which is what lets a deployed workspace ship
-     * an agent session that is already on.
+     * Where a browser that has never flipped the agent-session switch starts, which
+     * is what lets a deployed workspace ship a session that is already on. Only ever
+     * written by hand, and read by the web alone: the switch is the person's, and on
+     * the desktop a folder somebody cloned must not be what opens a listener.
      *
-     * @generated from protobuf field: McpSettings mcp = 8
+     * @generated from protobuf field: WorkspaceMcp mcp = 8
      */
-    mcp?: McpSettings;
+    mcp?: WorkspaceMcp;
 }
 /**
- * McpSettings is what kaja.json says about the agent session. Only `enabled` so far:
- * the endpoint and the token are addresses rather than configuration, so neither is
- * written here - the desktop persists its token beside this file and a browser keeps
- * its own.
+ * WorkspaceMcp is what kaja.json says about the agent session. Only `enabled`: the
+ * endpoint and the token are addresses, and both are the person's.
  *
- * @generated from protobuf message McpSettings
+ * @generated from protobuf message WorkspaceMcp
  */
-export interface McpSettings {
+export interface WorkspaceMcp {
     /**
      * @generated from protobuf field: bool enabled = 1
      */
     enabled: boolean;
 }
 /**
- * ConfigurationApp is one app: a name and exactly one typed block whose key is the
+ * WorkspaceApp is one app: a name and exactly one typed block whose key is the
  * app's type. The block declares the parameters that type needs (so two types can
  * never be mixed in one app); the server flattens its scalar fields to a string map
  * for the app contract.
  *
- * @generated from protobuf message ConfigurationApp
+ * @generated from protobuf message WorkspaceApp
  */
-export interface ConfigurationApp {
+export interface WorkspaceApp {
     /**
      * @generated from protobuf field: string name = 1
      */
@@ -1580,50 +1577,28 @@ export interface McpApp {
     scope: string;
 }
 /**
- * @generated from protobuf message UpdateConfigurationRequest
+ * @generated from protobuf message UpdateWorkspaceRequest
  */
-export interface UpdateConfigurationRequest {
+export interface UpdateWorkspaceRequest {
     /**
-     * @generated from protobuf field: Configuration configuration = 1
+     * @generated from protobuf field: Workspace workspace = 1
      */
-    configuration?: Configuration;
+    workspace?: Workspace;
 }
 /**
- * @generated from protobuf message UpdateConfigurationResponse
+ * @generated from protobuf message UpdateWorkspaceResponse
  */
-export interface UpdateConfigurationResponse {
+export interface UpdateWorkspaceResponse {
     /**
-     * @generated from protobuf field: Configuration configuration = 1
+     * @generated from protobuf field: Workspace workspace = 1
      */
-    configuration?: Configuration;
+    workspace?: Workspace;
     /**
      * Where each variable's value came from, re-resolved against what was saved.
      *
      * @generated from protobuf field: repeated VariableStatus variable_status = 2
      */
     variableStatus: VariableStatus[];
-}
-/**
- * @generated from protobuf message SetMcpEnabledRequest
- */
-export interface SetMcpEnabledRequest {
-    /**
-     * @generated from protobuf field: bool enabled = 1
-     */
-    enabled: boolean;
-}
-/**
- * @generated from protobuf message SetMcpEnabledResponse
- */
-export interface SetMcpEnabledResponse {
-    /**
-     * What the file says now, which is what every window is about to be told by
-     * WatchConfiguration anyway - answered here so the window that asked need not wait
-     * for its own change to come back round.
-     *
-     * @generated from protobuf field: McpSettings mcp = 1
-     */
-    mcp?: McpSettings;
 }
 /**
  * @generated from protobuf enum OpenStatus
@@ -1930,7 +1905,7 @@ export const CompileRequest = new CompileRequest$Type();
 class OpenAppRequest$Type extends MessageType<OpenAppRequest> {
     constructor() {
         super("OpenAppRequest", [
-            { no: 1, name: "app", kind: "message", T: () => ConfigurationApp }
+            { no: 1, name: "app", kind: "message", T: () => WorkspaceApp }
         ]);
     }
 }
@@ -2307,30 +2282,30 @@ class Source$Type extends MessageType<Source> {
  */
 export const Source = new Source$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetConfigurationRequest$Type extends MessageType<GetConfigurationRequest> {
+class GetWorkspaceRequest$Type extends MessageType<GetWorkspaceRequest> {
     constructor() {
-        super("GetConfigurationRequest", []);
+        super("GetWorkspaceRequest", []);
     }
 }
 /**
- * @generated MessageType for protobuf message GetConfigurationRequest
+ * @generated MessageType for protobuf message GetWorkspaceRequest
  */
-export const GetConfigurationRequest = new GetConfigurationRequest$Type();
+export const GetWorkspaceRequest = new GetWorkspaceRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class WatchConfigurationRequest$Type extends MessageType<WatchConfigurationRequest> {
+class WatchWorkspaceRequest$Type extends MessageType<WatchWorkspaceRequest> {
     constructor() {
-        super("WatchConfigurationRequest", []);
+        super("WatchWorkspaceRequest", []);
     }
 }
 /**
- * @generated MessageType for protobuf message WatchConfigurationRequest
+ * @generated MessageType for protobuf message WatchWorkspaceRequest
  */
-export const WatchConfigurationRequest = new WatchConfigurationRequest$Type();
+export const WatchWorkspaceRequest = new WatchWorkspaceRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse> {
+class GetWorkspaceResponse$Type extends MessageType<GetWorkspaceResponse> {
     constructor() {
-        super("GetConfigurationResponse", [
-            { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+        super("GetWorkspaceResponse", [
+            { no: 1, name: "workspace", kind: "message", T: () => Workspace },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
             { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus },
             { no: 4, name: "runtime", kind: "message", T: () => Runtime }
@@ -2338,14 +2313,14 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
     }
 }
 /**
- * @generated MessageType for protobuf message GetConfigurationResponse
+ * @generated MessageType for protobuf message GetWorkspaceResponse
  */
-export const GetConfigurationResponse = new GetConfigurationResponse$Type();
+export const GetWorkspaceResponse = new GetWorkspaceResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Runtime$Type extends MessageType<Runtime> {
     constructor() {
         super("Runtime", [
-            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 1, name: "can_update_workspace", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
@@ -2761,37 +2736,37 @@ class ScanScriptVariablesResponse$Type extends MessageType<ScanScriptVariablesRe
  */
 export const ScanScriptVariablesResponse = new ScanScriptVariablesResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class Configuration$Type extends MessageType<Configuration> {
+class Workspace$Type extends MessageType<Workspace> {
     constructor() {
-        super("Configuration", [
+        super("Workspace", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
+            { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => WorkspaceApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 7, name: "shortcuts", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 8, name: "mcp", kind: "message", T: () => McpSettings }
+            { no: 8, name: "mcp", kind: "message", T: () => WorkspaceMcp }
         ]);
     }
 }
 /**
- * @generated MessageType for protobuf message Configuration
+ * @generated MessageType for protobuf message Workspace
  */
-export const Configuration = new Configuration$Type();
+export const Workspace = new Workspace$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class McpSettings$Type extends MessageType<McpSettings> {
+class WorkspaceMcp$Type extends MessageType<WorkspaceMcp> {
     constructor() {
-        super("McpSettings", [
+        super("WorkspaceMcp", [
             { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
 }
 /**
- * @generated MessageType for protobuf message McpSettings
+ * @generated MessageType for protobuf message WorkspaceMcp
  */
-export const McpSettings = new McpSettings$Type();
+export const WorkspaceMcp = new WorkspaceMcp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
+class WorkspaceApp$Type extends MessageType<WorkspaceApp> {
     constructor() {
-        super("ConfigurationApp", [
+        super("WorkspaceApp", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "grpc", kind: "message", oneof: "app", T: () => GrpcApp },
             { no: 3, name: "twirp", kind: "message", oneof: "app", T: () => TwirpApp },
@@ -2803,9 +2778,9 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     }
 }
 /**
- * @generated MessageType for protobuf message ConfigurationApp
+ * @generated MessageType for protobuf message WorkspaceApp
  */
-export const ConfigurationApp = new ConfigurationApp$Type();
+export const WorkspaceApp = new WorkspaceApp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GrpcApp$Type extends MessageType<GrpcApp> {
     constructor() {
@@ -2914,54 +2889,30 @@ class McpApp$Type extends MessageType<McpApp> {
  */
 export const McpApp = new McpApp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
+class UpdateWorkspaceRequest$Type extends MessageType<UpdateWorkspaceRequest> {
     constructor() {
-        super("UpdateConfigurationRequest", [
-            { no: 1, name: "configuration", kind: "message", T: () => Configuration }
+        super("UpdateWorkspaceRequest", [
+            { no: 1, name: "workspace", kind: "message", T: () => Workspace }
         ]);
     }
 }
 /**
- * @generated MessageType for protobuf message UpdateConfigurationRequest
+ * @generated MessageType for protobuf message UpdateWorkspaceRequest
  */
-export const UpdateConfigurationRequest = new UpdateConfigurationRequest$Type();
+export const UpdateWorkspaceRequest = new UpdateWorkspaceRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationResponse> {
+class UpdateWorkspaceResponse$Type extends MessageType<UpdateWorkspaceResponse> {
     constructor() {
-        super("UpdateConfigurationResponse", [
-            { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+        super("UpdateWorkspaceResponse", [
+            { no: 1, name: "workspace", kind: "message", T: () => Workspace },
             { no: 2, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
         ]);
     }
 }
 /**
- * @generated MessageType for protobuf message UpdateConfigurationResponse
+ * @generated MessageType for protobuf message UpdateWorkspaceResponse
  */
-export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SetMcpEnabledRequest$Type extends MessageType<SetMcpEnabledRequest> {
-    constructor() {
-        super("SetMcpEnabledRequest", [
-            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-}
-/**
- * @generated MessageType for protobuf message SetMcpEnabledRequest
- */
-export const SetMcpEnabledRequest = new SetMcpEnabledRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SetMcpEnabledResponse$Type extends MessageType<SetMcpEnabledResponse> {
-    constructor() {
-        super("SetMcpEnabledResponse", [
-            { no: 1, name: "mcp", kind: "message", T: () => McpSettings }
-        ]);
-    }
-}
-/**
- * @generated MessageType for protobuf message SetMcpEnabledResponse
- */
-export const SetMcpEnabledResponse = new SetMcpEnabledResponse$Type();
+export const UpdateWorkspaceResponse = new UpdateWorkspaceResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
@@ -2974,10 +2925,9 @@ export const Api = new ServiceType("Api", [
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
     { name: "AuthorizeMcp", serverStreaming: true, options: {}, I: AuthorizeMcpRequest, O: AuthorizeMcpResponse },
     { name: "ForgetMcpAuthorization", options: {}, I: ForgetMcpAuthorizationRequest, O: ForgetMcpAuthorizationResponse },
-    { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
-    { name: "WatchConfiguration", serverStreaming: true, options: {}, I: WatchConfigurationRequest, O: GetConfigurationResponse },
-    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
-    { name: "SetMcpEnabled", options: {}, I: SetMcpEnabledRequest, O: SetMcpEnabledResponse },
+    { name: "GetWorkspace", options: {}, I: GetWorkspaceRequest, O: GetWorkspaceResponse },
+    { name: "WatchWorkspace", serverStreaming: true, options: {}, I: WatchWorkspaceRequest, O: GetWorkspaceResponse },
+    { name: "UpdateWorkspace", options: {}, I: UpdateWorkspaceRequest, O: UpdateWorkspaceResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },

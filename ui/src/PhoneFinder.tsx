@@ -25,7 +25,7 @@ interface PhoneFinderProps {
   workspaces?: WorkspaceControl;
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
-  // Absent where the configuration can't be written.
+  // Absent where the workspace can't be written.
   onNewApp?: () => void;
   errorCount: number;
   open: boolean;

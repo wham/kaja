@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestResolveWorkspacePathsAreRelativeToTheConfigurationFile(t *testing.T) {
+func TestResolveWorkspacePathsAreRelativeToTheWorkspaceFile(t *testing.T) {
 	dir := workspaceDir(filepath.Join("some", "repo", "kaja.json"))
 	if !filepath.IsAbs(dir) {
 		t.Fatalf("workspace dir %q is not absolute", dir)

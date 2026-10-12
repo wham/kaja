@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
-import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, LogLevel, OpenStatus } from "./server/api";
+import { CompileStatus as ApiCompileStatus, GetWorkspaceResponse, LogLevel, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { deviceConsole } from "./uiLog";
 
@@ -14,35 +14,35 @@ function elapsed(app: App): string {
   return formatDuration(Date.now() - (app.compilation.startTime || 0));
 }
 
-// The configuration is what everything on screen waits for, and the request is
+// The workspace is what everything on screen waits for, and the request is
 // tiny - so it is sent as soon as the script runs, ahead of opening the storage
 // and mounting the tree, and the hook picks up the answer instead of asking again.
-let preloadedConfiguration: Promise<GetConfigurationResponse> | undefined;
+let preloadedWorkspace: Promise<GetWorkspaceResponse> | undefined;
 
-function fetchConfiguration(): Promise<GetConfigurationResponse> {
+function fetchWorkspace(): Promise<GetWorkspaceResponse> {
   return getApiClient()
-    .getConfiguration({})
+    .getWorkspace({})
     .then((call) => call.response);
 }
 
-export function preloadConfiguration(): void {
-  preloadedConfiguration = fetchConfiguration();
+export function preloadWorkspace(): void {
+  preloadedWorkspace = fetchWorkspace();
   // Nothing has claimed it yet; a failure is reported where it is awaited.
-  preloadedConfiguration.catch(() => {});
+  preloadedWorkspace.catch(() => {});
 }
 
-function loadConfiguration(): Promise<GetConfigurationResponse> {
-  const response = preloadedConfiguration ?? fetchConfiguration();
-  preloadedConfiguration = undefined;
+function loadWorkspace(): Promise<GetWorkspaceResponse> {
+  const response = preloadedWorkspace ?? fetchWorkspace();
+  preloadedWorkspace = undefined;
   return response;
 }
 
 export function useCompilation(
   apps: App[],
   onUpdate: (apps: App[] | ((prev: App[]) => App[])) => void,
-  onConfigurationLoaded: (response: GetConfigurationResponse) => void,
-): { configurationLoaded: boolean } {
-  const [configurationLoaded, setConfigurationLoaded] = useState(false);
+  onWorkspaceLoaded: (response: GetWorkspaceResponse) => void,
+): { workspaceLoaded: boolean } {
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
   const appsRef = useRef(apps);
@@ -178,15 +178,15 @@ export function useCompilation(
   // Initialize apps on mount
   useEffect(() => {
     const initializeApps = async () => {
-      if (apps.length === 0 && !configurationLoaded) {
-        const response = await loadConfiguration();
-        const configApps = response.configuration?.apps || [];
+      if (apps.length === 0 && !workspaceLoaded) {
+        const response = await loadWorkspace();
+        const configApps = response.workspace?.apps || [];
 
-        if (response.configuration) {
-          onConfigurationLoaded(response);
+        if (response.workspace) {
+          onWorkspaceLoaded(response);
         }
 
-        setConfigurationLoaded(true);
+        setWorkspaceLoaded(true);
 
         if (configApps.length === 0) return;
 
@@ -228,5 +228,5 @@ export function useCompilation(
     };
   }, []);
 
-  return { configurationLoaded };
+  return { workspaceLoaded };
 }

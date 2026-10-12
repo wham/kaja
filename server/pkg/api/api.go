@@ -24,35 +24,35 @@ import (
 
 type ApiService struct {
 	// Guarded by workspaceMu: the desktop swaps both when it opens another workspace.
-	workspaceMu       sync.RWMutex
-	configurationPath string
-	variableStore     VariableStore
+	workspaceMu   sync.RWMutex
+	workspaceFile string
+	variableStore VariableStore
 
-	canUpdateConfiguration bool
-	gitRef                 string
-	buildNumber            string
+	canUpdateWorkspace bool
+	gitRef             string
+	buildNumber        string
 	// mcpAuthorizer holds this installation's MCP sign-ins. It is nil where there
 	// is nowhere to keep one, and the verbs that use it are then absent.
 	mcpAuthorizer *mcp.Authorizer
 	apps          *apps.Manager
 
-	// The configuration file's watcher, started by the first call that watches it.
+	// The workspace file's watcher, started by the first call that watches it.
 	// Guarded by watcherMu.
 	watcherMu sync.Mutex
-	watcher   *ConfigurationWatcher
+	watcher   *WorkspaceWatcher
 }
 
 // NewApiService builds the service. variableStore is where a "${secret}"
 // variable's value lives on this machine; the web server passes nil and those
 // variables come from the environment instead.
-func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
+func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
 	tempdir.StartCleanup()
 
 	// A sign-in is a write: it leaves a credential on the machine serving the
 	// workspace. So a kaja serving its workspace read-only has no authorizer, and
 	// the verbs that would use one say there is nothing to sign in with.
 	var authorizer *mcp.Authorizer
-	if canUpdateConfiguration {
+	if canUpdateWorkspace {
 		opened, err := mcp.DefaultAuthorizer()
 		if err != nil {
 			slog.Warn("MCP authorization is unavailable", "error", err)
@@ -61,12 +61,12 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 	}
 
 	return &ApiService{
-		configurationPath:      configurationPath,
-		canUpdateConfiguration: canUpdateConfiguration,
-		gitRef:                 gitRef,
-		buildNumber:            buildNumber,
-		variableStore:          variableStore,
-		mcpAuthorizer:          authorizer,
+		workspaceFile:      workspaceFile,
+		canUpdateWorkspace: canUpdateWorkspace,
+		gitRef:             gitRef,
+		buildNumber:        buildNumber,
+		variableStore:      variableStore,
+		mcpAuthorizer:      authorizer,
 		apps: apps.NewManager(map[string]apps.App{
 			"grpc":    rpc.New(),
 			"twirp":   twirp.New(),
@@ -84,10 +84,10 @@ func (s *ApiService) Apps() *apps.Manager {
 	return s.apps
 }
 
-func (s *ApiService) configurationFile() string {
+func (s *ApiService) workspaceFilePath() string {
 	s.workspaceMu.RLock()
 	defer s.workspaceMu.RUnlock()
-	return s.configurationPath
+	return s.workspaceFile
 }
 
 func (s *ApiService) valueStore() VariableStore {
@@ -97,23 +97,23 @@ func (s *ApiService) valueStore() VariableStore {
 }
 
 func (s *ApiService) WorkspaceDir() string {
-	return workspaceDir(s.configurationFile())
+	return workspaceDir(s.workspaceFilePath())
 }
 
 // SetWorkspace is enough on its own because the file is read per call; the watcher and
 // the open instances are the only things derived from the old path.
-func (s *ApiService) SetWorkspace(configurationPath string, variableStore VariableStore) {
+func (s *ApiService) SetWorkspace(workspaceFile string, variableStore VariableStore) {
 	if err := s.Close(); err != nil {
-		slog.Warn("Failed to stop watching the configuration", "error", err)
+		slog.Warn("Failed to stop watching the workspace", "error", err)
 	}
 
 	s.workspaceMu.Lock()
-	s.configurationPath = configurationPath
+	s.workspaceFile = workspaceFile
 	s.variableStore = variableStore
 	s.workspaceMu.Unlock()
 
 	s.apps.Clear()
-	slog.Info("Opened workspace", "path", configurationPath)
+	slog.Info("Opened workspace", "path", workspaceFile)
 }
 
 // Variables resolves the configured variables as they stand right now. The
@@ -121,8 +121,8 @@ func (s *ApiService) SetWorkspace(configurationPath string, variableStore Variab
 // client sends, and to mask resolved values back out of what an app reports
 // exchanging with its upstream.
 func (s *ApiService) Variables() *Resolver {
-	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
-	return NewResolver(configuration.Variables, s.valueStore())
+	workspace := loadWorkspaceFile(s.workspaceFilePath(), NewLogger())
+	return NewResolver(workspace.Variables, s.valueStore())
 }
 
 // variableStoreAvailable reports whether this machine can store a variable's
@@ -358,8 +358,8 @@ func (s *ApiService) appConnection(name string) AppConnection {
 		return AppConnection{}
 	}
 
-	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
-	for _, app := range configuration.Apps {
+	workspace := loadWorkspaceFile(s.workspaceFilePath(), NewLogger())
+	for _, app := range workspace.Apps {
 		if app.Name != name {
 			continue
 		}
@@ -367,7 +367,7 @@ func (s *ApiService) appConnection(name string) AppConnection {
 		if appType != "grpc" {
 			return AppConnection{}
 		}
-		expandAppParameters(parameters, NewResolver(configuration.Variables, s.valueStore()), NewLogger())
+		expandAppParameters(parameters, NewResolver(workspace.Variables, s.valueStore()), NewLogger())
 		resolveWorkspacePaths(parameters, s.WorkspaceDir())
 		return AppConnection{Metadata: rpc.Metadata(parameters), TLS: rpc.TLS(parameters)}
 	}
@@ -382,7 +382,7 @@ func (s *ApiService) InspectGrpc(ctx context.Context, req *InspectGrpcRequest) (
 		return nil, fmt.Errorf("grpc app is required")
 	}
 
-	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Grpc{Grpc: req.Grpc}})
+	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Grpc{Grpc: req.Grpc}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
@@ -443,7 +443,7 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 		return nil, fmt.Errorf("mcp app is required")
 	}
 
-	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Mcp{Mcp: req.Mcp}})
+	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Mcp{Mcp: req.Mcp}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
 	surface, problem := mcp.Inspect(parameters, s.mcpAuthorizer)
@@ -577,7 +577,7 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 		return nil, fmt.Errorf("openapi app is required")
 	}
 
-	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Openapi{Openapi: req.Openapi}})
+	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: req.Openapi}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
 	document, problem := openapi.Inspect(parameters, func(message string) { slog.Info(message) })
@@ -653,24 +653,24 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 	return described
 }
 
-func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	slog.Info("Getting configuration")
+func (s *ApiService) GetWorkspace(ctx context.Context, req *GetWorkspaceRequest) (*GetWorkspaceResponse, error) {
+	slog.Info("Getting workspace")
 
-	return s.configurationResponse(), nil
+	return s.workspaceResponse(), nil
 }
 
-// WatchConfiguration streams the configuration file as it is edited, one message per
-// change carrying the whole of what GetConfiguration answers with. The file is read
+// WatchWorkspace streams the workspace file as it is edited, one message per
+// change carrying the whole of what GetWorkspace answers with. The file is read
 // where the change is noticed, so a client is never told that something changed and
 // left to ask what.
 //
-// The current configuration is not sent when the stream opens: whoever is watching has
+// The current workspace is not sent when the stream opens: whoever is watching has
 // just loaded it, and a second reading of the same file would be a change nothing made.
-func (s *ApiService) WatchConfiguration(req *WatchConfigurationRequest, stream grpc.ServerStreamingServer[GetConfigurationResponse]) error {
+func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.ServerStreamingServer[GetWorkspaceResponse]) error {
 	// Buffered by one and dropped when full: a burst of writes is one change to report,
 	// and the report is the file as it stands by the time it is read.
 	changed := make(chan struct{}, 1)
-	unsubscribe := s.watchConfigurationFile(func() {
+	unsubscribe := s.watchWorkspaceFile(func() {
 		select {
 		case changed <- struct{}{}:
 		default:
@@ -683,20 +683,20 @@ func (s *ApiService) WatchConfiguration(req *WatchConfigurationRequest, stream g
 		case <-stream.Context().Done():
 			return nil
 		case <-changed:
-			if err := stream.Send(s.configurationResponse()); err != nil {
+			if err := stream.Send(s.workspaceResponse()); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-// configurationResponse is the file plus the runtime it is being served by, which is
-// what both doors to the configuration answer with.
-func (s *ApiService) configurationResponse() *GetConfigurationResponse {
-	response := LoadGetConfigurationResponse(s.configurationFile())
+// workspaceResponse is the file plus the runtime it is being served by, which is
+// what both doors to the workspace answer with.
+func (s *ApiService) workspaceResponse() *GetWorkspaceResponse {
+	response := LoadGetWorkspaceResponse(s.workspaceFilePath())
 
 	response.Runtime = &Runtime{
-		CanUpdateConfiguration: s.canUpdateConfiguration,
+		CanUpdateWorkspace:     s.canUpdateWorkspace,
 		GitRef:                 s.gitRef,
 		BuildNumber:            s.buildNumber,
 		VariableStoreAvailable: s.variableStoreAvailable(),
@@ -706,23 +706,23 @@ func (s *ApiService) configurationResponse() *GetConfigurationResponse {
 	// The variables travel as kaja.json writes them - a literal value, or the
 	// source that holds it ("${secret}", "${env:X}"). A value this machine
 	// resolved from a source is never part of the response.
-	response.VariableStatus = NewResolver(response.Configuration.Variables, s.valueStore()).Statuses()
+	response.VariableStatus = NewResolver(response.Workspace.Variables, s.valueStore()).Statuses()
 
 	return response
 }
 
-// watchConfigurationFile subscribes to the configuration file and hands back the way to
+// watchWorkspaceFile subscribes to the workspace file and hands back the way to
 // stop. The watcher is started by the first subscriber rather than by the process, so a
 // kaja nobody is watching polls nothing.
-func (s *ApiService) watchConfigurationFile(onChange func()) func() {
+func (s *ApiService) watchWorkspaceFile(onChange func()) func() {
 	s.watcherMu.Lock()
 	defer s.watcherMu.Unlock()
 
 	if s.watcher == nil {
-		path := s.configurationFile()
-		watcher, err := NewConfigurationWatcher(path)
+		path := s.workspaceFilePath()
+		watcher, err := NewWorkspaceWatcher(path)
 		if err != nil {
-			slog.Warn("Failed to start configuration watcher", "path", path, "error", err)
+			slog.Warn("Failed to start workspace watcher", "path", path, "error", err)
 			return func() {}
 		}
 		s.watcher = watcher
@@ -731,7 +731,7 @@ func (s *ApiService) watchConfigurationFile(onChange func()) func() {
 	return s.watcher.Subscribe(onChange)
 }
 
-// Close stops watching the configuration file.
+// Close stops watching the workspace file.
 func (s *ApiService) Close() error {
 	s.watcherMu.Lock()
 	defer s.watcherMu.Unlock()
@@ -744,64 +744,29 @@ func (s *ApiService) Close() error {
 	return err
 }
 
-func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
-	if req.Configuration == nil {
-		return nil, fmt.Errorf("configuration is required")
+func (s *ApiService) UpdateWorkspace(ctx context.Context, req *UpdateWorkspaceRequest) (*UpdateWorkspaceResponse, error) {
+	if req.Workspace == nil {
+		return nil, fmt.Errorf("workspace is required")
 	}
 
-	if !s.canUpdateConfiguration {
-		return nil, fmt.Errorf("updating configuration is not allowed")
+	if !s.canUpdateWorkspace {
+		return nil, fmt.Errorf("updating workspace is not allowed")
 	}
 
-	if err := validateVariables(req.Configuration.Variables); err != nil {
+	if err := validateVariables(req.Workspace.Variables); err != nil {
 		return nil, err
 	}
 
-	slog.Info("Updating configuration")
+	slog.Info("Updating workspace")
 
-	if err := SaveConfiguration(s.configurationFile(), req.Configuration); err != nil {
-		return nil, fmt.Errorf("failed to save configuration: %w", err)
+	if err := SaveWorkspace(s.workspaceFilePath(), req.Workspace); err != nil {
+		return nil, fmt.Errorf("failed to save workspace: %w", err)
 	}
 
-	return &UpdateConfigurationResponse{
-		Configuration:  req.Configuration,
-		VariableStatus: NewResolver(req.Configuration.Variables, s.valueStore()).Statuses(),
+	return &UpdateWorkspaceResponse{
+		Workspace:      req.Workspace,
+		VariableStatus: NewResolver(req.Workspace.Variables, s.valueStore()).Statuses(),
 	}, nil
-}
-
-// McpEnabled reports whether this workspace asks for an agent session. It is read from
-// the file rather than held in memory because the file is where the switch lives: the
-// desktop reads it at startup, before there is a window to ask.
-func (s *ApiService) McpEnabled() bool {
-	return loadConfigurationFile(s.configurationFile(), NewLogger()).GetMcp().GetEnabled()
-}
-
-// SetMcpEnabled writes the switch into kaja.json and leaves the rest of the file as it
-// stands. The file is read again here rather than taken from the request: flipping the
-// switch is not an occasion to resend the apps and variables beside it. Off is written
-// as the key's absence, so a workspace that never turned it on carries nothing about it
-// - the rule the shortcut overrides are written under.
-func (s *ApiService) SetMcpEnabled(ctx context.Context, req *SetMcpEnabledRequest) (*SetMcpEnabledResponse, error) {
-	if !s.canUpdateConfiguration {
-		return nil, fmt.Errorf("updating configuration is not allowed")
-	}
-
-	configuration := loadConfigurationFile(s.configurationFile(), NewLogger())
-	if configuration.GetMcp().GetEnabled() != req.Enabled {
-		if req.Enabled {
-			configuration.Mcp = &McpSettings{Enabled: true}
-		} else {
-			configuration.Mcp = nil
-		}
-
-		slog.Info("Updating MCP server setting", "enabled", req.Enabled)
-
-		if err := SaveConfiguration(s.configurationFile(), configuration); err != nil {
-			return nil, fmt.Errorf("failed to save configuration: %w", err)
-		}
-	}
-
-	return &SetMcpEnabledResponse{Mcp: &McpSettings{Enabled: req.Enabled}}, nil
 }
 
 // SetStoredValue writes a variable's value to this machine's store, so kaja.json
@@ -845,8 +810,8 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 }
 
 func (s *ApiService) checkStoredValueAllowed(name string) error {
-	if !s.canUpdateConfiguration {
-		return fmt.Errorf("updating configuration is not allowed")
+	if !s.canUpdateWorkspace {
+		return fmt.Errorf("updating workspace is not allowed")
 	}
 	if !variableNamePattern.MatchString(name) {
 		return fmt.Errorf("variable name %q must start with a letter or underscore and contain only letters, numbers and underscores", name)

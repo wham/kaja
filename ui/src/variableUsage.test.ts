@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 import { appVariableUses, orderReferences, pluralCount, scannedAgo, scriptReferenceLabel } from "./variableUsage";
 
-function grpcApp(name: string, url: string, headers: { [key: string]: string } = {}): ConfigurationApp {
-  return { name, app: { oneofKind: "grpc", grpc: { url, protoDir: "", headers, reflection: "", auth: "" } } } as unknown as ConfigurationApp;
+function grpcApp(name: string, url: string, headers: { [key: string]: string } = {}): WorkspaceApp {
+  return { name, app: { oneofKind: "grpc", grpc: { url, protoDir: "", headers, reflection: "", auth: "" } } } as unknown as WorkspaceApp;
 }
 
 describe("appVariableUses", () => {

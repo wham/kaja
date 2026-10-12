@@ -44,8 +44,8 @@ await Shows.ListShows({}, { headers: { Authorization: "Bearer ${TOKEN}" } });`,
 }
 
 func TestScanReportsTheAbsolutePathListScriptsWouldReport(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"reports/churn.ts": "kaja.variables.HOST"})
-	service := NewApiService(configurationPath, true, "", "", nil)
+	workspaceFile := workspaceWithScripts(t, map[string]string{"reports/churn.ts": "kaja.variables.HOST"})
+	service := NewApiService(workspaceFile, true, "", "", nil)
 	response, err := service.ScanScriptVariables(context.Background(), &ScanScriptVariablesRequest{Names: []string{"HOST"}})
 	if err != nil {
 		t.Fatalf("ScanScriptVariables failed: %v", err)
@@ -74,7 +74,7 @@ func TestScanCountsOnlyTheNamesAsked(t *testing.T) {
 	}
 }
 
-// An environment reference is the configuration's own spelling, so a script that
+// An environment reference is kaja.json's own spelling, so a script that
 // happens to contain one is not using the variable named after the colon.
 func TestScanIgnoresEnvironmentReferences(t *testing.T) {
 	response := scan(t, map[string]string{"one.ts": `const url = "${env:HOST}";`}, "HOST")

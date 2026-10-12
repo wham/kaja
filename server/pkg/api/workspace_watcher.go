@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-// ConfigurationWatcher watches a configuration file for changes using polling.
-type ConfigurationWatcher struct {
+// WorkspaceWatcher watches a workspace file for changes using polling.
+type WorkspaceWatcher struct {
 	path        string
 	subscribers []func()
 	mu          sync.RWMutex
 	done        chan struct{}
 }
 
-// NewConfigurationWatcher creates a new configuration file watcher. The file may not
+// NewWorkspaceWatcher creates a new workspace file watcher. The file may not
 // exist yet: a workspace gets its kaja.json on the first write, and that is a change.
-func NewConfigurationWatcher(path string) (*ConfigurationWatcher, error) {
-	cw := &ConfigurationWatcher{
+func NewWorkspaceWatcher(path string) (*WorkspaceWatcher, error) {
+	cw := &WorkspaceWatcher{
 		path: path,
 		done: make(chan struct{}),
 	}
@@ -28,9 +28,9 @@ func NewConfigurationWatcher(path string) (*ConfigurationWatcher, error) {
 	return cw, nil
 }
 
-// Subscribe adds a callback that will be called when the configuration file changes.
+// Subscribe adds a callback that will be called when the workspace file changes.
 // Returns an unsubscribe function.
-func (cw *ConfigurationWatcher) Subscribe(callback func()) func() {
+func (cw *WorkspaceWatcher) Subscribe(callback func()) func() {
 	cw.mu.Lock()
 	cw.subscribers = append(cw.subscribers, callback)
 	index := len(cw.subscribers) - 1
@@ -45,7 +45,7 @@ func (cw *ConfigurationWatcher) Subscribe(callback func()) func() {
 	}
 }
 
-func (cw *ConfigurationWatcher) poll() {
+func (cw *WorkspaceWatcher) poll() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -68,7 +68,7 @@ func (cw *ConfigurationWatcher) poll() {
 
 			modTime := info.ModTime()
 			if !modTime.Equal(lastModTime) {
-				slog.Debug("Configuration file changed", "path", cw.path)
+				slog.Debug("Workspace file changed", "path", cw.path)
 				lastModTime = modTime
 				cw.notify()
 			}
@@ -76,7 +76,7 @@ func (cw *ConfigurationWatcher) poll() {
 	}
 }
 
-func (cw *ConfigurationWatcher) notify() {
+func (cw *WorkspaceWatcher) notify() {
 	cw.mu.RLock()
 	subscribers := make([]func(), len(cw.subscribers))
 	copy(subscribers, cw.subscribers)
@@ -90,7 +90,7 @@ func (cw *ConfigurationWatcher) notify() {
 }
 
 // Close stops watching and releases resources.
-func (cw *ConfigurationWatcher) Close() error {
+func (cw *WorkspaceWatcher) Close() error {
 	close(cw.done)
 	return nil
 }

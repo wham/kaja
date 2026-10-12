@@ -1,7 +1,7 @@
 import { Call, CallOptions, Kaja } from "./kaja";
 import { APP_OF } from "./rateLimit";
 import { Sources, Stub } from "./sources";
-import { ConfigurationApp, Log } from "./server/api";
+import { WorkspaceApp, Log } from "./server/api";
 
 // Mutable reference clients read at request time, so an app's name and headers are
 // picked up without rebuilding the client. There is no transport beside it and no
@@ -9,16 +9,16 @@ import { ConfigurationApp, Log } from "./server/api";
 // already carries — which protocol reaches the API, and whether the server transcodes
 // the call or forwards it, is the server's business.
 export interface AppRef {
-  configuration: ConfigurationApp;
+  configuration: WorkspaceApp;
 }
 
-export function createAppRef(configuration: ConfigurationApp): AppRef {
+export function createAppRef(configuration: WorkspaceApp): AppRef {
   return {
     configuration: { ...configuration },
   };
 }
 
-export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp): void {
+export function updateAppRef(appRef: AppRef, configuration: WorkspaceApp): void {
   appRef.configuration = { ...configuration };
 }
 
@@ -41,7 +41,7 @@ export function scriptName(script: { name: string; folder: string }): string {
 }
 
 export interface App {
-  configuration: ConfigurationApp;
+  configuration: WorkspaceApp;
   appRef: AppRef;
   compilation: Compilation;
   services: Service[];
@@ -50,7 +50,7 @@ export interface App {
   stub: Stub;
 }
 
-export function createPendingApp(configuration: ConfigurationApp): App {
+export function createPendingApp(configuration: WorkspaceApp): App {
   return {
     configuration,
     appRef: createAppRef(configuration),

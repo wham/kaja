@@ -1,13 +1,13 @@
 import { describe, it, expect } from "bun:test";
 import { appModulesMoved, appReferencesVariable, detectAppRenames } from "./appRenames";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 
-function grpc(name: string, url: string): ConfigurationApp {
-  return { name, app: { oneofKind: "grpc", grpc: { url, headers: {} } } } as unknown as ConfigurationApp;
+function grpc(name: string, url: string): WorkspaceApp {
+  return { name, app: { oneofKind: "grpc", grpc: { url, headers: {} } } } as unknown as WorkspaceApp;
 }
 
-function openapi(name: string, specUrl: string): ConfigurationApp {
-  return { name, app: { oneofKind: "openapi", openapi: { specUrl, headers: {} } } } as unknown as ConfigurationApp;
+function openapi(name: string, specUrl: string): WorkspaceApp {
+  return { name, app: { oneofKind: "openapi", openapi: { specUrl, headers: {} } } } as unknown as WorkspaceApp;
 }
 
 const none = {};
@@ -60,8 +60,8 @@ describe("appModulesMoved", () => {
   });
 
   it("is false when only the headers moved, which are per request", () => {
-    const before = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: {} } } } as unknown as ConfigurationApp;
-    const after = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer t" } } } } as unknown as ConfigurationApp;
+    const before = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: {} } } } as unknown as WorkspaceApp;
+    const after = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer t" } } } } as unknown as WorkspaceApp;
     expect(appModulesMoved([before], [after], none, none)).toBe(false);
   });
 });
@@ -73,7 +73,7 @@ describe("appReferencesVariable", () => {
   });
 
   it("leaves an app that only sends it as a header, which is expanded per call", () => {
-    const app = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer ${TOKEN}" } } } } as unknown as ConfigurationApp;
+    const app = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer ${TOKEN}" } } } } as unknown as WorkspaceApp;
     expect(appReferencesVariable(app, new Set(["TOKEN"]))).toBe(false);
   });
 });

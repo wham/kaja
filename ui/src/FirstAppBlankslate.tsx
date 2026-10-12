@@ -7,7 +7,7 @@ interface FirstAppBlankslateProps {
   onNewAppClick?: () => void;
   // Absent where this build has no MCP server to point an agent at.
   onConnectAgentClick?: () => void;
-  canUpdateConfiguration?: boolean;
+  canUpdateWorkspace?: boolean;
 }
 
 /**
@@ -21,23 +21,23 @@ interface FirstAppBlankslateProps {
  * third line is plain text: it says an agent is optional, and there is nowhere useful to
  * send you.
  *
- * A read-only configuration keeps the map and the agent, and says where apps come from
+ * A read-only workspace keeps the map and the agent, and says where apps come from
  * instead of offering a button for one.
  */
-export function FirstAppBlankslate({ onNewAppClick, onConnectAgentClick, canUpdateConfiguration = true }: FirstAppBlankslateProps) {
+export function FirstAppBlankslate({ onNewAppClick, onConnectAgentClick, canUpdateWorkspace = true }: FirstAppBlankslateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[26px] overflow-hidden p-6">
       <div className="flex max-w-[600px] flex-col items-center gap-[7px]">
         <h2 className="m-0 text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-          {canUpdateConfiguration ? "Add an app. Connect an agent." : "Connect an agent."}
+          {canUpdateWorkspace ? "Add an app. Connect an agent." : "Connect an agent."}
         </h2>
         <p className="m-0 text-center text-xs leading-[1.6] text-pretty text-muted-foreground">
-          {canUpdateConfiguration ? (
+          {canUpdateWorkspace ? (
             "You can also use Kaja to explore the APIs without an agent."
           ) : (
             <>
-              This configuration is read-only, and it names no apps. They come from <code className="font-mono">kaja.json</code> in the workspace Kaja was
-              started on.
+              This workspace is read-only, and it names no apps. They come from <code className="font-mono">kaja.json</code> in the workspace Kaja was started
+              on.
             </>
           )}
         </p>
@@ -56,7 +56,7 @@ export function FirstAppBlankslate({ onNewAppClick, onConnectAgentClick, canUpda
               </Button>
             </div>
           )}
-          {canUpdateConfiguration && (
+          {canUpdateWorkspace && (
             <div className="absolute -translate-x-1/2" style={{ left: APPS_END }}>
               <Button onClick={onNewAppClick}>
                 <Plus size={14} />

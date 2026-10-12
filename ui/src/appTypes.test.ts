@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { APP_HEADER, appTypes, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
-import { ConfigurationApp } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 
-const app = { name: "theatre" } as ConfigurationApp;
+const app = { name: "theatre" } as WorkspaceApp;
 
 describe("mergeHeaders", () => {
   it("keeps the app's headers when a call adds to them", () => {

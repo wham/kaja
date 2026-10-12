@@ -84,7 +84,7 @@ describe("the MCP view", () => {
     const once = showMcp([]);
     expect(showMcp(once)).toHaveLength(1);
     expect(viewIdentity(once[0]).name).toBe("MCP server");
-    expect(viewIdentity(once[0]).path).toBe("Workspace");
+    expect(viewIdentity(once[0]).path).toBe("Settings");
 
     let views = once;
     for (let i = 0; i < 15; i++) views = showAppForm(views, "edit", buildApp(`app-${i}`, "grpc", { url: "example.com:443" }, {}));

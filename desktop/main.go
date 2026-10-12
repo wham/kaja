@@ -93,6 +93,7 @@ type App struct {
 	window        *application.WebviewWindow
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
+	settings      *settingsStore
 	// The installation's own folder; the default workspace is a folder inside it.
 	kajaDir string
 
@@ -118,13 +119,14 @@ type App struct {
 	mcpError  string
 }
 
-func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, kajaDir string, workspaceDir string) *App {
+func NewApp(apiService *api.ApiService, bookmarkStore *BookmarkStore, settings *settingsStore, kajaDir string, workspaceDir string) *App {
 	app := &App{
 		api:           apiService,
 		bookmarkStore: bookmarkStore,
+		settings:      settings,
 		kajaDir:       kajaDir,
 		workspaceDir:  workspaceDir,
-		workspaces:    newWorkspaceStore(kajaDir),
+		workspaces:    newWorkspaceStore(settings, kajaDir),
 	}
 	// One session, one window, and no proxy between an agent and this process: the same
 	// switchboard the web runs, over the same scripts folder the window's own sidebar
@@ -175,10 +177,9 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	a.mcpToken = a.loadOrCreateMCPToken()
 	a.mcpMu.Unlock()
 
-	// The switch itself is kaja.json's, so a workspace that had the server on comes back
-	// up with it on. Started here rather than left for the window to ask for: the window
-	// attaches to whatever is already running when it reads MCPServerInfo.
-	if a.api.McpEnabled() {
+	// Started here rather than left for the window to ask for: the window attaches to
+	// whatever is already running when it reads MCPServerInfo.
+	if a.settings.load().Mcp.Enabled {
 		a.startMCPServer()
 	}
 
@@ -280,7 +281,7 @@ func (a *App) buildAppMenu() *application.Menu {
 
 	helpMenu := appMenu.AddSubmenu("Help")
 	helpMenu.Add("Show Config in Finder").OnClick(func(*application.Context) {
-		a.showConfigurationInFinder()
+		a.showWorkspaceInFinder()
 	})
 	helpMenu.Add("Show Logs in Finder").OnClick(func(*application.Context) {
 		a.showLogsInFinder()
@@ -289,13 +290,13 @@ func (a *App) buildAppMenu() *application.Menu {
 	return appMenu
 }
 
-// showConfigurationInFinder reveals the open workspace's kaja.json in the system file
+// showWorkspaceInFinder reveals the open workspace's kaja.json in the system file
 // browser with the file itself selected.
-func (a *App) showConfigurationInFinder() {
+func (a *App) showWorkspaceInFinder() {
 	a.workspaceMu.Lock()
 	dir := a.workspaceDir
 	a.workspaceMu.Unlock()
-	selectInFinder(configurationPathIn(dir))
+	selectInFinder(workspaceFileIn(dir))
 }
 
 // showLogsInFinder reveals the logs directory (see LogFromUI) in the system
@@ -479,6 +480,11 @@ func main() {
 		println("Error:", err.Error())
 		return
 	}
+	if err := migrateSettings(kajaDir); err != nil {
+		slog.Error("Failed to move the settings", "error", err)
+		println("Error:", err.Error())
+		return
+	}
 	if err := os.MkdirAll(defaultDir, 0755); err != nil {
 		slog.Error("Failed to create the default workspace", "path", defaultDir, "error", err)
 		println("Error:", err.Error())
@@ -489,7 +495,8 @@ func main() {
 	restoreBookmarks(bookmarkStore)
 
 	// After the bookmarks, which is what grants access to a folder outside the container.
-	workspaces := newWorkspaceStore(kajaDir)
+	settings := newSettingsStore(kajaDir)
+	workspaces := newWorkspaceStore(settings, kajaDir)
 	workspaceDir, missingWorkspace := workspaces.current()
 	if workspaceDir != defaultDir {
 		if err := readableFolder(workspaceDir); err != nil {
@@ -497,13 +504,13 @@ func main() {
 			missingWorkspace, workspaceDir = workspaceDir, defaultDir
 		}
 	}
-	configurationPath := configurationPathIn(workspaceDir)
+	workspaceFile := workspaceFileIn(workspaceDir)
 
 	// Create API service. Variable values that kaja.json only names live in the
-	// OS keychain, filed under this configuration.
-	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
+	// OS keychain, filed under this workspace's kaja.json.
+	apiService := api.NewApiService(workspaceFile, true, GitRef, buildNumber(), NewKeychainStore(workspaceFile))
 
-	kaja := NewApp(apiService, bookmarkStore, kajaDir, workspaceDir)
+	kaja := NewApp(apiService, bookmarkStore, settings, kajaDir, workspaceDir)
 	kaja.missingWorkspace = missingWorkspace
 
 	// Creating the application, creating the window and running are three steps in v3.

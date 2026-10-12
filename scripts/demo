@@ -468,7 +468,7 @@ press 'key code 53'
 # is of a workspace that genuinely had nothing in it. All three are reached over
 # the wire and none needs a proto file on disk, which is what keeps the staged
 # workspace to this one file plus the scripts beside it.
-cat > "$KAJA_HOME/workspace/kaja.json" <<'CONFIGURATION'
+cat > "$KAJA_HOME/workspace/kaja.json" <<'WORKSPACE'
 {
   "apps": [
     {
@@ -498,7 +498,7 @@ cat > "$KAJA_HOME/workspace/kaja.json" <<'CONFIGURATION'
     "HOME_CITY": "${env:HOME_CITY}"
   }
 }
-CONFIGURATION
+WORKSPACE
 
 cp "$REPO_ROOT"/workspace/*.ts "$KAJA_HOME/workspace/"
 

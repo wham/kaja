@@ -12,11 +12,11 @@ import (
 
 // openAndCompile is what the window does when an app appears: open it, then compile
 // the proto directory it was handed into the TypeScript a script is written against.
-func openAndCompile(t *testing.T, app *api.ConfigurationApp) (*api.OpenAppResponse, []*api.Source, []*api.Log) {
+func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, []*api.Source, []*api.Log) {
 	t.Helper()
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
-		t.Fatalf("write configuration: %v", err)
+		t.Fatalf("write workspace: %v", err)
 	}
 	service := api.NewApiService(path, false, "", "", nil)
 
@@ -43,9 +43,9 @@ func openAndCompile(t *testing.T, app *api.ConfigurationApp) (*api.OpenAppRespon
 func TestCompileReflectedSurface(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"routeguide", "health"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "guide",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 
 	names := sourceNames(sources)
@@ -63,9 +63,9 @@ func TestCompileReflectedSurface(t *testing.T) {
 func TestCompileInteropSurface(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"interop"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "interop",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 
 	t.Logf("generated: %v", sourceNames(sources))
@@ -80,9 +80,9 @@ func TestCompileInteropSurface(t *testing.T) {
 // TestCompileGoogleApis is the same for a spec kaja was pointed at rather than told:
 // the real pubsub protos, imports and all.
 func TestCompileGoogleApis(t *testing.T) {
-	_, sources, _ := openAndCompile(t, &api.ConfigurationApp{
+	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "pubsub",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: pubsub, ProtoDir: absolute(t, "testdata/googleapis")}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: pubsub, ProtoDir: absolute(t, "testdata/googleapis")}},
 	})
 
 	t.Logf("generated: %v", sourceNames(sources))
@@ -99,9 +99,9 @@ func TestCompileGoogleApis(t *testing.T) {
 func TestCompileReflectedProtoFiles(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"routeguide"}, Reflection: true})
 
-	opened, _, _ := openAndCompile(t, &api.ConfigurationApp{
+	opened, _, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "guide",
-		App:  &api.ConfigurationApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 
 	var written []string

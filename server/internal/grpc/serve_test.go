@@ -149,7 +149,7 @@ func TestServeRefusesATruncatedFrame(t *testing.T) {
 // A call with nothing to report - the internal Api service, which forwards nothing -
 // writes no trailer of Kaja's at all, rather than an empty one saying so.
 func TestServeReportsNothingWhenThereIsNoHop(t *testing.T) {
-	w := serveMessage("GetConfiguration", []byte("request"), answers([]byte("response"), nil))
+	w := serveMessage("GetWorkspace", []byte("request"), answers([]byte("response"), nil))
 
 	message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 	if string(message) != "response" {
@@ -191,10 +191,10 @@ func TestServeError(t *testing.T) {
 		err  error
 		want string
 	}{
-		{errors.New("failed to save configuration"), "grpc-status: 2"},
-		{status.Error(codes.InvalidArgument, "failed to save configuration"), "grpc-status: 3"},
+		{errors.New("failed to save workspace"), "grpc-status: 2"},
+		{status.Error(codes.InvalidArgument, "failed to save workspace"), "grpc-status: 3"},
 	} {
-		w := serveMessage("UpdateConfiguration", nil, fails(test.err))
+		w := serveMessage("UpdateWorkspace", nil, fails(test.err))
 
 		message, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
 		if message != nil {
@@ -203,7 +203,7 @@ func TestServeError(t *testing.T) {
 		if !strings.Contains(trailers, test.want) {
 			t.Errorf("trailers %q, want %q", trailers, test.want)
 		}
-		if !strings.Contains(trailers, "grpc-message: failed to save configuration") {
+		if !strings.Contains(trailers, "grpc-message: failed to save workspace") {
 			t.Errorf("trailers %q", trailers)
 		}
 	}

@@ -12,7 +12,7 @@ import { DEFAULT_ZOOM } from "./zoom";
 
 export type ColorMode = "day" | "night";
 
-export interface Workspace {
+export interface WorkspaceFolder {
   dir: string;
   name: string;
   default: boolean;
@@ -20,8 +20,8 @@ export interface Workspace {
 
 // Absent on the web, which serves one workspace.
 export interface WorkspaceControl {
-  current: Workspace;
-  known: Workspace[];
+  current: WorkspaceFolder;
+  known: WorkspaceFolder[];
   onOpen: (dir: string) => void;
   onChoose: () => void;
   onReveal: () => void;
@@ -40,7 +40,7 @@ interface StatusBarProps {
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
   apps: App[];
-  configurationLoaded: boolean;
+  workspaceLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
   onRecompile: (appName?: string) => void;
   onShowShortcuts: () => void;
@@ -68,7 +68,7 @@ export function StatusBar({
   featurePreviews,
   onToggleFeaturePreview,
   apps,
-  configurationLoaded,
+  workspaceLoaded,
   onShowCompileLog,
   onRecompile,
   onShowShortcuts,
@@ -107,10 +107,8 @@ export function StatusBar({
       <span>Feedback</span>
     </a>,
   );
-  if (summarizeCompilation(apps, configurationLoaded).state !== "empty") {
-    leftItems.push(
-      <CompileStatus key="compile" apps={apps} configurationLoaded={configurationLoaded} onShowLog={onShowCompileLog} onRecompile={onRecompile} />,
-    );
+  if (summarizeCompilation(apps, workspaceLoaded).state !== "empty") {
+    leftItems.push(<CompileStatus key="compile" apps={apps} workspaceLoaded={workspaceLoaded} onShowLog={onShowCompileLog} onRecompile={onRecompile} />);
   }
   // Last, and absent until Kaja has failed at something. It reads the error store
   // itself rather than taking it as a prop: what it reports is the window's, not this

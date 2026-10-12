@@ -8,7 +8,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
-func writeConfiguration(t *testing.T, contents string) string {
+func writeWorkspace(t *testing.T, contents string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "kaja.json")
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
@@ -20,7 +20,7 @@ func writeConfiguration(t *testing.T, contents string) string {
 func TestAppConnection(t *testing.T) {
 	// The password names a variable rather than carrying one, which is the whole
 	// reason the credential is applied here: this is where the value is.
-	path := writeConfiguration(t, `{
+	path := writeWorkspace(t, `{
 		"variables": { "DEMO_PASSWORD": "lovelace" },
 		"apps": [
 			{

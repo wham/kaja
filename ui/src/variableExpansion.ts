@@ -3,11 +3,11 @@
 // at the request hop for its headers - because a variable's value may be one
 // this machine holds outside kaja.json and the browser is never handed it. What
 // is left here reads the references: which names a value mentions, and what the
-// configuration says a name is.
+// workspace says a name is.
 //
 // The configured variables are kept in a module-level registry (synced from the
-// loaded configuration in App.tsx) so editor completions can read them without
-// threading the configuration through every call site.
+// loaded workspace in App.tsx) so editor completions can read them without
+// threading the workspace through every call site.
 
 const VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 

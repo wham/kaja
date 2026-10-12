@@ -13,13 +13,13 @@ import (
 )
 
 // workspaceWithScripts writes a kaja.json and the scripts beside it, and returns
-// the configuration path a service is started with.
+// the workspace path a service is started with.
 func workspaceWithScripts(t *testing.T, scripts map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
-	configurationPath := filepath.Join(dir, "kaja.json")
-	if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
-		t.Fatalf("failed to write configuration: %v", err)
+	workspaceFile := filepath.Join(dir, "kaja.json")
+	if err := os.WriteFile(workspaceFile, []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write workspace: %v", err)
 	}
 	for name, content := range scripts {
 		path := filepath.Join(dir, filepath.FromSlash(name))
@@ -30,17 +30,17 @@ func workspaceWithScripts(t *testing.T, scripts map[string]string) string {
 			t.Fatalf("failed to write script %s: %v", name, err)
 		}
 	}
-	return configurationPath
+	return workspaceFile
 }
 
-func TestListScriptsReadsTheFolderBesideTheConfiguration(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{
+func TestListScriptsReadsTheFolderBesideTheWorkspace(t *testing.T) {
+	workspaceFile := workspaceWithScripts(t, map[string]string{
 		"seat-map.ts":  "// seats",
 		"programme.ts": "// shows",
 		"notes.md":     "not a script",
 		".hidden.ts":   "// hidden",
 	})
-	service := NewApiService(configurationPath, false, "", "", nil)
+	service := NewApiService(workspaceFile, false, "", "", nil)
 
 	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
 	if err != nil {
@@ -68,14 +68,14 @@ func TestListScriptsReadsTheFolderBesideTheConfiguration(t *testing.T) {
 // A folder in Files is a real directory, so a listing is the whole tree and each
 // script says which folder it is filed in.
 func TestListScriptsWalksTheFolders(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{
+	workspaceFile := workspaceWithScripts(t, map[string]string{
 		"programme.ts":              "// shows",
 		"reports/churn.ts":          "// churn",
 		"reports/weekly/usage.ts":   "// usage",
 		"seed-data/ingest.ts":       "// ingest",
 		".hidden/nothing-to-see.ts": "// hidden",
 	})
-	service := NewApiService(configurationPath, false, "", "", nil)
+	service := NewApiService(workspaceFile, false, "", "", nil)
 
 	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
 	if err != nil {
@@ -99,8 +99,8 @@ func TestListScriptsWalksTheFolders(t *testing.T) {
 
 // A folder is part of a script's name now, so reading one is the same read.
 func TestReadScriptInAFolder(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"reports/churn.ts": "// churn"})
-	service := NewApiService(configurationPath, false, "", "", nil)
+	workspaceFile := workspaceWithScripts(t, map[string]string{"reports/churn.ts": "// churn"})
+	service := NewApiService(workspaceFile, false, "", "", nil)
 
 	response, err := service.ReadScript(context.Background(), &ReadScriptRequest{Name: "reports/churn.ts"})
 	if err != nil {
@@ -125,8 +125,8 @@ func TestListScriptsWithNoFolder(t *testing.T) {
 }
 
 func TestReadScript(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows\n"})
-	service := NewApiService(configurationPath, false, "", "", nil)
+	workspaceFile := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows\n"})
+	service := NewApiService(workspaceFile, false, "", "", nil)
 
 	response, err := service.ReadScript(context.Background(), &ReadScriptRequest{Name: "programme.ts"})
 	if err != nil {
@@ -144,8 +144,8 @@ func TestReadScript(t *testing.T) {
 // boundary: nothing may name its way out of it, and nothing outside it is a
 // script to begin with.
 func TestReadScriptRefusesAnythingButAPlainScriptName(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
-	service := NewApiService(configurationPath, false, "", "", nil)
+	workspaceFile := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
+	service := NewApiService(workspaceFile, false, "", "", nil)
 
 	for _, name := range []string{
 		"../kaja.json",
@@ -166,17 +166,17 @@ func TestReadScriptRefusesAnythingButAPlainScriptName(t *testing.T) {
 // A symlink pointing out of the folder is the case filepath.IsLocal can't see:
 // the name is plain, and only opening it through the root refuses it.
 func TestReadScriptRefusesASymlinkOutOfTheFolder(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
+	workspaceFile := workspaceWithScripts(t, map[string]string{"programme.ts": "// shows"})
 	secret := filepath.Join(t.TempDir(), "secret.ts")
 	if err := os.WriteFile(secret, []byte("// secret"), 0644); err != nil {
 		t.Fatalf("failed to write the file to link to: %v", err)
 	}
-	link := filepath.Join(filepath.Dir(configurationPath), "scripts", "escape.ts")
+	link := filepath.Join(filepath.Dir(workspaceFile), "scripts", "escape.ts")
 	if err := os.Symlink(secret, link); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	service := NewApiService(configurationPath, false, "", "", nil)
+	service := NewApiService(workspaceFile, false, "", "", nil)
 	if _, err := service.ReadScript(context.Background(), &ReadScriptRequest{Name: "escape.ts"}); err == nil {
 		t.Error("expected a symlink out of the scripts folder to be refused")
 	}
@@ -588,7 +588,7 @@ func TestWriteScript(t *testing.T) {
 func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 	writable := writableWorkspace(t)
 	createScript(t, writable, "reports/churn.ts", "// body")
-	served := NewApiService(writable.configurationFile(), false, "", "", nil)
+	served := NewApiService(writable.workspaceFilePath(), false, "", "", nil)
 	ctx := context.Background()
 
 	writes := map[string]error{}
@@ -620,16 +620,16 @@ func TestAServedWorkspaceRefusesEveryWrite(t *testing.T) {
 }
 
 func TestFoldersOfOtherThingsAreNeitherListedNorDeleted(t *testing.T) {
-	configurationPath := workspaceWithScripts(t, map[string]string{
+	workspaceFile := workspaceWithScripts(t, map[string]string{
 		"reports/churn.ts": "// churn",
 		"protos/api.proto": "syntax = \"proto3\";",
 		"mixed/run.ts":     "// run",
 		"mixed/ca.pem":     "cert",
 	})
-	if err := os.MkdirAll(filepath.Join(filepath.Dir(configurationPath), "empty"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(filepath.Dir(workspaceFile), "empty"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	service := NewApiService(configurationPath, true, "", "", nil)
+	service := NewApiService(workspaceFile, true, "", "", nil)
 	ctx := context.Background()
 
 	listed, err := service.ListScriptFolders(ctx, &ListScriptFoldersRequest{})
@@ -646,7 +646,7 @@ func TestFoldersOfOtherThingsAreNeitherListedNorDeleted(t *testing.T) {
 	if _, err := service.RenameScriptFolder(ctx, &RenameScriptFolderRequest{Name: "mixed", NewName: "moved"}); err == nil {
 		t.Error("a folder holding a certificate was moved")
 	}
-	if _, err := os.Stat(filepath.Join(filepath.Dir(configurationPath), "mixed", "ca.pem")); err != nil {
+	if _, err := os.Stat(filepath.Join(filepath.Dir(workspaceFile), "mixed", "ca.pem")); err != nil {
 		t.Errorf("the certificate is gone: %v", err)
 	}
 	if _, err := service.DeleteScriptFolder(ctx, &DeleteScriptFolderRequest{Name: "reports"}); err != nil {

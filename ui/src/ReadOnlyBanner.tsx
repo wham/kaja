@@ -10,7 +10,7 @@ import { type ReactNode } from "react";
 export function ReadOnlyBanner({ children }: { children?: ReactNode }) {
   return (
     <div className="shrink-0 bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
-      This configuration is read-only.{children ? <> {children}</> : null}
+      This workspace is read-only.{children ? <> {children}</> : null}
     </div>
   );
 }

@@ -11,24 +11,24 @@ import (
 	"google.golang.org/grpc"
 )
 
-func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json")
+func TestLoadGetWorkspaceResponse_ConfigFileNotExists(t *testing.T) {
+	getWorkspaceResponse := LoadGetWorkspaceResponse("non_existent_config.json")
 
-	if getConfigurationResponse == nil {
+	if getWorkspaceResponse == nil {
 		t.Fatal("expected non-nil response")
 	}
 
-	if getConfigurationResponse.Configuration == nil {
-		t.Fatal("expected non-nil configuration")
+	if getWorkspaceResponse.Workspace == nil {
+		t.Fatal("expected non-nil workspace")
 	}
 
-	if len(getConfigurationResponse.Configuration.Apps) != 0 {
-		t.Errorf("expected empty apps list, got %d apps", len(getConfigurationResponse.Configuration.Apps))
+	if len(getWorkspaceResponse.Workspace.Apps) != 0 {
+		t.Errorf("expected empty apps list, got %d apps", len(getWorkspaceResponse.Workspace.Apps))
 	}
 
 	foundInfo := false
-	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "Configuration file non_existent_config.json not found." {
+	for _, log := range getWorkspaceResponse.Logs {
+		if log.Level == LogLevel_LEVEL_INFO && log.Message == "Workspace file non_existent_config.json not found." {
 			foundInfo = true
 			break
 		}
@@ -38,7 +38,7 @@ func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
 	}
 }
 
-func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
+func TestLoadGetWorkspaceResponse_AppsScenario(t *testing.T) {
 	configContent := `{
 		"apps": [
 			{
@@ -62,21 +62,21 @@ func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
+	getWorkspaceResponse := LoadGetWorkspaceResponse(tmpfile.Name())
 
-	if getConfigurationResponse == nil {
+	if getWorkspaceResponse == nil {
 		t.Fatal("expected non-nil response")
 	}
 
-	if getConfigurationResponse.Configuration == nil {
-		t.Fatal("expected non-nil configuration")
+	if getWorkspaceResponse.Workspace == nil {
+		t.Fatal("expected non-nil workspace")
 	}
 
-	if len(getConfigurationResponse.Configuration.Apps) != 1 {
-		t.Fatalf("expected 1 app, got %d", len(getConfigurationResponse.Configuration.Apps))
+	if len(getWorkspaceResponse.Workspace.Apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(getWorkspaceResponse.Workspace.Apps))
 	}
 
-	app := getConfigurationResponse.Configuration.Apps[0]
+	app := getWorkspaceResponse.Workspace.Apps[0]
 	appType, params := flattenApp(app)
 	if app.Name != "test-app" {
 		t.Errorf("expected app name 'test-app', got %q", app.Name)
@@ -91,14 +91,14 @@ func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
 		t.Errorf("expected proto_dir 'test-protoDir', got %q", params["proto_dir"])
 	}
 
-	if getConfigurationResponse.Configuration.PathPrefix != "/test-prefix" {
-		t.Errorf("expected path prefix '/test-prefix', got %q", getConfigurationResponse.Configuration.PathPrefix)
+	if getWorkspaceResponse.Workspace.PathPrefix != "/test-prefix" {
+		t.Errorf("expected path prefix '/test-prefix', got %q", getWorkspaceResponse.Workspace.PathPrefix)
 	}
 }
 
 // Legacy kaja.json files used a top-level "projects" list of gRPC/Twirp services.
 // They must be migrated transparently into the unified "apps" model on load.
-func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
+func TestLoadGetWorkspaceResponse_MigratesLegacyProjects(t *testing.T) {
 	configContent := `{
 		"projects": [
 			{
@@ -132,12 +132,12 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
-	if len(configuration.Apps) != 3 {
-		t.Fatalf("expected 3 migrated apps, got %d", len(configuration.Apps))
+	workspace := LoadGetWorkspaceResponse(tmpfile.Name()).Workspace
+	if len(workspace.Apps) != 3 {
+		t.Fatalf("expected 3 migrated apps, got %d", len(workspace.Apps))
 	}
 
-	grpc := configuration.Apps[0]
+	grpc := workspace.Apps[0]
 	grpcType, grpcParams := flattenApp(grpc)
 	if grpc.Name != "grpc-quirks" || grpcType != "grpc" {
 		t.Errorf("expected grpc app 'grpc-quirks', got %q/%q", grpc.Name, grpcType)
@@ -149,18 +149,18 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 		t.Errorf("expected migrated headers, got %v", grpc.GetGrpc().GetHeaders())
 	}
 
-	twirpType, twirpParams := flattenApp(configuration.Apps[1])
+	twirpType, twirpParams := flattenApp(workspace.Apps[1])
 	if twirpType != "twirp" || twirpParams["url"] != "https://kaja.tools/users" {
 		t.Errorf("unexpected twirp app: %q %v", twirpType, twirpParams)
 	}
 
-	teamsType, teamsParams := flattenApp(configuration.Apps[2])
+	teamsType, teamsParams := flattenApp(workspace.Apps[2])
 	if teamsType != "grpc" || teamsParams["reflection"] != "true" {
 		t.Errorf("expected reflection grpc app, got %q %v", teamsType, teamsParams)
 	}
 }
 
-func TestLoadGetConfigurationResponse_MigratesMarkdownApp(t *testing.T) {
+func TestLoadGetWorkspaceResponse_MigratesMarkdownApp(t *testing.T) {
 	configContent := `{
 		"apps": [
 			{"name": "Notes", "markdown": {"folder": "/tmp/notes"}},
@@ -177,25 +177,25 @@ func TestLoadGetConfigurationResponse_MigratesMarkdownApp(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
-	if len(configuration.Apps) != 2 {
-		t.Fatalf("expected 2 apps, got %d", len(configuration.Apps))
+	workspace := LoadGetWorkspaceResponse(tmpfile.Name()).Workspace
+	if len(workspace.Apps) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(workspace.Apps))
 	}
 
-	folderType, folderParams := flattenApp(configuration.Apps[0])
-	if configuration.Apps[0].Name != "Notes" || folderType != "folder" {
-		t.Errorf("expected folder app 'Notes', got %q/%q", configuration.Apps[0].Name, folderType)
+	folderType, folderParams := flattenApp(workspace.Apps[0])
+	if workspace.Apps[0].Name != "Notes" || folderType != "folder" {
+		t.Errorf("expected folder app 'Notes', got %q/%q", workspace.Apps[0].Name, folderType)
 	}
 	if folderParams["path"] != "/tmp/notes" {
 		t.Errorf("unexpected folder parameters: %v", folderParams)
 	}
 
-	if grpcType, _ := flattenApp(configuration.Apps[1]); grpcType != "grpc" {
+	if grpcType, _ := flattenApp(workspace.Apps[1]); grpcType != "grpc" {
 		t.Errorf("expected the other app untouched, got %q", grpcType)
 	}
 }
 
-func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
+func TestUpdateWorkspace_DeniedWhenNotAllowed(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -207,11 +207,11 @@ func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
 
 	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
-	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
-		Configuration: &Configuration{},
+	_, err = service.UpdateWorkspace(context.Background(), &UpdateWorkspaceRequest{
+		Workspace: &Workspace{},
 	})
 	if err == nil {
-		t.Fatal("expected error when canUpdateConfiguration is false")
+		t.Fatal("expected error when canUpdateWorkspace is false")
 	}
 
 	// The file must be left untouched.
@@ -224,7 +224,7 @@ func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
 	}
 }
 
-func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
+func TestUpdateWorkspace_AllowedWhenEnabled(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -236,25 +236,25 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 
 	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
-	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
-		Configuration: &Configuration{
-			Apps: []*ConfigurationApp{
-				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
+	_, err = service.UpdateWorkspace(context.Background(), &UpdateWorkspaceRequest{
+		Workspace: &Workspace{
+			Apps: []*WorkspaceApp{
+				{Name: "test-app", App: &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
 			},
 		},
 	})
 	if err != nil {
-		t.Fatalf("expected no error when canUpdateConfiguration is true, got %v", err)
+		t.Fatalf("expected no error when canUpdateWorkspace is true, got %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
-	if len(getConfigurationResponse.Configuration.Apps) != 1 {
-		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
+	getWorkspaceResponse := LoadGetWorkspaceResponse(tmpfile.Name())
+	if len(getWorkspaceResponse.Workspace.Apps) != 1 {
+		t.Fatalf("expected 1 saved app, got %d", len(getWorkspaceResponse.Workspace.Apps))
 	}
 }
 
 // Earlier versions wrote a "system" block into every file they saved, so
-// configurations in the wild still carry one. It must be discarded without taking
+// workspaces in the wild still carry one. It must be discarded without taking
 // the rest of the file with it, and it must never unlock a server started without
 // --editable.
 func TestLegacySystemBlockIsDiscarded(t *testing.T) {
@@ -263,32 +263,32 @@ func TestLegacySystemBlockIsDiscarded(t *testing.T) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpfile.Name())
-	legacy := `{"system":{"canUpdateConfiguration":true},"apps":[{"name":"test-app","grpc":{"url":"http://localhost:8080"}}]}`
+	legacy := `{"system":{"canUpdateWorkspace":true},"apps":[{"name":"test-app","grpc":{"url":"http://localhost:8080"}}]}`
 	if _, err := tmpfile.Write([]byte(legacy)); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
 	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
-	response, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
+	response, err := service.GetWorkspace(context.Background(), &GetWorkspaceRequest{})
 	if err != nil {
-		t.Fatalf("failed to get configuration: %v", err)
+		t.Fatalf("failed to get workspace: %v", err)
 	}
-	if len(response.Configuration.Apps) != 1 {
-		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Configuration.Apps))
+	if len(response.Workspace.Apps) != 1 {
+		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Workspace.Apps))
 	}
-	if response.Runtime.CanUpdateConfiguration {
-		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
+	if response.Runtime.CanUpdateWorkspace {
+		t.Error("expected the file's system block to be ignored, got canUpdateWorkspace true")
 	}
 
-	if _, err := service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
-		Configuration: &Configuration{},
+	if _, err := service.UpdateWorkspace(context.Background(), &UpdateWorkspaceRequest{
+		Workspace: &Workspace{},
 	}); err == nil {
 		t.Fatal("expected the update to be denied")
 	}
 }
 
-func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
+func TestUpdateWorkspace_PersistsVariables(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -300,8 +300,8 @@ func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 
 	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
-	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
-		Configuration: &Configuration{
+	_, err = service.UpdateWorkspace(context.Background(), &UpdateWorkspaceRequest{
+		Workspace: &Workspace{
 			Variables: map[string]string{"API_BASE_URL": "https://api.example.com", "TEAM_ID": "42"},
 		},
 	})
@@ -309,32 +309,32 @@ func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 		t.Fatalf("expected no error saving variables, got %v", err)
 	}
 
-	// GetConfiguration must return the persisted variables to the UI (it rebuilds
-	// the Configuration field by field, so a missing field is silently dropped).
-	getResponse, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
+	// GetWorkspace must return the persisted variables to the UI (it rebuilds
+	// the Workspace field by field, so a missing field is silently dropped).
+	getResponse, err := service.GetWorkspace(context.Background(), &GetWorkspaceRequest{})
 	if err != nil {
-		t.Fatalf("GetConfiguration failed: %v", err)
+		t.Fatalf("GetWorkspace failed: %v", err)
 	}
-	configuration := getResponse.Configuration
-	if configuration.Variables["API_BASE_URL"] != "https://api.example.com" {
-		t.Errorf("expected API_BASE_URL from GetConfiguration, got %q", configuration.Variables["API_BASE_URL"])
+	workspace := getResponse.Workspace
+	if workspace.Variables["API_BASE_URL"] != "https://api.example.com" {
+		t.Errorf("expected API_BASE_URL from GetWorkspace, got %q", workspace.Variables["API_BASE_URL"])
 	}
-	if configuration.Variables["TEAM_ID"] != "42" {
-		t.Errorf("expected TEAM_ID from GetConfiguration, got %q", configuration.Variables["TEAM_ID"])
+	if workspace.Variables["TEAM_ID"] != "42" {
+		t.Errorf("expected TEAM_ID from GetWorkspace, got %q", workspace.Variables["TEAM_ID"])
 	}
 }
 
-func TestSaveConfiguration_WritesOneLayout(t *testing.T) {
+func TestSaveWorkspace_WritesOneLayout(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kaja.json")
-	configuration := &Configuration{
-		Apps: []*ConfigurationApp{{
+	workspace := &Workspace{
+		Apps: []*WorkspaceApp{{
 			Name: "theatre",
-			App:  &ConfigurationApp_Openapi{Openapi: &OpenApiApp{SpecUrl: "https://theatre.example.com/openapi.yaml"}},
+			App:  &WorkspaceApp_Openapi{Openapi: &OpenApiApp{SpecUrl: "https://theatre.example.com/openapi.yaml"}},
 		}},
 		Variables: map[string]string{"TOKEN": "${secret}"},
 	}
 
-	if err := SaveConfiguration(path, configuration); err != nil {
+	if err := SaveWorkspace(path, workspace); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	written, err := os.ReadFile(path)
@@ -359,12 +359,12 @@ func TestSaveConfiguration_WritesOneLayout(t *testing.T) {
 }
 `
 	if string(written) != want {
-		t.Errorf("configuration written as\n%s\nwant\n%s", written, want)
+		t.Errorf("workspace written as\n%s\nwant\n%s", written, want)
 	}
 
-	// Saving the same configuration again is the same file, which is what makes a
+	// Saving the same workspace again is the same file, which is what makes a
 	// diff of one say only what changed.
-	if err := SaveConfiguration(path, configuration); err != nil {
+	if err := SaveWorkspace(path, workspace); err != nil {
 		t.Fatalf("save again: %v", err)
 	}
 	again, err := os.ReadFile(path)
@@ -414,9 +414,9 @@ func TestOpenApp_ExpandsVariables(t *testing.T) {
 	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
-		App: &ConfigurationApp{
+		App: &WorkspaceApp{
 			Name: "quirks",
-			App:  &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "dns:${KAJA_HOST}:443", ProtoDir: "quirks/proto"}},
+			App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${KAJA_HOST}:443", ProtoDir: "quirks/proto"}},
 		},
 	})
 	if err != nil {
@@ -445,9 +445,9 @@ func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
 	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
-		App: &ConfigurationApp{
+		App: &WorkspaceApp{
 			Name: "quirks",
-			App:  &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "dns:${MISSING}:443", ProtoDir: "quirks/proto"}},
+			App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${MISSING}:443", ProtoDir: "quirks/proto"}},
 		},
 	})
 	if err != nil {
@@ -470,7 +470,7 @@ func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
 	}
 }
 
-func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
+func TestLoadGetWorkspaceResponse_PathPrefixNormalization(t *testing.T) {
 	configContent := `{
 		"projects": [],
 		"pathPrefix": "demo"
@@ -486,22 +486,22 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
+	getWorkspaceResponse := LoadGetWorkspaceResponse(tmpfile.Name())
 
-	if getConfigurationResponse == nil {
+	if getWorkspaceResponse == nil {
 		t.Fatal("expected non-nil response")
 	}
 
-	if getConfigurationResponse.Configuration == nil {
-		t.Fatal("expected non-nil configuration")
+	if getWorkspaceResponse.Workspace == nil {
+		t.Fatal("expected non-nil workspace")
 	}
 
-	if getConfigurationResponse.Configuration.PathPrefix != "/demo" {
-		t.Errorf("expected normalized path prefix '/demo', got %q", getConfigurationResponse.Configuration.PathPrefix)
+	if getWorkspaceResponse.Workspace.PathPrefix != "/demo" {
+		t.Errorf("expected normalized path prefix '/demo', got %q", getWorkspaceResponse.Workspace.PathPrefix)
 	}
 
 	foundDebug := false
-	for _, log := range getConfigurationResponse.Logs {
+	for _, log := range getWorkspaceResponse.Logs {
 		if log.Level == LogLevel_LEVEL_DEBUG && log.Message == "pathPrefix normalized from \"/demo\" to \"/demo\"" {
 			foundDebug = true
 			break
@@ -522,18 +522,18 @@ func logged(logs []*Log, text string) bool {
 	return false
 }
 
-// configurationStream is the stream a watcher writes into, keeping the last messages
+// workspaceStream is the stream a watcher writes into, keeping the last messages
 // sent. A send never blocks: the test decides how many changes it waits for, and the
 // watcher's own beat decides how many it reports.
-type configurationStream struct {
+type workspaceStream struct {
 	grpc.ServerStream
 	ctx  context.Context
-	sent chan *GetConfigurationResponse
+	sent chan *GetWorkspaceResponse
 }
 
-func (s *configurationStream) Context() context.Context { return s.ctx }
+func (s *workspaceStream) Context() context.Context { return s.ctx }
 
-func (s *configurationStream) Send(response *GetConfigurationResponse) error {
+func (s *workspaceStream) Send(response *GetWorkspaceResponse) error {
 	select {
 	case s.sent <- response:
 	default:
@@ -544,7 +544,7 @@ func (s *configurationStream) Send(response *GetConfigurationResponse) error {
 // A watcher is answered with the file rather than with a notice that something
 // happened, so nothing is fetched after being told - and the stream says nothing while
 // the file is as it was, since whoever opened it has just read that.
-func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
+func TestWatchWorkspaceSendsTheChangedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kaja.json")
 	if err := os.WriteFile(path, []byte(`{"apps":[]}`), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
@@ -556,9 +556,9 @@ func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream := &configurationStream{ctx: ctx, sent: make(chan *GetConfigurationResponse, 1)}
+	stream := &workspaceStream{ctx: ctx, sent: make(chan *GetWorkspaceResponse, 1)}
 	watch := make(chan error, 1)
-	go func() { watch <- service.WatchConfiguration(&WatchConfigurationRequest{}, stream) }()
+	go func() { watch <- service.WatchWorkspace(&WatchWorkspaceRequest{}, stream) }()
 
 	time.Sleep(300 * time.Millisecond)
 	if len(stream.sent) != 0 {
@@ -576,11 +576,11 @@ func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
 	for {
 		select {
 		case response := <-stream.sent:
-			if len(response.Configuration.Apps) != 1 {
-				t.Fatalf("got %d apps, want the file as it now stands", len(response.Configuration.Apps))
+			if len(response.Workspace.Apps) != 1 {
+				t.Fatalf("got %d apps, want the file as it now stands", len(response.Workspace.Apps))
 			}
-			if response.Runtime == nil || !response.Runtime.CanUpdateConfiguration {
-				t.Error("the message carries no runtime, which is what GetConfiguration answers with")
+			if response.Runtime == nil || !response.Runtime.CanUpdateWorkspace {
+				t.Error("the message carries no runtime, which is what GetWorkspace answers with")
 			}
 			cancel()
 			if err := <-watch; err != nil {
@@ -594,59 +594,5 @@ func TestWatchConfigurationSendsTheChangedFile(t *testing.T) {
 		case <-deadline:
 			t.Fatal("the change was never reported")
 		}
-	}
-}
-
-func TestSetMcpEnabled_RoundTrips(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "kaja.json")
-	if err := os.WriteFile(path, []byte(`{"apps":[{"name":"a","grpc":{"url":"grpc://example.com:9000"}}]}`), 0644); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
-
-	service := NewApiService(path, true, "", "", nil)
-
-	if service.McpEnabled() {
-		t.Fatal("expected a configuration with no mcp block to read as off")
-	}
-
-	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: true}); err != nil {
-		t.Fatalf("SetMcpEnabled(true) failed: %v", err)
-	}
-	if !service.McpEnabled() {
-		t.Error("expected the switch to read back on")
-	}
-
-	// The apps beside it are not the switch's to touch.
-	configuration := loadConfigurationFile(path, NewLogger())
-	if len(configuration.Apps) != 1 || configuration.Apps[0].Name != "a" {
-		t.Errorf("expected the app list to survive the write, got %v", configuration.Apps)
-	}
-
-	// Off is the key's absence, so a workspace that turned it off carries nothing about it.
-	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: false}); err != nil {
-		t.Fatalf("SetMcpEnabled(false) failed: %v", err)
-	}
-	if service.McpEnabled() {
-		t.Error("expected the switch to read back off")
-	}
-	written, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read config file: %v", err)
-	}
-	if strings.Contains(string(written), "mcp") {
-		t.Errorf("expected no mcp key once turned off, got %s", written)
-	}
-}
-
-func TestSetMcpEnabled_DeniedWhenNotAllowed(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "kaja.json")
-	if err := os.WriteFile(path, []byte("{}"), 0644); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
-
-	service := NewApiService(path, false, "", "", nil)
-
-	if _, err := service.SetMcpEnabled(context.Background(), &SetMcpEnabledRequest{Enabled: true}); err == nil {
-		t.Error("expected a read-only workspace to refuse the write")
 	}
 }
