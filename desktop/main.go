@@ -480,11 +480,6 @@ func main() {
 		println("Error:", err.Error())
 		return
 	}
-	if err := migrateSettings(kajaDir); err != nil {
-		slog.Error("Failed to move the settings", "error", err)
-		println("Error:", err.Error())
-		return
-	}
 	if err := os.MkdirAll(defaultDir, 0755); err != nil {
 		slog.Error("Failed to create the default workspace", "path", defaultDir, "error", err)
 		println("Error:", err.Error())
@@ -495,6 +490,11 @@ func main() {
 	restoreBookmarks(bookmarkStore)
 
 	// After the bookmarks, which is what grants access to a folder outside the container.
+	if err := migrateSettings(kajaDir); err != nil {
+		slog.Error("Failed to move the settings", "error", err)
+		println("Error:", err.Error())
+		return
+	}
 	settings := newSettingsStore(kajaDir)
 	workspaces := newWorkspaceStore(settings, kajaDir)
 	workspaceDir, missingWorkspace := workspaces.current()
