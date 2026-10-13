@@ -135,6 +135,57 @@ type Bridge interface {
 	// Activity reports that a request started or finished, with the number still in
 	// flight. Called for every request but ping, which is a keepalive rather than use.
 	Activity(inFlight int)
+	// InspectApp probes what an app as the agent describes it would open against, and
+	// says what the description still lacks. It writes nothing.
+	InspectApp(ctx context.Context, draft AppDraft) (AppInspection, error)
+	// AddApp writes the app into the workspace. The window compiles it from there.
+	AddApp(ctx context.Context, draft AppDraft) error
+	// AwaitApp waits for the window to report the app as callable, and says whether it
+	// did before the wait ran out.
+	AwaitApp(ctx context.Context, name string) bool
+	// OpenAppForm mints the page a person finishes an app on: Kaja's own New app form,
+	// prefilled with the draft. The prompt is what the agent's client is asked to open.
+	OpenAppForm(draft AppDraft) (AppFormPrompt, error)
+	// AwaitAppForm waits for the person to save or close the form a prompt opened.
+	AwaitAppForm(ctx context.Context, requestID string) (AppFormOutcome, error)
+	// DropAppForm forgets a prompt the client declined to open.
+	DropAppForm(requestID string)
+}
+
+// AppDraft is an app as an agent describes it: the kaja.json shape, every value said
+// as a string. Parameters are keyed by the app type's own field names (`spec_url`,
+// `proto_dir`), so what an agent writes is what the file would say.
+type AppDraft struct {
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Parameters map[string]string `json:"parameters,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+}
+
+// AppInspection is what probing a draft found. Summary describes what answered;
+// Missing is what the draft still needs before it can be added, one sentence each;
+// Problem is a failure no field would fix, which is the agent's to act on.
+type AppInspection struct {
+	Summary string
+	Missing []string
+	Problem string
+	// Settled is the draft with what the probe settled written in - the transport a
+	// gRPC server turned out to speak - so the app says outright what it does.
+	Settled AppDraft
+}
+
+// AppFormPrompt is the page a person finishes an app on, and the id the answer
+// comes back under.
+type AppFormPrompt struct {
+	URL       string
+	RequestID string
+}
+
+// AppFormOutcome is what the person did with the form: saved an app by this name, or
+// closed it.
+type AppFormOutcome struct {
+	Saved bool
+	Name  string
 }
 
 // defaultClientName is what an agent is called when it announces no name of its own.
@@ -303,7 +354,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// A request that asked to hear about itself is streamed whatever the delivery: a
 	// notification has nowhere to go in a single body, and the whole of what a progress
 	// token asks for is to be told something before the answer.
-	if acceptsEventStream(r) && (s.streamed || progressToken(req.Params) != nil) {
+	// So is a call asked again with the state an earlier answer handed it: the handler
+	// waits on a person, and a wait with no bytes in it is what a proxy ends.
+	if acceptsEventStream(r) && (s.streamed || progressToken(req.Params) != nil || readRetry(req.Params).State != "") {
 		s.respondStreamed(w, r, req, handle, caller, modern)
 		return
 	}

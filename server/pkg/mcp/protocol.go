@@ -1,6 +1,9 @@
 package mcp
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // The revisions this server answers, newest first. ProtocolVersion is the one that
 // dropped the handshake: a request carries its own version, the client's identity and
@@ -33,9 +36,10 @@ func supportsVersion(version string) bool {
 // The `_meta` keys the modern era carries. The prefix is reserved by the
 // specification, which is why these are spelled out rather than derived.
 const (
-	metaProtocolVersion = "io.modelcontextprotocol/protocolVersion"
-	metaClientInfo      = "io.modelcontextprotocol/clientInfo"
-	metaServerInfo      = "io.modelcontextprotocol/serverInfo"
+	metaProtocolVersion    = "io.modelcontextprotocol/protocolVersion"
+	metaClientInfo         = "io.modelcontextprotocol/clientInfo"
+	metaServerInfo         = "io.modelcontextprotocol/serverInfo"
+	metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities"
 )
 
 // codeUnsupportedProtocolVersion is what a request naming a revision this server does
@@ -77,13 +81,16 @@ func cacheable(result map[string]interface{}, ttl time.Duration) map[string]inte
 
 // complete frames a result for the modern era: it says the call finished rather than
 // asking the client for something back, and it names the server, which has no
-// handshake left to do that in. A legacy result is handed back as it is.
+// handshake left to do that in. A result that already says which kind it is - one
+// asking for input - keeps its word. A legacy result is handed back as it is.
 func complete(result interface{}, modern bool, version string) interface{} {
 	fields, ok := result.(map[string]interface{})
 	if !ok || !modern {
 		return result
 	}
-	fields["resultType"] = "complete"
+	if _, said := fields["resultType"]; !said {
+		fields["resultType"] = "complete"
+	}
 	meta, ok := fields["_meta"].(map[string]interface{})
 	if !ok {
 		meta = map[string]interface{}{}
@@ -98,4 +105,62 @@ func implementation(version string) map[string]interface{} {
 		version = unknownVersion
 	}
 	return map[string]interface{}{"name": serverName, "version": version}
+}
+
+// inputRequired is the modern era's way of asking the client for something: the call
+// ends with the requests it needs answered and an opaque state, and the client asks
+// the same call again carrying both. The key names the request so the answer can be
+// found under it on the retry.
+func inputRequired(key string, request map[string]interface{}, state string) map[string]interface{} {
+	return map[string]interface{}{
+		"resultType":    "input_required",
+		"inputRequests": map[string]interface{}{key: request},
+		"requestState":  state,
+	}
+}
+
+// urlElicitation is the one request this server makes of a client: open a page. Form
+// mode is deliberately not asked for - the page is Kaja's own form, which already
+// knows every choice an app needs, and a token typed into it never passes through
+// the agent.
+func urlElicitation(url string, message string) map[string]interface{} {
+	return map[string]interface{}{
+		"method": "elicitation/create",
+		"params": map[string]interface{}{"mode": "url", "url": url, "message": message},
+	}
+}
+
+// clientOpensURLs is whether the request came from a client that can be asked to
+// open a page. Only the modern era declares capabilities per request, so a handshake
+// client answers false and is told what is missing in text instead. An empty
+// `elicitation` means form mode alone, so the `url` key has to be there.
+func clientOpensURLs(params json.RawMessage) bool {
+	var capabilities struct {
+		Elicitation map[string]json.RawMessage `json:"elicitation"`
+	}
+	if json.Unmarshal(metaFields(params)[metaClientCapabilities], &capabilities) != nil {
+		return false
+	}
+	_, ok := capabilities.Elicitation["url"]
+	return ok
+}
+
+// retry is what a client carries when it asks a call again after an input_required
+// answer: the state the server handed it, and what the client got for each request.
+type retry struct {
+	State     string
+	Responses map[string]inputResponse
+}
+
+type inputResponse struct {
+	Action string `json:"action"`
+}
+
+func readRetry(params json.RawMessage) retry {
+	var fields struct {
+		RequestState   string                   `json:"requestState"`
+		InputResponses map[string]inputResponse `json:"inputResponses"`
+	}
+	_ = json.Unmarshal(params, &fields)
+	return retry{State: fields.RequestState, Responses: fields.InputResponses}
 }

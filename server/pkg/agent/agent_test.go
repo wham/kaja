@@ -83,14 +83,30 @@ func (f *fakeScripts) Delete(path string) (ScriptChange, error) {
 
 func (f *fakeScripts) CanWrite() bool { return f.writable }
 
+// fakeApps answers every draft the same way, which is enough to drive the form round
+// trip: the probing itself is the Api service's and is tested there.
+type fakeApps struct {
+	inspection mcp.AppInspection
+	added      []mcp.AppDraft
+}
+
+func (f *fakeApps) Inspect(context.Context, mcp.AppDraft) (mcp.AppInspection, error) {
+	return f.inspection, nil
+}
+
+func (f *fakeApps) Add(_ context.Context, draft mcp.AppDraft) error {
+	f.added = append(f.added, draft)
+	return nil
+}
+
 func newRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, Streamed, "test")
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, &fakeApps{}, Streamed, "test")
 }
 
 // newOwnedRegistry is the desktop's half: a process that owns the workspace it opened,
 // answering an agent with nothing in front of it.
 func newOwnedRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, Direct, "test")
+	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, &fakeApps{}, Direct, "test")
 }
 
 // next reads the next message a window is sent, failing rather than hanging.
@@ -301,7 +317,7 @@ func TestTheMostRecentlyFocusedWindowIsOnDuty(t *testing.T) {
 	defer second.Detach()
 
 	session, _ := registry.Session(token)
-	session.Focus(first.ID)
+	session.Focus(first.ID, "")
 
 	go func() {
 		message := drain(t, first, "run")
@@ -733,5 +749,73 @@ func TestARunBeatsOnlyWhereSomebodyIsListening(t *testing.T) {
 	}
 	if len(beats) != 0 {
 		t.Errorf("a beat reached a run nobody asked about")
+	}
+}
+
+// An agent that cannot finish adding an app hands the person a link to the form, and
+// what the person does with it comes back to the agent through the session. The link
+// is to the window being looked at, in that window's own address, and carries no
+// secret a client's log could keep.
+func TestAppFormRoundTrip(t *testing.T) {
+	registry := newRegistry()
+	stream, _ := registry.Attach(token)
+	defer stream.Detach()
+	session, _ := registry.Session(token)
+
+	draft := mcp.AppDraft{Name: "Petstore", Type: "openapi", Parameters: map[string]string{
+		"spec_url": "https://petstore.example/openapi.json", "token": "sk-live-secret", "password": "${PASSWORD}", "base_url": "",
+	}, Headers: map[string]string{"X-Tenant": "acme"}}
+
+	if _, err := session.OpenAppForm(draft); !errors.Is(err, ErrNoWindow) {
+		t.Fatalf("a window that has not said where it is reached got %v", err)
+	}
+	session.Focus(stream.ID, "https://kaja.example.com/#")
+
+	prompt, err := session.OpenAppForm(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(prompt.URL, "https://kaja.example.com/#add-app?") {
+		t.Errorf("url = %q", prompt.URL)
+	}
+	for _, want := range []string{"type=openapi", "name=Petstore", "request=" + prompt.RequestID, "spec_url=https%3A%2F%2Fpetstore.example%2Fopenapi.json", "password=%24%7BPASSWORD%7D", "headers=%7B%22X-Tenant%22%3A%22acme%22%7D"} {
+		if !strings.Contains(prompt.URL, want) {
+			t.Errorf("url lacks %q: %s", want, prompt.URL)
+		}
+	}
+	for _, leaked := range []string{"sk-live-secret", "token=", "base_url="} {
+		if strings.Contains(prompt.URL, leaked) {
+			t.Errorf("url carries %q: %s", leaked, prompt.URL)
+		}
+	}
+
+	// Saved before the agent's client has asked again: the answer waits.
+	session.AppFormResult(prompt.RequestID, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
+	outcome, err := session.AwaitAppForm(context.Background(), prompt.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.Saved || outcome.Name != "Petstore" {
+		t.Errorf("outcome = %+v", outcome)
+	}
+	// A form is finished once.
+	if _, err := session.AwaitAppForm(context.Background(), prompt.RequestID); err == nil {
+		t.Errorf("a finished form was waited on again")
+	}
+}
+
+// The window compiles what was written, so a freshly added app is callable only once
+// the window has pushed a catalog naming it.
+func TestAwaitAppReadsTheCatalog(t *testing.T) {
+	registry := newRegistry()
+	session, _ := registry.Open(token)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if session.AwaitApp(ctx, "Petstore") {
+		t.Fatal("an app nothing has compiled was reported callable")
+	}
+	session.SetCatalog(mcp.Catalog{Apps: []mcp.CatalogApp{{Name: "Petstore", Services: []mcp.CatalogService{{Name: "Pets"}}}}})
+	if !session.AwaitApp(context.Background(), "Petstore") {
+		t.Error("a compiled app was not reported callable")
 	}
 }

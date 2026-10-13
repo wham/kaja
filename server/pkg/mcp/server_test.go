@@ -28,6 +28,17 @@ type fakeBridge struct {
 	// caller asked to hear nothing.
 	lastProgress func(RunProgress)
 	hadProgress  bool
+	// What the app tools were handed and answered with.
+	inspection  AppInspection
+	inspectErr  error
+	inspected   []AppDraft
+	added       []AppDraft
+	compiled    bool
+	formOpened  []AppDraft
+	awaited     []string
+	dropped     []string
+	formOutcome AppFormOutcome
+	formErr     error
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -160,6 +171,26 @@ func (f *fakeBridge) RunScript(_ context.Context, path, code, client string, pro
 }
 func (f *fakeBridge) Catalog() Catalog      { return f.catalog }
 func (f *fakeBridge) CanWriteScripts() bool { return !f.readOnly }
+func (f *fakeBridge) InspectApp(_ context.Context, draft AppDraft) (AppInspection, error) {
+	f.inspected = append(f.inspected, draft)
+	inspection := f.inspection
+	inspection.Settled = draft
+	return inspection, f.inspectErr
+}
+func (f *fakeBridge) AddApp(_ context.Context, draft AppDraft) error {
+	f.added = append(f.added, draft)
+	return nil
+}
+func (f *fakeBridge) AwaitApp(context.Context, string) bool { return f.compiled }
+func (f *fakeBridge) OpenAppForm(draft AppDraft) (AppFormPrompt, error) {
+	f.formOpened = append(f.formOpened, draft)
+	return AppFormPrompt{URL: "kaja://add-app?name=" + draft.Name + "&request=form-1", RequestID: "form-1"}, nil
+}
+func (f *fakeBridge) AwaitAppForm(ctx context.Context, requestID string) (AppFormOutcome, error) {
+	f.awaited = append(f.awaited, requestID)
+	return f.formOutcome, f.formErr
+}
+func (f *fakeBridge) DropAppForm(requestID string) { f.dropped = append(f.dropped, requestID) }
 func (f *fakeBridge) Activity(inFlight int) {
 	f.activity = append(f.activity, inFlight)
 }
@@ -380,7 +411,7 @@ func TestToolsList(t *testing.T) {
 		"list_services": false, "describe_method": false, "describe_type": false,
 		"list_scripts": false, "read_script": false, "write_script": false,
 		"create_script": false, "rename_script": false, "delete_script": false,
-		"run_script": false,
+		"run_script": false, "inspect_api": false, "add_app": false,
 	}
 	descriptions := map[string]string{}
 	for _, entry := range tools {
