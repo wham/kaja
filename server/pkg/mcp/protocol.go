@@ -66,9 +66,10 @@ const (
 	workspaceTTL = time.Minute
 )
 
-// cacheScope is the session, always: a browser's catalog is the session's own, and the
-// tools follow the workspace that session opened.
-const cacheScope = "session"
+// cacheScope is private, always: the token is a browser's session, so what is listed
+// under it is that session's catalog and the workspace it opened. The spec allows only
+// "public" and "private", and a client validating the result refuses anything else.
+const cacheScope = "private"
 
 // cacheable adds the cache directives to a result. It is the answer these describe
 // rather than the era it was asked in, so they are written by the handler and not by

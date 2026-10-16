@@ -285,8 +285,8 @@ func cached(t *testing.T, result map[string]interface{}, ttl time.Duration) {
 	if got := result["ttlMs"]; got != float64(ttl.Milliseconds()) {
 		t.Errorf("ttlMs = %v, want %v", got, ttl.Milliseconds())
 	}
-	if got := result["cacheScope"]; got != cacheScope {
-		t.Errorf("cacheScope = %v, want %v", got, cacheScope)
+	if got := result["cacheScope"]; got != "private" {
+		t.Errorf("cacheScope = %v, want private", got)
 	}
 }
 
