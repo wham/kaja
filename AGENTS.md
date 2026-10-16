@@ -35,6 +35,7 @@
 - **Three surfaces.** Content (every view body) is `bg-background`; chrome (sidebar, command row, status bar) is `bg-chrome`; floating (dialogs, popovers, menus, Monaco widgets) is `bg-card`/`bg-popover`. `bg-muted` is a highlight for chips and pills, never a pane. Status is amber for warning, emerald for success, `destructive` for error, each over a `/10` tint of itself.
 - Theme tokens live in `ui/src/tailwind.css`. Day/night is a `dark` class on `<html>`. Monaco can't read CSS variables, so `ui/src/monacoTheme.ts` repeats the surfaces as hex — keep them in step.
 - Tailwind is compiled by the Tailwind CLI (via `bun`) in an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx`.
+- **Two TypeScripts, on purpose.** The repo is checked by TS 7 (`typescript`), which has no in-process parser, printer or transpiler, so code that reads or writes TypeScript at runtime imports TS 6 from `@typescript/typescript6`. That package brings TS 6 in as `@typescript/old`, whose `tsc` bin bun links over TS 7's — which is why the `tsc` script names its path.
 
 ### Workspace and settings
 

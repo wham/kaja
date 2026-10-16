@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { App } from "./apps";
 import { clearTypeMemory, rememberValues } from "./typeMemory";
 import { resolveValuePosition, suggestValues } from "./valueCompletions";

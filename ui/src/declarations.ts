@@ -1,5 +1,5 @@
 import type { FieldInfo, IMessageType } from "@protobuf-ts/runtime";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 // What a script writes against is TypeScript, so the answer to "what does this method
 // take" is a declaration rather than a description of one — and a declaration read out

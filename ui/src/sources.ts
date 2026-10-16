@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { Declaration, declareEnum, declareInterface } from "./declarations";
 import { Source as ApiSource } from "./server/api";
 

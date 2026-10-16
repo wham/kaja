@@ -1,6 +1,6 @@
 import { runtimeNames } from "./scriptBindings";
 import { baseName } from "./scriptLink";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 /**
  * The parameters a script takes, in the order it reads them.

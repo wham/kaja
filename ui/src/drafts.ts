@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { deriveDraftTitle } from "./draftTitle";
 
 // How many drafts the sidebar draws before the rest become `n more…`. Capped rather

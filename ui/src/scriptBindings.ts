@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 /**
  * What a script's imports bound, which is the only thing that says what a name

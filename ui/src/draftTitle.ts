@@ -1,7 +1,7 @@
 import { fetchHost, fetchKey } from "./fetchCall";
 import { SUBJECT_FIELDS } from "./loopKey";
 import { importedNames, runtimeNames } from "./scriptBindings";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 // A request small enough to read at a glance is described by its values, which is
 // usually where two explorations of the same call differ. A bigger one stays quiet
