@@ -15,7 +15,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.27"
           cache-dependency-path: |
             server/go.sum
             desktop/go.sum

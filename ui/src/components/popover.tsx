@@ -1,4 +1,4 @@
-import { Popover as BasePopover } from "@base-ui-components/react/popover";
+import { Popover as BasePopover } from "@base-ui/react/popover";
 import * as React from "react";
 
 import { cnState } from "../cn";

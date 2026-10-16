@@ -1,4 +1,4 @@
-import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
+import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { Ban, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Method, Service } from "./apps";

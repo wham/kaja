@@ -25,7 +25,7 @@
 
 ### UI conventions
 
-- shadcn/ui-style primitives over Base UI (`@base-ui-components/react`) + Tailwind, stock neutral theme. Reusable primitives live in `ui/src/components/`; compose them with Tailwind utilities. Reach for a raw HTML element + Tailwind before adding a primitive, and **ask before adding a new shared primitive** — one-off compositions are fine.
+- shadcn/ui-style primitives over Base UI (`@base-ui/react`) + Tailwind, stock neutral theme. Reusable primitives live in `ui/src/components/`; compose them with Tailwind utilities. Reach for a raw HTML element + Tailwind before adding a primitive, and **ask before adding a new shared primitive** — one-off compositions are fine.
 - Icons come straight from `lucide-react` under their real names. Compose class names with `cn()` from `ui/src/cn.ts`.
 - **The four protocol marks are the one exception** (`ui/src/protocolMarks.ts`): lucide has nothing that tells four protocols apart when they are all servers reached over the wire. They are built with lucide's own `createLucideIcon`, so they type as a `LucideIcon` everything taking an app's icon accepts, and the test each has to pass is 13px in muted grey. Adding a fifth is not how an app type gets an icon: reach for lucide first.
 - **A bundled server's brand mark is the other exception** (`ui/src/brandMarks.tsx`): the point of a known-server row is that it is recognised before it is read, and nothing on lucide's grid can be drawn into GitHub. So a mark is the company's own artwork under a license that allows it, at 16px in `currentColor` so it sits at the weight of the lucide icons beside it. It is not a `LucideIcon` and takes no place one does — a `BrandMark` is only ever drawn on the rows and the chip that name that server.

@@ -1,12 +1,12 @@
 module github.com/wham/kaja/v2
 
-go 1.25.0
+go 1.26.0
 
 require (
-	github.com/evanw/esbuild v0.28.1
+	github.com/evanw/esbuild v0.28.2
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
 	github.com/wham/protoc-go v0.5.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -14,14 +14,14 @@ require (
 replace github.com/wham/kaja/v2/protoc-gen-kaja => ../protoc-gen-kaja
 
 require (
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941
 )
 
 require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2 // indirect
 )
 
