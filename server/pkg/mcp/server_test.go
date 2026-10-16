@@ -1261,3 +1261,37 @@ func TestStructuredPayloadsStayParseable(t *testing.T) {
 	}
 	contains(t, note, "too large to report")
 }
+
+// The icon is said where a client learns who the server is, and nowhere else: every
+// modern result names the server, and a picture on each would be kilobytes per call.
+func TestIconIsOnTheIntroductionsOnly(t *testing.T) {
+	srv := NewServer(newFakeBridge(), token, version)
+	icons := func(info map[string]interface{}) []interface{} {
+		list, _ := info["icons"].([]interface{})
+		return list
+	}
+	metaInfo := func(result map[string]interface{}) map[string]interface{} {
+		meta, _ := result["_meta"].(map[string]interface{})
+		info, _ := meta[metaServerInfo].(map[string]interface{})
+		return info
+	}
+
+	handshake := call(t, srv, "initialize", map[string]interface{}{"protocolVersion": legacyProtocolVersion}).Result.(map[string]interface{})
+	info, _ := handshake["serverInfo"].(map[string]interface{})
+	list := icons(info)
+	if len(list) != 1 {
+		t.Fatalf("initialize icons = %v", info["icons"])
+	}
+	first, _ := list[0].(map[string]interface{})
+	src, _ := first["src"].(string)
+	if first["mimeType"] != "image/png" || !strings.HasPrefix(src, "data:image/png;base64,iVBOR") {
+		t.Errorf("icon = %v…", first["mimeType"])
+	}
+
+	if len(icons(metaInfo(modernResult(t, srv, "server/discover", nil)))) != 1 {
+		t.Error("server/discover carries no icon")
+	}
+	if list := icons(metaInfo(modernResult(t, srv, "tools/list", nil))); list != nil {
+		t.Errorf("tools/list carries an icon")
+	}
+}

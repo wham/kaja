@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"time"
 )
@@ -97,7 +99,9 @@ func complete(result interface{}, modern bool, version string) interface{} {
 		meta = map[string]interface{}{}
 		fields["_meta"] = meta
 	}
-	meta[metaServerInfo] = implementation(version)
+	if _, said := meta[metaServerInfo]; !said {
+		meta[metaServerInfo] = implementation(version)
+	}
 	return fields
 }
 
@@ -106,6 +110,28 @@ func implementation(version string) map[string]interface{} {
 		version = unknownVersion
 	}
 	return map[string]interface{}{"name": serverName, "version": version}
+}
+
+// A PNG because it is the one format the specification obliges a client that draws
+// icons to read, and a data URI because the server may be on a loopback address the
+// client's renderer cannot reach.
+//
+//go:embed icon.png
+var iconPNG []byte
+
+var icon = map[string]interface{}{
+	"src":      "data:image/png;base64," + base64.StdEncoding.EncodeToString(iconPNG),
+	"mimeType": "image/png",
+	"sizes":    []string{"128x128"},
+}
+
+// introduction is implementation with the icon, for the two answers a client learns
+// who the server is from. Every other modern result names the server too, and carries
+// no picture of it.
+func introduction(version string) map[string]interface{} {
+	info := implementation(version)
+	info["icons"] = []interface{}{icon}
+	return info
 }
 
 // inputRequired is the modern era's way of asking the client for something: the call
