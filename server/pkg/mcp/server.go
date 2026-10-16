@@ -577,6 +577,7 @@ func (s *Server) handleDiscover() interface{} {
 		"supportedVersions": supportedVersions,
 		"capabilities":      capabilities(),
 		"instructions":      guide,
+		"_meta":             map[string]interface{}{metaServerInfo: introduction(s.version)},
 	}, staticTTL)
 }
 
@@ -595,7 +596,7 @@ func (s *Server) handleInitialize(params json.RawMessage) interface{} {
 	return map[string]interface{}{
 		"protocolVersion": version,
 		"capabilities":    capabilities(),
-		"serverInfo":      implementation(s.version),
+		"serverInfo":      introduction(s.version),
 		"instructions":    guide,
 	}
 }
