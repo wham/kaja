@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DESKTOP_LINK_BASE, hasScriptLink, isLinkedScript, linkName, parseScriptLink, scriptLink, scriptLinkParts } from "./scriptLink";
+import { DESKTOP_LINK_BASE, hasKajaLink, isLinkedScript, linkName, parseLink, scriptLink, scriptLinkParts } from "./scriptLink";
 
 // The desktop's form, stated rather than read off whatever the test runner has
 // for a `window`: `scriptLink` defaults to a link to *this* Kaja, which is the
@@ -8,21 +8,30 @@ const desktopLink = (fileName: string, input?: { [key: string]: string }) => scr
 const desktopParts = (fileName: string, input?: { [key: string]: string }) => scriptLinkParts(fileName, input, DESKTOP_LINK_BASE);
 
 function parsed(text: string) {
-  const result = parseScriptLink(text);
+  const result = parseLink(text);
   if (!result.ok) throw new Error(result.error);
+  if (result.link.kind !== "run") throw new Error(`not a run link: ${text}`);
+  return result.link;
+}
+
+function parsedAddApp(text: string) {
+  const result = parseLink(text);
+  if (!result.ok) throw new Error(result.error);
+  if (result.link.kind !== "add-app") throw new Error(`not an add-app link: ${text}`);
   return result.link;
 }
 
 describe("parseScriptLink", () => {
   test("reads the script off the path and the input off the query", () => {
     expect(parsed("kaja://run/slack-thread?url=https%3A%2F%2Fexample.com%2Fp1&note=later")).toEqual({
+      kind: "run",
       script: "slack-thread",
       input: { url: "https://example.com/p1", note: "later" },
     });
   });
 
   test("takes a link with no input", () => {
-    expect(parsed("kaja://run/nightly")).toEqual({ script: "nightly", input: {} });
+    expect(parsed("kaja://run/nightly")).toEqual({ kind: "run", script: "nightly", input: {} });
   });
 
   test("takes the script written with its extension", () => {
@@ -48,26 +57,26 @@ describe("parseScriptLink", () => {
 
   test("refuses an http link that carries nothing after its #", () => {
     // The path is the page's, not Kaja's: only the fragment is a deeplink.
-    expect(parseScriptLink("https://example.com/run/nightly").ok).toBe(false);
-    expect(parseScriptLink("https://kaja.example.com/").ok).toBe(false);
-    expect(parseScriptLink("https://kaja.example.com/#somewhere-else").ok).toBe(false);
+    expect(parseLink("https://example.com/run/nightly").ok).toBe(false);
+    expect(parseLink("https://kaja.example.com/").ok).toBe(false);
+    expect(parseLink("https://kaja.example.com/#somewhere-else").ok).toBe(false);
   });
 
   test("refuses a verb Kaja doesn't have", () => {
-    const result = parseScriptLink("kaja://open/nightly");
+    const result = parseLink("kaja://open/nightly");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("kaja://open");
   });
 
   test("refuses a link that names no script", () => {
-    expect(parseScriptLink("kaja://run").ok).toBe(false);
-    expect(parseScriptLink("kaja://run/").ok).toBe(false);
-    expect(parseScriptLink("kaja://run/?url=x").ok).toBe(false);
+    expect(parseLink("kaja://run").ok).toBe(false);
+    expect(parseLink("kaja://run/").ok).toBe(false);
+    expect(parseLink("kaja://run/?url=x").ok).toBe(false);
   });
 
   test("refuses text that is not a link at all", () => {
-    expect(parseScriptLink("nightly").ok).toBe(false);
-    expect(parseScriptLink("").ok).toBe(false);
+    expect(parseLink("nightly").ok).toBe(false);
+    expect(parseLink("").ok).toBe(false);
   });
 
   test("reads a segment it cannot decode as what it says", () => {
@@ -86,7 +95,7 @@ describe("scriptLink", () => {
 
   test("round-trips what it built", () => {
     const input = { url: "https://example.com/x y", "odd key": "a&b=c" };
-    expect(parsed(desktopLink("thread.ts", input))).toEqual({ script: "thread", input });
+    expect(parsed(desktopLink("thread.ts", input))).toEqual({ kind: "run", script: "thread", input });
   });
 
   // What the sheet is for: a key with nothing behind it is where a launcher's
@@ -135,7 +144,7 @@ describe("isLinkedScript", () => {
 describe("a script in a folder", () => {
   test("keeps the folder in the link, with each segment encoded on its own", () => {
     expect(desktopLink("reports/weekly usage.ts")).toBe("kaja://run/reports/weekly%20usage");
-    expect(parseScriptLink("kaja://run/reports/weekly%20usage")).toEqual({ ok: true, link: { script: "reports/weekly usage", input: {} } });
+    expect(parseLink("kaja://run/reports/weekly%20usage")).toEqual({ ok: true, link: { kind: "run", script: "reports/weekly usage", input: {} } });
   });
 
   test("matches the whole name, and a bare name from a link written before folders existed", () => {
@@ -153,7 +162,7 @@ describe("the web's link", () => {
   test("says the same thing after a #", () => {
     const input = { url: "https://example.com/p1", note: "later" };
     expect(scriptLink("slack-thread.ts", input, base)).toBe("https://kaja.example.com/#run/slack-thread?url=https%3A%2F%2Fexample.com%2Fp1&note=later");
-    expect(parsed(scriptLink("slack-thread.ts", input, base))).toEqual({ script: "slack-thread", input });
+    expect(parsed(scriptLink("slack-thread.ts", input, base))).toEqual({ kind: "run", script: "slack-thread", input });
   });
 
   test("round-trips a script in a folder, and one whose name had to be encoded", () => {
@@ -161,7 +170,7 @@ describe("the web's link", () => {
   });
 
   test("reads a link served from a base path, which is what keeps it out of the server", () => {
-    expect(parsed("https://example.com/tools/kaja/#run/nightly?tag=q3")).toEqual({ script: "nightly", input: { tag: "q3" } });
+    expect(parsed("https://example.com/tools/kaja/#run/nightly?tag=q3")).toEqual({ kind: "run", script: "nightly", input: { tag: "q3" } });
   });
 
   test("leaves the page's own query alone", () => {
@@ -175,8 +184,8 @@ describe("the web's link", () => {
   });
 
   test("refuses a fragment that names no script", () => {
-    expect(parseScriptLink("https://kaja.example.com/#run").ok).toBe(false);
-    expect(parseScriptLink("https://kaja.example.com/#run/").ok).toBe(false);
+    expect(parseLink("https://kaja.example.com/#run").ok).toBe(false);
+    expect(parseLink("https://kaja.example.com/#run/").ok).toBe(false);
   });
 });
 
@@ -184,12 +193,45 @@ describe("the web's link", () => {
 // to say "not mine" about somebody else's anchor without reporting an error.
 describe("hasScriptLink", () => {
   test("knows a deeplink from any other fragment", () => {
-    expect(hasScriptLink("https://kaja.example.com/#run/nightly?tag=q3")).toBe(true);
-    expect(hasScriptLink("https://kaja.example.com/#run")).toBe(true);
-    expect(hasScriptLink("https://kaja.example.com/#RUN/nightly")).toBe(true);
-    expect(hasScriptLink("https://kaja.example.com/")).toBe(false);
-    expect(hasScriptLink("https://kaja.example.com/#section-2")).toBe(false);
-    expect(hasScriptLink("https://kaja.example.com/#running-late")).toBe(false);
-    expect(hasScriptLink("not a url")).toBe(false);
+    expect(hasKajaLink("https://kaja.example.com/#run/nightly?tag=q3")).toBe(true);
+    expect(hasKajaLink("https://kaja.example.com/#run")).toBe(true);
+    expect(hasKajaLink("https://kaja.example.com/#RUN/nightly")).toBe(true);
+    expect(hasKajaLink("https://kaja.example.com/")).toBe(false);
+    expect(hasKajaLink("https://kaja.example.com/#section-2")).toBe(false);
+    expect(hasKajaLink("https://kaja.example.com/#running-late")).toBe(false);
+    expect(hasKajaLink("not a url")).toBe(false);
+  });
+});
+
+describe("parseLink add-app", () => {
+  test("reads the app off the query in kaja.json's own names", () => {
+    const link = parsedAddApp(
+      "kaja://add-app?type=openapi&name=Petstore&request=abc123&spec_url=https%3A%2F%2Fpetstore.example%2Fopenapi.json&base_url=https%3A%2F%2Fapi.petstore.example",
+    );
+    expect(link.type).toBe("openapi");
+    expect(link.name).toBe("Petstore");
+    expect(link.request).toBe("abc123");
+    expect(link.parameters).toEqual({ spec_url: "https://petstore.example/openapi.json", base_url: "https://api.petstore.example" });
+    expect(link.headers).toEqual({});
+  });
+
+  test("reads the headers out of their JSON", () => {
+    const link = parsedAddApp(`kaja://add-app?type=grpc&name=Seats&headers=${encodeURIComponent(JSON.stringify({ "X-Tenant": "acme" }))}`);
+    expect(link.headers).toEqual({ "X-Tenant": "acme" });
+    expect(link.parameters).toEqual({});
+  });
+
+  test("takes the web's spelling after a #", () => {
+    const link = parsedAddApp("https://kaja.example.com/#add-app?type=mcp&name=Docs&url=https%3A%2F%2Fmcp.example%2Fmcp");
+    expect(link.type).toBe("mcp");
+    expect(link.parameters.url).toBe("https://mcp.example/mcp");
+    expect(link.request).toBeUndefined();
+    expect(hasKajaLink("https://kaja.example.com/#add-app?type=mcp")).toBe(true);
+  });
+
+  test("refuses a link that names no type", () => {
+    const result = parseLink("kaja://add-app?name=Petstore");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("names no app type");
   });
 });

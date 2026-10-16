@@ -23,8 +23,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +47,15 @@ const (
 	// streamBuffer is how many messages may be in flight to one window before the
 	// server stops waiting for it.
 	streamBuffer = 8
+	// formTimeout is how long add_app waits for a person to finish the form it opened.
+	// A form is a person at a keyboard rather than a server, so it is generous; the
+	// agent's own timeout is what usually ends the wait first.
+	formTimeout = 10 * time.Minute
+	// compileWait is how long add_app waits for the window to report a freshly written
+	// app as callable before answering without its services. A large OpenAPI document
+	// takes a while to compile in the browser.
+	compileWait = 45 * time.Second
+	compilePoll = 250 * time.Millisecond
 )
 
 // The two ways a run has nowhere to happen. Both are answered to the agent as the
@@ -94,6 +105,10 @@ type Stream struct {
 
 	// Guarded by session.mu.
 	focusedAt time.Time
+	// linkRoot is where a link to this window starts - `kaja://` on the desktop, the
+	// page's own address and a `#` in a browser - said by the window, since only it
+	// knows what it is served from.
+	linkRoot string
 }
 
 // Messages is what the HTTP handler writes down to the browser.
@@ -116,13 +131,22 @@ func (s *Stream) Detach() {
 type Session struct {
 	token   string
 	scripts Scripts
+	apps    Apps
 	server  *mcp.Server
 
 	mu        sync.Mutex
 	streams   []*Stream
 	catalog   mcp.Catalog
 	pending   map[string]*pendingRun
+	forms     map[string]*pendingForm
 	idleSince time.Time
+}
+
+// pendingForm is a New app form an agent asked a person to finish: where its outcome
+// goes, and when it was opened, so one nobody finished is let go.
+type pendingForm struct {
+	result chan mcp.AppFormOutcome
+	opened time.Time
 }
 
 // pendingRun is a run dispatched to a window: where its answer goes, and what it says
@@ -182,11 +206,14 @@ func (s *Session) remove(stream *Stream) {
 // Focus marks a window as the one being looked at. The most recently focused window
 // is the one a run is sent to: the run's console is in memory in the window that ran
 // it, so a run landing in the wrong window is one you cannot watch.
-func (s *Session) Focus(streamID string) {
+func (s *Session) Focus(streamID string, linkRoot string) {
 	s.mu.Lock()
 	for _, stream := range s.streams {
 		if stream.ID == streamID {
 			stream.focusedAt = time.Now()
+			if linkRoot != "" {
+				stream.linkRoot = linkRoot
+			}
 		}
 	}
 	s.mu.Unlock()
@@ -314,6 +341,119 @@ func (s *Session) Run(ctx context.Context, path, code, client string, progress f
 	}
 }
 
+// OpenAppForm mints the form a person finishes an app on. It is a link to the window
+// on duty - the one being looked at - so what the agent's client is asked to open
+// lands where the person is. Nothing is written until the form is saved.
+func (s *Session) OpenAppForm(draft mcp.AppDraft) (mcp.AppFormPrompt, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stream := s.duty()
+	if stream == nil || stream.linkRoot == "" {
+		return mcp.AppFormPrompt{}, ErrNoWindow
+	}
+	for id, form := range s.forms {
+		if time.Since(form.opened) > formTimeout {
+			delete(s.forms, id)
+		}
+	}
+	id := randomID()
+	s.forms[id] = &pendingForm{result: make(chan mcp.AppFormOutcome, 1), opened: time.Now()}
+	return mcp.AppFormPrompt{URL: appFormURL(stream.linkRoot, draft, id), RequestID: id}, nil
+}
+
+// AwaitAppForm waits for the person to save or close the form. The entry goes with
+// the answer either way: a form is finished once.
+func (s *Session) AwaitAppForm(ctx context.Context, requestID string) (mcp.AppFormOutcome, error) {
+	s.mu.Lock()
+	form := s.forms[requestID]
+	s.mu.Unlock()
+	if form == nil {
+		return mcp.AppFormOutcome{}, errors.New("that request has expired or was never made; call add_app again")
+	}
+	defer s.DropAppForm(requestID)
+	select {
+	case outcome := <-form.result:
+		return outcome, nil
+	case <-ctx.Done():
+		return mcp.AppFormOutcome{}, ctx.Err()
+	case <-time.After(formTimeout):
+		return mcp.AppFormOutcome{}, fmt.Errorf("nobody finished the form within %s", formTimeout)
+	}
+}
+
+// DropAppForm forgets a form nothing waits on any more.
+func (s *Session) DropAppForm(requestID string) {
+	s.mu.Lock()
+	delete(s.forms, requestID)
+	s.mu.Unlock()
+}
+
+// AppFormResult delivers what the person did with a form from the window back to the
+// waiting agent. The channel holds one answer, so a form saved before the client has
+// asked again is an answer waiting rather than one lost.
+func (s *Session) AppFormResult(requestID string, outcome mcp.AppFormOutcome) {
+	s.mu.Lock()
+	form := s.forms[requestID]
+	s.mu.Unlock()
+	if form != nil {
+		select {
+		case form.result <- outcome:
+		default:
+		}
+	}
+}
+
+// AwaitApp waits for a window to push a catalog naming the app, which is the moment
+// its methods are callable. Compiling is the window's, so this is a poll rather than a
+// signal, and a slow compile is answered without the listing rather than waited out.
+func (s *Session) AwaitApp(ctx context.Context, name string) bool {
+	deadline := time.After(compileWait)
+	for {
+		s.mu.Lock()
+		catalog := s.catalog
+		s.mu.Unlock()
+		for _, app := range catalog.Apps {
+			if app.Name == name && len(app.Services) > 0 {
+				return true
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline:
+			return false
+		case <-time.After(compilePoll):
+		}
+	}
+}
+
+// secretParameters are the fields a prefilled form is not handed through its URL: a
+// link is shown to the person, passed to a URL handler and kept in a client's log, and
+// the specification keeps credentials out of one. A `${NAME}` is a reference rather
+// than a value and travels.
+var secretParameters = map[string]bool{"token": true, "password": true, "spec_header_value": true}
+
+// appFormURL is the deeplink that opens Kaja's New app form prefilled. The verb is
+// the host and the draft is the query, in kaja.json's own field names, with the
+// request id the form answers under.
+func appFormURL(linkRoot string, draft mcp.AppDraft, requestID string) string {
+	query := url.Values{}
+	query.Set("type", draft.Type)
+	query.Set("name", draft.Name)
+	query.Set("request", requestID)
+	for key, value := range draft.Parameters {
+		if value == "" || (secretParameters[key] && !strings.HasPrefix(value, "${")) {
+			continue
+		}
+		query.Set(key, value)
+	}
+	if len(draft.Headers) > 0 {
+		headers, _ := json.Marshal(draft.Headers)
+		query.Set("headers", string(headers))
+	}
+	return linkRoot + "add-app?" + query.Encode()
+}
+
 // Activity tells every window of this browser that an agent is being served, so
 // the plug in the sidebar lights wherever you are looking.
 func (s *Session) Activity(inFlight int) {
@@ -352,6 +492,7 @@ const (
 // Registry is every browser this process has seen. The desktop's holds exactly one.
 type Registry struct {
 	scripts  Scripts
+	apps     Apps
 	delivery Delivery
 	version  string
 
@@ -359,12 +500,12 @@ type Registry struct {
 	sessions map[string]*Session
 }
 
-// NewRegistry builds the registry. scripts is how this process reads and writes the
-// workspace's scripts folder: it owns the disk, and the window is only ever asked to
-// run source. version is the running kaja's own, which every session reports as its
-// MCP server's.
-func NewRegistry(scripts Scripts, delivery Delivery, version string) *Registry {
-	return &Registry{scripts: scripts, delivery: delivery, version: version, sessions: map[string]*Session{}}
+// NewRegistry builds the registry. scripts and apps are how this process reads and
+// writes the workspace's scripts folder and its kaja.json: it owns the disk, and the
+// window is only ever asked to run source. version is the running kaja's own, which
+// every session reports as its MCP server's.
+func NewRegistry(scripts Scripts, apps Apps, delivery Delivery, version string) *Registry {
+	return &Registry{scripts: scripts, apps: apps, delivery: delivery, version: version, sessions: map[string]*Session{}}
 }
 
 // Open makes a session without a window attached. It is what the desktop does with the
@@ -385,7 +526,9 @@ func (r *Registry) Open(token string) (*Session, error) {
 	session := &Session{
 		token:     token,
 		scripts:   r.scripts,
+		apps:      r.apps,
 		pending:   map[string]*pendingRun{},
+		forms:     map[string]*pendingForm{},
 		idleSince: time.Now(),
 	}
 	// The bridge is bound to the session and the server to the bridge, so a request

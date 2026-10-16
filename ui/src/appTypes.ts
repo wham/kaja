@@ -268,6 +268,12 @@ export function isAppHeader(name: string): boolean {
   return name.toLowerCase() === APP_HEADER.toLowerCase();
 }
 
+// parameterKey is the key a kaja.json field name is held under in the form: the
+// camelCase name protoc-gen-kaja generates for it (`spec_url` is `specUrl`).
+export function parameterKey(fieldName: string): string {
+  return fieldName.replace(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+}
+
 // Only the local Folder app does not.
 export function typeForwardsHeaders(type: string): boolean {
   return type !== "folder";

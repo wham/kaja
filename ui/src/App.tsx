@@ -28,7 +28,7 @@ import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, Cel
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
-import { appHeaders, appType, buildApp, getAppType } from "./appTypes";
+import { appHeaders, appType, buildApp, getAppType, parameterKey } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
 import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames } from "./draftTitle";
@@ -107,7 +107,7 @@ import {
   renameScriptFolder,
   writeScriptFile,
 } from "./scriptFiles";
-import { hasScriptLink, isLinkedScript, linkName, noSuchScript, parseScriptLink } from "./scriptLink";
+import { AddAppLink, hasKajaLink, isLinkedScript, linkName, noSuchScript, parseLink } from "./scriptLink";
 import { remapRunReferences } from "./scriptRuns";
 import { readInputKeys } from "./scriptInputs";
 import { setScriptListing, setScriptSource } from "./scriptParameters";
@@ -1354,11 +1354,37 @@ export function App() {
     [showFileError],
   );
 
-  const openScriptLink = useCallback(
+  /**
+   * A link that adds an app opens the New app form prefilled with what the link carries,
+   * which is what an agent that could not finish adding one on its own asks a person to
+   * do. The form is the same one the New button opens; the link only fills it in, and
+   * says who is waiting to hear how it went.
+   */
+  const openAddAppLink = useCallback(
+    (link: AddAppLink) => {
+      if (!runtime.canUpdateWorkspace) {
+        showFileError("This workspace is read-only, so an app can't be added here.");
+        return;
+      }
+      if (!getAppType(link.type)) {
+        showFileError(`Kaja has no "${link.type}" app type.`);
+        return;
+      }
+      const parameters = Object.fromEntries(Object.entries(link.parameters).map(([key, value]) => [parameterKey(key), value]));
+      applyViews((views) => showAppForm(views, "create", buildApp(link.name, link.type, parameters, link.headers), link.request));
+    },
+    [applyViews, runtime.canUpdateWorkspace, showFileError],
+  );
+
+  const openLink = useCallback(
     (text: string) => {
-      const parsed = parseScriptLink(text);
+      const parsed = parseLink(text);
       if (!parsed.ok) {
         showFileError(parsed.error);
+        return;
+      }
+      if (parsed.link.kind === "add-app") {
+        openAddAppLink(parsed.link);
         return;
       }
       const script = findLinkedScript(parsed.link.script);
@@ -1367,11 +1393,11 @@ export function App() {
       void onScriptSelect(script);
       setLinkPrompt({ script, input: parsed.link.input });
     },
-    [findLinkedScript, onScriptSelect, showFileError],
+    [findLinkedScript, onScriptSelect, openAddAppLink, showFileError],
   );
 
-  const openScriptLinkRef = useRef(openScriptLink);
-  openScriptLinkRef.current = openScriptLink;
+  const openLinkRef = useRef(openLink);
+  openLinkRef.current = openLink;
 
   /**
    * Run a script a name reached: a deeplink the sheet confirmed, or a table cell that
@@ -1423,7 +1449,7 @@ export function App() {
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    return onWailsEvent<string>("link:open", (link) => openScriptLinkRef.current(link));
+    return onWailsEvent<string>("link:open", (link) => openLinkRef.current(link));
   }, []);
 
   const linksReadyRef = useRef(false);
@@ -1432,10 +1458,10 @@ export function App() {
   // fragment is cleared once handed over; `replaceState` fires no `hashchange`, so
   // clearing can't come back around as a second arrival.
   const takeLinkFromLocation = useCallback(() => {
-    if (!linksReadyRef.current || !hasScriptLink(window.location.href)) return;
+    if (!linksReadyRef.current || !hasKajaLink(window.location.href)) return;
     const href = window.location.href;
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-    openScriptLinkRef.current(href);
+    openLinkRef.current(href);
   }, []);
 
   useEffect(() => {
@@ -2347,17 +2373,18 @@ export function App() {
     }
   };
 
-  const dropAppForm = () => {
-    applyViews((views) => {
-      const form = views.find((view) => view.type === "appForm");
-      return form ? dropView(views, form.id) : views;
-    });
+  // Drops the form and answers with who was waiting on it, if an agent was.
+  const dropAppForm = (): string | undefined => {
+    const form = viewsRef.current.find((view) => view.type === "appForm");
+    applyViews((views) => (form ? dropView(views, form.id) : views));
+    return form?.type === "appForm" ? form.agentRequest : undefined;
   };
 
   const onAppFormSubmit = async (app: WorkspaceApp, originalName?: string) => {
-    dropAppForm();
+    const agentRequest = dropAppForm();
 
     if (!workspace) {
+      if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: false });
       return;
     }
 
@@ -2378,10 +2405,12 @@ export function App() {
     if (isNewApp) {
       setAutoExpandApp({ name: app.name });
     }
+    if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: true, name: app.name });
   };
 
   const onAppFormCancel = () => {
-    dropAppForm();
+    const agentRequest = dropAppForm();
+    if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: false });
   };
 
   // Names no variable defines are in here too: the Variables view shows them as a warning.

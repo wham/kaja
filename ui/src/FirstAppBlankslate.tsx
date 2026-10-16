@@ -16,10 +16,10 @@ interface FirstAppBlankslateProps {
  *
  * It names the two doors into Kaja and draws the map between them, with an action under
  * each end the map already has — the agent on the left, the protocols on the right. Two
- * full stops rather than an "or": an agent is additive, and it cannot add an app for
- * you, which is why adding one is the filled button and the heading says it first. The
- * third line is plain text: it says an agent is optional, and there is nowhere useful to
- * send you.
+ * full stops rather than an "or": an agent is additive, and an app it adds still ends in
+ * this form whenever it needs a credential, which is why adding one is the filled button
+ * and the heading says it first. The third line is plain text: it says an agent is
+ * optional, and there is nowhere useful to send you.
  *
  * A read-only workspace keeps the map and the agent, and says where apps come from
  * instead of offering a button for one.

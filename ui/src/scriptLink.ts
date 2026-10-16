@@ -7,6 +7,12 @@ import { isWailsEnvironment } from "./wails";
  * to the script: there are no reserved parameter names, so a script may take one
  * called `script` or `run`. Every value arrives as a string, read as `kaja.input.<key>`.
  *
+ * `kaja://add-app?type=openapi&name=…&request=…&<field>=…` is the other verb: the link
+ * an agent's client is asked to open when `add_app` needs a person, which lands on the
+ * New app form prefilled. The query is the app in kaja.json's own field names, with
+ * three keys of the link's own in front of them, and nothing a script could take is
+ * reserved by it because a form is not a script.
+ *
  * A page can't register a scheme, so the web says the same thing after a `#`:
  * `https://kaja.example.com/#run/<script>?key=value`. The fragment is the `kaja://`
  * link minus its scheme and is read as exactly that — one grammar, one parser. A
@@ -18,26 +24,45 @@ import { isWailsEnvironment } from "./wails";
 export const LINK_SCHEME = "kaja";
 /** The verb, which is the host of a `kaja://` link and the head of a fragment. */
 export const LINK_VERB = "run";
+/** The verb that opens the New app form. */
+export const ADD_APP_VERB = "add-app";
 
 /** Where a `kaja://` deeplink starts. What the desktop copies. */
 export const DESKTOP_LINK_BASE = `${LINK_SCHEME}://${LINK_VERB}/`;
 
 export interface ScriptLink {
+  kind: "run";
   /** The script the link names, without its extension. */
   script: string;
   /** The query, verbatim. What the script reads as `kaja.input`. */
   input: { [key: string]: string };
 }
 
-export type ParsedScriptLink = { ok: true; link: ScriptLink } | { ok: false; error: string };
+export interface AddAppLink {
+  kind: "add-app";
+  name: string;
+  type: string;
+  /** The app's fields as kaja.json spells them (`spec_url`), each a string. */
+  parameters: { [key: string]: string };
+  headers: { [key: string]: string };
+  /** What the form answers under, where an agent is waiting on it. */
+  request?: string;
+}
+
+export type KajaLink = ScriptLink | AddAppLink;
+
+export type ParsedLink = { ok: true; link: KajaLink } | { ok: false; error: string };
+
+// The keys of an add-app link that are the link's own rather than the app's.
+const ADD_APP_KEYS = new Set(["type", "name", "request", "headers"]);
 
 /**
- * Where a deeplink to *this* Kaja starts — the one function here that asks what it is
- * running in. The desktop registered a scheme, so it owns `kaja://run/`; a browser can
- * only address itself.
+ * Where a deeplink to *this* Kaja starts, before its verb — the one function here
+ * that asks what it is running in. The desktop registered a scheme, so it owns
+ * `kaja://`; a browser can only address itself.
  */
-export function linkBase(): string {
-  if (isWailsEnvironment()) return DESKTOP_LINK_BASE;
+export function linkRoot(): string {
+  if (isWailsEnvironment()) return `${LINK_SCHEME}://`;
   try {
     // Where Kaja is served from rather than where it currently points, so a Kaja under a
     // base path copies links that come back to it and one opened with a query of its own
@@ -45,10 +70,15 @@ export function linkBase(): string {
     const here = new URL(window.location.href);
     here.search = "";
     here.hash = "";
-    return `${here.href}#${LINK_VERB}/`;
+    return `${here.href}#`;
   } catch {
-    return DESKTOP_LINK_BASE;
+    return `${LINK_SCHEME}://`;
   }
+}
+
+/** Where a deeplink that runs a script starts. */
+export function linkBase(): string {
+  return `${linkRoot()}${LINK_VERB}/`;
 }
 
 /**
@@ -129,11 +159,11 @@ export function baseName(path: string): string {
  * Whether a page's URL carries a deeplink in its fragment. Anything else after a `#`
  * is somebody else's anchor and is left alone.
  */
-export function hasScriptLink(href: string): boolean {
-  return scriptLinkFragment(href) !== undefined;
+export function hasKajaLink(href: string): boolean {
+  return linkFragment(href) !== undefined;
 }
 
-export function parseScriptLink(text: string): ParsedScriptLink {
+export function parseLink(text: string): ParsedLink {
   let url: URL;
   try {
     url = new URL(text.trim());
@@ -143,7 +173,7 @@ export function parseScriptLink(text: string): ParsedScriptLink {
   if (url.protocol !== `${LINK_SCHEME}:`) {
     // The fragment is the link minus its scheme, so it is read by putting the scheme back
     // on rather than by a second parser.
-    const fragment = scriptLinkFragment(text);
+    const fragment = linkFragment(text);
     if (fragment === undefined) {
       return { ok: false, error: `A Kaja link is ${DESKTOP_LINK_BASE}<script>, or #${LINK_VERB}/<script> on the web.` };
     }
@@ -154,18 +184,47 @@ export function parseScriptLink(text: string): ParsedScriptLink {
     }
   }
   // A kaja:// host is opaque, so it keeps the case it was written in.
-  if (url.host.toLowerCase() !== LINK_VERB) {
+  const verb = url.host.toLowerCase();
+  if (verb === ADD_APP_VERB) return parseAddAppLink(url);
+  if (verb !== LINK_VERB) {
     return { ok: false, error: `${LINK_SCHEME}://${url.host} is not something Kaja does. Links run a script: ${DESKTOP_LINK_BASE}<script>` };
   }
   const script = url.pathname.replace(/^\/+/, "").split("/").map(decodeSegment).join("/").trim();
   if (!script) {
     return { ok: false, error: `This link names no script. Links run a script: ${DESKTOP_LINK_BASE}<script>` };
   }
-  return { ok: true, link: { script: linkName(script), input: Object.fromEntries(url.searchParams) } };
+  return { ok: true, link: { kind: "run", script: linkName(script), input: Object.fromEntries(url.searchParams) } };
 }
 
-/** The `run/…` a page URL carries after its `#`, if that is what it carries. */
-function scriptLinkFragment(href: string): string | undefined {
+function parseAddAppLink(url: URL): ParsedLink {
+  const type = url.searchParams.get("type")?.trim() ?? "";
+  if (!type) {
+    return { ok: false, error: `This link names no app type. A link that adds an app is ${LINK_SCHEME}://${ADD_APP_VERB}?type=<type>&name=<name>` };
+  }
+  const parameters: { [key: string]: string } = {};
+  for (const [key, value] of url.searchParams) {
+    if (!ADD_APP_KEYS.has(key)) parameters[key] = value;
+  }
+  let headers: { [key: string]: string } = {};
+  const encoded = url.searchParams.get("headers");
+  if (encoded) {
+    try {
+      const parsed: unknown = JSON.parse(encoded);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        headers = Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "string")) as { [key: string]: string };
+      }
+    } catch {
+      // Headers that aren't a JSON object are left out; the form takes them typed.
+    }
+  }
+  return {
+    ok: true,
+    link: { kind: "add-app", type, name: url.searchParams.get("name") ?? "", parameters, headers, request: url.searchParams.get("request") ?? undefined },
+  };
+}
+
+/** The `run/…` or `add-app?…` a page URL carries after its `#`, if that is what it carries. */
+function linkFragment(href: string): string | undefined {
   let hash: string;
   try {
     hash = new URL(href.trim()).hash;
@@ -173,7 +232,7 @@ function scriptLinkFragment(href: string): string | undefined {
     return undefined;
   }
   const fragment = hash.slice(1);
-  return new RegExp(`^${LINK_VERB}(?:$|[/?])`, "i").test(fragment) ? fragment : undefined;
+  return new RegExp(`^(?:${LINK_VERB}|${ADD_APP_VERB})(?:$|[/?])`, "i").test(fragment) ? fragment : undefined;
 }
 
 // A path this malformed is the caller's typing rather than an encoding, so it is read

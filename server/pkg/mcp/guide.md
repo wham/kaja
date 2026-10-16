@@ -1,7 +1,7 @@
 # Kaja for agents
 
-Kaja is a client for APIs — gRPC, Twirp and OpenAPI services the user has
-configured as **apps**. Every app exposes **services** with **methods**, and a
+Kaja is a client for APIs — gRPC, Twirp, OpenAPI and MCP services the user has
+configured as **apps**, or that you add for them. Every app exposes **services** with **methods**, and a
 **script** is a TypeScript file that calls them. This MCP server lets you read
 and run those scripts, and — where Kaja owns the workspace it opened — write
 them. `tools/list` is what says which: a Kaja serving a workspace it does not own
@@ -22,6 +22,29 @@ lists no tool that writes a file.
 **Everything you are shown is TypeScript**, because that is all a script is: the
 declarations come out of the generated code your script is checked against, so
 there is nothing else to go and read.
+
+## Adding an app
+
+An API that is not an app yet can become one from here, where Kaja owns the
+workspace. `inspect_api` probes it and says what adding it would need, writing
+nothing; `add_app` adds it. Both take the app as kaja.json spells it: a `type`
+(`grpc`, `twirp`, `openapi`, `openai`, `mcp`, `folder`) and its `parameters`
+under that key, every value a string, so what you write is what the file says.
+
+`add_app` probes first. When the address answers with its surface and nothing is
+missing, the app is written at once and its services are listed back, so the
+next call is a method call. When something is missing — a credential, a proto
+folder, which of several servers a document names — the user is asked to finish
+it in **Kaja's own New app form**, opened prefilled with what you gave: your
+client is asked to open a link, and the call answers once the form is saved or
+closed. A client that cannot open links is told what is missing and handed the
+same link to relay.
+
+**Never ask the user for a token or a password yourself**, and never write one
+into a parameter you were not given. Where the user keeps one as a variable,
+name it: `"token": "${GITHUB_TOKEN}"` is resolved where the app opens and never
+passes through you. Where they don't, leave it out — the form is where it is
+typed, and it never reaches the transcript.
 
 ## Where an inline run goes
 

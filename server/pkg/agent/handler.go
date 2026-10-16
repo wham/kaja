@@ -32,6 +32,7 @@ func Mount(mux *http.ServeMux, registry *Registry) {
 	mux.HandleFunc("POST /agent-session/catalog", registry.ServeCatalog)
 	mux.HandleFunc("POST /agent-session/progress", registry.ServeProgress)
 	mux.HandleFunc("POST /agent-session/result", registry.ServeResult)
+	mux.HandleFunc("POST /agent-session/app-form", registry.ServeAppForm)
 	mux.HandleFunc("POST /mcp", registry.ServeMCP)
 }
 
@@ -98,7 +99,8 @@ func (r *Registry) ServeDetach(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ServeFocus marks the window a run should be sent to.
+// ServeFocus marks the window a run should be sent to, and records where a link to it
+// starts, since a form an agent opens is sent to the same window a run is.
 func (r *Registry) ServeFocus(w http.ResponseWriter, req *http.Request) {
 	session, ok := r.authorize(w, req)
 	if !ok {
@@ -106,11 +108,31 @@ func (r *Registry) ServeFocus(w http.ResponseWriter, req *http.Request) {
 	}
 	var body struct {
 		StreamID string `json:"streamId"`
+		LinkRoot string `json:"linkRoot"`
 	}
 	if !decode(w, req, maxBody, &body) {
 		return
 	}
-	session.Focus(body.StreamID)
+	session.Focus(body.StreamID, body.LinkRoot)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ServeAppForm takes what the person did with a New app form an agent opened: saved
+// an app by this name, or closed it.
+func (r *Registry) ServeAppForm(w http.ResponseWriter, req *http.Request) {
+	session, ok := r.authorize(w, req)
+	if !ok {
+		return
+	}
+	var body struct {
+		Request string `json:"request"`
+		Saved   bool   `json:"saved"`
+		Name    string `json:"name"`
+	}
+	if !decode(w, req, maxBody, &body) {
+		return
+	}
+	session.AppFormResult(body.Request, mcp.AppFormOutcome{Saved: body.Saved, Name: body.Name})
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -23,6 +23,7 @@
  * difference: one window attached on the mux the webview already fetches its calls on.
  */
 
+import { linkRoot } from "./scriptLink";
 import { getSettings, saveMcpToken, subscribeSettings } from "./settings";
 import { isWailsEnvironment } from "./wails";
 
@@ -242,6 +243,15 @@ class AgentSession {
     void this.post("/agent-session/catalog", catalog);
   }
 
+  /**
+   * Tells the agent waiting on a New app form it opened what the person did with it.
+   * Sent whether or not this window's stream is up, like a run's result: the form was
+   * finished once, and there is nothing to finish again.
+   */
+  reportAppForm(request: string, outcome: { saved: boolean; name?: string }): void {
+    void this.post("/agent-session/app-form", JSON.stringify({ request, ...outcome }), false);
+  }
+
   // A token rolled in another tab is a new address, and the stream this window holds is
   // on the old one.
   private onSettings = () => {
@@ -424,7 +434,9 @@ class AgentSession {
     // the page look stuck on a server that is answering.
     if (!this.state.attached) this.retryNow();
     if (!this.streamId) return;
-    void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId }));
+    // Where a link to this window starts rides along, because a form an agent opens is
+    // sent where a run is: to the window being looked at.
+    void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId, linkRoot: linkRoot() }));
   };
 
   // A reconnection that is waiting is one that can be asked for now.

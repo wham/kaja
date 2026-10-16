@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -59,7 +60,7 @@ const commentsNote = "Keep comments sparse: the calls and the declarations alrea
 
 // writeTools are the tools that put a file on disk. They are listed only where
 // there is a disk to put one on (Bridge.CanWriteScripts).
-var writeTools = map[string]bool{"write_script": true, "create_script": true, "rename_script": true, "delete_script": true}
+var writeTools = map[string]bool{"write_script": true, "create_script": true, "rename_script": true, "delete_script": true, "add_app": true}
 
 // toolDefinitions is the tools/list payload. Schemas are hand-written JSON
 // Schema; keep them in sync with handleToolCall below. canWrite drops the tools
@@ -126,6 +127,9 @@ func allToolDefinitions() []map[string]interface{} {
 	}
 	array := func(items map[string]interface{}, desc string) map[string]interface{} {
 		return map[string]interface{}{"type": "array", "items": items, "description": desc}
+	}
+	params := func(desc string) map[string]interface{} {
+		return map[string]interface{}{"type": "object", "additionalProperties": map[string]interface{}{"type": "string"}, "description": desc}
 	}
 	return []map[string]interface{}{
 		{
@@ -219,6 +223,34 @@ func allToolDefinitions() []map[string]interface{} {
 			"inputSchema": obj(map[string]interface{}{"path": str("Path of the script to delete, as returned by list_scripts.")}, "path"),
 		},
 		{
+			"name":        "inspect_api",
+			"title":       "Inspect API",
+			"annotations": reads(),
+			"description": "Probe an API before adding it as an app: what answers at the address, how much it exposes, and what adding it would still need " +
+				"(a credential, a proto folder, a choice of server). Nothing is written. " + appDraftNote,
+			"inputSchema": obj(map[string]interface{}{
+				"type":       str(appTypeNote),
+				"parameters": params("The type's kaja.json fields, each value a string. " + appParametersNote),
+			}, "type"),
+		},
+		{
+			"name":        "add_app",
+			"title":       "Add app",
+			"annotations": writes(false, false),
+			"description": "Add an API to the workspace as an app, so its methods become callable from a script. " +
+				"The address is probed first: when everything the app needs is there it is added at once and its services are listed back; " +
+				"when something is missing - a credential, a proto folder, which of several servers - the user is asked to finish it in Kaja's own New app form, " +
+				"opened prefilled with what you gave, and the call answers once they save or close it. " +
+				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
+				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
+			"inputSchema": obj(map[string]interface{}{
+				"name":       str("The app's name, which is what a script imports it as: `import { Shows } from \"<name>\"`."),
+				"type":       str(appTypeNote),
+				"parameters": params("The type's kaja.json fields, each value a string. " + appParametersNote),
+				"headers":    params("Headers sent with every request, by name."),
+			}, "name", "type"),
+		},
+		{
 			"name":        "run_script",
 			"title":       "Run script",
 			"annotations": runHints(),
@@ -277,24 +309,64 @@ type toolCallParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// toolArguments is a call's arguments read loosely: a scalar is a string whatever it
+// was written as, and an object is a map of strings, which is the one shape the app
+// tools take (parameters, headers). Anything else is left out rather than refused.
+type toolArguments struct {
+	strings map[string]string
+	maps    map[string]map[string]string
+}
+
+func readToolArguments(raw json.RawMessage) (toolArguments, bool) {
+	args := toolArguments{strings: map[string]string{}, maps: map[string]map[string]string{}}
+	if len(raw) == 0 {
+		return args, true
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return args, false
+	}
+	for key, value := range decoded {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			fields := map[string]string{}
+			for name, field := range v {
+				if text, ok := scalarString(field); ok {
+					fields[name] = text
+				}
+			}
+			args.maps[key] = fields
+		default:
+			if text, ok := scalarString(v); ok {
+				args.strings[key] = text
+			}
+		}
+	}
+	return args, true
+}
+
+func scalarString(value interface{}) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		return v, true
+	case bool:
+		return strconv.FormatBool(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), true
+	}
+	return "", false
+}
+
 func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, caller string) (interface{}, *rpcError) {
 	var p toolCallParams
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpcError{Code: codeInvalidParams, Message: "invalid params"}
 	}
-	args := map[string]string{}
-	if len(p.Arguments) > 0 {
-		// Tolerate non-string values by decoding loosely.
-		var raw map[string]interface{}
-		if err := json.Unmarshal(p.Arguments, &raw); err != nil {
-			return nil, &rpcError{Code: codeInvalidParams, Message: "invalid arguments"}
-		}
-		for k, v := range raw {
-			if sv, ok := v.(string); ok {
-				args[k] = sv
-			}
-		}
+	arguments, ok := readToolArguments(p.Arguments)
+	if !ok {
+		return nil, &rpcError{Code: codeInvalidParams, Message: "invalid arguments"}
 	}
+	args := arguments.strings
 
 	if writeTools[p.Name] && !s.bridge.CanWriteScripts() {
 		return errorToolResult(fmt.Errorf("this Kaja serves a workspace it does not own, so %s is not available. Scripts here can be read and run, not written", p.Name)), nil
@@ -341,6 +413,10 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 			return errorToolResult(err), nil
 		}
 		return textToolResult("Deleted " + args["path"]), nil
+	case "inspect_api":
+		return s.inspectApi(ctx, appDraft(arguments)), nil
+	case "add_app":
+		return s.addApp(ctx, appDraft(arguments), params), nil
 	case "run_script":
 		return s.runScript(ctx, args["path"], args["code"], caller, progressToken(params)), nil
 	default:
