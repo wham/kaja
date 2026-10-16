@@ -1,4 +1,4 @@
-import { Menu } from "@base-ui-components/react/menu";
+import { Menu } from "@base-ui/react/menu";
 import * as React from "react";
 
 import { cn, cnState } from "../cn";

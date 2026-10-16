@@ -18,7 +18,7 @@ var mainJs []byte
 //go:embed build/main.css
 var mainCss []byte
 
-//go:embed build/codicon-KP4OV2OO.ttf
+//go:embed build/codicon-LTRFOK3N.ttf
 var codiconTtf []byte
 
 //go:embed build/monaco.ts.worker.js
