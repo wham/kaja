@@ -8,7 +8,7 @@ function source(importPath: string, serviceNames: string[], enums: string[] = []
     importPath,
     serviceNames,
     enums: Object.fromEntries(enums.map((name) => [name, { object: {} }])),
-    interfaces: Object.fromEntries(interfaces.map((name) => [name, {}])),
+    interfaces,
   } as unknown as Source;
 }
 

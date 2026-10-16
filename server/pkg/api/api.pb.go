@@ -2113,11 +2113,14 @@ func (*ForgetMcpAuthorizationResponse) Descriptor() ([]byte, []int) {
 // last message of a stream is the terminal status, with the sources and the stub
 // on a STATUS_READY.
 type CompileResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
-	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
-	Sources       []*Source              `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
-	Stub          string                 `protobuf:"bytes,4,opt,name=stub,proto3" json:"stub,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Status  CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
+	Logs    []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
+	Sources []*Source              `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
+	Stub    string                 `protobuf:"bytes,4,opt,name=stub,proto3" json:"stub,omitempty"`
+	// What protoc-gen-kaja says it generated, as JSON: the services, methods, types and
+	// the module each editor model is, so the UI reads them rather than the sources.
+	Manifest      string `protobuf:"bytes,5,opt,name=manifest,proto3" json:"manifest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2176,6 +2179,13 @@ func (x *CompileResponse) GetSources() []*Source {
 func (x *CompileResponse) GetStub() string {
 	if x != nil {
 		return x.Stub
+	}
+	return ""
+}
+
+func (x *CompileResponse) GetManifest() string {
+	if x != nil {
+		return x.Manifest
 	}
 	return ""
 }
@@ -5247,12 +5257,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\aproblem\x18\x03 \x01(\v2\v.McpProblemR\aproblem\":\n" +
 	"\x1dForgetMcpAuthorizationRequest\x12\x19\n" +
 	"\x03mcp\x18\x01 \x01(\v2\a.McpAppR\x03mcp\" \n" +
-	"\x1eForgetMcpAuthorizationResponse\"\x8a\x01\n" +
+	"\x1eForgetMcpAuthorizationResponse\"\xa6\x01\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12!\n" +
 	"\asources\x18\x03 \x03(\v2\a.SourceR\asources\x12\x12\n" +
-	"\x04stub\x18\x04 \x01(\tR\x04stub\"@\n" +
+	"\x04stub\x18\x04 \x01(\tR\x04stub\x12\x1a\n" +
+	"\bmanifest\x18\x05 \x01(\tR\bmanifest\"@\n" +
 	"\x03Log\x12\x1f\n" +
 	"\x05level\x18\x01 \x01(\x0e2\t.LogLevelR\x05level\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"6\n" +

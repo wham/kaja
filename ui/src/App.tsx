@@ -720,7 +720,7 @@ export function App() {
   }, []);
 
   const createMonacoModelsForApp = useCallback((app: AppModel) => {
-    app.sources.forEach((source) => writeSourceModel(source.path, source.file.text));
+    app.sources.forEach((source) => writeSourceModel(source.path, source.text));
     const module = barrel(app);
     writeSourceModel(module.path, module.content);
   }, []);
@@ -1155,7 +1155,7 @@ export function App() {
     updatedApps.forEach((app) => {
       if (!app.sources) return;
       app.sources.forEach((source) => {
-        sourceModelsChanged = writeSourceModel(source.path, source.file.text) || sourceModelsChanged;
+        sourceModelsChanged = writeSourceModel(source.path, source.text) || sourceModelsChanged;
       });
       const module = barrel(app);
       sourceModelsChanged = writeSourceModel(module.path, module.content) || sourceModelsChanged;

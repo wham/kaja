@@ -17,8 +17,9 @@ import (
 // leaving the runtime to drive all three off the field descriptors. That is most of
 // what a message generates, and an app is compiled and bundled where it is read - in
 // the browser - so the cost of the specialized codec is paid by the person waiting
-// for the app to open, against calls a person makes one at a time.
-const kajaParameter = "force_optimize_code_size"
+// for the app to open, against calls a person makes one at a time. kaja_manifest has
+// the plugin say what it generated, so the UI never parses the TypeScript back.
+const kajaParameter = "force_optimize_code_size,kaja_manifest"
 
 type Compiler struct {
 	logger *Logger
@@ -28,29 +29,30 @@ func NewCompiler(logger *Logger) *Compiler {
 	return &Compiler{logger: logger}
 }
 
-// run compiles the proto directory into the TypeScript sources and the stub the
-// client loads an app from. It runs where the call is answered, so its logger writes
-// each line straight on to the stream.
-func (c *Compiler) run(protoDir string) ([]*Source, string, error) {
+// run compiles the proto directory into the TypeScript sources, the stub and the
+// manifest the client loads an app from. It runs where the call is answered, so its
+// logger writes each line straight on to the stream.
+func (c *Compiler) run(protoDir string) ([]*Source, string, string, error) {
 	c.logger.info("Starting compilation")
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		c.logger.error("Failed to get working directory", err)
-		return nil, "", err
+		return nil, "", "", err
 	}
 	c.logger.debug("cwd: " + cwd)
 
 	sourcesDir, err := tempdir.NewSourcesDir()
 	if err != nil {
 		c.logger.error("Failed to create temp directory", err)
-		return nil, "", err
+		return nil, "", "", err
 	}
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
-	if err := c.compile(sourcesDir, protoDir); err != nil {
+	manifest, err := c.compile(sourcesDir, protoDir)
+	if err != nil {
 		c.logger.error("Compilation failed", err)
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	sources := c.getSources(sourcesDir)
@@ -59,12 +61,12 @@ func (c *Compiler) run(protoDir string) ([]*Source, string, error) {
 	stub, err := ui.BuildStub(sourcesDir)
 	if err != nil {
 		c.logger.error("Failed to build stub", err)
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	c.logger.info("Compilation completed successfully, Kaja is ready to go")
 
-	return sources, string(stub), nil
+	return sources, string(stub), manifest, nil
 }
 
 func (c *Compiler) getSources(sourcesDir string) []*Source {
@@ -124,38 +126,43 @@ func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, err
 	return protoc.New(protoc.WithProtoPaths(protoDir)), protoFiles, nil
 }
 
-func (c *Compiler) compile(sourcesDir string, protoDir string) error {
+func (c *Compiler) compile(sourcesDir string, protoDir string) (string, error) {
 	c.logger.debug("protoDir: " + protoDir)
 
 	compiler, protoFiles, err := c.compilerFor(protoDir)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	c.logger.debug("Compiling proto files")
 	result, err := compiler.Compile(protoFiles...)
 	if err != nil {
-		return fmt.Errorf("protoc compile: %v", err)
+		return "", fmt.Errorf("protoc compile: %v", err)
 	}
 
 	c.logger.debug("Running protoc-gen-kaja")
 	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), kajaParameter)
 	if err != nil {
-		return fmt.Errorf("protoc-gen-kaja: %v", err)
+		return "", fmt.Errorf("protoc-gen-kaja: %v", err)
 	}
 
+	manifest := ""
 	for _, f := range generated {
+		if f.Name == kaja.ManifestName {
+			manifest = f.Content
+			continue
+		}
 		outPath := filepath.Join(sourcesDir, f.Name)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-			return fmt.Errorf("creating directory for %s: %v", f.Name, err)
+			return "", fmt.Errorf("creating directory for %s: %v", f.Name, err)
 		}
 		if err := os.WriteFile(outPath, []byte(f.Content), 0o644); err != nil {
-			return fmt.Errorf("writing %s: %v", f.Name, err)
+			return "", fmt.Errorf("writing %s: %v", f.Name, err)
 		}
 	}
 
 	c.logger.debug("Compilation completed successfully")
-	return nil
+	return manifest, nil
 }
 
 func findProtoFiles(dir string) ([]string, error) {

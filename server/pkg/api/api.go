@@ -275,13 +275,13 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 		send(&CompileResponse{Status: CompileStatus_STATUS_RUNNING, Logs: []*Log{log}})
 	}))
 
-	sources, stub, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
+	sources, stub, manifest, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
 	if err != nil {
 		// The failure was logged as it happened, so the last message is the verdict
 		// and nothing else.
 		send(&CompileResponse{Status: CompileStatus_STATUS_ERROR})
 	} else {
-		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Sources: sources, Stub: stub})
+		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Sources: sources, Stub: stub, Manifest: manifest})
 	}
 
 	return sendErr

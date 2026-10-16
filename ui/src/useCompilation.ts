@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
+import { parseManifest } from "./sources";
 import { CompileStatus as ApiCompileStatus, GetWorkspaceResponse, LogLevel, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { deviceConsole } from "./uiLog";
@@ -161,7 +162,8 @@ export function useCompilation(
       const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
       if (!finalApp) return;
 
-      const loadedApp = response.status === ApiCompileStatus.STATUS_READY ? await loadApp(response.sources, response.stub, finalApp.configuration) : undefined;
+      const loadedApp =
+        response.status === ApiCompileStatus.STATUS_READY ? await loadApp(parseManifest(response.manifest), response.stub, finalApp.configuration) : undefined;
 
       updateApp(appName, (app) => ({
         ...(loadedApp ?? app),

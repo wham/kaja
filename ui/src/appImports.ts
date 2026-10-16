@@ -77,7 +77,7 @@ export function barrel(app: App): { path: string; content: string } {
   const merged: string[] = [];
   for (const source of sources) {
     for (const name of source.serviceNames) {
-      const types = sources.filter((other) => other !== source && other.interfaces?.[name] !== undefined);
+      const types = sources.filter((other) => other !== source && other.interfaces.includes(name));
       if (types.length !== 1 || declaring(app, name).length !== 1) continue;
       merged.push(`export const ${name} = ${namespace(source)}.${name};\n`, `export type ${name} = ${namespace(types[0])}.${name};\n`);
     }

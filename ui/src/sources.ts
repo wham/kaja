@@ -1,19 +1,17 @@
 import ts from "@typescript/typescript6";
-import { Declaration, declareEnum, declareInterface } from "./declarations";
-import { Source as ApiSource } from "./server/api";
+import { Declaration } from "./declarations";
 
 export interface Source {
   path: string;
   importPath: string;
   stubModuleId: string;
-  file: ts.SourceFile;
+  // The module Monaco is given for this source, which is not the generated one: its
+  // services are consts a script calls, and its types carry no protobuf bookkeeping.
+  text: string;
   serviceNames: string[];
-  interfaces: { [key: string]: ts.InterfaceDeclaration };
+  interfaces: string[];
   enums: { [key: string]: { object: any } };
-  // The generated types this source declares, as a script reads them. Built
-  // while the source is parsed: the nodes above carry positions into text a
-  // later reader doesn't have, and the marks come from the stub module that is
-  // only in hand here.
+  // The generated types this source declares, as a script reads them.
   declarations: { [name: string]: Declaration };
 }
 
@@ -23,55 +21,65 @@ export interface Stub {
   [key: string]: any;
 }
 
-export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: string): Promise<Sources> {
-  if (apiSources.length === 0) {
-    return [];
-  }
+// What protoc-gen-kaja says about the TypeScript it generated (kaja.manifest.json), so
+// nothing here has to parse it back.
+export interface Manifest {
+  version: number;
+  modules: ModuleManifest[];
+}
 
-  const sources: Source[] = [];
+export interface ModuleManifest {
+  path: string;
+  editorText: string;
+  services: ServiceManifest[];
+  interfaces: string[];
+  enums: string[];
+  declarations: Declaration[];
+}
 
-  for (let i = 0; i < apiSources.length; i++) {
-    const apiSource = apiSources[i];
-    const path = appName + "/" + apiSource.path;
-    const file = ts.createSourceFile(path, apiSource.content, ts.ScriptTarget.Latest);
+export interface ServiceManifest {
+  name: string;
+  typeName: string;
+  clientModule: string;
+  methods: MethodManifest[];
+}
 
-    // Convert source path to stub module identifier
-    // e.g., "basics/lib/enum.ts" -> "basics$lib$enum"
-    const stubModuleId = apiSource.path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$").replace(/-/g, "$");
-    const stubModule = stub[stubModuleId] || {};
+export interface MethodManifest {
+  name: string;
+  input: string;
+  output: string;
+  doc?: string;
+  deprecated?: boolean;
+}
 
-    const source: Source = {
+export function parseManifest(text: string): Manifest {
+  return text ? JSON.parse(text) : { version: 1, modules: [] };
+}
+
+// The stub names a module after its path, e.g. "basics/lib/enum.ts" -> "basics$lib$enum".
+export function stubModuleId(path: string): string {
+  return path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$").replace(/-/g, "$");
+}
+
+export function loadSources(manifest: Manifest, stub: Stub, appName: string): Sources {
+  return manifest.modules.map((module) => {
+    const path = appName + "/" + module.path;
+    const stubModule = stub[stubModuleId(module.path)] || {};
+    const enums: Source["enums"] = {};
+    for (const name of module.enums) {
+      if (stubModule[name]) enums[name] = { object: stubModule[name] };
+    }
+    return {
       path,
-      importPath: file.fileName.replace(".ts", ""),
-      stubModuleId,
-      file,
-      serviceNames: [],
-      interfaces: {},
-      enums: {},
-      declarations: {},
+      importPath: path.replace(".ts", ""),
+      stubModuleId: stubModuleId(module.path),
+      text: module.editorText,
+      serviceNames: module.services.map((service) => service.name),
+      interfaces: module.interfaces,
+      enums,
+      declarations: Object.fromEntries(module.declarations.map((declaration) => [declaration.name, declaration])),
     };
-
-    source.file.statements.forEach((statement) => {
-      const serviceName = getServiceName(statement, source.file);
-      if (serviceName) {
-        source.serviceNames.push(serviceName);
-      } else if (ts.isInterfaceDeclaration(statement)) {
-        source.interfaces[statement.name.text] = statement;
-        source.declarations[statement.name.text] = declareInterface(statement, source.file, stubModule[statement.name.text]);
-      } else if (ts.isEnumDeclaration(statement)) {
-        const enumName = statement.name.text;
-        source.declarations[enumName] = declareEnum(statement, source.file);
-        const object = stubModule[enumName];
-        if (object) {
-          source.enums[enumName] = { object };
-        }
-      }
-    });
-
-    sources.push(source);
-  }
-
-  return sources;
+  });
 }
 
 export function remapSourcesToNewName(sources: Sources, oldName: string, newName: string): Sources {
@@ -81,14 +89,10 @@ export function remapSourcesToNewName(sources: Sources, oldName: string, newName
     const newPath = newName + "/" + relativePath;
     const newImportPath = newPath.replace(".ts", "");
 
-    // Recreate the TypeScript SourceFile with the new filename
-    const newFile = ts.createSourceFile(newPath, source.file.text, ts.ScriptTarget.Latest);
-
     return {
       ...source,
       path: newPath,
       importPath: newImportPath,
-      file: newFile,
     };
   });
 }
@@ -148,22 +152,6 @@ export function findEnum(sources: Sources, object: any): [string, Source] | unde
 export function findInStub(stub: Stub, source: Source, name: string): any {
   const module = stub[source.stubModuleId];
   return module?.[name];
-}
-
-function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): string | undefined {
-  if (!ts.isVariableStatement(statement)) {
-    return;
-  }
-
-  for (const declaration of statement.declarationList.declarations) {
-    if (!ts.isIdentifier(declaration.name)) {
-      continue;
-    }
-
-    if (declaration.initializer && ts.isNewExpression(declaration.initializer) && declaration.initializer.expression.getText(sourceFile) === "ServiceType") {
-      return declaration.name.text;
-    }
-  }
 }
 
 export async function parseStub(stubCode: string): Promise<Stub> {
