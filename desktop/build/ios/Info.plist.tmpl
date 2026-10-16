@@ -65,6 +65,11 @@
             <key>NSAllowsLocalNetworking</key>
             <true/>
         </dict>
+        <!-- Kaja never asks for a location, but Wails' iOS runtime links
+             CLLocationManager for IOS.GetLocation, and App Store Connect refuses
+             a bundle referencing it without a purpose string (ITMS-90683). -->
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>Kaja does not use your location.</string>
         <!-- The kaja:// scheme a deeplink arrives on. Registering it is a bundle's
              job, so this is the one place it is declared (scriptLink.ts). -->
         <key>CFBundleURLTypes</key>
