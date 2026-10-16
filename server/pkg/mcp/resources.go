@@ -11,7 +11,8 @@ const (
 	servicesURI = "kaja://services"
 )
 
-// handleResourcesList advertises the guide and the live services index. The
+// handleResourcesList advertises the guide, the live services index and the skills,
+// which a client that has never heard of the extension reads as resources. The
 // generated modules are deliberately not here: describe_method and describe_type
 // hand back the declarations from them, and one module's full text is hundreds of
 // kilobytes of runtime machinery around the few lines anyone wanted.
@@ -30,6 +31,7 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 			"mimeType":    "text/plain",
 		},
 	}
+	resources = append(resources, skillResources()...)
 	return cacheable(map[string]interface{}{"resources": resources}, workspaceTTL), nil
 }
 
@@ -50,6 +52,9 @@ func (s *Server) handleResourceRead(params json.RawMessage) (interface{}, *rpcEr
 		// The same index list_services returns.
 		return resourceContents(p.URI, "text/plain", s.bridge.Catalog().listServices("", "", ""), workspaceTTL), nil
 	default:
+		if text, ok := skillText(p.URI); ok {
+			return resourceContents(p.URI, skillMimeType(p.URI), text, staticTTL), nil
+		}
 		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown resource %q", p.URI)}
 	}
 }
