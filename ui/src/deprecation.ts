@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 // The one sentence a deprecated method is met with, wherever it is met: the tree
 // row's tooltip and the comment over the generated call. It names who deprecated it,

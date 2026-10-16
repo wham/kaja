@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { defaultMessage, Imports } from "./defaultInput";
 import { Kaja } from "./kaja";
 import { printStatements } from "./appLoader";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { Sources } from "./sources";
 
 test("defaultInput", () => {

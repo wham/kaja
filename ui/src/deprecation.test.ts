@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { generateMethodEditorCode, loadApp } from "./appLoader";
 import { DEPRECATION_NOTE, isDeprecated } from "./deprecation";
 import type { Source as ApiSource } from "./server/api";

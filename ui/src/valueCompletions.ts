@@ -1,6 +1,6 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { App } from "./apps";
 import { declaredValues } from "./declarations";
 import { findInStub, Source } from "./sources";

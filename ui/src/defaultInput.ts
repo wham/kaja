@@ -1,5 +1,5 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { HTTP_REQUIRED_OPTION } from "./declarations";
 import { findEnum, Source, Sources } from "./sources";
 

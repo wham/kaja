@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { appFor, resolve as resolveImport } from "./appImports";

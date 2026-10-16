@@ -1,5 +1,5 @@
 import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";

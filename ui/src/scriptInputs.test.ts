@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { kajaModuleDeclaration } from "./kajaModule";
 import { readInputKeys, readInputParameters, runInputDeclaration, ScriptInputs } from "./scriptInputs";
 
