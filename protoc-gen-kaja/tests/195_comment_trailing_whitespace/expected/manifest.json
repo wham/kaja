@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "test.MyService",
+          "methods": [
+            {
+              "name": "DoStuff",
+              "input": "Foo",
+              "output": "Foo",
+              "I": "test.Foo",
+              "O": "test.Foo",
+              "doc": "Method comment with trailing spaces"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Foo",
+          "text": "/** Leading comment with trailing spaces */\nexport interface Foo {\n    /** Field comment with trailing spaces */\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

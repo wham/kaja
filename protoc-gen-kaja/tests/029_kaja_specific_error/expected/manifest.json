@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SimpleMessage",
+          "typeName": "test.SimpleMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SimpleMessage",
+          "text": "/** This should work fine in both generators */\nexport interface SimpleMessage {\n    id: string;\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

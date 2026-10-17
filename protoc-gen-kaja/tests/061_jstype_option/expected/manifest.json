@@ -1,0 +1,123 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "jstype.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "JsTypeTest",
+          "typeName": "test.JsTypeTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "regular_int64",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "string_int64",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 3,
+              "name": "number_int64",
+              "kind": "scalar",
+              "T": 3,
+              "L": 2
+            },
+            {
+              "no": 4,
+              "name": "regular_uint64",
+              "kind": "scalar",
+              "T": 4
+            },
+            {
+              "no": 5,
+              "name": "string_uint64",
+              "kind": "scalar",
+              "T": 4
+            },
+            {
+              "no": 6,
+              "name": "number_uint64",
+              "kind": "scalar",
+              "T": 4,
+              "L": 2
+            },
+            {
+              "no": 7,
+              "name": "map_with_regular_key",
+              "kind": "map",
+              "K": 3,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "FixedJsType",
+          "typeName": "test.FixedJsType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "regular_fixed64",
+              "kind": "scalar",
+              "T": 6
+            },
+            {
+              "no": 2,
+              "name": "string_fixed64",
+              "kind": "scalar",
+              "T": 6
+            },
+            {
+              "no": 3,
+              "name": "number_fixed64",
+              "kind": "scalar",
+              "T": 6,
+              "L": 2
+            },
+            {
+              "no": 4,
+              "name": "regular_sfixed64",
+              "kind": "scalar",
+              "T": 16
+            },
+            {
+              "no": 5,
+              "name": "string_sfixed64",
+              "kind": "scalar",
+              "T": 16
+            },
+            {
+              "no": 6,
+              "name": "number_sfixed64",
+              "kind": "scalar",
+              "T": 16,
+              "L": 2
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "JsTypeTest",
+          "text": "/** Test that [jstype = JS_STRING] option overrides global long_type setting */\nexport interface JsTypeTest {\n    /** Regular int64 field - should use global long_type (string by default) */\n    regularInt64: string;\n    /** Explicitly set to JS_STRING - should always be string */\n    stringInt64: string;\n    /** Explicitly set to JS_NUMBER - should be number */\n    numberInt64: number;\n    /** Same for uint64 */\n    regularUint64: string;\n    stringUint64: string;\n    numberUint64: number;\n    /** Map with int64 key that has jstype option */\n    mapWithRegularKey: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "FixedJsType",
+          "text": "/** Test with fixed64 types too */\nexport interface FixedJsType {\n    regularFixed64: string;\n    stringFixed64: string;\n    numberFixed64: number;\n    regularSfixed64: string;\n    stringSfixed64: string;\n    numberSfixed64: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "EmptyRequest",
+          "typeName": "test.EmptyRequest",
+          "fields": []
+        },
+        {
+          "name": "EmptyResponse",
+          "typeName": "test.EmptyResponse",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "__proto__",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse",
+              "doc": "After lowerCamelCase, this becomes \"__proto__\" which is reserved Wait, that won't work because underscores are stripped... Let me try a different approach: names that are ALREADY in lowercase"
+            },
+            {
+              "name": "_transport",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse",
+              "doc": "After lowerCamelCase, becomes \"_transport\" which is reserved"
+            },
+            {
+              "name": "GetData",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse",
+              "doc": "Normal method for comparison"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "EmptyRequest",
+          "text": "export interface EmptyRequest {}",
+          "references": []
+        },
+        {
+          "name": "EmptyResponse",
+          "text": "export interface EmptyResponse {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

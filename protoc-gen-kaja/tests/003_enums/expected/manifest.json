@@ -1,0 +1,104 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "enums.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Paint",
+          "typeName": "enums.Paint",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "color",
+              "kind": "enum",
+              "T": "enums.Color"
+            },
+            {
+              "no": 3,
+              "name": "size",
+              "kind": "enum",
+              "T": "enums.Size"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Color",
+          "typeName": "enums.Color",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "RED",
+              1
+            ],
+            [
+              "GREEN",
+              2
+            ],
+            [
+              "BLUE",
+              3
+            ]
+          ],
+          "prefix": "COLOR_"
+        },
+        {
+          "name": "Size",
+          "typeName": "enums.Size",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "SMALL",
+              1
+            ],
+            [
+              "MEDIUM",
+              2
+            ],
+            [
+              "LARGE",
+              3
+            ]
+          ],
+          "prefix": "SIZE_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Paint",
+          "text": "export interface Paint {\n    name: string;\n    color: Color;\n    size: Size;\n}",
+          "references": [
+            "Color",
+            "Size"
+          ]
+        },
+        {
+          "name": "Color",
+          "text": "export enum Color {\n    UNKNOWN = 0,\n    RED = 1,\n    GREEN = 2,\n    BLUE = 3,\n}",
+          "references": []
+        },
+        {
+          "name": "Size",
+          "text": "export enum Size {\n    UNKNOWN = 0,\n    SMALL = 1,\n    MEDIUM = 2,\n    LARGE = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

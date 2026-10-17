@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "export interface Msg {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

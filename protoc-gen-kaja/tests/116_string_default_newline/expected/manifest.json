@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "StringNewlineDefault",
+          "typeName": "test.StringNewlineDefault",
+          "fields": [
+            {
+              "no": 1,
+              "name": "with_newline",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "StringNewlineDefault",
+          "text": "export interface StringNewlineDefault {\n    withNewline?: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

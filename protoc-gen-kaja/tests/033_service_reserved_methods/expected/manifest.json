@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": []
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "Name",
+              "localName": "name$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "These method names are reserved class properties and should be escaped"
+            },
+            {
+              "name": "Constructor",
+              "localName": "constructor$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            },
+            {
+              "name": "Close",
+              "localName": "close$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            },
+            {
+              "name": "ToString",
+              "localName": "toString$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            },
+            {
+              "name": "GetData",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Normal method for comparison"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

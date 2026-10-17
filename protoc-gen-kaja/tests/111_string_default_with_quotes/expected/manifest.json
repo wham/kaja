@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "StringDefaults",
+          "typeName": "test.StringDefaults",
+          "fields": [
+            {
+              "no": 1,
+              "name": "with_quote",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "simple",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "StringDefaults",
+          "text": "/** Test that string default values containing escaped double quotes are properly escaped in the @generated annotation. The TS plugin escapes the first \\\" in the default value, while the Go plugin may han… */\nexport interface StringDefaults {\n    withQuote?: string;\n    simple?: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

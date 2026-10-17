@@ -1,0 +1,126 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Task",
+          "typeName": "test.Task",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "opt": true,
+              "T": "test.Status"
+            },
+            {
+              "no": 2,
+              "name": "priority",
+              "kind": "enum",
+              "opt": true,
+              "T": "test.Priority"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "STARTED",
+              1
+            ],
+            [
+              "RUNNING",
+              1
+            ],
+            [
+              "STOPPED",
+              2
+            ],
+            [
+              "COMPLETED",
+              2
+            ],
+            [
+              "FAILED",
+              3
+            ]
+          ]
+        },
+        {
+          "name": "Priority",
+          "typeName": "test.Priority",
+          "values": [
+            [
+              "PRIORITY_UNSPECIFIED",
+              0
+            ],
+            [
+              "LOW",
+              1
+            ],
+            [
+              "MINOR",
+              1
+            ],
+            [
+              "MEDIUM",
+              2
+            ],
+            [
+              "NORMAL",
+              2
+            ],
+            [
+              "STANDARD",
+              2
+            ],
+            [
+              "HIGH",
+              3
+            ],
+            [
+              "URGENT",
+              3
+            ],
+            [
+              "CRITICAL",
+              3
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Task",
+          "text": "export interface Task {\n    status?: Status;\n    priority?: Priority;\n}",
+          "references": [
+            "Status",
+            "Priority"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "/** Enum with allow_alias */\nexport enum Status {\n    UNSPECIFIED = 0,\n    STARTED = 1,\n    RUNNING = 1,\n    STOPPED = 2,\n    COMPLETED = 2,\n    FAILED = 3,\n}",
+          "references": []
+        },
+        {
+          "name": "Priority",
+          "text": "/** Another enum with aliases and comments */\nexport enum Priority {\n    PRIORITY_UNSPECIFIED = 0,\n    LOW = 1,\n    MINOR = 1,\n    MEDIUM = 2,\n    NORMAL = 2,\n    STANDARD = 2,\n    HIGH = 3,\n    URGENT = 3,\n    CRITICAL = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

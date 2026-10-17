@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Doc",
+          "typeName": "test.Doc",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.note": "line1line2"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Doc",
+          "text": "export interface Doc {\n    id: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

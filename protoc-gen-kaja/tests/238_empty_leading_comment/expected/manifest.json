@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "empty_leading_comment.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [
+        {
+          "name": "EmptyCommentEnum",
+          "typeName": "test.EmptyCommentEnum",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ONE",
+              1
+            ]
+          ],
+          "prefix": "EMPTY_COMMENT_ENUM_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "EmptyCommentEnum",
+          "text": "export enum EmptyCommentEnum {\n    UNSPECIFIED = 0,\n    ONE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

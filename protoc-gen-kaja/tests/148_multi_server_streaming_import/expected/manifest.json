@@ -1,0 +1,113 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "A",
+          "typeName": "test.A",
+          "fields": [
+            {
+              "no": 1,
+              "name": "v",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "B",
+          "typeName": "test.B",
+          "fields": [
+            {
+              "no": 1,
+              "name": "v",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "C",
+          "typeName": "test.C",
+          "fields": [
+            {
+              "no": 1,
+              "name": "v",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "D",
+          "typeName": "test.D",
+          "fields": [
+            {
+              "no": 1,
+              "name": "v",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "Svc",
+          "typeName": "test.Svc",
+          "methods": [
+            {
+              "name": "Unary1",
+              "input": "A",
+              "output": "B",
+              "I": "test.A",
+              "O": "test.B"
+            },
+            {
+              "name": "Stream1",
+              "input": "C",
+              "output": "D",
+              "I": "test.C",
+              "O": "test.D",
+              "serverStreaming": true
+            },
+            {
+              "name": "Stream2",
+              "input": "A",
+              "output": "B",
+              "I": "test.A",
+              "O": "test.B",
+              "serverStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "A",
+          "text": "export interface A {\n    v: string;\n}",
+          "references": []
+        },
+        {
+          "name": "B",
+          "text": "export interface B {\n    v: string;\n}",
+          "references": []
+        },
+        {
+          "name": "C",
+          "text": "export interface C {\n    v: string;\n}",
+          "references": []
+        },
+        {
+          "name": "D",
+          "text": "export interface D {\n    v: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DuplicateProperty",
+          "typeName": "test.DuplicateProperty",
+          "fields": [
+            {
+              "no": 1,
+              "name": "x123y",
+              "kind": "scalar",
+              "jsonName": "x123y",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "x_123_y",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DuplicateProperty",
+          "text": "/** Two fields that resolve to the same TypeScript property name \"x123Y\" due to camelCase conversion rules. The create() method should only initialize the property once. */\nexport interface DuplicateProperty {\n    x123Y: string;\n    x123Y: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

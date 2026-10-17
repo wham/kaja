@@ -1,0 +1,295 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "multiple_oneofs.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MultipleOneofs",
+          "typeName": "multiple_oneofs.MultipleOneofs",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "password",
+              "kind": "scalar",
+              "oneof": "authentication",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "token",
+              "kind": "scalar",
+              "oneof": "authentication",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "api_key",
+              "kind": "scalar",
+              "oneof": "authentication",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "json",
+              "kind": "scalar",
+              "oneof": "dataFormat",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "xml",
+              "kind": "scalar",
+              "oneof": "dataFormat",
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "binary",
+              "kind": "scalar",
+              "oneof": "dataFormat",
+              "T": 12
+            },
+            {
+              "no": 8,
+              "name": "active",
+              "kind": "scalar",
+              "oneof": "status",
+              "T": 8
+            },
+            {
+              "no": 9,
+              "name": "inactive",
+              "kind": "scalar",
+              "oneof": "status",
+              "T": 8
+            },
+            {
+              "no": 10,
+              "name": "pending",
+              "kind": "scalar",
+              "oneof": "status",
+              "T": 8
+            },
+            {
+              "no": 11,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 12,
+              "name": "description",
+              "kind": "scalar",
+              "oneof": "metadata",
+              "T": 9
+            },
+            {
+              "no": 13,
+              "name": "version",
+              "kind": "scalar",
+              "oneof": "metadata",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "multiple_oneofs.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "nested",
+              "kind": "message",
+              "T": "multiple_oneofs.Container.Nested"
+            },
+            {
+              "no": 3,
+              "name": "label",
+              "kind": "scalar",
+              "oneof": "containerType",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "count",
+              "kind": "scalar",
+              "oneof": "containerType",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container_Nested",
+          "typeName": "multiple_oneofs.Container.Nested",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "OneofAllTypes",
+          "typeName": "multiple_oneofs.OneofAllTypes",
+          "fields": [
+            {
+              "no": 1,
+              "name": "double_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 1
+            },
+            {
+              "no": 2,
+              "name": "float_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 2
+            },
+            {
+              "no": 3,
+              "name": "int32_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "int64_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 3
+            },
+            {
+              "no": 5,
+              "name": "uint32_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 13
+            },
+            {
+              "no": 6,
+              "name": "uint64_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 4
+            },
+            {
+              "no": 7,
+              "name": "sint32_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 17
+            },
+            {
+              "no": 8,
+              "name": "sint64_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 18
+            },
+            {
+              "no": 9,
+              "name": "fixed32_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 7
+            },
+            {
+              "no": 10,
+              "name": "fixed64_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 6
+            },
+            {
+              "no": 11,
+              "name": "sfixed32_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 15
+            },
+            {
+              "no": 12,
+              "name": "sfixed64_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 16
+            },
+            {
+              "no": 13,
+              "name": "bool_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 8
+            },
+            {
+              "no": 14,
+              "name": "string_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "bytes_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MultipleOneofs",
+          "text": "/** Test message with multiple oneof groups */\nexport interface MultipleOneofs {\n    id: string;\n    authentication: {\n        oneofKind: \"password\";\n        password: string;\n    } | {\n        oneofKind: \"token\";\n        token: string;\n    } | {\n        oneofKind: \"apiKey\";\n        apiKey: string;\n    } | {\n        oneofKind: undefined;\n    };\n    dataFormat: {\n        oneofKind: \"json\";\n        json: string;\n    } | {\n        oneofKind: \"xml\";\n        xml: string;\n    } | {\n        oneofKind: \"binary\";\n        binary: Uint8Array;\n    } | {\n        oneofKind: undefined;\n    };\n    status: {\n        oneofKind: \"active\";\n        active: boolean;\n    } | {\n        oneofKind: \"inactive\";\n        inactive: boolean;\n    } | {\n        oneofKind: \"pending\";\n        pending: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n    name: string;\n    metadata: {\n        oneofKind: \"description\";\n        description: string;\n    } | {\n        oneofKind: \"version\";\n        version: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Test nested message with oneof */\nexport interface Container {\n    id: string;\n    nested?: Container_Nested;\n    containerType: {\n        oneofKind: \"label\";\n        label: string;\n    } | {\n        oneofKind: \"count\";\n        count: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "Container_Nested"
+          ]
+        },
+        {
+          "name": "Container_Nested",
+          "text": "export interface Container_Nested {\n    value: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "OneofAllTypes",
+          "text": "/** Test oneof with all scalar types */\nexport interface OneofAllTypes {\n    value: {\n        oneofKind: \"doubleVal\";\n        doubleVal: number;\n    } | {\n        oneofKind: \"floatVal\";\n        floatVal: number;\n    } | {\n        oneofKind: \"int32Val\";\n        int32Val: number;\n    } | {\n        oneofKind: \"int64Val\";\n        int64Val: string;\n    } | {\n        oneofKind: \"uint32Val\";\n        uint32Val: number;\n    } | {\n        oneofKind: \"uint64Val\";\n        uint64Val: string;\n    } | {\n        oneofKind: \"sint32Val\";\n        sint32Val: number;\n    } | {\n        oneofKind: \"sint64Val\";\n        sint64Val: string;\n    } | {\n        oneofKind: \"fixed32Val\";\n        fixed32Val: number;\n    } | {\n        oneofKind: \"fixed64Val\";\n        fixed64Val: string;\n    } | {\n        oneofKind: \"sfixed32Val\";\n        sfixed32Val: number;\n    } | {\n        oneofKind: \"sfixed64Val\";\n        sfixed64Val: string;\n    } | {\n        oneofKind: \"boolVal\";\n        boolVal: boolean;\n    } | {\n        oneofKind: \"stringVal\";\n        stringVal: string;\n    } | {\n        oneofKind: \"bytesVal\";\n        bytesVal: Uint8Array;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

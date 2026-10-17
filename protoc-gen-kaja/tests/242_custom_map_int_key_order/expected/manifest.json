@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Limits",
+          "typeName": "test.Limits",
+          "fields": [
+            {
+              "no": 1,
+              "name": "thresholds",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alert",
+          "typeName": "test.Alert",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.limits": {
+              "thresholds": {
+                "1": "low",
+                "10": "high"
+              }
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Limits",
+          "text": "export interface Limits {\n    thresholds: { [key: number]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "Alert",
+          "text": "export interface Alert {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "/** Message comment with two trailing blank lines. */\nexport interface Msg {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

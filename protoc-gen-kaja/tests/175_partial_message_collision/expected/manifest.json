@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "PartialMessage",
+          "typeName": "test.PartialMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "partial",
+              "kind": "message",
+              "T": "test.PartialMessage"
+            },
+            {
+              "no": 2,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "PartialMessage",
+          "text": "export interface PartialMessage {\n    text: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    partial?: PartialMessage;\n    label: string;\n}",
+          "references": [
+            "PartialMessage"
+          ]
+        }
+      ]
+    }
+  ]
+}

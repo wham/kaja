@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SmallFloat",
+          "typeName": "test.SmallFloat",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.tiny_value": 1e-20
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SmallFloat",
+          "text": "export interface SmallFloat {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

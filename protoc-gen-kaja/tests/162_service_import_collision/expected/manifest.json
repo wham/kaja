@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "alpha.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Data",
+          "typeName": "alpha.Data",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Data",
+          "text": "export interface Data {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "beta.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Data",
+          "typeName": "beta.Data",
+          "fields": [
+            {
+              "no": 1,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Data",
+          "text": "export interface Data {\n    number: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "svc.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "test.MyService",
+          "methods": [
+            {
+              "name": "GetAlpha",
+              "input": "Data",
+              "output": "Data$",
+              "I": "alpha.Data",
+              "O": "beta.Data"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

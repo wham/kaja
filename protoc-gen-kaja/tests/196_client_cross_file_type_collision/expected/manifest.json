@@ -1,0 +1,105 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "dep/shared.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Result",
+          "typeName": "dep.Result",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Result",
+          "text": "export interface Result {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "main.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Result",
+          "typeName": "test.Result",
+          "fields": [
+            {
+              "no": 1,
+              "name": "code",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "dep_result",
+              "kind": "message",
+              "T": "dep.Result"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Request",
+              "output": "Result$",
+              "I": "test.Request",
+              "O": "dep.Result"
+            },
+            {
+              "name": "Create",
+              "input": "Result",
+              "output": "Result",
+              "I": "test.Result",
+              "O": "test.Result"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Result",
+          "text": "export interface Result {\n    code: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n    depResult?: Result$;\n}",
+          "references": [
+            "Result$"
+          ]
+        }
+      ]
+    }
+  ]
+}

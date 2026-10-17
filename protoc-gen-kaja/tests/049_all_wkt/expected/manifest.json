@@ -1,0 +1,568 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/any.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Any",
+          "typeName": "google.protobuf.Any",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type_url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Any",
+          "text": "/** `Any` contains an arbitrary serialized protocol buffer message along with a URL that describes the type of the serialized message. In its binary encoding, an `Any` is an ordinary message; but in other… */\nexport interface Any {\n    /** Identifies the type of the serialized Protobuf message with a URI reference consisting of a prefix ending in a slash and the fully-qualified type name. Example: type.googleapis.com/google.protobuf.Str… */\n    typeUrl: string;\n    /** Holds a Protobuf serialization of the type described by type_url. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/duration.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Duration",
+          "typeName": "google.protobuf.Duration",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Duration",
+          "text": "/** A Duration represents a signed, fixed-length span of time represented as a count of seconds and fractions of seconds at nanosecond resolution. It is independent of any calendar and concepts like \"day\"… */\nexport interface Duration {\n    /** Signed seconds of the span of time. Must be from -315,576,000,000 to +315,576,000,000 inclusive. Note: these bounds are computed from: 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 yea… */\n    seconds: string;\n    /** Signed fractions of a second at nanosecond resolution of the span of time. Durations less than one second are represented with a 0 `seconds` field and a positive or negative `nanos` field. For duratio… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/empty.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Empty",
+          "typeName": "google.protobuf.Empty",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Empty",
+          "text": "/** A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance:… */\nexport interface Empty {}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/field_mask.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "FieldMask",
+          "typeName": "google.protobuf.FieldMask",
+          "fields": [
+            {
+              "no": 1,
+              "name": "paths",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "FieldMask",
+          "text": "/** `FieldMask` represents a set of symbolic field paths, for example: paths: \"f.a\" paths: \"f.b.d\" Here `f` represents a field in some root message, `a` and `b` fields in the message found in `f`, and `d`… */\nexport interface FieldMask {\n    /** The set of field mask paths. */\n    paths: string[];\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/struct.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Struct",
+          "typeName": "google.protobuf.Struct",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fields",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "google.protobuf.Value"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Value",
+          "typeName": "google.protobuf.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "null_value",
+              "kind": "enum",
+              "oneof": "kind",
+              "T": "google.protobuf.NullValue"
+            },
+            {
+              "no": 2,
+              "name": "number_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 1
+            },
+            {
+              "no": 3,
+              "name": "string_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "bool_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "struct_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "list_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.ListValue"
+            }
+          ]
+        },
+        {
+          "name": "ListValue",
+          "typeName": "google.protobuf.ListValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "values",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Value"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "NullValue",
+          "typeName": "google.protobuf.NullValue",
+          "values": [
+            [
+              "NULL_VALUE",
+              0
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Struct",
+          "text": "/** Represents a JSON object. An unordered key-value map, intending to perfectly capture the semantics of a JSON object. This enables parsing any arbitrary JSON payload as a message field in ProtoJSON for… */\nexport interface Struct {\n    /** Unordered map of dynamically typed values. */\n    fields: { [key: string]: Value };\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "Value",
+          "text": "/** Represents a JSON value. `Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is exp… */\nexport interface Value {\n    /** The kind of value. */\n    kind: {\n        oneofKind: \"nullValue\";\n        nullValue: NullValue;\n    } | {\n        oneofKind: \"numberValue\";\n        numberValue: number;\n    } | {\n        oneofKind: \"stringValue\";\n        stringValue: string;\n    } | {\n        oneofKind: \"boolValue\";\n        boolValue: boolean;\n    } | {\n        oneofKind: \"structValue\";\n        structValue: Struct;\n    } | {\n        oneofKind: \"listValue\";\n        listValue: ListValue;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "NullValue",
+            "Struct",
+            "ListValue"
+          ]
+        },
+        {
+          "name": "ListValue",
+          "text": "/** Represents a JSON array. */\nexport interface ListValue {\n    /** Repeated field of dynamically typed values. */\n    values: Value[];\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "NullValue",
+          "text": "/** Represents a JSON `null`. `NullValue` is a sentinel, using an enum with only one value to represent the null value for the `Value` type union. A field of type `NullValue` with any value other than `0`… */\nexport enum NullValue {\n    NULL_VALUE = 0,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/timestamp.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "google.protobuf.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** A Timestamp represents a point in time independent of any time zone or local calendar, encoded as a count of seconds and fractions of seconds at nanosecond resolution. The count is relative to an epoc… */\nexport interface Timestamp {\n    /** Represents seconds of UTC time since Unix epoch 1970-01-01T00:00:00Z. Must be between -62135596800 and 253402300799 inclusive (which corresponds to 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z). */\n    seconds: string;\n    /** Non-negative fractions of a second at nanosecond resolution. This field is the nanosecond portion of the duration, not an alternative to seconds. Negative second values with fractions must still have… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/wrappers.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DoubleValue",
+          "typeName": "google.protobuf.DoubleValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "FloatValue",
+          "typeName": "google.protobuf.FloatValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 2
+            }
+          ]
+        },
+        {
+          "name": "Int64Value",
+          "typeName": "google.protobuf.Int64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 3
+            }
+          ]
+        },
+        {
+          "name": "UInt64Value",
+          "typeName": "google.protobuf.UInt64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 4
+            }
+          ]
+        },
+        {
+          "name": "Int32Value",
+          "typeName": "google.protobuf.Int32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "UInt32Value",
+          "typeName": "google.protobuf.UInt32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 13
+            }
+          ]
+        },
+        {
+          "name": "BoolValue",
+          "typeName": "google.protobuf.BoolValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "StringValue",
+          "typeName": "google.protobuf.StringValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "BytesValue",
+          "typeName": "google.protobuf.BytesValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DoubleValue",
+          "text": "/** Wrapper message for `double`. The JSON representation for `DoubleValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface DoubleValue {\n    /** The double value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "FloatValue",
+          "text": "/** Wrapper message for `float`. The JSON representation for `FloatValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface FloatValue {\n    /** The float value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Int64Value",
+          "text": "/** Wrapper message for `int64`. The JSON representation for `Int64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int64Value {\n    /** The int64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt64Value",
+          "text": "/** Wrapper message for `uint64`. The JSON representation for `UInt64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt64Value {\n    /** The uint64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Int32Value",
+          "text": "/** Wrapper message for `int32`. The JSON representation for `Int32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int32Value {\n    /** The int32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt32Value",
+          "text": "/** Wrapper message for `uint32`. The JSON representation for `UInt32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt32Value {\n    /** The uint32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "BoolValue",
+          "text": "/** Wrapper message for `bool`. The JSON representation for `BoolValue` is JSON `true` and `false`. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BoolValue {\n    /** The bool value. */\n    value: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "StringValue",
+          "text": "/** Wrapper message for `string`. The JSON representation for `StringValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface StringValue {\n    /** The string value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "BytesValue",
+          "text": "/** Wrapper message for `bytes`. The JSON representation for `BytesValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BytesValue {\n    /** The bytes value. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "AllWKT",
+          "typeName": "test.AllWKT",
+          "fields": [
+            {
+              "no": 1,
+              "name": "any_field",
+              "kind": "message",
+              "T": "google.protobuf.Any"
+            },
+            {
+              "no": 2,
+              "name": "duration_field",
+              "kind": "message",
+              "T": "google.protobuf.Duration"
+            },
+            {
+              "no": 3,
+              "name": "empty_field",
+              "kind": "message",
+              "T": "google.protobuf.Empty"
+            },
+            {
+              "no": 4,
+              "name": "mask_field",
+              "kind": "message",
+              "T": "google.protobuf.FieldMask"
+            },
+            {
+              "no": 5,
+              "name": "struct_field",
+              "kind": "message",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "timestamp_field",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 7,
+              "name": "double_value",
+              "kind": "message",
+              "T": "google.protobuf.DoubleValue"
+            },
+            {
+              "no": 8,
+              "name": "float_value",
+              "kind": "message",
+              "T": "google.protobuf.FloatValue"
+            },
+            {
+              "no": 9,
+              "name": "int64_value",
+              "kind": "message",
+              "T": "google.protobuf.Int64Value"
+            },
+            {
+              "no": 10,
+              "name": "uint64_value",
+              "kind": "message",
+              "T": "google.protobuf.UInt64Value"
+            },
+            {
+              "no": 11,
+              "name": "int32_value",
+              "kind": "message",
+              "T": "google.protobuf.Int32Value"
+            },
+            {
+              "no": 12,
+              "name": "uint32_value",
+              "kind": "message",
+              "T": "google.protobuf.UInt32Value"
+            },
+            {
+              "no": 13,
+              "name": "bool_value",
+              "kind": "message",
+              "T": "google.protobuf.BoolValue"
+            },
+            {
+              "no": 14,
+              "name": "string_value",
+              "kind": "message",
+              "T": "google.protobuf.StringValue"
+            },
+            {
+              "no": 15,
+              "name": "bytes_value",
+              "kind": "message",
+              "T": "google.protobuf.BytesValue"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "AllWKT",
+          "text": "export interface AllWKT {\n    anyField?: Any;\n    durationField?: Duration;\n    emptyField?: Empty;\n    maskField?: FieldMask;\n    structField?: Struct;\n    timestampField?: Timestamp;\n    doubleValue?: DoubleValue;\n    floatValue?: FloatValue;\n    int64Value?: Int64Value;\n    uint64Value?: UInt64Value;\n    int32Value?: Int32Value;\n    uint32Value?: UInt32Value;\n    boolValue?: BoolValue;\n    stringValue?: StringValue;\n    bytesValue?: BytesValue;\n}",
+          "references": [
+            "Any",
+            "Duration",
+            "Empty",
+            "FieldMask",
+            "Struct",
+            "Timestamp",
+            "DoubleValue",
+            "FloatValue",
+            "Int64Value",
+            "UInt64Value",
+            "Int32Value",
+            "UInt32Value",
+            "BoolValue",
+            "StringValue",
+            "BytesValue"
+          ]
+        }
+      ]
+    }
+  ]
+}

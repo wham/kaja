@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "jsonName": "na\tme",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "/** Test that tab characters in custom json_name are properly escaped in the field descriptor's jsonName string literal. */\nexport interface Msg {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

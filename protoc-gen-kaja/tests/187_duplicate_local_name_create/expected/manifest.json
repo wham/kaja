@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "x123y",
+              "kind": "scalar",
+              "jsonName": "x123y",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "x_1_2_3_y",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Foo",
+          "text": "/** Two fields whose names produce the same lowerCamelCase localName. \"x123y\" → \"x123Y\", \"x_1_2_3_y\" → \"x123Y\". The create() method should use the LAST field's default (last-write-wins from Object.entries… */\nexport interface Foo {\n    x123Y: string;\n    x123Y: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

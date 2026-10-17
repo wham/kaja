@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    name: string;\n    /** This is the oneof leading comment */\n    choice: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

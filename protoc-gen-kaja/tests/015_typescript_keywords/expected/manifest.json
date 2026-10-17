@@ -1,0 +1,440 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "keywords.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TypeScriptKeywords",
+          "typeName": "keywords.TypeScriptKeywords",
+          "fields": [
+            {
+              "no": 1,
+              "name": "const",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "let",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "var",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "function",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "class",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "interface",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "type",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 8,
+              "name": "enum",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 9,
+              "name": "namespace",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10,
+              "name": "module",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "extends",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 12,
+              "name": "implements",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 13,
+              "name": "static",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 14,
+              "name": "private",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "public",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 16,
+              "name": "protected",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 17,
+              "name": "readonly",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 18,
+              "name": "async",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 19,
+              "name": "await",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 20,
+              "name": "yield",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 21,
+              "name": "return",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 22,
+              "name": "break",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 23,
+              "name": "continue",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 24,
+              "name": "throw",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 25,
+              "name": "try",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 26,
+              "name": "catch",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 27,
+              "name": "finally",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 28,
+              "name": "if",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 29,
+              "name": "else",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 30,
+              "name": "switch",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 31,
+              "name": "case",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 32,
+              "name": "default",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 33,
+              "name": "for",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 34,
+              "name": "while",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 35,
+              "name": "do",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 36,
+              "name": "new",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 37,
+              "name": "this",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 38,
+              "name": "super",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 39,
+              "name": "import",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 40,
+              "name": "export",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 41,
+              "name": "from",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 42,
+              "name": "as",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 43,
+              "name": "in",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 44,
+              "name": "of",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 45,
+              "name": "typeof",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 46,
+              "name": "instanceof",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 47,
+              "name": "void",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 48,
+              "name": "null",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 49,
+              "name": "undefined",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 50,
+              "name": "true",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 51,
+              "name": "false",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 52,
+              "name": "delete",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 53,
+              "name": "with",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 54,
+              "name": "debugger",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "const$",
+          "typeName": "keywords.const",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "let$",
+          "typeName": "keywords.let",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "class$",
+          "typeName": "keywords.class",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "const_enum",
+          "typeName": "keywords.const_enum",
+          "values": [
+            [
+              "CONST_UNKNOWN",
+              0
+            ],
+            [
+              "CONST_VALUE",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "interface_type",
+          "typeName": "keywords.interface_type",
+          "values": [
+            [
+              "INTERFACE_UNKNOWN",
+              0
+            ],
+            [
+              "INTERFACE_VALUE",
+              1
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TypeScriptKeywords",
+          "text": "/** Test TypeScript reserved keywords as field names */\nexport interface TypeScriptKeywords {\n    const: string;\n    let: string;\n    var: string;\n    function: string;\n    class: string;\n    interface: string;\n    type: string;\n    enum: string;\n    namespace: string;\n    module: string;\n    extends: string;\n    implements: string;\n    static: string;\n    private: string;\n    public: string;\n    protected: string;\n    readonly: string;\n    async: string;\n    await: string;\n    yield: string;\n    return: string;\n    break: string;\n    continue: string;\n    throw: string;\n    try: string;\n    catch: string;\n    finally: string;\n    if: string;\n    else: string;\n    switch: string;\n    case: string;\n    default: string;\n    for: string;\n    while: string;\n    do: string;\n    new: string;\n    this: string;\n    super: string;\n    import: string;\n    export: string;\n    from: string;\n    as: string;\n    in: string;\n    of: string;\n    typeof: string;\n    instanceof: string;\n    void: string;\n    null: string;\n    undefined: string;\n    true: string;\n    false: string;\n    delete: string;\n    with: string;\n    debugger: string;\n}",
+          "references": []
+        },
+        {
+          "name": "const$",
+          "text": "/** Test keywords as message names */\nexport interface const$ {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "let$",
+          "text": "export interface let$ {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "class$",
+          "text": "export interface class$ {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "const_enum",
+          "text": "/** Test keywords as enum names */\nexport enum const_enum {\n    CONST_UNKNOWN = 0,\n    CONST_VALUE = 1,\n}",
+          "references": []
+        },
+        {
+          "name": "interface_type",
+          "text": "export enum interface_type {\n    INTERFACE_UNKNOWN = 0,\n    INTERFACE_VALUE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

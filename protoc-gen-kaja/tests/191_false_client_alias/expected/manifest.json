@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DuplexStreamingCall",
+          "typeName": "test.DuplexStreamingCall",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "DuplexStreamingCall",
+              "output": "Response",
+              "I": "test.DuplexStreamingCall",
+              "O": "test.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "DuplexStreamingCall",
+          "text": "/** A message named DuplexStreamingCall which collides with a runtime-rpc type but only if duplex streaming is actually used. */\nexport interface DuplexStreamingCall {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

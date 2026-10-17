@@ -1,0 +1,1 @@
+test.proto:10:10: The default JSON name of field "_proto" ("Proto") conflicts with the default JSON name of field "__proto__".

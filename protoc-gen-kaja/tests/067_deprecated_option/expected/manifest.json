@@ -1,0 +1,228 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "OldMessage",
+          "typeName": "deprecated.test.OldMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UserProfile",
+          "typeName": "deprecated.test.UserProfile",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "old_email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "current_email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "deprecated.test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "old_nested",
+              "kind": "message",
+              "T": "deprecated.test.Container.NestedOld"
+            },
+            {
+              "no": 2,
+              "name": "nested",
+              "kind": "message",
+              "T": "deprecated.test.Container.Nested"
+            }
+          ]
+        },
+        {
+          "name": "Container_NestedOld",
+          "typeName": "deprecated.test.Container.NestedOld",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container_Nested",
+          "typeName": "deprecated.test.Container.Nested",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "old_count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "OldStatus",
+          "typeName": "deprecated.test.OldStatus",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "OLD_STATUS_"
+        },
+        {
+          "name": "Status",
+          "typeName": "deprecated.test.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "DEPRECATED_VALUE",
+              2
+            ],
+            [
+              "INACTIVE",
+              3
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [
+        {
+          "name": "OldService",
+          "typeName": "deprecated.test.OldService",
+          "methods": [
+            {
+              "name": "GetData",
+              "input": "OldMessage",
+              "output": "OldMessage",
+              "I": "deprecated.test.OldMessage",
+              "O": "deprecated.test.OldMessage"
+            }
+          ]
+        },
+        {
+          "name": "UserService",
+          "typeName": "deprecated.test.UserService",
+          "methods": [
+            {
+              "name": "GetUser",
+              "input": "UserProfile",
+              "output": "UserProfile",
+              "I": "deprecated.test.UserProfile",
+              "O": "deprecated.test.UserProfile"
+            },
+            {
+              "name": "LegacyGetUser",
+              "input": "UserProfile",
+              "output": "UserProfile",
+              "I": "deprecated.test.UserProfile",
+              "O": "deprecated.test.UserProfile",
+              "deprecated": true
+            },
+            {
+              "name": "UpdateUser",
+              "input": "UserProfile",
+              "output": "UserProfile",
+              "I": "deprecated.test.UserProfile",
+              "O": "deprecated.test.UserProfile"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "OldMessage",
+          "text": "/** Test deprecated message */\nexport interface OldMessage {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UserProfile",
+          "text": "/** Test message with deprecated fields */\nexport interface UserProfile {\n    name: string;\n    /** This field is deprecated */\n    oldEmail: string;\n    currentEmail: string;\n    age: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Test nested message with deprecated field */\nexport interface Container {\n    oldNested?: Container_NestedOld;\n    nested?: Container_Nested;\n}",
+          "references": [
+            "Container_NestedOld",
+            "Container_Nested"
+          ]
+        },
+        {
+          "name": "Container_NestedOld",
+          "text": "export interface Container_NestedOld {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container_Nested",
+          "text": "export interface Container_Nested {\n    name: string;\n    oldCount: number;\n}",
+          "references": []
+        },
+        {
+          "name": "OldStatus",
+          "text": "/** Test deprecated enum */\nexport enum OldStatus {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "/** Test enum with deprecated values */\nexport enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    DEPRECATED_VALUE = 2,\n    INACTIVE = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

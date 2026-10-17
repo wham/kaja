@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ScoredItem",
+          "typeName": "test.ScoredItem",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.weight": 0.75,
+            "test.threshold": 99.5
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ScoredItem",
+          "text": "export interface ScoredItem {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

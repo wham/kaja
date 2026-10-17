@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Product",
+          "typeName": "test.Product",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.label": "Product Name",
+                "test.searchable": true
+              }
+            },
+            {
+              "no": 2,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5,
+              "options": {
+                "test.label": "Quantity"
+              }
+            },
+            {
+              "no": 3,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Product",
+          "text": "export interface Product {\n    name: string;\n    quantity: number;\n    description: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "dep.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "dep.Outer",
+          "fields": []
+        },
+        {
+          "name": "Outer_Middle",
+          "typeName": "dep.Outer.Middle",
+          "fields": []
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "typeName": "dep.Outer.Middle.Inner",
+          "fields": []
+        },
+        {
+          "name": "Outer_Middle_Inner_Deep",
+          "typeName": "dep.Outer.Middle.Inner.Deep",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "/** Deeply nested message (4 levels) */\nexport interface Outer {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle",
+          "text": "export interface Outer_Middle {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "text": "export interface Outer_Middle_Inner {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle_Inner_Deep",
+          "text": "export interface Outer_Middle_Inner_Deep {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Wrapper",
+          "typeName": "test.Wrapper",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "message",
+              "T": "dep.Outer.Middle.Inner.Deep"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Wrapper",
+          "text": "/** Message referencing a 4-level deep nested type from another file */\nexport interface Wrapper {\n    data?: Outer_Middle_Inner_Deep;\n}",
+          "references": [
+            "Outer_Middle_Inner_Deep"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "to_string_value",
+              "kind": "scalar",
+              "oneof": "toString$",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "to_string_number",
+              "kind": "scalar",
+              "oneof": "toString$",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "constructor_value",
+              "kind": "scalar",
+              "oneof": "constructor",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    /** Oneof with reserved name toString */\n    toString$: {\n        oneofKind: \"toStringValue\";\n        toStringValue: string;\n    } | {\n        oneofKind: \"toStringNumber\";\n        toStringNumber: number;\n    } | {\n        oneofKind: undefined;\n    };\n    /** Oneof with reserved name constructor */\n    constructor: {\n        oneofKind: \"constructorValue\";\n        constructorValue: string;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

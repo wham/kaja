@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "My_Container",
+          "typeName": "test.My_Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "labels",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 5
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "My_Container",
+          "text": "/** Message name with underscore and a map field. The error string in binaryReadMap should use \"My_Container\" not \"My.Container\". */\nexport interface My_Container {\n    labels: { [key: string]: number };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,465 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "complex_nesting.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Organization",
+          "typeName": "complex.Organization",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "departments",
+              "kind": "message",
+              "repeat": 2,
+              "T": "complex.Organization.Department"
+            },
+            {
+              "no": 4,
+              "name": "metadata",
+              "kind": "message",
+              "T": "complex.Organization.Metadata"
+            }
+          ]
+        },
+        {
+          "name": "Organization_Department",
+          "typeName": "complex.Organization.Department",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "teams",
+              "kind": "message",
+              "repeat": 2,
+              "T": "complex.Organization.Department.Team"
+            }
+          ]
+        },
+        {
+          "name": "Organization_Department_Team",
+          "typeName": "complex.Organization.Department.Team",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "members",
+              "kind": "message",
+              "repeat": 2,
+              "T": "complex.Organization.Department.Team.Member"
+            },
+            {
+              "no": 4,
+              "name": "settings",
+              "kind": "message",
+              "T": "complex.Organization.Department.Team.Settings"
+            }
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Member",
+          "typeName": "complex.Organization.Department.Team.Member",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "role",
+              "kind": "enum",
+              "T": "complex.Organization.Department.Team.Member.Role"
+            },
+            {
+              "no": 4,
+              "name": "permissions",
+              "kind": "message",
+              "T": "complex.Organization.Department.Team.Member.Permissions"
+            }
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Member_Permissions",
+          "typeName": "complex.Organization.Department.Team.Member.Permissions",
+          "fields": [
+            {
+              "no": 1,
+              "name": "can_read",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 2,
+              "name": "can_write",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 3,
+              "name": "can_delete",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "resource_access",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "enum",
+                "T": "complex.Organization.Department.Team.Member.Permissions.AccessLevel"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Settings",
+          "typeName": "complex.Organization.Department.Team.Settings",
+          "fields": [
+            {
+              "no": 1,
+              "name": "notifications_enabled",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 2,
+              "name": "preferences",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "Organization_Metadata",
+          "typeName": "complex.Organization.Metadata",
+          "fields": [
+            {
+              "no": 1,
+              "name": "labels",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "user_id",
+              "kind": "scalar",
+              "oneof": "owner",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "team_id",
+              "kind": "scalar",
+              "oneof": "owner",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetOrganizationRequest",
+          "typeName": "complex.GetOrganizationRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "include_departments",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 3,
+              "name": "include_teams",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "GetOrganizationResponse",
+          "typeName": "complex.GetOrganizationResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "organization",
+              "kind": "message",
+              "T": "complex.Organization"
+            }
+          ]
+        },
+        {
+          "name": "UpdateMemberRequest",
+          "typeName": "complex.UpdateMemberRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "org_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "dept_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "team_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "member_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "member",
+              "kind": "message",
+              "T": "complex.Organization.Department.Team.Member"
+            }
+          ]
+        },
+        {
+          "name": "UpdateMemberResponse",
+          "typeName": "complex.UpdateMemberResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "member",
+              "kind": "message",
+              "T": "complex.Organization.Department.Team.Member"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Organization_Department_Team_Member_Permissions_AccessLevel",
+          "typeName": "complex.Organization.Department.Team.Member.Permissions.AccessLevel",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "NONE",
+              1
+            ],
+            [
+              "READ",
+              2
+            ],
+            [
+              "WRITE",
+              3
+            ],
+            [
+              "ADMIN",
+              4
+            ]
+          ],
+          "prefix": "ACCESS_LEVEL_"
+        },
+        {
+          "name": "Organization_Department_Team_Member_Role",
+          "typeName": "complex.Organization.Department.Team.Member.Role",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ADMIN",
+              1
+            ],
+            [
+              "DEVELOPER",
+              2
+            ],
+            [
+              "VIEWER",
+              3
+            ]
+          ],
+          "prefix": "ROLE_"
+        }
+      ],
+      "services": [
+        {
+          "name": "OrganizationService",
+          "typeName": "complex.OrganizationService",
+          "methods": [
+            {
+              "name": "GetOrganization",
+              "input": "GetOrganizationRequest",
+              "output": "GetOrganizationResponse",
+              "I": "complex.GetOrganizationRequest",
+              "O": "complex.GetOrganizationResponse"
+            },
+            {
+              "name": "UpdateMember",
+              "input": "UpdateMemberRequest",
+              "output": "UpdateMemberResponse",
+              "I": "complex.UpdateMemberRequest",
+              "O": "complex.UpdateMemberResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Organization",
+          "text": "/** Complex nested structures with multiple levels */\nexport interface Organization {\n    id: string;\n    name: string;\n    departments: Organization_Department[];\n    metadata?: Organization_Metadata;\n}",
+          "references": [
+            "Organization_Department",
+            "Organization_Metadata"
+          ]
+        },
+        {
+          "name": "Organization_Department",
+          "text": "export interface Organization_Department {\n    id: string;\n    name: string;\n    teams: Organization_Department_Team[];\n}",
+          "references": [
+            "Organization_Department_Team"
+          ]
+        },
+        {
+          "name": "Organization_Department_Team",
+          "text": "export interface Organization_Department_Team {\n    id: string;\n    name: string;\n    members: Organization_Department_Team_Member[];\n    settings?: Organization_Department_Team_Settings;\n}",
+          "references": [
+            "Organization_Department_Team_Member",
+            "Organization_Department_Team_Settings"
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Member",
+          "text": "export interface Organization_Department_Team_Member {\n    id: string;\n    name: string;\n    role: Organization_Department_Team_Member_Role;\n    permissions?: Organization_Department_Team_Member_Permissions;\n}",
+          "references": [
+            "Organization_Department_Team_Member_Role",
+            "Organization_Department_Team_Member_Permissions"
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Member_Permissions",
+          "text": "export interface Organization_Department_Team_Member_Permissions {\n    canRead: boolean;\n    canWrite: boolean;\n    canDelete: boolean;\n    resourceAccess: { [key: string]: Organization_Department_Team_Member_Permissions_AccessLevel };\n}",
+          "references": [
+            "Organization_Department_Team_Member_Permissions_AccessLevel"
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Settings",
+          "text": "/** Team-level settings */\nexport interface Organization_Department_Team_Settings {\n    notificationsEnabled: boolean;\n    preferences: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "Organization_Metadata",
+          "text": "/** Organization-level metadata */\nexport interface Organization_Metadata {\n    labels: { [key: string]: string };\n    tags: string[];\n    owner: {\n        oneofKind: \"userId\";\n        userId: string;\n    } | {\n        oneofKind: \"teamId\";\n        teamId: string;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "GetOrganizationRequest",
+          "text": "export interface GetOrganizationRequest {\n    id: string;\n    includeDepartments: boolean;\n    includeTeams: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "GetOrganizationResponse",
+          "text": "export interface GetOrganizationResponse {\n    organization?: Organization;\n}",
+          "references": [
+            "Organization"
+          ]
+        },
+        {
+          "name": "UpdateMemberRequest",
+          "text": "export interface UpdateMemberRequest {\n    orgId: string;\n    deptId: string;\n    teamId: string;\n    memberId: string;\n    member?: Organization_Department_Team_Member;\n}",
+          "references": [
+            "Organization_Department_Team_Member"
+          ]
+        },
+        {
+          "name": "UpdateMemberResponse",
+          "text": "export interface UpdateMemberResponse {\n    member?: Organization_Department_Team_Member;\n}",
+          "references": [
+            "Organization_Department_Team_Member"
+          ]
+        },
+        {
+          "name": "Organization_Department_Team_Member_Permissions_AccessLevel",
+          "text": "export enum Organization_Department_Team_Member_Permissions_AccessLevel {\n    UNSPECIFIED = 0,\n    NONE = 1,\n    READ = 2,\n    WRITE = 3,\n    ADMIN = 4,\n}",
+          "references": []
+        },
+        {
+          "name": "Organization_Department_Team_Member_Role",
+          "text": "export enum Organization_Department_Team_Member_Role {\n    UNSPECIFIED = 0,\n    ADMIN = 1,\n    DEVELOPER = 2,\n    VIEWER = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

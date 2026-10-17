@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Any",
+          "typeName": "google.protobuf.Any",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type_url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        },
+        {
+          "name": "IMessageType",
+          "typeName": "google.protobuf.IMessageType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "version",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Any",
+          "text": "/** Any triggers import of IMessageType from @protobuf-ts/runtime. A local message named IMessageType should cause a collision that needs aliasing. */\nexport interface Any {\n    typeUrl: string;\n    value: Uint8Array;\n}",
+          "references": []
+        },
+        {
+          "name": "IMessageType",
+          "text": "export interface IMessageType {\n    name: string;\n    version: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

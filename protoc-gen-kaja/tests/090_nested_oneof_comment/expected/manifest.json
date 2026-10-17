@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "inner",
+              "kind": "message",
+              "T": "test.Outer.Inner"
+            }
+          ]
+        },
+        {
+          "name": "Outer_Inner",
+          "typeName": "test.Outer.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Other",
+          "typeName": "test.Other",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "/** Outer message has field 1 with a specific comment */\nexport interface Outer {\n    /** This is the outer name field */\n    name: string;\n    inner?: Outer_Inner;\n}",
+          "references": [
+            "Outer_Inner"
+          ]
+        },
+        {
+          "name": "Outer_Inner",
+          "text": "/** Nested message with a oneof */\nexport interface Outer_Inner {\n    choice: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "Other",
+          "text": "/** Second top-level message (needed so msgIndex=1 doesn't panic) */\nexport interface Other {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "UInt64Value",
+          "typeName": "google.protobuf.UInt64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 4
+            }
+          ]
+        },
+        {
+          "name": "LongType",
+          "typeName": "google.protobuf.LongType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "code",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "UInt64Value",
+          "text": "export interface UInt64Value {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "LongType",
+          "text": "export interface LongType {\n    name: string;\n    code: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

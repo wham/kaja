@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Value",
+          "typeName": "test.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "constructor",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "__proto__",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "test.Value"
+              }
+            },
+            {
+              "no": 2,
+              "name": "indexed",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "message",
+                "T": "test.Value"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Value",
+          "text": "export interface Value {\n    constructor: string;\n    Proto: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    items: { [key: string]: Value };\n    indexed: { [key: number]: Value };\n}",
+          "references": [
+            "Value"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Result",
+          "typeName": "test.Result",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "oneof": "outcome",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "error",
+              "kind": "scalar",
+              "oneof": "outcome",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Result",
+          "text": "export interface Result {\n    outcome: {\n        oneofKind: \"value\";\n        value: string;\n    } | {\n        oneofKind: \"error\";\n        error: string;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

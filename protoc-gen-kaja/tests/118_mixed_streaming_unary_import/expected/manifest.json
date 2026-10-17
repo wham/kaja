@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Req",
+          "typeName": "test.Req",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Res",
+          "typeName": "test.Res",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MixedService",
+          "typeName": "test.MixedService",
+          "methods": [
+            {
+              "name": "Watch",
+              "input": "Req",
+              "output": "Res",
+              "I": "test.Req",
+              "O": "test.Res",
+              "serverStreaming": true
+            },
+            {
+              "name": "Upload",
+              "input": "Req",
+              "output": "Res",
+              "I": "test.Req",
+              "O": "test.Res",
+              "clientStreaming": true
+            },
+            {
+              "name": "Chat",
+              "input": "Req",
+              "output": "Res",
+              "I": "test.Req",
+              "O": "test.Res",
+              "serverStreaming": true,
+              "clientStreaming": true
+            },
+            {
+              "name": "Do",
+              "input": "Req",
+              "output": "Res",
+              "I": "test.Req",
+              "O": "test.Res"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Req",
+          "text": "export interface Req {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Res",
+          "text": "export interface Res {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

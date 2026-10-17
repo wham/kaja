@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "STOPPED",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    status: Status;\n}",
+          "references": [
+            "Status"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "/** Tests that enum value comments with trailing blank lines are handled correctly (sentinel should not leak). */\nexport enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    STOPPED = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

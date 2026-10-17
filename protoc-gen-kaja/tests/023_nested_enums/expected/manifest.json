@@ -1,0 +1,454 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "nested_enums.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "nested_enums.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "nested_enums.Container.Status"
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "MultipleNestedEnums",
+          "typeName": "nested_enums.MultipleNestedEnums",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type",
+              "kind": "enum",
+              "T": "nested_enums.MultipleNestedEnums.Type"
+            },
+            {
+              "no": 2,
+              "name": "priority",
+              "kind": "enum",
+              "T": "nested_enums.MultipleNestedEnums.Priority"
+            }
+          ]
+        },
+        {
+          "name": "Level1",
+          "typeName": "nested_enums.Level1",
+          "fields": [
+            {
+              "no": 1,
+              "name": "level2",
+              "kind": "message",
+              "T": "nested_enums.Level1.Level2"
+            }
+          ]
+        },
+        {
+          "name": "Level1_Level2",
+          "typeName": "nested_enums.Level1.Level2",
+          "fields": [
+            {
+              "no": 1,
+              "name": "level3",
+              "kind": "message",
+              "T": "nested_enums.Level1.Level2.Level3"
+            }
+          ]
+        },
+        {
+          "name": "Level1_Level2_Level3",
+          "typeName": "nested_enums.Level1.Level2.Level3",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "enum",
+              "T": "nested_enums.Level1.Level2.Level3.DeepEnum"
+            }
+          ]
+        },
+        {
+          "name": "Parent",
+          "typeName": "nested_enums.Parent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "nested_enums.Parent.Child.ChildEnum"
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Parent_Child",
+          "typeName": "nested_enums.Parent.Child",
+          "fields": []
+        },
+        {
+          "name": "UseNestedEnum",
+          "typeName": "nested_enums.UseNestedEnum",
+          "fields": [
+            {
+              "no": 1,
+              "name": "container_status",
+              "kind": "enum",
+              "T": "nested_enums.Container.Status"
+            },
+            {
+              "no": 2,
+              "name": "type",
+              "kind": "enum",
+              "T": "nested_enums.MultipleNestedEnums.Type"
+            },
+            {
+              "no": 3,
+              "name": "priority",
+              "kind": "enum",
+              "T": "nested_enums.MultipleNestedEnums.Priority"
+            },
+            {
+              "no": 4,
+              "name": "child_status",
+              "kind": "enum",
+              "T": "nested_enums.Parent.Child.ChildEnum"
+            }
+          ]
+        },
+        {
+          "name": "NoPrefix",
+          "typeName": "nested_enums.NoPrefix",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "enum",
+              "T": "nested_enums.NoPrefix.Simple"
+            }
+          ]
+        },
+        {
+          "name": "Sibling1",
+          "typeName": "nested_enums.Sibling1",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "nested_enums.Sibling1.Status"
+            }
+          ]
+        },
+        {
+          "name": "Sibling2",
+          "typeName": "nested_enums.Sibling2",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "nested_enums.Sibling2.Status"
+            }
+          ]
+        },
+        {
+          "name": "UseBothSiblings",
+          "typeName": "nested_enums.UseBothSiblings",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status1",
+              "kind": "enum",
+              "T": "nested_enums.Sibling1.Status"
+            },
+            {
+              "no": 2,
+              "name": "status2",
+              "kind": "enum",
+              "T": "nested_enums.Sibling2.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Container_Status",
+          "typeName": "nested_enums.Container.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        },
+        {
+          "name": "MultipleNestedEnums_Type",
+          "typeName": "nested_enums.MultipleNestedEnums.Type",
+          "values": [
+            [
+              "TYPE_UNKNOWN",
+              0
+            ],
+            [
+              "TYPE_A",
+              1
+            ],
+            [
+              "TYPE_B",
+              2
+            ]
+          ]
+        },
+        {
+          "name": "MultipleNestedEnums_Priority",
+          "typeName": "nested_enums.MultipleNestedEnums.Priority",
+          "values": [
+            [
+              "LOW",
+              0
+            ],
+            [
+              "MEDIUM",
+              1
+            ],
+            [
+              "HIGH",
+              2
+            ]
+          ],
+          "prefix": "PRIORITY_"
+        },
+        {
+          "name": "Level1_Level2_Level3_DeepEnum",
+          "typeName": "nested_enums.Level1.Level2.Level3.DeepEnum",
+          "values": [
+            [
+              "DEEP_UNKNOWN",
+              0
+            ],
+            [
+              "DEEP_VALUE",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "Parent_Child_ChildEnum",
+          "typeName": "nested_enums.Parent.Child.ChildEnum",
+          "values": [
+            [
+              "CHILD_UNKNOWN",
+              0
+            ],
+            [
+              "CHILD_VALUE",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "NoPrefix_Simple",
+          "typeName": "nested_enums.NoPrefix.Simple",
+          "values": [
+            [
+              "A",
+              0
+            ],
+            [
+              "B",
+              1
+            ],
+            [
+              "C",
+              2
+            ]
+          ]
+        },
+        {
+          "name": "Sibling1_Status",
+          "typeName": "nested_enums.Sibling1.Status",
+          "values": [
+            [
+              "OK",
+              0
+            ],
+            [
+              "ERROR",
+              1
+            ]
+          ],
+          "prefix": "STATUS_"
+        },
+        {
+          "name": "Sibling2_Status",
+          "typeName": "nested_enums.Sibling2.Status",
+          "values": [
+            [
+              "PENDING",
+              0
+            ],
+            [
+              "DONE",
+              1
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "/** Test enum nested in message */\nexport interface Container {\n    status: Container_Status;\n    name: string;\n}",
+          "references": [
+            "Container_Status"
+          ]
+        },
+        {
+          "name": "MultipleNestedEnums",
+          "text": "/** Test multiple nested enums */\nexport interface MultipleNestedEnums {\n    type: MultipleNestedEnums_Type;\n    priority: MultipleNestedEnums_Priority;\n}",
+          "references": [
+            "MultipleNestedEnums_Type",
+            "MultipleNestedEnums_Priority"
+          ]
+        },
+        {
+          "name": "Level1",
+          "text": "/** Test deeply nested enums */\nexport interface Level1 {\n    level2?: Level1_Level2;\n}",
+          "references": [
+            "Level1_Level2"
+          ]
+        },
+        {
+          "name": "Level1_Level2",
+          "text": "export interface Level1_Level2 {\n    level3?: Level1_Level2_Level3;\n}",
+          "references": [
+            "Level1_Level2_Level3"
+          ]
+        },
+        {
+          "name": "Level1_Level2_Level3",
+          "text": "export interface Level1_Level2_Level3 {\n    value: Level1_Level2_Level3_DeepEnum;\n}",
+          "references": [
+            "Level1_Level2_Level3_DeepEnum"
+          ]
+        },
+        {
+          "name": "Parent",
+          "text": "/** Test enum in nested message used in parent */\nexport interface Parent {\n    status: Parent_Child_ChildEnum;\n    name: string;\n}",
+          "references": [
+            "Parent_Child_ChildEnum"
+          ]
+        },
+        {
+          "name": "Parent_Child",
+          "text": "export interface Parent_Child {}",
+          "references": []
+        },
+        {
+          "name": "UseNestedEnum",
+          "text": "/** Test referencing nested enum from another message */\nexport interface UseNestedEnum {\n    containerStatus: Container_Status;\n    type: MultipleNestedEnums_Type;\n    priority: MultipleNestedEnums_Priority;\n    childStatus: Parent_Child_ChildEnum;\n}",
+          "references": [
+            "Container_Status",
+            "MultipleNestedEnums_Type",
+            "MultipleNestedEnums_Priority",
+            "Parent_Child_ChildEnum"
+          ]
+        },
+        {
+          "name": "NoPrefix",
+          "text": "/** Test nested enum with no prefix */\nexport interface NoPrefix {\n    value: NoPrefix_Simple;\n}",
+          "references": [
+            "NoPrefix_Simple"
+          ]
+        },
+        {
+          "name": "Sibling1",
+          "text": "/** Test sibling messages with same enum name */\nexport interface Sibling1 {\n    status: Sibling1_Status;\n}",
+          "references": [
+            "Sibling1_Status"
+          ]
+        },
+        {
+          "name": "Sibling2",
+          "text": "export interface Sibling2 {\n    status: Sibling2_Status;\n}",
+          "references": [
+            "Sibling2_Status"
+          ]
+        },
+        {
+          "name": "UseBothSiblings",
+          "text": "export interface UseBothSiblings {\n    status1: Sibling1_Status;\n    status2: Sibling2_Status;\n}",
+          "references": [
+            "Sibling1_Status",
+            "Sibling2_Status"
+          ]
+        },
+        {
+          "name": "Container_Status",
+          "text": "export enum Container_Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "MultipleNestedEnums_Type",
+          "text": "export enum MultipleNestedEnums_Type {\n    TYPE_UNKNOWN = 0,\n    TYPE_A = 1,\n    TYPE_B = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "MultipleNestedEnums_Priority",
+          "text": "export enum MultipleNestedEnums_Priority {\n    LOW = 0,\n    MEDIUM = 1,\n    HIGH = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "Level1_Level2_Level3_DeepEnum",
+          "text": "export enum Level1_Level2_Level3_DeepEnum {\n    DEEP_UNKNOWN = 0,\n    DEEP_VALUE = 1,\n}",
+          "references": []
+        },
+        {
+          "name": "Parent_Child_ChildEnum",
+          "text": "export enum Parent_Child_ChildEnum {\n    CHILD_UNKNOWN = 0,\n    CHILD_VALUE = 1,\n}",
+          "references": []
+        },
+        {
+          "name": "NoPrefix_Simple",
+          "text": "export enum NoPrefix_Simple {\n    A = 0,\n    B = 1,\n    C = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "Sibling1_Status",
+          "text": "export enum Sibling1_Status {\n    OK = 0,\n    ERROR = 1,\n}",
+          "references": []
+        },
+        {
+          "name": "Sibling2_Status",
+          "text": "export enum Sibling2_Status {\n    PENDING = 0,\n    DONE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

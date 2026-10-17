@@ -1,0 +1,127 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": []
+        },
+        {
+          "name": "Outer_Middle",
+          "typeName": "test.Outer.Middle",
+          "fields": []
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "typeName": "test.Outer.Middle.Inner",
+          "fields": []
+        },
+        {
+          "name": "MyOption",
+          "typeName": "test.MyOption",
+          "fields": [
+            {
+              "no": 1,
+              "name": "deep_value",
+              "kind": "enum",
+              "T": "test.Outer.Middle.Inner.DeepEnum"
+            }
+          ]
+        },
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": []
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": []
+        }
+      ],
+      "enums": [
+        {
+          "name": "Outer_Middle_Inner_DeepEnum",
+          "typeName": "test.Outer.Middle.Inner.DeepEnum",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "VALUE_A",
+              1
+            ],
+            [
+              "VALUE_B",
+              2
+            ]
+          ]
+        }
+      ],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "test.MyService",
+          "methods": [
+            {
+              "name": "Foo",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "options": {
+                "test.my_opt": {
+                  "deepValue": "VALUE_A"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "export interface Outer {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle",
+          "text": "export interface Outer_Middle {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "text": "export interface Outer_Middle_Inner {}",
+          "references": []
+        },
+        {
+          "name": "MyOption",
+          "text": "export interface MyOption {\n    deepValue: Outer_Middle_Inner_DeepEnum;\n}",
+          "references": [
+            "Outer_Middle_Inner_DeepEnum"
+          ]
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {}",
+          "references": []
+        },
+        {
+          "name": "Outer_Middle_Inner_DeepEnum",
+          "text": "export enum Outer_Middle_Inner_DeepEnum {\n    UNKNOWN = 0,\n    VALUE_A = 1,\n    VALUE_B = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

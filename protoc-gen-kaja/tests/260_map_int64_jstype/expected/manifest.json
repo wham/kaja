@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMsg",
+          "typeName": "test.TestMsg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "normal_data",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 3
+              }
+            },
+            {
+              "no": 2,
+              "name": "bigint_data",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 3,
+                "L": 0
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMsg",
+          "text": "/** Test map field with int64 value and explicit jstype option. The jstype should propagate to the V (value) part of the field info. */\nexport interface TestMsg {\n    normalData: { [key: string]: string };\n    bigintData: { [key: string]: bigint };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

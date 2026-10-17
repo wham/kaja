@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "BytesDefaultTest",
+          "typeName": "test.BytesDefaultTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "null_byte",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 2,
+              "name": "backslash",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 3,
+              "name": "quote",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 4,
+              "name": "newline",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 5,
+              "name": "tab",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 6,
+              "name": "carriage_return",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 7,
+              "name": "mixed",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 8,
+              "name": "high_bytes",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "BytesDefaultTest",
+          "text": "export interface BytesDefaultTest {\n    nullByte?: Uint8Array;\n    backslash?: Uint8Array;\n    quote?: Uint8Array;\n    newline?: Uint8Array;\n    tab?: Uint8Array;\n    carriageReturn?: Uint8Array;\n    mixed?: Uint8Array;\n    highBytes?: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

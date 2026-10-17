@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TaggedItem",
+          "typeName": "test.TaggedItem",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.tags": [
+              "alpha",
+              "beta"
+            ]
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TaggedItem",
+          "text": "export interface TaggedItem {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

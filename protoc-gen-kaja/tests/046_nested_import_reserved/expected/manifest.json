@@ -1,0 +1,165 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "types.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "str",
+              "kind": "message",
+              "T": "types.Container.String"
+            },
+            {
+              "no": 2,
+              "name": "arr",
+              "kind": "message",
+              "T": "types.Container.Array"
+            }
+          ]
+        },
+        {
+          "name": "Container_String",
+          "typeName": "types.Container.String",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container_Array",
+          "typeName": "types.Container.Array",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container_Number",
+          "typeName": "types.Container.Number",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Boolean$",
+          "typeName": "types.Boolean",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "/** Outer message with nested reserved type names */\nexport interface Container {\n    /** A field using one of the nested types */\n    str?: Container_String;\n    arr?: Container_Array;\n}",
+          "references": [
+            "Container_String",
+            "Container_Array"
+          ]
+        },
+        {
+          "name": "Container_String",
+          "text": "/** Nested message with a reserved TypeScript type name */\nexport interface Container_String {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container_Array",
+          "text": "/** Another nested reserved name */\nexport interface Container_Array {\n    items: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "Container_Number",
+          "text": "/** Nested Number */\nexport interface Container_Number {\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Boolean$",
+          "text": "/** Top-level reserved type */\nexport interface Boolean$ {\n    value: boolean;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "NestedTypeService",
+          "typeName": "api.NestedTypeService",
+          "methods": [
+            {
+              "name": "GetString",
+              "input": "Container_String",
+              "output": "Container_String",
+              "I": "types.Container.String",
+              "O": "types.Container.String",
+              "doc": "Uses nested String from Container"
+            },
+            {
+              "name": "GetArray",
+              "input": "Container_Array",
+              "output": "Container_Array",
+              "I": "types.Container.Array",
+              "O": "types.Container.Array",
+              "doc": "Uses nested Array from Container"
+            },
+            {
+              "name": "GetNumber",
+              "input": "Container_Number",
+              "output": "Container_Number",
+              "I": "types.Container.Number",
+              "O": "types.Container.Number",
+              "doc": "Uses nested Number from Container"
+            },
+            {
+              "name": "GetBoolean",
+              "input": "Boolean$",
+              "output": "Boolean$",
+              "I": "types.Boolean",
+              "O": "types.Boolean",
+              "doc": "Uses top-level Boolean"
+            },
+            {
+              "name": "Transform",
+              "input": "Container_String",
+              "output": "Boolean$",
+              "I": "types.Container.String",
+              "O": "types.Boolean",
+              "doc": "Mix of nested and top-level"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyOptions",
+          "typeName": "test.MyOptions",
+          "fields": [
+            {
+              "no": 1,
+              "name": "priority",
+              "kind": "enum",
+              "T": "test.Priority"
+            }
+          ]
+        },
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.my_opts": {}
+              }
+            },
+            {
+              "no": 2,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.my_opts": {
+                  "priority": "PRIORITY_NORMAL"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Priority",
+          "typeName": "test.Priority",
+          "values": [
+            [
+              "LOW",
+              0
+            ],
+            [
+              "DEFAULT",
+              0
+            ],
+            [
+              "MEDIUM",
+              1
+            ],
+            [
+              "NORMAL",
+              1
+            ],
+            [
+              "HIGH",
+              2
+            ]
+          ],
+          "prefix": "PRIORITY_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyOptions",
+          "text": "export interface MyOptions {\n    priority: Priority;\n}",
+          "references": [
+            "Priority"
+          ]
+        },
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    /** Use value 0, which maps to both PRIORITY_LOW and PRIORITY_DEFAULT */\n    name: string;\n    /** Use value 1, which maps to both PRIORITY_MEDIUM and PRIORITY_NORMAL */\n    description: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Priority",
+          "text": "/** Enum with allow_alias: two names map to the same numeric value. */\nexport enum Priority {\n    LOW = 0,\n    DEFAULT = 0,\n    MEDIUM = 1,\n    NORMAL = 1,\n    HIGH = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

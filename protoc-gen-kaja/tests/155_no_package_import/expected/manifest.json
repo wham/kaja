@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Shared",
+          "typeName": "Shared",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Shared",
+          "text": "export interface Shared {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "item",
+              "kind": "message",
+              "T": "Shared"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    item?: Shared;\n}",
+          "references": [
+            "Shared"
+          ]
+        }
+      ]
+    }
+  ]
+}

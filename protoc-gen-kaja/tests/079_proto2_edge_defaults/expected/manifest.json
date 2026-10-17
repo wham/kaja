@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "EdgeDefaults",
+          "typeName": "test.EdgeDefaults",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inf_float",
+              "kind": "scalar",
+              "opt": true,
+              "T": 2
+            },
+            {
+              "no": 2,
+              "name": "neg_inf_float",
+              "kind": "scalar",
+              "opt": true,
+              "T": 2
+            },
+            {
+              "no": 3,
+              "name": "nan_float",
+              "kind": "scalar",
+              "opt": true,
+              "T": 2
+            },
+            {
+              "no": 4,
+              "name": "max_int32",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "min_int32",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 6,
+              "name": "max_int64",
+              "kind": "scalar",
+              "opt": true,
+              "T": 3
+            },
+            {
+              "no": 7,
+              "name": "min_int64",
+              "kind": "scalar",
+              "opt": true,
+              "T": 3
+            },
+            {
+              "no": 8,
+              "name": "max_uint32",
+              "kind": "scalar",
+              "opt": true,
+              "T": 13
+            },
+            {
+              "no": 9,
+              "name": "max_uint64",
+              "kind": "scalar",
+              "opt": true,
+              "T": 4
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "EdgeDefaults",
+          "text": "export interface EdgeDefaults {\n    /** Special float values */\n    infFloat?: number;\n    negInfFloat?: number;\n    nanFloat?: number;\n    /** Max/min int values */\n    maxInt32?: number;\n    minInt32?: number;\n    maxInt64?: string;\n    minInt64?: string;\n    /** Max unsigned values */\n    maxUint32?: number;\n    maxUint64?: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

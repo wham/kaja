@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Metadata",
+          "typeName": "test.Metadata",
+          "fields": [
+            {
+              "no": 1,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.meta": {
+              "tags": [
+                "solo"
+              ]
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Metadata",
+          "text": "export interface Metadata {\n    tags: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

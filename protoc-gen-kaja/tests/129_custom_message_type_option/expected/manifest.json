@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceInfo",
+          "typeName": "test.ResourceInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "readonly",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.resource": {
+              "name": "users",
+              "readonly": true
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceInfo",
+          "text": "export interface ResourceInfo {\n    name: string;\n    readonly: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "User",
+          "text": "export interface User {\n    id: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

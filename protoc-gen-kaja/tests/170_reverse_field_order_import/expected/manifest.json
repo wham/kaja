@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "dep.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Alpha",
+          "typeName": "dep.Alpha",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Beta",
+          "typeName": "dep.Beta",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Alpha",
+          "text": "export interface Alpha {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Beta",
+          "text": "export interface Beta {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 2,
+              "name": "b",
+              "kind": "message",
+              "T": "dep.Beta"
+            },
+            {
+              "no": 1,
+              "name": "a",
+              "kind": "message",
+              "T": "dep.Alpha"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "/** Fields declared in reverse field-number order. Beta is field 2 (declared first), Alpha is field 1 (declared second). */\nexport interface Container {\n    b?: Beta;\n    a?: Alpha;\n}",
+          "references": [
+            "Beta",
+            "Alpha"
+          ]
+        }
+      ]
+    }
+  ]
+}

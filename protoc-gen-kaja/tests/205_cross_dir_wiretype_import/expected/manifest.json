@@ -1,0 +1,100 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "sub/types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "sub.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "/** A simple item message. */\nexport interface Item {\n    name: string;\n    quantity: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "svc.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ListItemsRequest",
+          "typeName": "svc.ListItemsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "filter",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ListItemsResponse",
+          "typeName": "svc.ListItemsResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "sub.Item"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "InventoryService",
+          "typeName": "svc.InventoryService",
+          "methods": [
+            {
+              "name": "ListItems",
+              "input": "ListItemsRequest",
+              "output": "ListItemsResponse",
+              "I": "svc.ListItemsRequest",
+              "O": "svc.ListItemsResponse",
+              "doc": "Lists all items."
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "ListItemsRequest",
+          "text": "/** Request for ListItems. */\nexport interface ListItemsRequest {\n    filter: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ListItemsResponse",
+          "text": "/** Response for ListItems. */\nexport interface ListItemsResponse {\n    items: Item[];\n}",
+          "references": [
+            "Item"
+          ]
+        }
+      ]
+    }
+  ]
+}

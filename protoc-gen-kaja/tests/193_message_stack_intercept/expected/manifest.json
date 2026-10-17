@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "stackIntercept",
+          "typeName": "test.stackIntercept",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "stackIntercept",
+              "output": "Response",
+              "I": "test.stackIntercept",
+              "O": "test.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "stackIntercept",
+          "text": "/** Message named stackIntercept collides with import { stackIntercept } from runtime-rpc */\nexport interface stackIntercept {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

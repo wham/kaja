@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "const.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "const.TestService",
+          "methods": [
+            {
+              "name": "GetTest",
+              "input": "TestMessage",
+              "output": "TestMessage",
+              "I": "const.TestMessage",
+              "O": "const.TestMessage"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

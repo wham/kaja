@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "default",
+              0
+            ],
+            [
+              "typeof",
+              1
+            ],
+            [
+              "Array",
+              2
+            ],
+            [
+              "ACTIVE",
+              3
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Status",
+          "text": "/** Enum with reserved TypeScript names as values */\nexport enum Status {\n    default = 0,\n    typeof = 1,\n    Array = 2,\n    ACTIVE = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

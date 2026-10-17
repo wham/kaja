@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "custom_message_option_json_name.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceConfig",
+          "typeName": "test.ResourceConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "display_name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "is_read_only",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 3,
+              "name": "max_retry_count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Document",
+          "typeName": "test.Document",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.resource_config": {
+              "displayName": "docs",
+              "isReadOnly": true,
+              "maxRetryCount": 5
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceConfig",
+          "text": "export interface ResourceConfig {\n    displayName: string;\n    isReadOnly: boolean;\n    maxRetryCount: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Document",
+          "text": "export interface Document {\n    id: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

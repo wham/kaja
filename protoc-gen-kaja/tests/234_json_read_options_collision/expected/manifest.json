@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "google.protobuf.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "JsonReadOptions",
+          "typeName": "google.protobuf.JsonReadOptions",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** Timestamp triggers import of JsonReadOptions from @protobuf-ts/runtime. A local message named JsonReadOptions should cause a collision that needs aliasing. */\nexport interface Timestamp {\n    seconds: string;\n    nanos: number;\n}",
+          "references": []
+        },
+        {
+          "name": "JsonReadOptions",
+          "text": "export interface JsonReadOptions {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

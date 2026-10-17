@@ -1,0 +1,395 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "camelcase.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "CamelCaseFields",
+          "typeName": "camelcase.CamelCaseFields",
+          "fields": [
+            {
+              "no": 1,
+              "name": "firstName",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "lastName",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "emailAddress",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "userId",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "isActive",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 6,
+              "name": "fullName",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "MixedCase",
+          "typeName": "camelcase.MixedCase",
+          "fields": [
+            {
+              "no": 1,
+              "name": "snake_case",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "camelCase",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "PascalCase",
+              "kind": "scalar",
+              "jsonName": "PascalCase",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "SCREAMING_SNAKE",
+              "kind": "scalar",
+              "jsonName": "SCREAMINGSNAKE",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "mixedWith_underscores",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "CamelCaseEdgeCases",
+          "typeName": "camelcase.CamelCaseEdgeCases",
+          "fields": [
+            {
+              "no": 1,
+              "name": "field_1value",
+              "kind": "scalar",
+              "jsonName": "field1value",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "field_2_value",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "field__name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "_private",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "trailing_",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "HTTP_URL",
+              "kind": "scalar",
+              "jsonName": "HTTPURL",
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "API_KEY",
+              "kind": "scalar",
+              "jsonName": "APIKEY",
+              "T": 9
+            },
+            {
+              "no": 8,
+              "name": "getHTTPResponseCode",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 9,
+              "name": "URLPath",
+              "kind": "scalar",
+              "jsonName": "URLPath",
+              "T": 9
+            },
+            {
+              "no": 10,
+              "name": "xmlHTTPRequest",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "a_b_c",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 12,
+              "name": "x1_y2_z3",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "JsonNameOverride",
+          "typeName": "camelcase.JsonNameOverride",
+          "fields": [
+            {
+              "no": 1,
+              "name": "weird_name",
+              "kind": "scalar",
+              "jsonName": "WeirdName",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "custom",
+              "kind": "scalar",
+              "jsonName": "CUSTOM",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "override_field",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetUserRequest",
+          "typeName": "camelcase.GetUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetUserResponse",
+          "typeName": "camelcase.GetUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ListItemsRequest",
+          "typeName": "camelcase.ListItemsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "page_size",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "ListItemsResponse",
+          "typeName": "camelcase.ListItemsResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "CreateOrUpdateRequest",
+          "typeName": "camelcase.CreateOrUpdateRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "CreateOrUpdateResponse",
+          "typeName": "camelcase.CreateOrUpdateResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "created",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "HTTPGetRequest",
+          "typeName": "camelcase.HTTPGetRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "url",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "HTTPGetResponse",
+          "typeName": "camelcase.HTTPGetResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "body",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "CamelCaseService",
+          "typeName": "camelcase.CamelCaseService",
+          "methods": [
+            {
+              "name": "GetUser",
+              "input": "GetUserRequest",
+              "output": "GetUserResponse",
+              "I": "camelcase.GetUserRequest",
+              "O": "camelcase.GetUserResponse"
+            },
+            {
+              "name": "listItems",
+              "input": "ListItemsRequest",
+              "output": "ListItemsResponse",
+              "I": "camelcase.ListItemsRequest",
+              "O": "camelcase.ListItemsResponse"
+            },
+            {
+              "name": "CreateOrUpdate",
+              "input": "CreateOrUpdateRequest",
+              "output": "CreateOrUpdateResponse",
+              "I": "camelcase.CreateOrUpdateRequest",
+              "O": "camelcase.CreateOrUpdateResponse"
+            },
+            {
+              "name": "HTTPGet",
+              "input": "HTTPGetRequest",
+              "output": "HTTPGetResponse",
+              "I": "camelcase.HTTPGetRequest",
+              "O": "camelcase.HTTPGetResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "CamelCaseFields",
+          "text": "/** Test fields that are already camelCase */\nexport interface CamelCaseFields {\n    firstName: string;\n    lastName: string;\n    emailAddress: string;\n    userId: number;\n    isActive: boolean;\n    fullName: string;\n}",
+          "references": []
+        },
+        {
+          "name": "MixedCase",
+          "text": "/** Test mixed snake_case and camelCase */\nexport interface MixedCase {\n    snakeCase: string;\n    camelCase: string;\n    pascalCase: string;\n    sCREAMINGSNAKE: string;\n    mixedWithUnderscores: string;\n}",
+          "references": []
+        },
+        {
+          "name": "CamelCaseEdgeCases",
+          "text": "/** Test edge cases in camelCase conversion */\nexport interface CamelCaseEdgeCases {\n    /** Numbers after underscore Should be field1value */\n    field1Value: string;\n    /** Should be field2Value */\n    field2Value: string;\n    /** Multiple consecutive underscores */\n    fieldName: string;\n    /** Leading/trailing underscores */\n    Private: string;\n    trailing: string;\n    /** All caps with underscores */\n    hTTPURL: string;\n    aPIKEY: string;\n    /** Mixed case combinations */\n    getHTTPResponseCode: string;\n    uRLPath: string;\n    xmlHTTPRequest: string;\n    /** Single character segments */\n    aBC: string;\n    x1Y2Z3: string;\n}",
+          "references": []
+        },
+        {
+          "name": "JsonNameOverride",
+          "text": "/** Test jsonName override */\nexport interface JsonNameOverride {\n    weirdName: string;\n    custom: string;\n    overrideField: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetUserRequest",
+          "text": "export interface GetUserRequest {\n    userId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetUserResponse",
+          "text": "export interface GetUserResponse {\n    userName: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ListItemsRequest",
+          "text": "export interface ListItemsRequest {\n    pageSize: number;\n}",
+          "references": []
+        },
+        {
+          "name": "ListItemsResponse",
+          "text": "export interface ListItemsResponse {\n    items: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "CreateOrUpdateRequest",
+          "text": "export interface CreateOrUpdateRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateOrUpdateResponse",
+          "text": "export interface CreateOrUpdateResponse {\n    created: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "HTTPGetRequest",
+          "text": "export interface HTTPGetRequest {\n    url: string;\n}",
+          "references": []
+        },
+        {
+          "name": "HTTPGetResponse",
+          "text": "export interface HTTPGetResponse {\n    body: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

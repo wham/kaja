@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "OptionalOption",
+          "typeName": "test.OptionalOption",
+          "fields": [
+            {
+              "no": 1,
+              "name": "count",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "label",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Bar",
+          "typeName": "test.Bar",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.opt_info": {
+                  "count": 0,
+                  "label": ""
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "OptionalOption",
+          "text": "/** Proto2 optional fields set to their default values. protobuf-ts toJson() INCLUDES these because field.opt=true → ed=true. The Go plugin's isDefaultValue filters them out incorrectly. */\nexport interface OptionalOption {\n    count?: number;\n    label?: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Bar",
+          "text": "export interface Bar {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

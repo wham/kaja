@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SpecialNames",
+          "typeName": "test.SpecialNames",
+          "fields": [
+            {
+              "no": 1,
+              "name": "normal",
+              "kind": "scalar",
+              "jsonName": "myNormal",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "with_quote",
+              "kind": "scalar",
+              "jsonName": "has\"quote",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "with_slash",
+              "kind": "scalar",
+              "jsonName": "has\\slash",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SpecialNames",
+          "text": "export interface SpecialNames {\n    normal: string;\n    withQuote: string;\n    withSlash: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

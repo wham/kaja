@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ConstructorOptional",
+          "typeName": "test.ConstructorOptional",
+          "fields": [
+            {
+              "no": 1,
+              "name": "constructor",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ConstructorOptional",
+          "text": "export interface ConstructorOptional {\n    constructor?: string;\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

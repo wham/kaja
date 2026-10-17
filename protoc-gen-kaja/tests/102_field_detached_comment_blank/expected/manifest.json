@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyMessage",
+          "text": "/** Tests that field-level detached comments with blank lines use the correct formatting: - blank line within a detached block should be \"// \" (with trailing space) - separator between detached blocks sho… */\nexport interface MyMessage {\n    /** Name of the entity. */\n    name: string;\n    /** Regular field. */\n    age: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

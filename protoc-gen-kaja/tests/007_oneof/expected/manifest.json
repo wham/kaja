@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "oneof.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Payload",
+          "typeName": "oneof.Payload",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Event",
+          "typeName": "oneof.Event",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "body",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "body",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "flag",
+              "kind": "scalar",
+              "oneof": "body",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "payload",
+              "kind": "message",
+              "oneof": "body",
+              "T": "oneof.Payload"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Payload",
+          "text": "export interface Payload {\n    text: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Event",
+          "text": "export interface Event {\n    id: string;\n    body: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: \"flag\";\n        flag: boolean;\n    } | {\n        oneofKind: \"payload\";\n        payload: Payload;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "Payload"
+          ]
+        }
+      ]
+    }
+  ]
+}

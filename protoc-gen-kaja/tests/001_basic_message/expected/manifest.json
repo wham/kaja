@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "basic_message.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Person",
+          "typeName": "Person",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Address",
+          "typeName": "Address",
+          "fields": [
+            {
+              "no": 1,
+              "name": "street",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "city",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "country",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "zip_code",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Person",
+          "text": "export interface Person {\n    name: string;\n    age: number;\n    email: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Address",
+          "text": "export interface Address {\n    street: string;\n    city: string;\n    country: string;\n    zipCode: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

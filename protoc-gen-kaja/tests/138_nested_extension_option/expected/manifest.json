@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Extensions",
+          "typeName": "test.Extensions",
+          "fields": []
+        },
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.Extensions.searchable": true
+              }
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.Extensions.resource_name": "users"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Extensions",
+          "text": "export interface Extensions {}",
+          "references": []
+        },
+        {
+          "name": "User",
+          "text": "export interface User {\n    name: string;\n    email: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

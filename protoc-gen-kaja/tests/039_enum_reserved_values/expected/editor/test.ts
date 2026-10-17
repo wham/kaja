@@ -1,0 +1,21 @@
+/**
+ * Enum with reserved TypeScript names as values
+ */
+export enum Status {
+    /**
+     * TypeScript reserved keyword
+     */
+    default = 0,
+    /**
+     * Another reserved word
+     */
+    typeof = 1,
+    /**
+     * Reserved type name
+     */
+    Array = 2,
+    /**
+     * Normal value
+     */
+    ACTIVE = 3,
+}

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Test",
+          "typeName": "test.Test",
+          "fields": [
+            {
+              "no": 1,
+              "name": "option_a",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "option_b",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "other",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Test",
+          "text": "export interface Test {\n    /** Leading comment for the oneof group Multiple lines here */\n    choice: {\n        oneofKind: \"optionA\";\n        optionA: string;\n    } | {\n        oneofKind: \"optionB\";\n        optionB: number;\n    } | {\n        oneofKind: undefined;\n    };\n    /** Trailing comment stays outside */\n    other: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

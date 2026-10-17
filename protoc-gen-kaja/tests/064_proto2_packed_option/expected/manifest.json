@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "PackedTest",
+          "typeName": "proto2.packed.PackedTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "default_unpacked",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "explicitly_packed",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "explicitly_unpacked",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "packed_int64",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 3
+            },
+            {
+              "no": 5,
+              "name": "packed_bool",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 8
+            },
+            {
+              "no": 6,
+              "name": "packed_fixed",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 7
+            },
+            {
+              "no": 7,
+              "name": "unpacked_int64",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 3
+            },
+            {
+              "no": 8,
+              "name": "unpacked_bool",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 8
+            },
+            {
+              "no": 9,
+              "name": "unpacked_fixed",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 7
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "PackedTest",
+          "text": "/** Test that proto2 packed option is respected */\nexport interface PackedTest {\n    /** In proto2, repeated numeric fields are unpacked by default */\n    defaultUnpacked: number[];\n    /** Explicitly packed in proto2 */\n    explicitlyPacked: number[];\n    /** Explicitly unpacked (even though it's the default) */\n    explicitlyUnpacked: number[];\n    /** Various types with explicit packing */\n    packedInt64: string[];\n    packedBool: boolean[];\n    packedFixed: number[];\n    /** Unpacked versions */\n    unpackedInt64: string[];\n    unpackedBool: boolean[];\n    unpackedFixed: number[];\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

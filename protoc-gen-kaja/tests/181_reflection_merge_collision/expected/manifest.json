@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "reflectionMergePartial",
+          "typeName": "test.reflectionMergePartial",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "message",
+              "T": "test.reflectionMergePartial"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "reflectionMergePartial",
+          "text": "export interface reflectionMergePartial {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "User",
+          "text": "export interface User {\n    data?: reflectionMergePartial;\n}",
+          "references": [
+            "reflectionMergePartial"
+          ]
+        }
+      ]
+    }
+  ]
+}

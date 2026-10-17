@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyOption",
+          "typeName": "test.MyOption",
+          "fields": [
+            {
+              "no": 1,
+              "name": "count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.my_opt": {}
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyOption",
+          "text": "export interface MyOption {\n    count: number;\n    label: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Foo",
+          "text": "export interface Foo {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

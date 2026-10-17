@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "BinaryReadOptions",
+          "typeName": "test.BinaryReadOptions",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "level",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "opts",
+              "kind": "message",
+              "T": "test.BinaryReadOptions"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "BinaryReadOptions",
+          "text": "/** A message that collides with the runtime import type BinaryReadOptions. */\nexport interface BinaryReadOptions {\n    name: string;\n    level: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    opts?: BinaryReadOptions;\n}",
+          "references": [
+            "BinaryReadOptions"
+          ]
+        }
+      ]
+    }
+  ]
+}

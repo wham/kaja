@@ -1,0 +1,135 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "NanFloat",
+          "typeName": "test.NanFloat",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_float": "NaN"
+          }
+        },
+        {
+          "name": "InfFloat",
+          "typeName": "test.InfFloat",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_float": "Infinity"
+          }
+        },
+        {
+          "name": "NegInfFloat",
+          "typeName": "test.NegInfFloat",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_float": "-Infinity"
+          }
+        },
+        {
+          "name": "NanDouble",
+          "typeName": "test.NanDouble",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_double": "NaN"
+          }
+        },
+        {
+          "name": "InfDouble",
+          "typeName": "test.InfDouble",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_double": "Infinity"
+          }
+        },
+        {
+          "name": "NegInfDouble",
+          "typeName": "test.NegInfDouble",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.special_double": "-Infinity"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "NanFloat",
+          "text": "export interface NanFloat {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "InfFloat",
+          "text": "export interface InfFloat {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "NegInfFloat",
+          "text": "export interface NegInfFloat {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "NanDouble",
+          "text": "export interface NanDouble {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "InfDouble",
+          "text": "export interface InfDouble {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "NegInfDouble",
+          "text": "export interface NegInfDouble {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

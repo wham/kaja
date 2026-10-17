@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/empty.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Empty",
+          "typeName": "google.protobuf.Empty",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Empty",
+          "text": "/** A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance:… */\nexport interface Empty {}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "EmptyService",
+          "typeName": "test.EmptyService",
+          "methods": []
+        },
+        {
+          "name": "SmallService",
+          "typeName": "test.SmallService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "Empty",
+              "output": "Empty",
+              "I": "google.protobuf.Empty",
+              "O": "google.protobuf.Empty"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

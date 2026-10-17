@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "object$",
+          "typeName": "test.object",
+          "fields": [
+            {
+              "no": 1,
+              "name": "bar",
+              "kind": "message",
+              "T": "test.object.Bar"
+            }
+          ]
+        },
+        {
+          "name": "object_Bar",
+          "typeName": "test.object.Bar",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "object_Bar$1",
+          "typeName": "test.object_Bar",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "object$",
+          "text": "export interface object$ {\n    bar?: object_Bar;\n}",
+          "references": [
+            "object_Bar"
+          ]
+        },
+        {
+          "name": "object_Bar",
+          "text": "export interface object_Bar {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "object_Bar$1",
+          "text": "export interface object_Bar$1 {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

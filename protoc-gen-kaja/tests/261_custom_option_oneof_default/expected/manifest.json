@@ -1,0 +1,102 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ChoiceOption",
+          "typeName": "test.ChoiceOption",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "flag",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "alpha",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.choice_opt": {
+                  "text": "hello"
+                }
+              }
+            },
+            {
+              "no": 2,
+              "name": "beta",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.choice_opt": {
+                  "text": ""
+                }
+              }
+            },
+            {
+              "no": 3,
+              "name": "gamma",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.choice_opt": {
+                  "number": 0
+                }
+              }
+            },
+            {
+              "no": 4,
+              "name": "delta",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.choice_opt": {
+                  "flag": false
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ChoiceOption",
+          "text": "export interface ChoiceOption {\n    choice: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: \"flag\";\n        flag: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "Foo",
+          "text": "export interface Foo {\n    /** Non-default oneof value (control case — both plugins should include it) */\n    alpha: string;\n    /** Oneof string set to empty string (default for string) */\n    beta: string;\n    /** Oneof int32 set to 0 (default for int32) */\n    gamma: string;\n    /** Oneof bool set to false (default for bool) */\n    delta: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

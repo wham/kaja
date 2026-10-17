@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "data",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "data",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Msg_MyGroup",
+          "typeName": "test.Msg.MyGroup",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "count",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "/** Message with a group inside a oneof */\nexport interface Msg {\n    data: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        },
+        {
+          "name": "Msg_MyGroup",
+          "text": "export interface Msg_MyGroup {\n    title?: string;\n    count?: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

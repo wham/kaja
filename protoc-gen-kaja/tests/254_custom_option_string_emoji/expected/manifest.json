@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMsg",
+          "typeName": "test.TestMsg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.emoji_label": "🎉"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMsg",
+          "text": "/** Tests that supplementary plane characters (above U+FFFF) in custom option strings are escaped as surrogate pairs (\\uD83C\\uDF89) matching the TS compiler, not as ES2015 \\u{1F389} which the Go plugin pr… */\nexport interface TestMsg {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

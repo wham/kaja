@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "map_fields.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Value",
+          "typeName": "Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "MapContainer",
+          "typeName": "MapContainer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "string_map",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "counts",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 5
+              }
+            },
+            {
+              "no": 3,
+              "name": "index",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 4,
+              "name": "objects",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "Value"
+              }
+            },
+            {
+              "no": 5,
+              "name": "flags",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 8
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Value",
+          "text": "export interface Value {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "MapContainer",
+          "text": "export interface MapContainer {\n    stringMap: { [key: string]: string };\n    counts: { [key: string]: number };\n    index: { [key: number]: string };\n    objects: { [key: string]: Value };\n    flags: { [key: string]: boolean };\n}",
+          "references": [
+            "Value"
+          ]
+        }
+      ]
+    }
+  ]
+}

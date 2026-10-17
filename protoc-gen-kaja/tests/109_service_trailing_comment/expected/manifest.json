@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "service_trailing.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Req",
+          "typeName": "test.Req",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Res",
+          "typeName": "test.Res",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "test.MyService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "Req",
+              "output": "Res",
+              "I": "test.Req",
+              "O": "test.Res",
+              "doc": "Leading comment on method Trailing comment on method"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Req",
+          "text": "export interface Req {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Res",
+          "text": "export interface Res {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

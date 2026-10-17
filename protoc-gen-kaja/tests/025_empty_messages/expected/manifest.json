@@ -1,0 +1,202 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "empty.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "EmptyMessage",
+          "typeName": "empty.EmptyMessage",
+          "fields": []
+        },
+        {
+          "name": "OnlyReserved",
+          "typeName": "empty.OnlyReserved",
+          "fields": []
+        },
+        {
+          "name": "Request",
+          "typeName": "empty.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "empty.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "empty.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "empty",
+              "kind": "message",
+              "T": "empty.Container.Empty"
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container_Empty",
+          "typeName": "empty.Container.Empty",
+          "fields": []
+        },
+        {
+          "name": "MapWithEmpty",
+          "typeName": "empty.MapWithEmpty",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "empty.EmptyMessage"
+              }
+            }
+          ]
+        },
+        {
+          "name": "RepeatedEmpty",
+          "typeName": "empty.RepeatedEmpty",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "empty.EmptyMessage"
+            }
+          ]
+        },
+        {
+          "name": "OneofWithEmpty",
+          "typeName": "empty.OneofWithEmpty",
+          "fields": [
+            {
+              "no": 1,
+              "name": "empty",
+              "kind": "message",
+              "oneof": "value",
+              "T": "empty.EmptyMessage"
+            },
+            {
+              "no": 2,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "EmptyService",
+          "typeName": "empty.EmptyService",
+          "methods": [
+            {
+              "name": "DoNothing",
+              "input": "EmptyMessage",
+              "output": "EmptyMessage",
+              "I": "empty.EmptyMessage",
+              "O": "empty.EmptyMessage"
+            },
+            {
+              "name": "SendEmpty",
+              "input": "Request",
+              "output": "EmptyMessage",
+              "I": "empty.Request",
+              "O": "empty.EmptyMessage"
+            },
+            {
+              "name": "ReceiveEmpty",
+              "input": "EmptyMessage",
+              "output": "Response",
+              "I": "empty.EmptyMessage",
+              "O": "empty.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "EmptyMessage",
+          "text": "/** Empty message (no fields) */\nexport interface EmptyMessage {}",
+          "references": []
+        },
+        {
+          "name": "OnlyReserved",
+          "text": "/** Message with only reserved fields */\nexport interface OnlyReserved {}",
+          "references": []
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Nested empty messages */\nexport interface Container {\n    empty?: Container_Empty;\n    value: string;\n}",
+          "references": [
+            "Container_Empty"
+          ]
+        },
+        {
+          "name": "Container_Empty",
+          "text": "export interface Container_Empty {}",
+          "references": []
+        },
+        {
+          "name": "MapWithEmpty",
+          "text": "/** Map with empty message value */\nexport interface MapWithEmpty {\n    data: { [key: string]: EmptyMessage };\n}",
+          "references": [
+            "EmptyMessage"
+          ]
+        },
+        {
+          "name": "RepeatedEmpty",
+          "text": "/** Repeated empty messages */\nexport interface RepeatedEmpty {\n    items: EmptyMessage[];\n}",
+          "references": [
+            "EmptyMessage"
+          ]
+        },
+        {
+          "name": "OneofWithEmpty",
+          "text": "/** Oneof with empty message */\nexport interface OneofWithEmpty {\n    value: {\n        oneofKind: \"empty\";\n        empty: EmptyMessage;\n    } | {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "EmptyMessage"
+          ]
+        }
+      ]
+    }
+  ]
+}

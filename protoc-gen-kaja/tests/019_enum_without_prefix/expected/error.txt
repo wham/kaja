@@ -1,0 +1,2 @@
+no_prefix.proto:27:3: "PENDING" is already defined in "no_prefix".
+no_prefix.proto:27:3: Note that enum values use C++ scoping rules, meaning that enum values are siblings of their type, not children of it.  Therefore, "PENDING" must be unique within "no_prefix", not just within "MixedPrefix".

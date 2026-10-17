@@ -1,0 +1,492 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/any.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Any",
+          "typeName": "google.protobuf.Any",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type_url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Any",
+          "text": "/** `Any` contains an arbitrary serialized protocol buffer message along with a URL that describes the type of the serialized message. In its binary encoding, an `Any` is an ordinary message; but in other… */\nexport interface Any {\n    /** Identifies the type of the serialized Protobuf message with a URI reference consisting of a prefix ending in a slash and the fully-qualified type name. Example: type.googleapis.com/google.protobuf.Str… */\n    typeUrl: string;\n    /** Holds a Protobuf serialization of the type described by type_url. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/source_context.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SourceContext",
+          "typeName": "google.protobuf.SourceContext",
+          "fields": [
+            {
+              "no": 1,
+              "name": "file_name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SourceContext",
+          "text": "/** `SourceContext` represents information about the source of a protobuf element, like the file in which it is defined. */\nexport interface SourceContext {\n    /** The path-qualified name of the .proto file that contained the associated protobuf element. For example: `\"google/protobuf/source_context.proto\"`. */\n    fileName: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/type.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Type",
+          "typeName": "google.protobuf.Type",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "fields",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Field"
+            },
+            {
+              "no": 3,
+              "name": "oneofs",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "options",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Option"
+            },
+            {
+              "no": 5,
+              "name": "source_context",
+              "kind": "message",
+              "T": "google.protobuf.SourceContext"
+            },
+            {
+              "no": 6,
+              "name": "syntax",
+              "kind": "enum",
+              "T": "google.protobuf.Syntax"
+            },
+            {
+              "no": 7,
+              "name": "edition",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Field",
+          "typeName": "google.protobuf.Field",
+          "fields": [
+            {
+              "no": 1,
+              "name": "kind",
+              "kind": "enum",
+              "T": "google.protobuf.Field.Kind"
+            },
+            {
+              "no": 2,
+              "name": "cardinality",
+              "kind": "enum",
+              "T": "google.protobuf.Field.Cardinality"
+            },
+            {
+              "no": 3,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "type_url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "oneof_index",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 8,
+              "name": "packed",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 9,
+              "name": "options",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Option"
+            },
+            {
+              "no": 10,
+              "name": "json_name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "default_value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Enum",
+          "typeName": "google.protobuf.Enum",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "enumvalue",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.EnumValue"
+            },
+            {
+              "no": 3,
+              "name": "options",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Option"
+            },
+            {
+              "no": 4,
+              "name": "source_context",
+              "kind": "message",
+              "T": "google.protobuf.SourceContext"
+            },
+            {
+              "no": 5,
+              "name": "syntax",
+              "kind": "enum",
+              "T": "google.protobuf.Syntax"
+            },
+            {
+              "no": 6,
+              "name": "edition",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "EnumValue",
+          "typeName": "google.protobuf.EnumValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "options",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Option"
+            }
+          ]
+        },
+        {
+          "name": "Option",
+          "typeName": "google.protobuf.Option",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "message",
+              "T": "google.protobuf.Any"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Field_Kind",
+          "typeName": "google.protobuf.Field.Kind",
+          "values": [
+            [
+              "TYPE_UNKNOWN",
+              0
+            ],
+            [
+              "TYPE_DOUBLE",
+              1
+            ],
+            [
+              "TYPE_FLOAT",
+              2
+            ],
+            [
+              "TYPE_INT64",
+              3
+            ],
+            [
+              "TYPE_UINT64",
+              4
+            ],
+            [
+              "TYPE_INT32",
+              5
+            ],
+            [
+              "TYPE_FIXED64",
+              6
+            ],
+            [
+              "TYPE_FIXED32",
+              7
+            ],
+            [
+              "TYPE_BOOL",
+              8
+            ],
+            [
+              "TYPE_STRING",
+              9
+            ],
+            [
+              "TYPE_GROUP",
+              10
+            ],
+            [
+              "TYPE_MESSAGE",
+              11
+            ],
+            [
+              "TYPE_BYTES",
+              12
+            ],
+            [
+              "TYPE_UINT32",
+              13
+            ],
+            [
+              "TYPE_ENUM",
+              14
+            ],
+            [
+              "TYPE_SFIXED32",
+              15
+            ],
+            [
+              "TYPE_SFIXED64",
+              16
+            ],
+            [
+              "TYPE_SINT32",
+              17
+            ],
+            [
+              "TYPE_SINT64",
+              18
+            ]
+          ]
+        },
+        {
+          "name": "Field_Cardinality",
+          "typeName": "google.protobuf.Field.Cardinality",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "OPTIONAL",
+              1
+            ],
+            [
+              "REQUIRED",
+              2
+            ],
+            [
+              "REPEATED",
+              3
+            ]
+          ],
+          "prefix": "CARDINALITY_"
+        },
+        {
+          "name": "Syntax",
+          "typeName": "google.protobuf.Syntax",
+          "values": [
+            [
+              "PROTO2",
+              0
+            ],
+            [
+              "PROTO3",
+              1
+            ],
+            [
+              "EDITIONS",
+              2
+            ]
+          ],
+          "prefix": "SYNTAX_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Type",
+          "text": "/** A protocol buffer message type. New usages of this message as an alternative to DescriptorProto are strongly discouraged. This message does not reliability preserve all information necessary to model… */\nexport interface Type {\n    /** The fully qualified message name. */\n    name: string;\n    /** The list of fields. */\n    fields: Field[];\n    /** The list of types appearing in `oneof` definitions in this type. */\n    oneofs: string[];\n    /** The protocol buffer options. */\n    options: Option[];\n    /** The source context. */\n    sourceContext?: SourceContext;\n    /** The source syntax. */\n    syntax: Syntax;\n    /** The source edition string, only valid when syntax is SYNTAX_EDITIONS. */\n    edition: string;\n}",
+          "references": [
+            "Field",
+            "Option",
+            "SourceContext",
+            "Syntax"
+          ]
+        },
+        {
+          "name": "Field",
+          "text": "/** A single field of a message type. New usages of this message as an alternative to FieldDescriptorProto are strongly discouraged. This message does not reliability preserve all information necessary to… */\nexport interface Field {\n    /** The field type. */\n    kind: Field_Kind;\n    /** The field cardinality. */\n    cardinality: Field_Cardinality;\n    /** The field number. */\n    number: number;\n    /** The field name. */\n    name: string;\n    /** The field type URL, without the scheme, for message or enumeration types. Example: `\"type.googleapis.com/google.protobuf.Timestamp\"`. */\n    typeUrl: string;\n    /** The index of the field type in `Type.oneofs`, for message or enumeration types. The first type has index 1; zero means the type is not in the list. */\n    oneofIndex: number;\n    /** Whether to use alternative packed wire representation. */\n    packed: boolean;\n    /** The protocol buffer options. */\n    options: Option[];\n    /** The field JSON name. */\n    jsonName: string;\n    /** The string value of the default value of this field. Proto2 syntax only. */\n    defaultValue: string;\n}",
+          "references": [
+            "Field_Kind",
+            "Field_Cardinality",
+            "Option"
+          ]
+        },
+        {
+          "name": "Enum",
+          "text": "/** Enum type definition. New usages of this message as an alternative to EnumDescriptorProto are strongly discouraged. This message does not reliability preserve all information necessary to model the sc… */\nexport interface Enum {\n    /** Enum type name. */\n    name: string;\n    /** Enum value definitions. */\n    enumvalue: EnumValue[];\n    /** Protocol buffer options. */\n    options: Option[];\n    /** The source context. */\n    sourceContext?: SourceContext;\n    /** The source syntax. */\n    syntax: Syntax;\n    /** The source edition string, only valid when syntax is SYNTAX_EDITIONS. */\n    edition: string;\n}",
+          "references": [
+            "EnumValue",
+            "Option",
+            "SourceContext",
+            "Syntax"
+          ]
+        },
+        {
+          "name": "EnumValue",
+          "text": "/** Enum value definition. New usages of this message as an alternative to EnumValueDescriptorProto are strongly discouraged. This message does not reliability preserve all information necessary to model… */\nexport interface EnumValue {\n    /** Enum value name. */\n    name: string;\n    /** Enum value number. */\n    number: number;\n    /** Protocol buffer options. */\n    options: Option[];\n}",
+          "references": [
+            "Option"
+          ]
+        },
+        {
+          "name": "Option",
+          "text": "/** A protocol buffer option, which can be attached to a message, field, enumeration, etc. New usages of this message as an alternative to FileOptions, MessageOptions, FieldOptions, EnumOptions, EnumValue… */\nexport interface Option {\n    /** The option's name. For protobuf built-in options (options defined in descriptor.proto), this is the short name. For example, `\"map_entry\"`. For custom options, it should be the fully-qualified name. F… */\n    name: string;\n    /** The option's value packed in an Any message. If the value is a primitive, the corresponding wrapper type defined in google/protobuf/wrappers.proto should be used. If the value is an enum, it should be… */\n    value?: Any;\n}",
+          "references": [
+            "Any"
+          ]
+        },
+        {
+          "name": "Field_Kind",
+          "text": "/** Basic field types. */\nexport enum Field_Kind {\n    TYPE_UNKNOWN = 0,\n    TYPE_DOUBLE = 1,\n    TYPE_FLOAT = 2,\n    TYPE_INT64 = 3,\n    TYPE_UINT64 = 4,\n    TYPE_INT32 = 5,\n    TYPE_FIXED64 = 6,\n    TYPE_FIXED32 = 7,\n    TYPE_BOOL = 8,\n    TYPE_STRING = 9,\n    TYPE_GROUP = 10,\n    TYPE_MESSAGE = 11,\n    TYPE_BYTES = 12,\n    TYPE_UINT32 = 13,\n    TYPE_ENUM = 14,\n    TYPE_SFIXED32 = 15,\n    TYPE_SFIXED64 = 16,\n    TYPE_SINT32 = 17,\n    TYPE_SINT64 = 18,\n}",
+          "references": []
+        },
+        {
+          "name": "Field_Cardinality",
+          "text": "/** Whether a field is optional, required, or repeated. */\nexport enum Field_Cardinality {\n    UNKNOWN = 0,\n    OPTIONAL = 1,\n    REQUIRED = 2,\n    REPEATED = 3,\n}",
+          "references": []
+        },
+        {
+          "name": "Syntax",
+          "text": "/** The syntax in which a protocol buffer element is defined. */\nexport enum Syntax {\n    PROTO2 = 0,\n    PROTO3 = 1,\n    EDITIONS = 2,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type_field",
+              "kind": "message",
+              "T": "google.protobuf.Type"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "export interface Msg {\n    typeField?: Type;\n}",
+          "references": [
+            "Type"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "nested_messages.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "nested.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "middle",
+              "kind": "message",
+              "T": "nested.Outer.Middle"
+            },
+            {
+              "no": 2,
+              "name": "status",
+              "kind": "enum",
+              "T": "nested.Outer.Status"
+            },
+            {
+              "no": 3,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Outer_Middle",
+          "typeName": "nested.Outer.Middle",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "nested.Outer.Middle.Inner"
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "typeName": "nested.Outer.Middle.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Outer_Status",
+          "typeName": "nested.Outer.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "export interface Outer {\n    middle?: Outer_Middle;\n    status: Outer_Status;\n    label: string;\n}",
+          "references": [
+            "Outer_Middle",
+            "Outer_Status"
+          ]
+        },
+        {
+          "name": "Outer_Middle",
+          "text": "export interface Outer_Middle {\n    inner?: Outer_Middle_Inner;\n    name: string;\n}",
+          "references": [
+            "Outer_Middle_Inner"
+          ]
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "text": "export interface Outer_Middle_Inner {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Outer_Status",
+          "text": "export enum Outer_Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

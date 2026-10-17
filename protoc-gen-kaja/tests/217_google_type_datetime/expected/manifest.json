@@ -1,0 +1,141 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/duration.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Duration",
+          "typeName": "google.protobuf.Duration",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Duration",
+          "text": "/** A Duration represents a signed, fixed-length span of time represented as a count of seconds and fractions of seconds at nanosecond resolution. It is independent of any calendar and concepts like \"day\"… */\nexport interface Duration {\n    /** Signed seconds of the span of time. Must be from -315,576,000,000 to +315,576,000,000 inclusive. Note: these bounds are computed from: 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 yea… */\n    seconds: string;\n    /** Signed fractions of a second at nanosecond resolution of the span of time. Durations less than one second are represented with a 0 `seconds` field and a positive or negative `nanos` field. For duratio… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DateTime",
+          "typeName": "google.type.DateTime",
+          "fields": [
+            {
+              "no": 1,
+              "name": "year",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "month",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "day",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "hours",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "minutes",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 6,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 7,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 8,
+              "name": "utc_offset",
+              "kind": "message",
+              "oneof": "timeOffset",
+              "T": "google.protobuf.Duration"
+            },
+            {
+              "no": 9,
+              "name": "time_zone",
+              "kind": "message",
+              "oneof": "timeOffset",
+              "T": "google.type.TimeZone"
+            }
+          ]
+        },
+        {
+          "name": "TimeZone",
+          "typeName": "google.type.TimeZone",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "version",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DateTime",
+          "text": "/** Represents civil time. */\nexport interface DateTime {\n    /** Year of date. */\n    year: number;\n    /** Month of year. */\n    month: number;\n    /** Day of month. */\n    day: number;\n    /** Hours of day in 24 hour format. */\n    hours: number;\n    /** Minutes of hour of day. */\n    minutes: number;\n    /** Seconds of minutes of the time. */\n    seconds: number;\n    /** Fractions of seconds in nanoseconds. */\n    nanos: number;\n    /** UTC offset or time zone. */\n    timeOffset: {\n        oneofKind: \"utcOffset\";\n        utcOffset: Duration;\n    } | {\n        oneofKind: \"timeZone\";\n        timeZone: TimeZone;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "Duration",
+            "TimeZone"
+          ]
+        },
+        {
+          "name": "TimeZone",
+          "text": "/** Represents a time zone from the IANA Time Zone Database. */\nexport interface TimeZone {\n    /** IANA Time Zone Database time zone. */\n    id: string;\n    /** IANA Time Zone Database version number. */\n    version: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

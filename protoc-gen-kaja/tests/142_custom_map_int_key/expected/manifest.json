@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MapConfig",
+          "typeName": "test.MapConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "int_map",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "bool_map",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.map_config": {
+              "intMap": {
+                "1": "one",
+                "2": "two"
+              },
+              "boolMap": {
+                "true": "yes",
+                "false": "no"
+              }
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MapConfig",
+          "text": "export interface MapConfig {\n    intMap: { [key: number]: string };\n    boolMap: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "MyMessage",
+          "text": "export interface MyMessage {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

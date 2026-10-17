@@ -1,0 +1,171 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/struct.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Struct",
+          "typeName": "google.protobuf.Struct",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fields",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "google.protobuf.Value"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Value",
+          "typeName": "google.protobuf.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "null_value",
+              "kind": "enum",
+              "oneof": "kind",
+              "T": "google.protobuf.NullValue"
+            },
+            {
+              "no": 2,
+              "name": "number_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 1
+            },
+            {
+              "no": 3,
+              "name": "string_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "bool_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "struct_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "list_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.ListValue"
+            }
+          ]
+        },
+        {
+          "name": "ListValue",
+          "typeName": "google.protobuf.ListValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "values",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Value"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "NullValue",
+          "typeName": "google.protobuf.NullValue",
+          "values": [
+            [
+              "NULL_VALUE",
+              0
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Struct",
+          "text": "/** Represents a JSON object. An unordered key-value map, intending to perfectly capture the semantics of a JSON object. This enables parsing any arbitrary JSON payload as a message field in ProtoJSON for… */\nexport interface Struct {\n    /** Unordered map of dynamically typed values. */\n    fields: { [key: string]: Value };\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "Value",
+          "text": "/** Represents a JSON value. `Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is exp… */\nexport interface Value {\n    /** The kind of value. */\n    kind: {\n        oneofKind: \"nullValue\";\n        nullValue: NullValue;\n    } | {\n        oneofKind: \"numberValue\";\n        numberValue: number;\n    } | {\n        oneofKind: \"stringValue\";\n        stringValue: string;\n    } | {\n        oneofKind: \"boolValue\";\n        boolValue: boolean;\n    } | {\n        oneofKind: \"structValue\";\n        structValue: Struct;\n    } | {\n        oneofKind: \"listValue\";\n        listValue: ListValue;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "NullValue",
+            "Struct",
+            "ListValue"
+          ]
+        },
+        {
+          "name": "ListValue",
+          "text": "/** Represents a JSON array. */\nexport interface ListValue {\n    /** Repeated field of dynamically typed values. */\n    values: Value[];\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "NullValue",
+          "text": "/** Represents a JSON `null`. `NullValue` is a sentinel, using an enum with only one value to represent the null value for the `Value` type union. A field of type `NullValue` with any value other than `0`… */\nexport enum NullValue {\n    NULL_VALUE = 0,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "values",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "google.protobuf.Value"
+              }
+            },
+            {
+              "no": 2,
+              "name": "data",
+              "kind": "message",
+              "T": "google.protobuf.Struct"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Foo",
+          "text": "/** Map field referencing Value appears BEFORE a regular field referencing Struct. Both types are from the same import file. The import order should follow field order: Value first, then Struct. */\nexport interface Foo {\n    values: { [key: string]: Value };\n    data?: Struct;\n}",
+          "references": [
+            "Value",
+            "Struct"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SearchRequest",
+          "typeName": "myservice.SearchRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "page",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "page_size",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "SearchResponse",
+          "typeName": "myservice.SearchResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "results",
+              "kind": "message",
+              "repeat": 2,
+              "T": "myservice.Result"
+            },
+            {
+              "no": 2,
+              "name": "total_count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Result",
+          "typeName": "myservice.Result",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "snippet",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetRequest",
+          "typeName": "myservice.GetRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetResponse",
+          "typeName": "myservice.GetResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "message",
+              "T": "myservice.Result"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "SearchService",
+          "typeName": "myservice.SearchService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "SearchRequest",
+              "output": "SearchResponse",
+              "I": "myservice.SearchRequest",
+              "O": "myservice.SearchResponse"
+            },
+            {
+              "name": "Get",
+              "input": "GetRequest",
+              "output": "GetResponse",
+              "I": "myservice.GetRequest",
+              "O": "myservice.GetResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "SearchRequest",
+          "text": "export interface SearchRequest {\n    query: string;\n    page: number;\n    pageSize: number;\n}",
+          "references": []
+        },
+        {
+          "name": "SearchResponse",
+          "text": "export interface SearchResponse {\n    results: Result[];\n    totalCount: number;\n}",
+          "references": [
+            "Result"
+          ]
+        },
+        {
+          "name": "Result",
+          "text": "export interface Result {\n    title: string;\n    url: string;\n    snippet: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetRequest",
+          "text": "export interface GetRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetResponse",
+          "text": "export interface GetResponse {\n    result?: Result;\n}",
+          "references": [
+            "Result"
+          ]
+        }
+      ]
+    }
+  ]
+}

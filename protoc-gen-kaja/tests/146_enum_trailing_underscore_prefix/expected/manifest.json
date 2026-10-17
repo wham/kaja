@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "enum_trailing_underscore.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.MyEnum_"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "MyEnum_",
+          "typeName": "test.MyEnum_",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "FOO",
+              1
+            ],
+            [
+              "BAR",
+              2
+            ]
+          ],
+          "prefix": "MY_ENUM__"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    status: MyEnum_;\n}",
+          "references": [
+            "MyEnum_"
+          ]
+        },
+        {
+          "name": "MyEnum_",
+          "text": "/** Enum with a trailing underscore in the name. The prefix detection algorithm should produce \"MY_ENUM__\" (double underscore) because the enum name \"MyEnum_\" converts to \"MY_ENUM_\" + trailing \"_\" = \"MY_E… */\nexport enum MyEnum_ {\n    UNSPECIFIED = 0,\n    FOO = 1,\n    BAR = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

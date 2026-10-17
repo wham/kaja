@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SecretDoc",
+          "typeName": "SecretDoc",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "visibility": "VISIBILITY_INTERNAL"
+          }
+        }
+      ],
+      "enums": [
+        {
+          "name": "Visibility",
+          "typeName": "Visibility",
+          "values": [
+            [
+              "PUBLIC",
+              0
+            ],
+            [
+              "PRIVATE",
+              1
+            ],
+            [
+              "INTERNAL",
+              2
+            ]
+          ],
+          "prefix": "VISIBILITY_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SecretDoc",
+          "text": "export interface SecretDoc {\n    title: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Visibility",
+          "text": "export enum Visibility {\n    PUBLIC = 0,\n    PRIVATE = 1,\n    INTERNAL = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

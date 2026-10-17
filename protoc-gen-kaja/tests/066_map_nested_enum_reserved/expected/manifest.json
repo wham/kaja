@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "arrays",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "enum",
+                "T": "test.Container.Array"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Container_Array",
+          "typeName": "test.Container.Array",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "FIRST",
+              1
+            ],
+            [
+              "SECOND",
+              2
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    /** Map using the nested enum as value */\n    arrays: { [key: string]: Container_Array };\n}",
+          "references": [
+            "Container_Array"
+          ]
+        },
+        {
+          "name": "Container_Array",
+          "text": "/** Nested enum with reserved type name */\nexport enum Container_Array {\n    UNKNOWN = 0,\n    FIRST = 1,\n    SECOND = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

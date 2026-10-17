@@ -1,0 +1,147 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "String$",
+          "typeName": "test.String",
+          "fields": []
+        },
+        {
+          "name": "String__",
+          "typeName": "test.String._",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Array$",
+          "typeName": "test.Array",
+          "fields": []
+        },
+        {
+          "name": "Array_Value",
+          "typeName": "test.Array.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Number$",
+          "typeName": "test.Number",
+          "fields": []
+        },
+        {
+          "name": "Number__",
+          "typeName": "test.Number._",
+          "fields": [
+            {
+              "no": 1,
+              "name": "x",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Boolean$",
+          "typeName": "test.Boolean",
+          "fields": []
+        },
+        {
+          "name": "Boolean_True",
+          "typeName": "test.Boolean.True",
+          "fields": []
+        },
+        {
+          "name": "Boolean_True__",
+          "typeName": "test.Boolean.True._",
+          "fields": [
+            {
+              "no": 1,
+              "name": "flag",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "Object",
+          "typeName": "test.Object",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "String$",
+              "output": "String$",
+              "I": "test.String",
+              "O": "test.String"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "String$",
+          "text": "/** This nested message should produce \"String_\" type after merging */\nexport interface String$ {}",
+          "references": []
+        },
+        {
+          "name": "String__",
+          "text": "export interface String__ {\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Array$",
+          "text": "/** This should produce \"Array_Value\" after merging (not reserved) */\nexport interface Array$ {}",
+          "references": []
+        },
+        {
+          "name": "Array_Value",
+          "text": "export interface Array_Value {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Number$",
+          "text": "/** This creates \"Number_\" after merging (reserved!) */\nexport interface Number$ {}",
+          "references": []
+        },
+        {
+          "name": "Number__",
+          "text": "export interface Number__ {\n    x: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Boolean$",
+          "text": "/** Test with deeply nested: \"Boolean_True_\" */\nexport interface Boolean$ {}",
+          "references": []
+        },
+        {
+          "name": "Boolean_True",
+          "text": "export interface Boolean_True {}",
+          "references": []
+        },
+        {
+          "name": "Boolean_True__",
+          "text": "export interface Boolean_True__ {\n    flag: boolean;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

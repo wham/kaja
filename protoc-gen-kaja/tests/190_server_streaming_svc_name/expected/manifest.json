@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": []
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "ServerStreamingCall",
+          "typeName": "test.ServerStreamingCall",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

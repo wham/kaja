@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "shared.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Metadata",
+          "typeName": "shared.Metadata",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "shared.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "OK",
+              1
+            ],
+            [
+              "ERROR",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Metadata",
+          "text": "export interface Metadata {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNKNOWN = 0,\n    OK = 1,\n    ERROR = 2,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "main.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "main.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "status",
+              "kind": "enum",
+              "T": "shared.Status"
+            },
+            {
+              "no": 3,
+              "name": "metadata",
+              "kind": "message",
+              "repeat": 2,
+              "T": "shared.Metadata"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    name: string;\n    status: Status;\n    metadata: Metadata[];\n}",
+          "references": [
+            "Status",
+            "Metadata"
+          ]
+        }
+      ]
+    }
+  ]
+}

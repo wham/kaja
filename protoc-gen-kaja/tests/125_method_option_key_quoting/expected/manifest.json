@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Req",
+          "typeName": "Req",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "column_name": "q"
+              }
+            }
+          ],
+          "options": {
+            "table_name": "requests"
+          }
+        },
+        {
+          "name": "Res",
+          "typeName": "Res",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyAPI",
+          "typeName": "MyAPI",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Req",
+              "output": "Res",
+              "I": "Req",
+              "O": "Res",
+              "options": {
+                "api_path": "/api/search",
+                "requires_auth": true
+              }
+            }
+          ],
+          "options": {
+            "api_version": "v2"
+          }
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Req",
+          "text": "export interface Req {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Res",
+          "text": "export interface Res {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

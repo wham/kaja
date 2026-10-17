@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "GetRequest",
+          "typeName": "idempotency.test.GetRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetResponse",
+          "typeName": "idempotency.test.GetResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UpdateRequest",
+          "typeName": "idempotency.test.UpdateRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UpdateResponse",
+          "typeName": "idempotency.test.UpdateResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "success",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "IdempotentService",
+          "typeName": "idempotency.test.IdempotentService",
+          "methods": [
+            {
+              "name": "Get",
+              "input": "GetRequest",
+              "output": "GetResponse",
+              "I": "idempotency.test.GetRequest",
+              "O": "idempotency.test.GetResponse",
+              "idempotency": "NO_SIDE_EFFECTS",
+              "doc": "Method with NO_SIDE_EFFECTS idempotency level"
+            },
+            {
+              "name": "Update",
+              "input": "UpdateRequest",
+              "output": "UpdateResponse",
+              "I": "idempotency.test.UpdateRequest",
+              "O": "idempotency.test.UpdateResponse",
+              "idempotency": "IDEMPOTENT",
+              "doc": "Method with IDEMPOTENT idempotency level"
+            },
+            {
+              "name": "Delete",
+              "input": "GetRequest",
+              "output": "UpdateResponse",
+              "I": "idempotency.test.GetRequest",
+              "O": "idempotency.test.UpdateResponse",
+              "doc": "Method with default (IDEMPOTENCY_UNKNOWN) - should not have idempotency field"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "GetRequest",
+          "text": "export interface GetRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetResponse",
+          "text": "export interface GetResponse {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UpdateRequest",
+          "text": "export interface UpdateRequest {\n    id: string;\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UpdateResponse",
+          "text": "export interface UpdateResponse {\n    success: boolean;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

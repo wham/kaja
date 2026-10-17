@@ -1,0 +1,116 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "scalar_types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ScalarTypes",
+          "typeName": "ScalarTypes",
+          "fields": [
+            {
+              "no": 1,
+              "name": "double_field",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 2,
+              "name": "float_field",
+              "kind": "scalar",
+              "T": 2
+            },
+            {
+              "no": 3,
+              "name": "int32_field",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "int64_field",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 5,
+              "name": "uint32_field",
+              "kind": "scalar",
+              "T": 13
+            },
+            {
+              "no": 6,
+              "name": "uint64_field",
+              "kind": "scalar",
+              "T": 4
+            },
+            {
+              "no": 7,
+              "name": "sint32_field",
+              "kind": "scalar",
+              "T": 17
+            },
+            {
+              "no": 8,
+              "name": "sint64_field",
+              "kind": "scalar",
+              "T": 18
+            },
+            {
+              "no": 9,
+              "name": "fixed32_field",
+              "kind": "scalar",
+              "T": 7
+            },
+            {
+              "no": 10,
+              "name": "fixed64_field",
+              "kind": "scalar",
+              "T": 6
+            },
+            {
+              "no": 11,
+              "name": "sfixed32_field",
+              "kind": "scalar",
+              "T": 15
+            },
+            {
+              "no": 12,
+              "name": "sfixed64_field",
+              "kind": "scalar",
+              "T": 16
+            },
+            {
+              "no": 13,
+              "name": "bool_field",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 14,
+              "name": "string_field",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "bytes_field",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ScalarTypes",
+          "text": "export interface ScalarTypes {\n    doubleField: number;\n    floatField: number;\n    int32Field: number;\n    int64Field: string;\n    uint32Field: number;\n    uint64Field: string;\n    sint32Field: number;\n    sint64Field: string;\n    fixed32Field: number;\n    fixed64Field: string;\n    sfixed32Field: number;\n    sfixed64Field: string;\n    boolField: boolean;\n    stringField: string;\n    bytesField: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

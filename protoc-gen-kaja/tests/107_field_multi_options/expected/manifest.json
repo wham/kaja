@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MultiOptions",
+          "typeName": "test.MultiOptions",
+          "fields": [
+            {
+              "no": 1,
+              "name": "my_values",
+              "kind": "scalar",
+              "jsonName": "vals",
+              "repeat": 2,
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MultiOptions",
+          "text": "/** Test field with multiple options to check annotation formatting */\nexport interface MultiOptions {\n    /** Field with both packed and json_name options */\n    myValues: number[];\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

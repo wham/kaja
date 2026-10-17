@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MessageType",
+          "typeName": "test.MessageType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "msg",
+              "kind": "message",
+              "T": "test.MessageType"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MessageType",
+          "text": "export interface MessageType {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    msg?: MessageType;\n}",
+          "references": [
+            "MessageType"
+          ]
+        }
+      ]
+    }
+  ]
+}

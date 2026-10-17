@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "CrDefaults",
+          "typeName": "test.CrDefaults",
+          "fields": [
+            {
+              "no": 1,
+              "name": "with_cr",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "CrDefaults",
+          "text": "export interface CrDefaults {\n    withCr?: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

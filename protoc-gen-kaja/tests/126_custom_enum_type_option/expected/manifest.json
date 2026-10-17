@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SecretDocument",
+          "typeName": "test.SecretDocument",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.field_visibility": "VISIBILITY_PRIVATE"
+              }
+            },
+            {
+              "no": 2,
+              "name": "content",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.visibility": "VISIBILITY_INTERNAL"
+          }
+        }
+      ],
+      "enums": [
+        {
+          "name": "Visibility",
+          "typeName": "test.Visibility",
+          "values": [
+            [
+              "PUBLIC",
+              0
+            ],
+            [
+              "PRIVATE",
+              1
+            ],
+            [
+              "INTERNAL",
+              2
+            ]
+          ],
+          "prefix": "VISIBILITY_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SecretDocument",
+          "text": "export interface SecretDocument {\n    title: string;\n    content: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Visibility",
+          "text": "export enum Visibility {\n    PUBLIC = 0,\n    PRIVATE = 1,\n    INTERNAL = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

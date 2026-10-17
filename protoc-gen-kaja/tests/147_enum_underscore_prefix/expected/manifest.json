@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test._Foo"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "_Foo",
+          "typeName": "test._Foo",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "BAR",
+              1
+            ],
+            [
+              "BAZ",
+              2
+            ]
+          ],
+          "prefix": "_FOO_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    status: _Foo;\n}",
+          "references": [
+            "_Foo"
+          ]
+        },
+        {
+          "name": "_Foo",
+          "text": "/** Enum with a leading underscore in the name. The prefix detection algorithm should produce \"_FOO_\" as the shared prefix. */\nexport enum _Foo {\n    UNSPECIFIED = 0,\n    BAR = 1,\n    BAZ = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

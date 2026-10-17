@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "constructor",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "toString",
+              "kind": "scalar",
+              "localName": "toString$",
+              "oneof": "value",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "name",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    value: {\n        oneofKind: \"constructor\";\n        constructor: string;\n    } | {\n        oneofKind: \"toString$\";\n        toString$: number;\n    } | {\n        oneofKind: \"name\";\n        name: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}
