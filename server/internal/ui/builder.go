@@ -277,52 +277,6 @@ func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	return bundle, nil
 }
 
-func BuildStub(sourcesDir string) ([]byte, error) {
-	var stubContent strings.Builder
-	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			relativePath, _ := filepath.Rel(sourcesDir, path)
-			relativePath = filepath.ToSlash(relativePath)
-			identifier := strings.TrimSuffix(relativePath, ".ts")
-			identifier = strings.ReplaceAll(identifier, "/", "$")
-			identifier = strings.ReplaceAll(identifier, ".", "$")
-			identifier = strings.ReplaceAll(identifier, "-", "$")
-			// Namespace exports, so two packages defining the same enum name (basics.lib.Position,
-			// quirks.lib.Position) don't collide.
-			stubContent.WriteString("export * as " + identifier + " from \"./" + relativePath + "\";\n")
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read sources directory when building stub: %w", err)
-	}
-
-	slog.Debug("Successfully built stub", "sourcesDir", sourcesDir, "length", stubContent.Len())
-
-	result := esbuild.Build(esbuild.BuildOptions{
-		Stdin: &esbuild.StdinOptions{
-			Contents:   stubContent.String(),
-			ResolveDir: sourcesDir,
-			Sourcefile: "stub.ts",
-		},
-		Bundle:   true,
-		Format:   esbuild.FormatESModule,
-		Packages: esbuild.PackagesExternal,
-	})
-
-	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("failed to build stub: %s", result.Errors[0].Text)
-	}
-
-	first := result.OutputFiles[0]
-
-	return first.Contents, nil
-}
-
 // A worker is asked for on every page load and is bundled from node_modules
 // alone, so it is built again when the dependencies change and not when the UI
 // does - no edit to ui/src can reach one.

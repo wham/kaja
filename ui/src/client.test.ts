@@ -1,10 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
+import type { RpcOptions, RpcTransport } from "@protobuf-ts/runtime-rpc";
 import { UPSTREAM_TRAILER } from "./upstream";
 import { createAppRef, Service } from "./apps";
 import { Kaja, KajaHost, MethodCall } from "./kaja";
 import { LogLevel } from "./server/api";
 import { classifyFailure } from "./callFailure";
+import { buildReflection } from "./protoReflection";
 import { UNSUPPORTED_CODE } from "./streaming";
 
 // The client asks where the page is served from when it builds its transport, which
@@ -13,7 +14,7 @@ import { UNSUPPORTED_CODE } from "./streaming";
 
 const { createClient } = await import("./client");
 
-// What the stub was called with — the only question these tests ask of the transport.
+// What the transport was called with — the only question these tests ask of it.
 const sent: { message: unknown; options: RpcOptions }[] = [];
 
 // Set by the one test about a call that was refused; a call is answered otherwise.
@@ -21,19 +22,14 @@ let refuse: Error | undefined;
 // What the server answered with beside the response, as a trailer block carries it.
 let trailer: Record<string, string> = {};
 
-class FakeShowsClient {
-  readonly methods = [{ name: "ListShows" }];
-
-  constructor(_transport: unknown) {}
-
-  // A method that streams from the client is refused before the transport is reached,
-  // so this is here to record that it never was.
-  upload(message: unknown, options: RpcOptions) {
-    sent.push({ message, options });
+// What a method that streams from the client would reach, to record that it never does.
+const transport = {
+  mergeOptions: (options?: Partial<RpcOptions>) => ({ ...options }) as RpcOptions,
+  clientStreaming(_method: unknown, options: RpcOptions) {
+    sent.push({ message: undefined, options });
     return { response: Promise.resolve({}), headers: Promise.resolve({}), trailers: Promise.resolve({}) };
-  }
-
-  listShows(message: unknown, options: RpcOptions) {
+  },
+  unary(_method: unknown, message: unknown, options: RpcOptions) {
     sent.push({ message, options });
     if (refuse) {
       return { response: Promise.reject(refuse), headers: Promise.reject(refuse), trailers: Promise.reject(refuse) };
@@ -48,14 +44,44 @@ class FakeShowsClient {
         ...trailer,
       }),
     };
-  }
-}
+  },
+} as unknown as RpcTransport;
+
+const reflection = buildReflection([
+  {
+    path: "theatre.ts",
+    editorText: "",
+    messages: [
+      { name: "ListShowsRequest", typeName: "theatre.ListShowsRequest", fields: [{ no: 1, name: "page_size", kind: "scalar", T: 5 }] },
+      { name: "ListShowsResponse", typeName: "theatre.ListShowsResponse", fields: [] },
+    ],
+    enums: [],
+    services: [
+      {
+        name: "Shows",
+        typeName: "theatre.Shows",
+        methods: [
+          { name: "ListShows", input: "ListShowsRequest", output: "ListShowsResponse", I: "theatre.ListShowsRequest", O: "theatre.ListShowsResponse" },
+          {
+            name: "Upload",
+            input: "ListShowsRequest",
+            output: "ListShowsResponse",
+            I: "theatre.ListShowsRequest",
+            O: "theatre.ListShowsResponse",
+            clientStreaming: true,
+          },
+        ],
+      },
+    ],
+    declarations: [],
+  },
+]);
 
 const service: Service = {
   name: "Shows",
   packageName: "theatre",
   sourcePath: "theatre",
-  clientStubModuleId: "theatre.client",
+  typeName: "theatre.Shows",
   methods: [{ name: "ListShows" }],
 };
 
@@ -79,9 +105,8 @@ function client() {
     onBlockUpdate: () => {},
     onLog: (_level: LogLevel, _message: string) => {},
   });
-  const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
   const appRef = createAppRef(app as never);
-  return { methods: createClient(service, stub, appRef).methodsFor(kaja), calls };
+  return { methods: createClient(service, reflection, appRef, transport).methodsFor(kaja), calls };
 }
 
 const meta = () => sent[0].options.meta as Record<string, string>;
@@ -160,9 +185,8 @@ describe("a method that streams from the client", () => {
       onBlockUpdate: () => {},
       onLog: (_level: LogLevel, _message: string) => {},
     });
-    const stub = { serviceInfos: {}, "theatre.client": { ShowsClient: FakeShowsClient } };
     const appRef = createAppRef(app as never);
-    return { methods: createClient(streaming, stub, appRef).methodsFor(kaja), calls };
+    return { methods: createClient(streaming, reflection, appRef, transport).methodsFor(kaja), calls };
   }
 
   it("is refused with Kaja's own sentence, before any transport is asked", async () => {

@@ -5,7 +5,7 @@ option go_package = "pkg/api";
 service Api {
   // Compile streams the compilation of an app's proto surface: each log line as it
   // is written, then one last message carrying the terminal status and, on success,
-  // the generated sources and the stub.
+  // the manifest the app compiled to.
   rpc Compile(CompileRequest) returns (stream CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc RenameApp(RenameAppRequest) returns (RenameAppResponse);
@@ -378,15 +378,16 @@ message ForgetMcpAuthorizationResponse {}
 
 // CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
 // message carries the log lines written since the last one and nothing else; the
-// last message of a stream is the terminal status, with the sources and the stub
-// on a STATUS_READY.
+// last message of a stream is the terminal status, with the manifest on a
+// STATUS_READY.
 message CompileResponse {
+  // The generated TypeScript and its bundle, before an app compiled to data.
+  reserved 3, 4;
+  reserved "sources", "stub";
   CompileStatus status = 1;
   repeated Log logs = 2;
-  repeated Source sources = 3;
-  string stub = 4;
-  // What protoc-gen-kaja says it generated, as JSON: the services, methods, types and
-  // the module each editor model is, so the UI reads them rather than the sources.
+  // What protoc-gen-kaja compiled the app to, as JSON: the field descriptors the
+  // runtime builds its types from, and the module each editor model is.
   string manifest = 5;
 }
 
@@ -407,11 +408,6 @@ enum LogLevel {
   LEVEL_INFO = 1;
   LEVEL_WARN = 2;
   LEVEL_ERROR = 3;
-}
-
-message Source {
-  string path = 1;
-  string content = 2;
 }
 
 message GetWorkspaceRequest {}

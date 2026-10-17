@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
+import { emptyReflection } from "./protoReflection";
 import { parseManifest } from "./sources";
 import { CompileStatus as ApiCompileStatus, GetWorkspaceResponse, LogLevel, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -162,8 +163,14 @@ export function useCompilation(
       const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
       if (!finalApp) return;
 
-      const loadedApp =
-        response.status === ApiCompileStatus.STATUS_READY ? await loadApp(parseManifest(response.manifest), response.stub, finalApp.configuration) : undefined;
+      let loadedApp: App | undefined;
+      if (response.status === ApiCompileStatus.STATUS_READY) {
+        try {
+          loadedApp = loadApp(parseManifest(response.manifest), finalApp.configuration);
+        } catch (error) {
+          console.error(`Failed to load the compiled ${appName}`, error);
+        }
+      }
 
       updateApp(appName, (app) => ({
         ...(loadedApp ?? app),
@@ -199,7 +206,7 @@ export function useCompilation(
           services: [],
           clients: {},
           sources: [],
-          stub: { serviceInfos: {} },
+          reflection: emptyReflection(),
         }));
 
         onUpdate(initialApps);

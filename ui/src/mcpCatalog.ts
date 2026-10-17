@@ -71,12 +71,8 @@ export function buildMcpCatalog(apps: App[], variableNames: string[] = []): McpC
   for (const app of apps) {
     if (app.compilation.status !== "success" || app.services.length === 0) continue;
 
-    // The `.client` modules declare the transport's own I<Service>Client, which
-    // no script writes against — the service const does. They contribute nothing
-    // to the surface but a name that reads like part of it.
     const declarations: { [name: string]: Declaration } = {};
     for (const source of app.sources) {
-      if (source.importPath.endsWith(".client")) continue;
       Object.assign(declarations, source.declarations);
     }
 

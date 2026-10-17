@@ -32,49 +32,35 @@ test("an app that cannot stream at all says so, for every kind", () => {
   expect(unsupportedReason({ clientStreaming: true }, "grpc")).toBe("Client streaming is not supported by Kaja yet.");
 });
 
-// A service with one method of each kind Kaja can meet. The client interface writes
-// no input for the one streaming from the client, so the manifest lists no signature.
+// A service with one method of each kind Kaja can meet.
+const empty = (name: string) => ({ name, typeName: `demo.${name}`, fields: [] });
+
 const manifest: Manifest = {
-  version: 1,
+  version: 2,
   modules: [
     {
       path: "proto/numbers.ts",
       editorText: "",
+      messages: ["SumRequest", "SumResponse", "TickRequest", "Tick", "UploadRequest", "UploadResponse"].map(empty),
+      enums: [],
       services: [
         {
           name: "Numbers",
           typeName: "demo.Numbers",
-          clientModule: "proto/numbers.client.ts",
           methods: [
-            { name: "Sum", input: "SumRequest", output: "SumResponse" },
-            { name: "Tick", input: "TickRequest", output: "Tick" },
+            { name: "Sum", input: "SumRequest", output: "SumResponse", I: "demo.SumRequest", O: "demo.SumResponse" },
+            { name: "Tick", input: "TickRequest", output: "Tick", I: "demo.TickRequest", O: "demo.Tick", serverStreaming: true },
+            { name: "Upload", input: "UploadRequest", output: "UploadResponse", I: "demo.UploadRequest", O: "demo.UploadResponse", clientStreaming: true },
           ],
         },
       ],
-      interfaces: ["SumRequest", "SumResponse", "TickRequest", "Tick", "UploadRequest", "UploadResponse"],
-      enums: [],
       declarations: [],
     },
-    { path: "proto/numbers.client.ts", editorText: "", services: [], interfaces: ["INumbersClient"], enums: [], declarations: [] },
   ],
 };
 
-const stubCode = `
-export const proto$numbers = {
-  Numbers: {
-    typeName: "demo.Numbers",
-    methods: [
-      { name: "Sum", serverStreaming: false, clientStreaming: false, I: { typeName: "demo.SumRequest", fields: [] } },
-      { name: "Tick", serverStreaming: true, clientStreaming: false, I: { typeName: "demo.TickRequest", fields: [] } },
-      { name: "Upload", serverStreaming: false, clientStreaming: true, I: { typeName: "demo.UploadRequest", fields: [] } },
-    ],
-  },
-};
-export const proto$numbers$client = { NumbersClient: class {} };
-`;
-
 async function numbersApp() {
-  return loadApp(manifest, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any);
+  return loadApp(manifest, { name: "demo", app: { oneofKind: "grpc" } } as any);
 }
 
 describe("a method that streams from the client", () => {

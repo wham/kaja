@@ -3,6 +3,7 @@ package api
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,29 +20,13 @@ func TestCompileWorkspaceProto(t *testing.T) {
 		t.Skipf("workspace not found at %s", protoDir)
 	}
 
-	sourcesDir := t.TempDir()
-
 	compiler := NewCompiler(NewLogger())
 
-	_, err = compiler.compile(sourcesDir, protoDir)
+	manifest, err := compiler.compile(protoDir)
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
 	}
-
-	// Check that some .ts files were generated
-	var tsFiles []string
-	filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && filepath.Ext(path) == ".ts" {
-			tsFiles = append(tsFiles, path)
-		}
-		return nil
-	})
-
-	if len(tsFiles) == 0 {
-		t.Fatal("no TypeScript files generated")
+	if !strings.Contains(manifest, `"modules":[{`) {
+		t.Fatalf("the manifest has no modules: %s", manifest)
 	}
-	t.Logf("Generated %d TypeScript files", len(tsFiles))
 }

@@ -3,7 +3,7 @@ import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import type { CallExpression, File, Node, OptionalCallExpression } from "@babel/types";
 import { App } from "./apps";
 import { declaredValues } from "./declarations";
-import { findInStub, Source } from "./sources";
+import { Source } from "./sources";
 import { isCall, keyName, memberAccess, nodePath, parseScript } from "./scriptSyntax";
 import { recallValues, RememberedValue } from "./typeMemory";
 
@@ -157,7 +157,8 @@ function findServiceInfo(apps: App[], serviceName: string, importPath: string | 
   }
 
   for (const { app, source } of candidates) {
-    const serviceInfo: ServiceInfo | undefined = findInStub(app.stub, source, serviceName);
+    const service = app.services.find((candidate) => candidate.name === serviceName && candidate.sourcePath === source.importPath);
+    const serviceInfo = service && app.reflection.services.get(service.typeName);
     if (serviceInfo) {
       return serviceInfo;
     }

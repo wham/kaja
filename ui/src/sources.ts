@@ -1,13 +1,14 @@
 import type { Node, StringLiteral } from "@babel/types";
+import type { JsonObject } from "@protobuf-ts/runtime";
 import { Declaration } from "./declarations";
+import type { Reflection } from "./protoReflection";
 import { parseScript, walk } from "./scriptSyntax";
 
 export interface Source {
   path: string;
   importPath: string;
-  stubModuleId: string;
-  // The module Monaco is given for this source, which is not the generated one: its
-  // services are consts a script calls, and its types carry no protobuf bookkeeping.
+  // The module Monaco is given for this source: its services are consts a script
+  // calls, and its types carry no protobuf bookkeeping.
   text: string;
   serviceNames: string[];
   interfaces: string[];
@@ -18,12 +19,8 @@ export interface Source {
 
 export type Sources = Source[];
 
-export interface Stub {
-  [key: string]: any;
-}
-
-// What protoc-gen-kaja says about the TypeScript it generated (kaja.manifest.json), so
-// nothing here has to parse it back.
+// What an app compiles to (kaja.manifest.json, see protoc-gen-kaja/kaja/manifest.go).
+// None of it is code: the runtime's types are built off the field descriptors.
 export interface Manifest {
   version: number;
   modules: ModuleManifest[];
@@ -32,51 +29,84 @@ export interface Manifest {
 export interface ModuleManifest {
   path: string;
   editorText: string;
+  messages: MessageManifest[];
+  enums: EnumManifest[];
   services: ServiceManifest[];
-  interfaces: string[];
-  enums: string[];
   declarations: Declaration[];
+}
+
+export interface MessageManifest {
+  name: string;
+  typeName: string;
+  fields: FieldManifest[];
+  options?: JsonObject;
+}
+
+// A protobuf-ts PartialFieldInfo, naming a message or an enum by its type name.
+export interface FieldManifest {
+  no: number;
+  name: string;
+  kind: "scalar" | "message" | "enum" | "map";
+  localName?: string;
+  jsonName?: string;
+  oneof?: string;
+  opt?: boolean;
+  repeat?: number;
+  T?: number | string;
+  L?: number;
+  K?: number;
+  V?: { kind: "scalar" | "message" | "enum"; T: number | string; L?: number };
+  options?: JsonObject;
+}
+
+export interface EnumManifest {
+  name: string;
+  typeName: string;
+  values: [string, number][];
+  prefix?: string;
 }
 
 export interface ServiceManifest {
   name: string;
   typeName: string;
-  clientModule: string;
   methods: MethodManifest[];
+  options?: JsonObject;
 }
 
 export interface MethodManifest {
   name: string;
+  localName?: string;
+  // The types as the module names them, and the type names they are looked up by.
   input: string;
   output: string;
+  I: string;
+  O: string;
+  serverStreaming?: boolean;
+  clientStreaming?: boolean;
+  idempotency?: "NO_SIDE_EFFECTS" | "IDEMPOTENT";
+  options?: JsonObject;
   doc?: string;
   deprecated?: boolean;
 }
 
 export function parseManifest(text: string): Manifest {
-  return text ? JSON.parse(text) : { version: 1, modules: [] };
+  return text ? JSON.parse(text) : { version: 2, modules: [] };
 }
 
-// The stub names a module after its path, e.g. "basics/lib/enum.ts" -> "basics$lib$enum".
-export function stubModuleId(path: string): string {
-  return path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$").replace(/-/g, "$");
-}
-
-export function loadSources(manifest: Manifest, stub: Stub, appName: string): Sources {
+export function loadSources(manifest: Manifest, reflection: Reflection, appName: string): Sources {
   return manifest.modules.map((module) => {
     const path = appName + "/" + module.path;
-    const stubModule = stub[stubModuleId(module.path)] || {};
     const enums: Source["enums"] = {};
-    for (const name of module.enums) {
-      if (stubModule[name]) enums[name] = { object: stubModule[name] };
+    for (const e of module.enums) {
+      const object = reflection.enums.get(e.typeName);
+      if (object) enums[e.name] = { object };
     }
     return {
       path,
       importPath: path.replace(".ts", ""),
-      stubModuleId: stubModuleId(module.path),
       text: module.editorText,
       serviceNames: module.services.map((service) => service.name),
-      interfaces: module.interfaces,
+      interfaces: module.messages.map((message) => message.name),
       enums,
       declarations: Object.fromEntries(module.declarations.map((declaration) => [declaration.name, declaration])),
     };
@@ -145,21 +175,4 @@ export function findEnum(sources: Sources, object: any): [string, Source] | unde
       }
     }
   }
-}
-
-// Find an export by name in the stub module corresponding to a source file
-export function findInStub(stub: Stub, source: Source, name: string): any {
-  const module = stub[source.stubModuleId];
-  return module?.[name];
-}
-
-export async function parseStub(stubCode: string): Promise<Stub> {
-  // Create a blob URL and dynamically import the stub JS
-  const blob = new Blob([stubCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  const stub = await import(url);
-  URL.revokeObjectURL(url);
-
-  return stub;
 }

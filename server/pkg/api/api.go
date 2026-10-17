@@ -262,7 +262,7 @@ func (s *timedStream) Report() *apps.Report {
 
 // Compile compiles the proto surface an app was opened with and streams the result:
 // every log line as it is written, then one last message carrying the terminal status
-// and, on a success, the generated sources and the stub.
+// and, on a success, the manifest.
 func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingServer[CompileResponse]) error {
 	var sendErr error
 	send := func(response *CompileResponse) {
@@ -275,13 +275,13 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 		send(&CompileResponse{Status: CompileStatus_STATUS_RUNNING, Logs: []*Log{log}})
 	}))
 
-	sources, stub, manifest, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
+	manifest, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
 	if err != nil {
 		// The failure was logged as it happened, so the last message is the verdict
 		// and nothing else.
 		send(&CompileResponse{Status: CompileStatus_STATUS_ERROR})
 	} else {
-		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Sources: sources, Stub: stub, Manifest: manifest})
+		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Manifest: manifest})
 	}
 
 	return sendErr

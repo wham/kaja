@@ -1,6 +1,7 @@
 package grpcapptest
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,9 +11,20 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 )
 
+// module is one module of the manifest an app compiles to, as the editor reads it.
+type module struct {
+	Path       string `json:"path"`
+	EditorText string `json:"editorText"`
+	Services   []struct {
+		Methods []struct {
+			Name string `json:"name"`
+		} `json:"methods"`
+	} `json:"services"`
+}
+
 // openAndCompile is what the window does when an app appears: open it, then compile
-// the proto directory it was handed into the TypeScript a script is written against.
-func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, []*api.Source, []*api.Log) {
+// the proto directory it was handed into the modules a script is written against.
+func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, []module, []*api.Log) {
 	t.Helper()
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
@@ -35,7 +47,13 @@ func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, 
 	if collected.status != api.CompileStatus_STATUS_READY {
 		t.Fatalf("compile failed:\n%s", logText(collected.logs))
 	}
-	return opened, collected.sources, collected.logs
+	var manifest struct {
+		Modules []module `json:"modules"`
+	}
+	if err := json.Unmarshal([]byte(collected.manifest), &manifest); err != nil {
+		t.Fatalf("manifest: %v", err)
+	}
+	return opened, manifest.Modules, collected.logs
 }
 
 // TestCompileReflectedSurface reflects a server, writes its protos and generates the
@@ -119,16 +137,16 @@ func TestCompileReflectedProtoFiles(t *testing.T) {
 
 type compileCollector struct {
 	api.Api_CompileServer
-	status  api.CompileStatus
-	sources []*api.Source
-	logs    []*api.Log
+	status   api.CompileStatus
+	manifest string
+	logs     []*api.Log
 }
 
 func (c *compileCollector) Send(response *api.CompileResponse) error {
 	c.logs = append(c.logs, response.GetLogs()...)
 	if response.GetStatus() != api.CompileStatus_STATUS_RUNNING {
 		c.status = response.GetStatus()
-		c.sources = response.GetSources()
+		c.manifest = response.GetManifest()
 	}
 	return nil
 }
@@ -144,18 +162,24 @@ func logText(logs []*api.Log) string {
 	return strings.Join(lines, "\n")
 }
 
-func sourceNames(sources []*api.Source) []string {
+func sourceNames(modules []module) []string {
 	names := []string{}
-	for _, source := range sources {
-		names = append(names, source.GetPath())
+	for _, m := range modules {
+		names = append(names, m.Path)
 	}
 	return names
 }
 
-func sourceText(sources []*api.Source) string {
+func sourceText(modules []module) string {
 	parts := []string{}
-	for _, source := range sources {
-		parts = append(parts, source.GetContent())
+	for _, m := range modules {
+		parts = append(parts, m.EditorText)
+		// The editor's services leave out what streams from the client.
+		for _, service := range m.Services {
+			for _, method := range service.Methods {
+				parts = append(parts, method.Name)
+			}
+		}
 	}
 	return strings.Join(parts, "\n")
 }

@@ -15,9 +15,6 @@ import { preloadWorkspace } from "./useCompilation";
 import { desktop, isWailsEnvironment } from "./wails";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 
-export * from "@protobuf-ts/runtime";
-export * from "@protobuf-ts/runtime-rpc";
-
 installUiLog();
 startSettings();
 preloadWorkspace();

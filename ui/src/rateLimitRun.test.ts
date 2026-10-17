@@ -28,7 +28,7 @@ function answered(app: string, headers: { [name: string]: string }, error?: unkn
   return {
     id: crypto.randomUUID(),
     appName: app,
-    service: { name: "Shows", packageName: "", sourcePath: "", clientStubModuleId: "", methods: [] },
+    service: { name: "Shows", packageName: "", sourcePath: "", typeName: "", methods: [] },
     method: { name: "ListShows" },
     input: {},
     output: error === undefined ? {} : undefined,
