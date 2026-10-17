@@ -1,87 +1,56 @@
 import { describe, expect, it } from "bun:test";
 import { loadApp } from "./appLoader";
 import { buildMcpCatalog } from "./mcpCatalog";
-import type { Source as ApiSource } from "./server/api";
+import type { Manifest } from "./sources";
 
 // createClients reads window.location for the base URL; provide it as the browser would.
 (globalThis as any).window = { location: { href: "http://localhost/" } };
 
-// A generated surface in the shape protoc-gen-kaja emits for an OpenAPI app: the
-// interfaces a script writes against, an enum, and the JSDoc the API's own
-// descriptions arrive as — alongside the protobuf bookkeeping that has to be
-// dropped before an agent reads any of it.
-const serviceTs = `
-import { ServiceType } from "@protobuf-ts/runtime-rpc";
-import { Value } from "./google/protobuf/struct";
-/**
- * A show in the catalog.
- *
- * @generated from protobuf message theatre.Show
- */
-export interface Show {
-    /**
-     * Unique slug of the show.
-     *
-     * @generated from protobuf field: string id = 1
-     */
-    id: string;
-    /**
-     * @generated from protobuf field: theatre.Venue venue = 2
-     */
-    venue?: Venue;
-    /**
-     * @generated from protobuf field: google.protobuf.Value extras = 3
-     */
-    extras?: Value;
-}
-export interface Venue {
-    name: string;
-}
-export interface ListShowsRequest {
-    /**
-     * How many shows to return. Defaults to 25 when omitted.
-     *
-     * @generated from protobuf field: int32 page_size = 1
-     */
-    pageSize: number;
-    sort: Sort;
-}
-export interface ListShowsResponse {
-    items: Show[];
-}
-export interface GetShowRequest {
-    /**
-     * @generated from protobuf field: string show_id = 1
-     */
-    showId: string;
-    fields: string[];
-    /**
-     * Which run of the show.
-     *
-     * @generated from protobuf field: string status = 3
-     */
-    status: string;
-}
-export enum Sort { UNSPECIFIED = 0, NEWEST = 1 }
-export const Shows = new ServiceType("Shows", []);
-`;
-
-const clientTs = `
-import type { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
-import type { ListShowsRequest, ListShowsResponse } from "./theatre";
-export interface IShowsClient {
-    /**
-     * Lists the shows on sale.
-     *
-     * @generated from protobuf rpc: ListShows
-     */
-    listShows(input: ListShowsRequest, options?: RpcOptions): UnaryCall<ListShowsRequest, ListShowsResponse>;
-    /**
-     * @generated from protobuf rpc: GetShow
-     */
-    getShow(input: GetShowRequest, options?: RpcOptions): UnaryCall<GetShowRequest, Show>;
-}
-`;
+// A manifest in the shape protoc-gen-kaja writes for an OpenAPI app: the services
+// and the types a script writes against, declared as an agent reads them.
+const manifest: Manifest = {
+  version: 1,
+  modules: [
+    {
+      path: "proto/theatre.ts",
+      editorText: "",
+      services: [
+        {
+          name: "Shows",
+          typeName: "theatre.Shows",
+          clientModule: "proto/theatre.client.ts",
+          methods: [
+            { name: "ListShows", input: "ListShowsRequest", output: "ListShowsResponse", doc: "Lists the shows on sale." },
+            { name: "GetShow", input: "GetShowRequest", output: "Show" },
+          ],
+        },
+      ],
+      interfaces: ["Show", "Venue", "ListShowsRequest", "ListShowsResponse", "GetShowRequest"],
+      enums: ["Sort"],
+      declarations: [
+        {
+          name: "Show",
+          text: [
+            "/** A show in the catalog. */",
+            "export interface Show {",
+            "    /** Unique slug of the show. [required] */",
+            "    id: string;",
+            "    venue?: Venue;",
+            "    extras?: Value;",
+            "}",
+          ].join("\n"),
+          references: ["Venue", "Value"],
+        },
+        { name: "Venue", text: "export interface Venue {\n    name: string;\n}", references: [] },
+        { name: "ListShowsRequest", text: "export interface ListShowsRequest {\n    pageSize: number;\n    sort: Sort;\n}", references: ["Sort"] },
+        { name: "ListShowsResponse", text: "export interface ListShowsResponse {\n    items: Show[];\n}", references: ["Show"] },
+        { name: "GetShowRequest", text: "export interface GetShowRequest {\n    showId: string;\n}", references: [] },
+        { name: "Sort", text: "export enum Sort {\n    UNSPECIFIED = 0,\n    NEWEST = 1,\n}", references: [] },
+      ],
+    },
+    { path: "proto/theatre.client.ts", editorText: "", services: [], interfaces: ["IShowsClient"], enums: [], declarations: [] },
+  ],
+};
 
 // Stand-ins for the runtime MessageType objects, carrying the marks the app writes
 // where TypeScript has no way to say them.
@@ -117,11 +86,7 @@ export const proto$theatre$client = { ShowsClient: class { listShows() {} } };
 `;
 
 async function loadTheatre(status: "success" | "pending" = "success") {
-  const apiSources: ApiSource[] = [
-    { path: "proto/theatre.ts", content: serviceTs },
-    { path: "proto/theatre.client.ts", content: clientTs },
-  ] as ApiSource[];
-  const app = await loadApp(apiSources, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any);
+  const app = await loadApp(manifest, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any);
   app.compilation.status = status;
   return app;
 }
@@ -155,41 +120,12 @@ describe("buildMcpCatalog", () => {
     expect(method.http).toBe("GET /shows");
   });
 
-  it("declares each type as a script reads it, without the protobuf bookkeeping", async () => {
+  it("carries the declarations the app was generated with", async () => {
     const built = await catalog();
     const declarations = built.apps[0].declarations;
 
     expect(Object.keys(declarations).sort()).toEqual(["GetShowRequest", "ListShowsRequest", "ListShowsResponse", "Show", "Sort", "Venue"]);
-
-    const show = declarations["Show"];
-    expect(show.text).toBe(
-      [
-        "/** A show in the catalog. */",
-        "export interface Show {",
-        "    /** Unique slug of the show. [required] */",
-        "    id: string;",
-        "    venue?: Venue;",
-        "    extras?: Value;",
-        "}",
-      ].join("\n"),
-    );
-    // The field numbers and wire types never reach a reader.
-    expect(show.text).not.toContain("protobuf");
-    // What the type reaches, so an answer can close over it.
-    expect(show.references.sort()).toEqual(["Value", "Venue"]);
-  });
-
-  it("keeps the marks TypeScript has no way to state", async () => {
-    const built = await catalog();
-    const declarations = built.apps[0].declarations;
-
-    expect(declarations["ListShowsRequest"].text).toContain("/** How many shows to return. Defaults to 25 when omitted. [query parameter] */");
-    expect(declarations["ListShowsResponse"].text).toContain("[carries the HTTP payload]");
-    // A document's closed set of values is carried beside the field, since the field
-    // is the string the API takes rather than a proto enum.
-    expect(declarations["GetShowRequest"].text).toContain("/** Which run of the show. [one of: onSale, cancelled] */");
-    // An enum field is unwritable without its values.
-    expect(declarations["Sort"].text).toBe(["export enum Sort {", "    UNSPECIFIED = 0,", "    NEWEST = 1,", "}"].join("\n"));
+    expect(declarations["Show"]).toEqual(manifest.modules[0].declarations[0]);
   });
 
   // The call Kaja writes into a draft spells out every field, because that is where

@@ -624,6 +624,13 @@ export interface CompileResponse {
      * @generated from protobuf field: string stub = 4
      */
     stub: string;
+    /**
+     * What protoc-gen-kaja says it generated, as JSON: the services, methods, types and
+     * the module each editor model is, so the UI reads them rather than the sources.
+     *
+     * @generated from protobuf field: string manifest = 5
+     */
+    manifest: string;
 }
 /**
  * @generated from protobuf message Log
@@ -2247,7 +2254,8 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
             { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
             { no: 3, name: "sources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Source },
-            { no: 4, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "manifest", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
 }

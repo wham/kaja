@@ -385,6 +385,9 @@ message CompileResponse {
   repeated Log logs = 2;
   repeated Source sources = 3;
   string stub = 4;
+  // What protoc-gen-kaja says it generated, as JSON: the services, methods, types and
+  // the module each editor model is, so the UI reads them rather than the sources.
+  string manifest = 5;
 }
 
 enum CompileStatus {

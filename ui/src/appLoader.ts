@@ -3,12 +3,11 @@ import ts from "@typescript/typescript6";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";
-import { Source as ApiSource, WorkspaceApp } from "./server/api";
-import { docText } from "./declarations";
-import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { WorkspaceApp } from "./server/api";
+import { findInStub, loadSources, Manifest, parseStub, Source, Stub } from "./sources";
 import { moduleSpecifier } from "./appImports";
 import { appType } from "./appTypes";
-import { DEPRECATION_NOTE, isDeprecated } from "./deprecation";
+import { DEPRECATION_NOTE } from "./deprecation";
 import { unsupportedReason } from "./streaming";
 
 // Generate editor code for a method on demand. `fields` is how much of the request is
@@ -33,86 +32,44 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app, fields, method.deprecated === true);
 }
 
-export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: WorkspaceApp): Promise<App> {
+export async function loadApp(manifest: Manifest, stubCode: string, configuration: WorkspaceApp): Promise<App> {
   const stub = await parseStub(stubCode);
-  const sources = await loadSources(apiSources, stub, configuration.name);
-  const kajaSources: Sources = [];
+  const sources = loadSources(manifest, stub, configuration.name);
   const services: Service[] = [];
 
-  sources.forEach((source) => {
-    const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
+  manifest.modules.forEach((module, index) => {
+    const source = sources[index];
+    for (const service of module.services) {
+      const serviceInfo: ServiceInfo | undefined = findInStub(stub, source, service.name);
+      if (!serviceInfo) continue;
+      // The package is the type name without the service ("quirks.v1.Quirks" -> "quirks.v1").
+      const lastDotIndex = service.typeName.lastIndexOf(".");
+      const packageName = lastDotIndex > 0 ? service.typeName.substring(0, lastDotIndex) : "";
+      const clientSource = sources.find((s) => s.path === configuration.name + "/" + service.clientModule);
+      const signatures = new Map(service.methods.map((method) => [method.name, method]));
 
-    source.serviceNames.forEach((serviceName) => {
-      const serviceInfo: ServiceInfo | undefined = findInStub(stub, source, serviceName);
-      if (!serviceInfo) {
-        return;
-      }
-      // Extract the package name from typeName ("quirks.v1.Quirks" -> "quirks.v1").
-      const typeName = serviceInfo.typeName || serviceName;
-      const lastDotIndex = typeName.lastIndexOf(".");
-      const packageName = lastDotIndex > 0 ? typeName.substring(0, lastDotIndex) : "";
-
-      const clientSourcePath = source.importPath + ".client";
-      const clientSource = sources.find((s) => s.importPath === clientSourcePath);
-
-      // The generated client interface is where a method's TypeScript signature is written
-      // down; it is read once and used for both the service stub the editor checks against
-      // and the method model everything else reads.
-      const interfaceDeclaration = clientSource?.interfaces["I" + serviceName + "Client"];
-      const signatures = interfaceDeclaration && clientSource ? readSignatures(interfaceDeclaration, clientSource.file, serviceInfo) : {};
-
-      const methods: Method[] = serviceInfo.methods.map((methodInfo) => ({
-        name: methodInfo.name,
-        serverStreaming: methodInfo.serverStreaming,
-        clientStreaming: methodInfo.clientStreaming,
-        input: signatures[methodInfo.name]?.input,
-        output: signatures[methodInfo.name]?.output,
-        doc: signatures[methodInfo.name]?.doc,
-        http: httpRequest(methodInfo),
-        deprecated: signatures[methodInfo.name]?.deprecated,
-      }));
+      const methods: Method[] = serviceInfo.methods.map((methodInfo) => {
+        const signature = signatures.get(methodInfo.name);
+        return {
+          name: methodInfo.name,
+          serverStreaming: methodInfo.serverStreaming,
+          clientStreaming: methodInfo.clientStreaming,
+          input: signature?.input,
+          output: signature?.output,
+          doc: signature?.doc,
+          http: httpRequest(methodInfo),
+          deprecated: signature?.deprecated,
+        };
+      });
 
       services.push({
-        name: serviceName,
+        name: service.name,
         packageName,
         sourcePath: source.importPath,
         clientStubModuleId: clientSource?.stubModuleId || "",
         methods,
       });
-
-      if (interfaceDeclaration && clientSource) {
-        serviceInterfaceDefinitions.push(
-          createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, localSignatures(signatures, clientSource.file, source.file)),
-        );
-      }
-    });
-
-    const kajaStatements = source.file.statements.filter((statement) => {
-      return (
-        ts.isInterfaceDeclaration(statement) ||
-        ts.isEnumDeclaration(statement) ||
-        (ts.isImportDeclaration(statement) && isAnotherSourceImport(statement, source.file))
-      );
-    });
-
-    kajaSources.push({
-      path: source.path,
-      importPath: source.importPath,
-      stubModuleId: source.stubModuleId,
-      file: ts.createSourceFile(
-        source.file.fileName,
-        // TODO: won't work if there are multiple services in the source file.
-        // A method hands back a Call rather than a Promise and takes an Input rather than the
-        // request type itself, so the source that declares one says where those types come
-        // from — the same module a script imports `kaja` from.
-        printStatements([...(serviceInterfaceDefinitions.length > 0 ? [kajaTypeImport()] : []), ...kajaStatements, ...serviceInterfaceDefinitions]),
-        ts.ScriptTarget.Latest,
-      ),
-      serviceNames: source.serviceNames,
-      interfaces: source.interfaces,
-      enums: source.enums,
-      declarations: source.declarations,
-    });
+    }
   });
 
   const appRef = createAppRef(configuration);
@@ -126,7 +83,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
     appRef,
     services,
     clients: createClients(services, stub, appRef),
-    sources: kajaSources,
+    sources,
     stub,
   };
 }
@@ -139,56 +96,6 @@ function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients
   }
 
   return clients;
-}
-
-// Copy a node's leading comments (proto docs the generator emits as JSDoc) onto a
-// freshly synthesized node as synthetic comments, so the printer re-emits them.
-// Interior lines are re-indented to a single ` *`, since the source indentation would
-// otherwise be preserved verbatim.
-function copyLeadingComments(sourceFile: ts.SourceFile, fromNode: ts.Node, toNode: ts.Node): void {
-  const fullText = sourceFile.getFullText();
-  const ranges = ts.getLeadingCommentRanges(fullText, fromNode.getFullStart());
-  if (!ranges) {
-    return;
-  }
-
-  ranges.forEach((range) => {
-    if (range.kind === ts.SyntaxKind.MultiLineCommentTrivia) {
-      const text = fullText
-        .slice(range.pos + 2, range.end - 2)
-        .replace(/\n[ \t]*\*/g, "\n *")
-        .replace(/\n[ \t]+$/, "\n ");
-      ts.addSyntheticLeadingComment(toNode, range.kind, text, range.hasTrailingNewLine);
-    } else {
-      ts.addSyntheticLeadingComment(toNode, range.kind, fullText.slice(range.pos + 2, range.end), range.hasTrailingNewLine);
-    }
-  });
-}
-
-function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.ParameterDeclaration | undefined {
-  return method.parameters.find((parameter) => parameter.name.getText(sourceFile) == "input");
-}
-
-function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.TypeNode | undefined {
-  if (!method.type || !ts.isTypeReferenceNode(method.type)) {
-    return undefined;
-  }
-
-  const typeRef = method.type;
-  // A stream from the server is called like any other method and hands back one
-  // message, so its message type is the output. The two that stream from the client
-  // are declined before they are called, and have none.
-  const callType = typeRef.typeName.getText(sourceFile);
-  if (callType !== "UnaryCall" && callType !== "ServerStreamingCall") {
-    return undefined;
-  }
-
-  // The second type argument of either is the output type.
-  if (typeRef.typeArguments && typeRef.typeArguments.length >= 2) {
-    return typeRef.typeArguments[1];
-  }
-
-  return undefined;
 }
 
 function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet, deprecated: boolean): string {
@@ -270,187 +177,9 @@ export function printStatements(statements: ts.Statement[]): string {
   return printer.printFile(sourceFile);
 }
 
-// MethodSignature is a method as a script writes it. It is read off the generated
-// client interface, which is the one place the TypeScript names are written down.
-export interface MethodSignature {
-  input: string;
-  output: string;
-  doc?: string;
-  deprecated?: boolean;
-}
-
-// The client interface names its members in lowerCamelCase, so they are matched back
-// to the proto names the rest of Kaja uses.
-function readSignatures(
-  interfaceDeclaration: ts.InterfaceDeclaration,
-  sourceFile: ts.SourceFile,
-  serviceInfo: ServiceInfo,
-): { [name: string]: MethodSignature } {
-  const signatures: { [name: string]: MethodSignature } = {};
-
-  interfaceDeclaration.members.forEach((member) => {
-    if (!ts.isMethodSignature(member) || !member.name) {
-      return;
-    }
-    const tsMethodName = member.name.getText(sourceFile);
-    const protoMethodName = serviceInfo.methods.find((method) => method.name.toLowerCase() == tsMethodName.toLowerCase())?.name || tsMethodName;
-    const inputParameter = getInputParameter(member, sourceFile);
-    if (!inputParameter || !inputParameter.type) {
-      return;
-    }
-    const output = getOutputType(member, sourceFile);
-    signatures[protoMethodName] = {
-      input: inputParameter.type.getText(sourceFile),
-      output: output ? output.getText(sourceFile) : "unknown",
-      doc: docText(member, sourceFile) || undefined,
-      deprecated: isDeprecated(member, sourceFile) || undefined,
-    };
-  });
-
-  return signatures;
-}
-
-// localSignatures restates signatures read off the client module in the names the
-// service module has for the same types. The two differ where a message is named
-// like the service: the client imports the message under its own name and the
-// service module, which declares the service, has to import it as `Pet$`.
-function localSignatures(
-  signatures: { [name: string]: MethodSignature },
-  clientFile: ts.SourceFile,
-  serviceFile: ts.SourceFile,
-): { [name: string]: MethodSignature } {
-  const imported = importedNames(clientFile);
-  const local = new Map([...importedNames(serviceFile)].map(([name, origin]) => [origin, name]));
-  const rename = (type: string) => local.get(imported.get(type) ?? "") ?? type;
-  return Object.fromEntries(
-    Object.entries(signatures).map(([name, signature]) => [name, { ...signature, input: rename(signature.input), output: rename(signature.output) }]),
-  );
-}
-
-// importedNames maps each name a module imports from a sibling module to where it
-// came from, as the module and the name it was exported under.
-function importedNames(file: ts.SourceFile): Map<string, string> {
-  const names = new Map<string, string>();
-  file.statements.forEach((statement) => {
-    if (!ts.isImportDeclaration(statement) || !isAnotherSourceImport(statement, file)) return;
-    const bindings = statement.importClause?.namedBindings;
-    if (!bindings || !ts.isNamedImports(bindings)) return;
-    const module = (statement.moduleSpecifier as ts.StringLiteral).text;
-    bindings.elements.forEach((element) => names.set(element.name.text, module + "#" + (element.propertyName ?? element.name).text));
-  });
-  return names;
-}
-
-// `import type { Call, CallOptions, Input } from "kaja";` — what a generated service's
-// methods return, and what they take. Type-only, so nothing about it survives into
-// what a script runs.
-function kajaTypeImport(): ts.ImportDeclaration {
-  return ts.factory.createImportDeclaration(
-    undefined,
-    ts.factory.createImportClause(
-      true,
-      undefined,
-      ts.factory.createNamedImports(
-        ["Call", "CallOptions", "Input"].map((name) => ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name))),
-      ),
-    ),
-    ts.factory.createStringLiteral("kaja"),
-  );
-}
-
-// createServiceInterfaceDefinition synthesizes the `export const <Service> = {…}` the
-// editor checks a script against, from the signatures already read.
-function createServiceInterfaceDefinition(
-  serviceName: string,
-  interfaceDeclaration: ts.InterfaceDeclaration,
-  sourceFile: ts.SourceFile,
-  signatures: { [name: string]: MethodSignature },
-): ts.VariableStatement {
-  const memberByProtoName = new Map<string, ts.MethodSignature>();
-  interfaceDeclaration.members.forEach((member) => {
-    if (!ts.isMethodSignature(member) || !member.name) return;
-    const tsMethodName = member.name.getText(sourceFile);
-    const protoMethodName = Object.keys(signatures).find((name) => name.toLowerCase() === tsMethodName.toLowerCase());
-    if (protoMethodName) memberByProtoName.set(protoMethodName, member);
-  });
-
-  const funcs: ts.PropertyAssignment[] = [];
-  for (const [protoMethodName, signature] of Object.entries(signatures)) {
-    const func = ts.factory.createPropertyAssignment(
-      protoMethodName,
-      ts.factory.createArrowFunction(
-        // Not async: a method hands back a Call, which is not a promise the language would
-        // let an async function return.
-        undefined,
-        undefined,
-        [
-          ts.factory.createParameterDeclaration(
-            undefined,
-            undefined,
-            "input",
-            undefined,
-            // Input<T>, so a request may be written with the fields it means and no others.
-            // Nothing in a proto is required and the wire format omits a zero anyway, so a
-            // spelled-out `""` is a value being sent rather than a field being satisfied.
-            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Input"), [
-              ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
-            ]),
-          ),
-          // What the call is made with rather than what it sends: headers laid over the
-          // app's own, for this call alone. Optional, because a call that says nothing
-          // about them is the ordinary one.
-          ts.factory.createParameterDeclaration(
-            undefined,
-            undefined,
-            "options",
-            ts.factory.createToken(ts.SyntaxKind.QuestionToken),
-            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("CallOptions"), undefined),
-          ),
-        ],
-        ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Call"), [
-          ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.output), undefined),
-        ]),
-        ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-        ts.factory.createBlock([]),
-      ),
-    );
-    // Carry the proto doc comment onto the synthesized method so Monaco shows it on
-    // hover and autocomplete.
-    const member = memberByProtoName.get(protoMethodName);
-    if (member) {
-      copyLeadingComments(sourceFile, member, func);
-    }
-    funcs.push(func);
-  }
-
-  // multiLine, so a service with thirty methods is thirty lines rather than one. The
-  // printer puts a synthesized object literal on a single line otherwise, and this text
-  // is what line-based readers — Monaco's hover, an agent grepping the stub — see.
-  return ts.factory.createVariableStatement(
-    [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)],
-    ts.factory.createVariableDeclarationList(
-      [
-        ts.factory.createVariableDeclaration(
-          ts.factory.createIdentifier(serviceName),
-          undefined,
-          undefined,
-          ts.factory.createObjectLiteralExpression(funcs, /*multiLine*/ true),
-        ),
-      ],
-      ts.NodeFlags.Const,
-    ),
-  );
-}
-
 // httpRequest reads the HTTP request a method transcodes to, when the app wrote one
 // onto the method. See server/pkg/apps/openapi/http.proto.
 function httpRequest(methodInfo: MethodInfo): string | undefined {
   const value = (methodInfo.options as { [key: string]: unknown } | undefined)?.["kaja.http_request"];
   return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-function isAnotherSourceImport(importDeclaration: ts.ImportDeclaration, sourceFile: ts.SourceFile): boolean {
-  const path = importDeclaration.moduleSpecifier.getText(sourceFile).slice(1, -1);
-
-  return path.startsWith("./") || path.startsWith("../");
 }

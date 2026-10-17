@@ -1,6 +1,6 @@
 import { describe, expect, it, test } from "bun:test";
 import { generateMethodEditorCode, loadApp } from "./appLoader";
-import type { Source as ApiSource } from "./server/api";
+import type { Manifest } from "./sources";
 import { streamingKind, unsupportedReason } from "./streaming";
 
 // createClients reads window.location for the base URL; provide it as the browser would.
@@ -32,27 +32,32 @@ test("an app that cannot stream at all says so, for every kind", () => {
   expect(unsupportedReason({ clientStreaming: true }, "grpc")).toBe("Client streaming is not supported by Kaja yet.");
 });
 
-// A service with one method of each kind Kaja can meet.
-const serviceTs = `
-import { ServiceType } from "@protobuf-ts/runtime-rpc";
-export interface SumRequest { a: number; }
-export interface SumResponse { v: number; }
-export interface TickRequest { since: string; }
-export interface Tick { at: string; }
-export interface UploadRequest { chunk: string; }
-export interface UploadResponse { ok: boolean; }
-export const Numbers = new ServiceType("Numbers", []);
-`;
-
-const clientTs = `
-import type { ClientStreamingCall, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
-import type { SumRequest, SumResponse, Tick, TickRequest, UploadRequest, UploadResponse } from "./numbers";
-export interface INumbersClient {
-    sum(input: SumRequest, options?: RpcOptions): UnaryCall<SumRequest, SumResponse>;
-    tick(input: TickRequest, options?: RpcOptions): ServerStreamingCall<TickRequest, Tick>;
-    upload(options?: RpcOptions): ClientStreamingCall<UploadRequest, UploadResponse>;
-}
-`;
+// A service with one method of each kind Kaja can meet. The client interface writes
+// no input for the one streaming from the client, so the manifest lists no signature.
+const manifest: Manifest = {
+  version: 1,
+  modules: [
+    {
+      path: "proto/numbers.ts",
+      editorText: "",
+      services: [
+        {
+          name: "Numbers",
+          typeName: "demo.Numbers",
+          clientModule: "proto/numbers.client.ts",
+          methods: [
+            { name: "Sum", input: "SumRequest", output: "SumResponse" },
+            { name: "Tick", input: "TickRequest", output: "Tick" },
+          ],
+        },
+      ],
+      interfaces: ["SumRequest", "SumResponse", "TickRequest", "Tick", "UploadRequest", "UploadResponse"],
+      enums: [],
+      declarations: [],
+    },
+    { path: "proto/numbers.client.ts", editorText: "", services: [], interfaces: ["INumbersClient"], enums: [], declarations: [] },
+  ],
+};
 
 const stubCode = `
 export const proto$numbers = {
@@ -69,11 +74,7 @@ export const proto$numbers$client = { NumbersClient: class {} };
 `;
 
 async function numbersApp() {
-  const apiSources: ApiSource[] = [
-    { path: "proto/numbers.ts", content: serviceTs },
-    { path: "proto/numbers.client.ts", content: clientTs },
-  ] as ApiSource[];
-  return loadApp(apiSources, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any);
+  return loadApp(manifest, stubCode, { name: "demo", app: { oneofKind: "grpc" } } as any);
 }
 
 describe("a method that streams from the client", () => {
@@ -111,7 +112,5 @@ describe("a method that streams from the server", () => {
     const service = app.services.find((s) => s.name === "Numbers")!;
 
     expect(service.methods.find((m) => m.name === "Tick")!.output).toBe("Tick");
-    const text = app.sources.find((s) => s.serviceNames.includes("Numbers"))!.file.text;
-    expect(text).toContain("Tick: (input: Input<TickRequest>, options?: CallOptions): Call<Tick>");
   });
 });

@@ -29,7 +29,7 @@ func NewPlugin() protoc.Plugin {
 
 // Generate processes a CodeGeneratorRequest and returns a CodeGeneratorResponse.
 func Generate(req *pluginpb.CodeGeneratorRequest) (*pluginpb.CodeGeneratorResponse, error) {
-	return generate(req), nil
+	return generate(req)
 }
 
 // TypeScript reserved keywords and type names that need to be escaped
@@ -81,6 +81,9 @@ func escapeMethodName(name string) string {
 
 type params struct {
 	forceOptimizeCodeSize bool
+	// manifest has the plugin write ManifestName beside the sources. It is Kaja's own
+	// and not protobuf-ts's, so it never reaches the header.
+	manifest bool
 }
 
 func parseParameters(paramStr *string) params {
@@ -89,8 +92,11 @@ func parseParameters(paramStr *string) params {
 		return p
 	}
 	for _, name := range strings.Split(*paramStr, ",") {
-		if strings.TrimSpace(name) == "force_optimize_code_size" {
+		switch strings.TrimSpace(name) {
+		case "force_optimize_code_size":
 			p.forceOptimizeCodeSize = true
+		case "kaja_manifest":
+			p.manifest = true
 		}
 	}
 	return p
@@ -429,7 +435,7 @@ func fileNeedsGenericServer(file *descriptorpb.FileDescriptorProto) bool {
 	return false
 }
 
-func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorResponse {
+func generate(req *pluginpb.CodeGeneratorRequest) (*pluginpb.CodeGeneratorResponse, error) {
 	resp := &pluginpb.CodeGeneratorResponse{}
 	resp.SupportedFeatures = proto.Uint64(uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL))
 
@@ -469,6 +475,15 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		}
 	}
 
+	var written []generatedFile
+	add := func(name, content string, rec *module) {
+		resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+			Name:    proto.String(name),
+			Content: proto.String(content),
+		})
+		written = append(written, generatedFile{name: name, content: content, rec: rec})
+	}
+
 	// Generate files for each proto file to generate, tracking which produced output
 	generatedFiles := make(map[string]bool)
 	hasExtensionFiles := false
@@ -496,56 +511,36 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			!importedByServiceFilesInSameDir[fileName] &&
 			!importedByNonServiceFiles[fileName]
 		
-		content := generateFile(file, req.ProtoFile, params, isImportedOnlyByServices)
+		content, rec := generateFile(file, req.ProtoFile, params, isImportedOnlyByServices)
 		if content == "" {
 			continue
 		}
 
 		generatedFiles[fileName] = true
-		outputName := getOutputFileName(fileName)
-		resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-			Name:    proto.String(outputName),
-			Content: proto.String(content),
-		})
+		add(getOutputFileName(fileName), content, rec)
 
 		// Generate client file if any service needs a client
 		if len(file.Service) > 0 && fileNeedsClient(file) {
-			clientContent := generateClientFile(file, req.ProtoFile, params)
-			clientName := getClientOutputFileName(fileName)
-			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-				Name:    proto.String(clientName),
-				Content: proto.String(clientContent),
-			})
+			clientContent, rec := generateClientFile(file, req.ProtoFile, params)
+			add(getClientOutputFileName(fileName), clientContent, rec)
 		}
 
 		// Generate gRPC server file if any service has ts.server = GRPC1_SERVER
 		if fileNeedsGrpc1Server(file) {
-			serverContent := generateGrpcServerFile(file, req.ProtoFile, params)
-			serverName := getServerOutputFileName(fileName)
-			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-				Name:    proto.String(serverName),
-				Content: proto.String(serverContent),
-			})
+			serverContent, rec := generateGrpcServerFile(file, req.ProtoFile, params)
+			add(getServerOutputFileName(fileName), serverContent, rec)
 		}
 
 		// Generate gRPC client file if any service has ts.client = GRPC1_CLIENT
 		if fileNeedsGrpc1Client(file) {
-			clientContent := generateGrpcClientFile(file, req.ProtoFile, params)
-			clientName := getGrpcClientOutputFileName(fileName)
-			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-				Name:    proto.String(clientName),
-				Content: proto.String(clientContent),
-			})
+			clientContent, rec := generateGrpcClientFile(file, req.ProtoFile, params)
+			add(getGrpcClientOutputFileName(fileName), clientContent, rec)
 		}
 
 		// Generate generic server file if any service has ts.server = GENERIC_SERVER
 		if fileNeedsGenericServer(file) {
-			serverContent := generateGenericServerFile(file, req.ProtoFile, params)
-			serverName := getGenericServerOutputFileName(fileName)
-			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-				Name:    proto.String(serverName),
-				Content: proto.String(serverContent),
-			})
+			serverContent, rec := generateGenericServerFile(file, req.ProtoFile, params)
+			add(getGenericServerOutputFileName(fileName), serverContent, rec)
 		}
 	}
 	
@@ -558,6 +553,7 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		type wktCandidate struct {
 			file    *descriptorpb.FileDescriptorProto
 			content string
+			rec     *module
 		}
 		var wktCandidates []wktCandidate
 		for _, file := range req.ProtoFile {
@@ -565,9 +561,9 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			if !neededWKTs[fileName] {
 				continue
 			}
-			content := generateFile(file, req.ProtoFile, params, false)
+			content, rec := generateFile(file, req.ProtoFile, params, false)
 			if content != "" {
-				wktCandidates = append(wktCandidates, wktCandidate{file: file, content: content})
+				wktCandidates = append(wktCandidates, wktCandidate{file: file, content: content, rec: rec})
 			}
 		}
 		// Collect all files in the generated set (FileToGenerate + WKT candidates)
@@ -584,16 +580,23 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		// service method types in any file in the generated set (including itself)
 		for _, wkt := range wktCandidates {
 			if isWKTFileUsed(wkt.file, allGenFiles) {
-				outputName := getOutputFileName(wkt.file.GetName())
-				resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-					Name:    proto.String(outputName),
-					Content: proto.String(wkt.content),
-				})
+				add(getOutputFileName(wkt.file.GetName()), wkt.content, wkt.rec)
 			}
 		}
 	}
 
-	return resp
+	if params.manifest {
+		content, err := buildManifest(written)
+		if err != nil {
+			return nil, err
+		}
+		resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+			Name:    proto.String(ManifestName),
+			Content: proto.String(content),
+		})
+	}
+
+	return resp, nil
 }
 
 type generator struct {
@@ -635,6 +638,8 @@ type generator struct {
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
 	serviceImportAliases         map[string]string // service TS name → aliased name (e.g., "UnaryCall" → "UnaryCall$") when service name collides with call type
 	callTypeRefs                 map[string]string // call type name → ref name (e.g., "DuplexStreamingCall" → "DuplexStreamingCall$") when message name collides
+	rec                          *module           // what the manifest says about the file being written
+	decl                         *declRecord       // the interface whose members are being written
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -2209,10 +2214,10 @@ func (g *generator) collectEnumTypeNames(enum *descriptorpb.EnumDescriptorProto,
 }
 
 
-func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params, isImportedByService bool) string {
+func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params, isImportedByService bool) (string, *module) {
 	// Skip files that have no messages, enums, or services (e.g., files with only extension definitions)
 	if len(file.MessageType) == 0 && len(file.EnumType) == 0 && len(file.Service) == 0 {
-		return ""
+		return "", nil
 	}
 	
 	g := &generator{
@@ -2402,7 +2407,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		g.generateService(svc)
 	}
 
-	return g.b.String()
+	return g.b.String(), g.rec
 }
 
 func (g *generator) collectUsedTypes() (map[string]bool, []string) {
@@ -3688,7 +3693,9 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	
 	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, protoName)
 	g.pNoIndent(" */")
+	decl := g.beginDecl(false, fullName)
 	g.pNoIndent("export interface %s {", fullName)
+	g.decl = decl
 	
 	// Track which oneofs have been generated
 	generatedOneofs := make(map[int32]bool)
@@ -3753,6 +3760,8 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
+	g.decl = nil
+	g.endDecl(decl)
 	g.pNoIndent("}")
 	
 	// Generate nested message interfaces first
@@ -3919,14 +3928,18 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 			valueField := mapValueWithJstype(field, msgType.Field[1])
 			keyType := g.getTypescriptTypeForMapKey(keyField)
 			valueType := g.getBaseTypescriptType(valueField)
+			member := g.beginMember(g.decl, fieldName, false, field)
 			g.p("%s: {", fieldName)
 			g.indent = "        "
 			g.p("[key: %s]: %s;", keyType, valueType)
 			g.indent = "    "
+			member.typeEnd = g.b.Len() + len(g.indent) + 1
 			g.p("};%s", trailingComment)
 		} else {
 			// Regular repeated field
 			baseType := g.getBaseTypescriptType(field)
+			member := g.beginMember(g.decl, fieldName, false, field)
+			member.typeEnd = member.typeStart() + len(baseType) + len("[]")
 			g.p("%s: %s[];%s", fieldName, baseType, trailingComment)
 		}
 	} else {
@@ -3955,6 +3968,8 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 				optional = "?"
 			}
 		}
+		member := g.beginMember(g.decl, fieldName, optional != "", field)
+		member.typeEnd = member.typeStart() + len(fieldType)
 		g.p("%s%s: %s;%s", fieldName, optional, fieldType, trailingComment)
 	}
 	// Output extra trailing comment lines (multiline trailing comments)
@@ -4033,6 +4048,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	}
 	g.p(" * @generated from protobuf oneof: %s", oneofProtoName)
 	g.p(" */")
+	member := g.beginMember(g.decl, oneofCamelName, false, nil)
 	g.p("%s: {", oneofCamelName)
 	
 	// Generate each alternative
@@ -4126,6 +4142,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	g.indent = "        "
 	g.p("oneofKind: undefined;")
 	g.indent = "    "
+	member.typeEnd = g.b.Len() + len(g.indent) + 1
 	g.p("};")
 	g.indent = ""
 }
@@ -6338,6 +6355,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	// protoParentPrefix already has dots as separators
 	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, protoName)
 	g.pNoIndent(" */")
+	decl := g.beginDecl(true, enumName)
 	g.pNoIndent("export enum %s {", enumName)
 	
 	// Check if enum has a zero value
@@ -6355,6 +6373,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		g.p("/**")
 		g.p(" * @generated synthetic value - protobuf-ts requires all enums to have a 0 value")
 		g.p(" */")
+		decl.members = append(decl.members, &memberRecord{name: "UNSPECIFIED$", value: "0"})
 		g.p("UNSPECIFIED$ = 0,")
 		g.indent = ""
 	}
@@ -6467,10 +6486,12 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		if i == len(enum.Value)-1 {
 			comma = ""
 		}
+		decl.members = append(decl.members, &memberRecord{name: tsName, value: fmt.Sprint(value.GetNumber())})
 		g.p("%s = %d%s", tsName, value.GetNumber(), comma)
 	}
 	
 	g.indent = ""
+	g.endDecl(decl)
 	g.pNoIndent("}")
 }
 
@@ -6527,7 +6548,7 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 	return enumPrefix
 }
 
-func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) (string, *module) {
 	g := &generator{
 		params:            params,
 		file:              file,
@@ -7291,7 +7312,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		g.generateServiceClient(service)
 	}
 	
-	return g.b.String()
+	return g.b.String(), g.rec
 }
 
 func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescriptorProto) {
@@ -7396,6 +7417,9 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	
 	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, baseName)
 	g.pNoIndent(" */")
+	decl := g.beginDecl(false, clientName)
+	client := &clientRecord{service: serviceName}
+	g.record().clients = append(g.record().clients, client)
 	g.pNoIndent("export interface %s {", clientName)
 	g.indent = "    "
 	
@@ -7480,6 +7504,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
 		
+		client.methods = append(client.methods, clientMethodRecord{name: method.GetName(), start: g.b.Len() + len(g.indent), hasInput: !method.GetClientStreaming()})
 		// Determine call type and signature based on streaming
 		if method.GetClientStreaming() && method.GetServerStreaming() {
 			// Bidirectional streaming
@@ -7497,6 +7522,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	}
 	
 	g.indent = ""
+	g.endDecl(decl)
 	g.pNoIndent("}")
 	
 	// Implementation - detached comments
@@ -7843,6 +7869,8 @@ pkgPrefix = *g.file.Package + "."
 svcName := svc.GetName()
 escapedSvcName := escapeTypescriptKeyword(svcName)
 fullName := pkgPrefix + svcName
+service := &serviceRecord{name: escapedSvcName, typeName: fullName}
+g.record().services = append(g.record().services, service)
 
 g.pNoIndent("/**")
 // Add @deprecated if service has deprecated option OR file is deprecated
@@ -7905,6 +7933,7 @@ comma = ""
 	customOpts := g.getCustomMethodOptions(method.Options)
 	optsStr := formatCustomOptions(customOpts)
 
+	service.methods = append(service.methods, serviceMethodRecord{name: method.GetName(), input: inputType, output: outputType})
 	g.p("{ name: \"%s\", %s%s%soptions: %s, I: %s, O: %s }%s",
 		method.GetName(), localNameField, idempotencyField, streamingFlags, optsStr, inputType, outputType, comma)
 }
@@ -8821,7 +8850,7 @@ func (g *generator) generateGoogleTypeTimeOfDayMethods() {
 }
 
 // generateGrpcServerFile generates the .grpc-server.ts file for services with ts.server = GRPC1_SERVER.
-func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) (string, *module) {
 	g := &generator{
 		params:            params,
 		file:              file,
@@ -8995,6 +9024,7 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 
 		// Interface JSDoc with service comments
 		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		decl := g.beginDecl(false, interfaceName)
 		g.pNoIndent("export interface %s extends grpc.UntypedServiceImplementation {", interfaceName)
 		g.indent = "    "
 
@@ -9071,6 +9101,7 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		}
 
 		g.indent = ""
+		g.endDecl(decl)
 		g.pNoIndent("}")
 
 		// Service definition const
@@ -9117,11 +9148,11 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		g.pNoIndent("};")
 	}
 
-	return g.b.String()
+	return g.b.String(), g.rec
 }
 
 // generateGrpcClientFile generates the .grpc-client.ts file for services with ts.client = GRPC1_CLIENT.
-func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) (string, *module) {
 	g := &generator{
 		params:            params,
 		file:              file,
@@ -9326,6 +9357,7 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 
 		// Interface
 		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		decl := g.beginDecl(false, interfaceName)
 		g.pNoIndent("export interface %s {", interfaceName)
 		g.indent = "    "
 
@@ -9411,6 +9443,7 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		}
 
 		g.indent = ""
+		g.endDecl(decl)
 		g.pNoIndent("}")
 
 		// Class
@@ -9526,11 +9559,11 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		g.pNoIndent("}")
 	}
 
-	return g.b.String()
+	return g.b.String(), g.rec
 }
 
 // generateGenericServerFile generates the .server.ts file for services with ts.server = GENERIC_SERVER.
-func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) (string, *module) {
 	g := &generator{
 		params:            params,
 		file:              file,
@@ -9718,6 +9751,7 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 
 		// Interface JSDoc with service comments
 		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		decl := g.beginDecl(false, interfaceName)
 		g.pNoIndent("export interface %s<T = ServerCallContext> {", interfaceName)
 		g.indent = "    "
 
@@ -9796,10 +9830,11 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 		}
 
 		g.indent = ""
+		g.endDecl(decl)
 		g.pNoIndent("}")
 	}
 
-	return g.b.String()
+	return g.b.String(), g.rec
 }
 
 func (g *generator) resolveTypeRef(protoTypeName string) string {

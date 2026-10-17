@@ -23,7 +23,7 @@ func TestCompileWorkspaceProto(t *testing.T) {
 
 	compiler := NewCompiler(NewLogger())
 
-	err = compiler.compile(sourcesDir, protoDir)
+	_, err = compiler.compile(sourcesDir, protoDir)
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
 	}
