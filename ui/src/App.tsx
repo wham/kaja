@@ -2990,6 +2990,7 @@ export function App() {
                 }
                 fileActions={fileActions}
                 action={action}
+                editorWidth={isHorizontalLayout ? editorWidth : undefined}
                 layout={editorLayout}
                 onToggleLayout={onToggleEditorLayout}
               />

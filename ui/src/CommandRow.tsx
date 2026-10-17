@@ -20,6 +20,10 @@ interface CommandRowProps {
   // form. A file is never both, so they share the slot and the row keeps its
   // shape.
   action?: React.ReactNode;
+  // Where the editor ends when the console sits beside it. The row splits at the
+  // same x, so the action lands at the editor's own corner rather than the
+  // window's, which on a wide screen is a long way from the code it runs.
+  editorWidth?: number;
   layout: "vertical" | "horizontal";
   onToggleLayout: () => void;
 }
@@ -39,36 +43,56 @@ interface CommandRowProps {
 // console header's do: the keyboard hint on Run first, there being no keyboard
 // on the screen this narrows for. The finder truncates through all of it,
 // because with the sidebar collapsed it is the only thing saying where you are.
-export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, layout, onToggleLayout }: CommandRowProps) {
+export function CommandRow({
+  leftInset,
+  sidebarCollapsed,
+  onToggleSidebar,
+  finder,
+  fileActions,
+  action,
+  editorWidth,
+  layout,
+  onToggleLayout,
+}: CommandRowProps) {
   const sidebarKey = useShortcutLabel("toggleSidebar");
   const sidebarHint = sidebarKey === "" ? "" : ` (${sidebarKey})`;
+  const split = editorWidth !== undefined;
 
   return (
     <div
-      className="@container flex h-[40px] shrink-0 items-center gap-2 border-b border-border bg-chrome px-3"
-      style={{ paddingLeft: leftInset, "--wails-draggable": "drag" } as React.CSSProperties}
+      className="@container flex h-[40px] shrink-0 items-center border-b border-border bg-chrome"
+      style={{ "--wails-draggable": "drag" } as React.CSSProperties}
     >
-      {/* The left side is what may shrink, and the finder inside it is what
-          truncates: the right side is buttons, and a button that has given up
-          room is a button drawn over its neighbour. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-        <SimpleTooltip text={sidebarCollapsed ? `Show sidebar${sidebarHint}` : `Hide sidebar${sidebarHint}`} side="bottom">
-          <IconButton
-            icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
-            aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-            onClick={onToggleSidebar}
-            size="sm"
-            variant="ghost"
-            className="size-[26px] shrink-0"
-            tooltip="none"
-          />
-        </SimpleTooltip>
-        {finder}
-        {fileActions}
+      <div
+        className={cn("flex min-w-0 items-center gap-2 pr-3", !split && "flex-1 pr-2")}
+        style={{ paddingLeft: leftInset, width: editorWidth } as React.CSSProperties}
+      >
+        {/* The left side is what may shrink, and the finder inside it is what
+            truncates: the right side is buttons, and a button that has given up
+            room is a button drawn over its neighbour. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+          <SimpleTooltip text={sidebarCollapsed ? `Show sidebar${sidebarHint}` : `Hide sidebar${sidebarHint}`} side="bottom">
+            <IconButton
+              icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+              aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              onClick={onToggleSidebar}
+              size="sm"
+              variant="ghost"
+              className="size-[26px] shrink-0"
+              tooltip="none"
+            />
+          </SimpleTooltip>
+          {finder}
+          {fileActions}
+        </div>
+        {action && (
+          <div className="flex shrink-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+            {action}
+            {!split && <Hairline />}
+          </div>
+        )}
       </div>
-      <div className="flex shrink-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-        {action}
-        {action && <Hairline />}
+      <div className={cn("flex shrink-0 items-center pr-3", split && "flex-1 justify-end")}>
         <SimpleTooltip text={layout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
           <IconButton
             icon={layout === "vertical" ? Columns2 : Rows2}
@@ -77,6 +101,7 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
             size="sm"
             variant="ghost"
             className="size-[26px]"
+            style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
             tooltip="none"
           />
         </SimpleTooltip>
