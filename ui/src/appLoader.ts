@@ -1,5 +1,4 @@
 import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import ts from "@typescript/typescript6";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";
@@ -102,8 +101,6 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   const imports = addImport({}, serviceName, source);
   const input = defaultMessage(methodInfo.I, app.sources, imports, new Set(), fields);
 
-  let statements: ts.Statement[] = [];
-
   // Imports are collected against the module each name is declared in, and only
   // turned into specifiers here: two modules that both answer to the app's name
   // are one import line, not two.
@@ -116,35 +113,8 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
     }
   }
 
-  for (const path in bySpecifier) {
-    statements.push(
-      ts.factory.createImportDeclaration(
-        undefined, // modifiers
-        ts.factory.createImportClause(
-          false, // isTypeOnly
-          undefined, // name
-          ts.factory.createNamedImports(
-            [...bySpecifier[path]].map((enumName) => {
-              return ts.factory.createImportSpecifier(
-                false, // propertyName
-                undefined,
-                ts.factory.createIdentifier(enumName),
-              );
-            }),
-          ), // elements
-        ), // importClause
-        ts.factory.createStringLiteral(path), // moduleSpecifier
-      ),
-    );
-  }
-
-  let call: ts.Statement = ts.factory.createExpressionStatement(
-    ts.factory.createCallExpression(
-      ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(serviceName), ts.factory.createIdentifier(methodInfo.name)),
-      undefined,
-      [input],
-    ),
-  );
+  const lines = Object.entries(bySpecifier).map(([path, names]) => `import { ${[...names].join(", ")} } from ${JSON.stringify(path)};`);
+  lines.push("");
 
   // The call is written out even where Kaja won't make it, because the request is
   // still what the method takes and reading it is why you clicked. What the editor
@@ -154,27 +124,12 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
   // did it, which is what the line above answers.
   const unsupported = unsupportedReason(methodInfo, appType(app.configuration));
   for (const note of [deprecated ? DEPRECATION_NOTE : undefined, unsupported]) {
-    if (note) call = ts.addSyntheticLeadingComment(call, ts.SyntaxKind.SingleLineCommentTrivia, " " + note, true);
+    if (note) lines.push(`// ${note}`);
   }
 
-  statements = [
-    ...statements,
-    // A blank line after the import; see
-    // https://stackoverflow.com/questions/55246585/how-to-generate-extra-newlines-between-nodes-with-the-typescript-compiler-api-pr
-    ts.factory.createIdentifier("\n") as unknown as ts.Statement,
-    call,
-  ];
+  lines.push(`${serviceName}.${methodInfo.name}(${input});`);
 
-  return printStatements(statements);
-}
-
-export function printStatements(statements: ts.Statement[]): string {
-  let sourceFile = ts.createSourceFile("temp.ts", "", ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
-  sourceFile = ts.factory.updateSourceFile(sourceFile, statements);
-
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-
-  return printer.printFile(sourceFile);
+  return lines.join("\n") + "\n";
 }
 
 // httpRequest reads the HTTP request a method transcodes to, when the app wrote one

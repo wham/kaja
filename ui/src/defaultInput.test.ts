@@ -2,8 +2,6 @@ import { MessageType } from "@protobuf-ts/runtime";
 import { expect, test } from "bun:test";
 import { defaultMessage, Imports } from "./defaultInput";
 import { Kaja } from "./kaja";
-import { printStatements } from "./appLoader";
-import ts from "@typescript/typescript6";
 import { Sources } from "./sources";
 
 test("defaultInput", () => {
@@ -13,7 +11,7 @@ test("defaultInput", () => {
     { no: 3, name: "sint64_string", kind: "map", K: 18 /*ScalarType.SINT64*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
   ]);
 
-  // expect(printStatements([defaultInput(I)])).toBe({});
+  expect(defaultMessage(I, [], {})).toBe('{ stringString: { key: "" }, stringInt32: { key: 0 }, sint64String: { 0: "" } }');
 });
 
 // A self-referential message (as generated for recursive OpenAPI schemas such as
@@ -27,7 +25,7 @@ test("defaultInput terminates on self-referential message with valid output", ()
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(filter, sources, {}))]);
+  const expr = defaultMessage(filter, sources, {});
 
   // The repeated self-reference becomes an empty array, not an unfillable element.
   expect(expr).toContain("field:");
@@ -47,7 +45,7 @@ test("defaultInput uses empty arrays for repeated scalars, one element for messa
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const expr = defaultMessage(request, sources, {});
 
   // Repeated scalar: empty array, no placeholder element.
   expect(expr).toContain("ids: []");
@@ -76,7 +74,7 @@ test("defaultInput builds a google.protobuf.Value field with kaja.value", () => 
 
   const sources: Sources = [];
   const imports: Imports = {};
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, imports))]);
+  const expr = defaultMessage(request, sources, imports);
 
   expect(expr).toContain("id:");
   expect(expr).toContain("data: kaja.value(null)");
@@ -96,7 +94,7 @@ test("defaultInput builds a map of google.protobuf.Value with kaja.value", () =>
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const expr = defaultMessage(request, sources, {});
 
   expect(expr).toContain("schemaFields: { key: kaja.value(null) }");
 });
@@ -111,7 +109,7 @@ test("defaultInput renders a oneof as a single empty group", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const expr = defaultMessage(request, sources, {});
 
   expect(expr).toContain("id:");
   expect(expr).toContain("selector: { oneofKind: undefined }");
@@ -134,7 +132,7 @@ test("defaultInput generates a request that serializes", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const expr = defaultMessage(request, sources, {});
   // The generated code calls the kaja builders, which a script gets from the
   // runtime object; supply the real one so what is serialized is what a run sends.
   const generated = new Function("kaja", `return ${expr.replace(/;\s*$/, "")}`)(
@@ -162,7 +160,7 @@ test("defaultInput fills in a Timestamp map value", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const expr = defaultMessage(request, sources, {});
 
   expect(expr).toContain("seconds:");
   expect(expr).toContain("nanos:");
@@ -186,7 +184,7 @@ test("defaultInput terminates on recursive map value", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(node, sources, {}))]);
+  const expr = defaultMessage(node, sources, {});
 
   expect(expr).toContain("children: {}");
 });
@@ -209,7 +207,7 @@ test("defaultInput writes only the required fields when asked for them", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}, new Set(), "required"))]);
+  const expr = defaultMessage(request, sources, {}, new Set(), "required");
 
   expect(expr).toContain('projectId: ""');
   expect(expr).not.toContain("pageSize");
@@ -230,8 +228,8 @@ test("defaultInput writes an empty request when nothing is required", () => {
 
   const sources: Sources = [];
   const imports: Imports = {};
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, imports, new Set(), "required"))]);
+  const expr = defaultMessage(request, sources, imports, new Set(), "required");
 
-  expect(expr.trim()).toBe("({});");
+  expect(expr).toBe("{}");
   expect(imports).toEqual({});
 });

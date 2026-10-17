@@ -1,5 +1,4 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import ts from "@typescript/typescript6";
 import { HTTP_REQUIRED_OPTION } from "./declarations";
 import { findEnum, Source, Sources } from "./sources";
 
@@ -32,15 +31,15 @@ const wellKnownBuilders: { [typeName: string]: string } = {
   "google.protobuf.ListValue": "listValue",
 };
 
-const wellKnownArguments: { [typeName: string]: () => ts.Expression } = {
-  "google.protobuf.Value": () => ts.factory.createNull(),
-  "google.protobuf.Struct": () => ts.factory.createObjectLiteralExpression([]),
-  "google.protobuf.ListValue": () => ts.factory.createArrayLiteralExpression([]),
+const wellKnownArguments: { [typeName: string]: string } = {
+  "google.protobuf.Value": "null",
+  "google.protobuf.Struct": "{}",
+  "google.protobuf.ListValue": "[]",
 };
 
 // kajaBuilderCall writes `kaja.value(null)` for a well-known JSON type, and records
 // the import the call needs.
-function kajaBuilderCall(typeName: string, imports: Imports): ts.Expression | undefined {
+function kajaBuilderCall(typeName: string, imports: Imports): string | undefined {
   const builder = wellKnownBuilders[typeName];
   if (!builder) {
     return undefined;
@@ -49,11 +48,7 @@ function kajaBuilderCall(typeName: string, imports: Imports): ts.Expression | un
     imports[KAJA_MODULE] = new Set();
   }
   imports[KAJA_MODULE].add("kaja");
-  return ts.factory.createCallExpression(
-    ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier("kaja"), ts.factory.createIdentifier(builder)),
-    undefined,
-    [wellKnownArguments[typeName]()],
-  );
+  return `kaja.${builder}(${wellKnownArguments[typeName]})`;
 }
 
 // The module the kaja runtime object is imported from, which the task runner resolves
@@ -72,7 +67,7 @@ export function defaultMessage<T extends object>(
   imports: Imports,
   visiting: Set<string> = new Set(),
   fields: FieldSet = "all",
-): ts.ObjectLiteralExpression {
+): string {
   const typeName = message.typeName;
 
   // Timestamp defaults to the current time.
@@ -80,13 +75,13 @@ export function defaultMessage<T extends object>(
     const now = new Date();
     const seconds = Math.floor(now.getTime() / 1000);
     const nanos = (now.getTime() % 1000) * 1_000_000;
-    return ts.factory.createObjectLiteralExpression([
-      ts.factory.createPropertyAssignment("seconds", ts.factory.createStringLiteral(seconds.toString())),
-      ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
+    return objectLiteral([
+      ["seconds", stringLiteral(seconds.toString())],
+      ["nanos", String(nanos)],
     ]);
   }
 
-  let properties: ts.PropertyAssignment[] = [];
+  const properties: [string, string][] = [];
 
   // Track the message types on the current recursion path so a self-referential message
   // stops instead of recursing until the stack overflows.
@@ -104,12 +99,7 @@ export function defaultMessage<T extends object>(
     if (field.oneof) {
       if (!oneofs.has(field.oneof)) {
         oneofs.add(field.oneof);
-        properties.push(
-          ts.factory.createPropertyAssignment(
-            field.oneof,
-            ts.factory.createObjectLiteralExpression([ts.factory.createPropertyAssignment("oneofKind", ts.factory.createIdentifier("undefined"))]),
-          ),
-        );
+        properties.push([field.oneof, objectLiteral([["oneofKind", "undefined"]])]);
       }
       return;
     }
@@ -119,12 +109,12 @@ export function defaultMessage<T extends object>(
     // singular one is omitted, so the generated code stays type-correct.
     if (field.kind === "message" && omitMessage(field.T().typeName, nested)) {
       if (field.repeat) {
-        properties.push(ts.factory.createPropertyAssignment(field.localName, ts.factory.createArrayLiteralExpression([])));
+        properties.push([field.localName, "[]"]);
       }
       return;
     }
 
-    let value: ts.Expression;
+    let value: string;
 
     if (field.repeat) {
       // A repeated scalar defaults to an empty array: a single placeholder element ([""] or
@@ -133,15 +123,23 @@ export function defaultMessage<T extends object>(
       // message and enum fields keep one element, which carries a nested shape or a concrete
       // valid value the field name alone doesn't convey.
       const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested, fields)];
-      value = ts.factory.createArrayLiteralExpression(elements);
+      value = `[${elements.join(", ")}]`;
     } else {
       value = defaultMessageField(field, sources, imports, nested, fields);
     }
 
-    properties.push(ts.factory.createPropertyAssignment(field.localName, value));
+    properties.push([field.localName, value]);
   });
 
-  return ts.factory.createObjectLiteralExpression(properties);
+  return objectLiteral(properties);
+}
+
+function objectLiteral(properties: [string, string][]): string {
+  return properties.length === 0 ? "{}" : `{ ${properties.map(([name, value]) => `${name}: ${value}`).join(", ")} }`;
+}
+
+function stringLiteral(value: string): string {
+  return JSON.stringify(value);
 }
 
 export interface Imports {
@@ -160,7 +158,7 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): ts.Expression {
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): string {
   // Scalars start at their zero value. Values from earlier calls are offered as editor
   // completions instead (valueCompletions), so what is generated here is only ever the
   // shape of the request, never a guess at its contents.
@@ -172,12 +170,9 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     // An empty map is valid, so a value type with no default worth generating leaves the
     // map empty rather than holding an entry that can't be sent.
     if (field.V.kind === "message" && omitMessage(field.V.T().typeName, visiting)) {
-      return ts.factory.createObjectLiteralExpression([]);
+      return "{}";
     }
-    const properties: ts.PropertyAssignment[] = [];
-    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting, fields)));
-
-    return ts.factory.createObjectLiteralExpression(properties);
+    return objectLiteral([[defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting, fields)]]);
   }
 
   if (field.kind === "enum") {
@@ -192,10 +187,10 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     return defaultMessage(field.T(), sources, imports, visiting, fields);
   }
 
-  return ts.factory.createNull();
+  return "null";
 }
 
-function defaultScalar(value: ScalarType): ts.Expression {
+function defaultScalar(value: ScalarType): string {
   // 64-bit integer types are represented as strings.
   switch (value) {
     case ScalarType.INT64:
@@ -203,7 +198,7 @@ function defaultScalar(value: ScalarType): ts.Expression {
     case ScalarType.FIXED64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      return ts.factory.createStringLiteral("0");
+      return stringLiteral("0");
     case ScalarType.DOUBLE:
     case ScalarType.FLOAT:
     case ScalarType.INT32:
@@ -211,14 +206,14 @@ function defaultScalar(value: ScalarType): ts.Expression {
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
     case ScalarType.SINT32:
-      return ts.factory.createNumericLiteral(0);
+      return "0";
     case ScalarType.BOOL:
-      return ts.factory.createTrue();
+      return "true";
     case ScalarType.BYTES:
-      return ts.factory.createNewExpression(ts.factory.createIdentifier("Uint8Array"), undefined, []);
+      return "new Uint8Array()";
   }
 
-  return ts.factory.createStringLiteral("");
+  return stringLiteral("");
 }
 
 type mapKeyType = Exclude<ScalarType, ScalarType.FLOAT | ScalarType.DOUBLE | ScalarType.BYTES>;
@@ -257,7 +252,7 @@ type mapValueType =
       T: () => IMessageType<any>;
     };
 
-function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): ts.Expression {
+function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): string {
   switch (value.kind) {
     case "scalar":
       return defaultScalar(value.T);
@@ -268,7 +263,7 @@ function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports
   }
 }
 
-function defaultEnum(value: EnumInfo, sources: Sources, imports: Imports): ts.Expression {
+function defaultEnum(value: EnumInfo, sources: Sources, imports: Imports): string {
   const result = findEnum(sources, value[1]);
 
   if (!result) {
@@ -282,5 +277,5 @@ function defaultEnum(value: EnumInfo, sources: Sources, imports: Imports): ts.Ex
   // the API will reject.
   const enumValue = value[1][1] || value[1][0];
 
-  return ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(enumName), ts.factory.createIdentifier(enumValue));
+  return `${enumName}.${enumValue}`;
 }
