@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Foo",
+          "text": "export interface Foo {\n    /** The name of the entity */\n    name: string;\n    age: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

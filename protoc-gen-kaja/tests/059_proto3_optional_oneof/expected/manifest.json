@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Test",
+          "typeName": "Test",
+          "fields": [
+            {
+              "no": 1,
+              "name": "optional_scalar",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "optional_enum",
+              "kind": "enum",
+              "opt": true,
+              "T": "Status"
+            },
+            {
+              "no": 3,
+              "name": "scalar_choice",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "enum_choice",
+              "kind": "enum",
+              "oneof": "choice",
+              "T": "Status"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Test",
+          "text": "export interface Test {\n    /** Proto3 optional scalar - should get opt: true */\n    optionalScalar?: number;\n    /** Proto3 optional enum - should get opt: true */\n    optionalEnum?: Status;\n    /** Oneof with scalar - should NOT get opt: true (in oneof already) */\n    choice: {\n        oneofKind: \"scalarChoice\";\n        scalarChoice: number;\n    } | {\n        oneofKind: \"enumChoice\";\n        enumChoice: Status;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "Status"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

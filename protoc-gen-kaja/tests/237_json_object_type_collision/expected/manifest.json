@@ -1,0 +1,154 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Struct",
+          "typeName": "google.protobuf.Struct",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fields",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "google.protobuf.Value"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Value",
+          "typeName": "google.protobuf.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "null_value",
+              "kind": "enum",
+              "oneof": "kind",
+              "T": "google.protobuf.NullValue"
+            },
+            {
+              "no": 2,
+              "name": "number_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 1
+            },
+            {
+              "no": 3,
+              "name": "string_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "bool_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "struct_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "list_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.ListValue"
+            }
+          ]
+        },
+        {
+          "name": "ListValue",
+          "typeName": "google.protobuf.ListValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "values",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Value"
+            }
+          ]
+        },
+        {
+          "name": "JsonObject",
+          "typeName": "google.protobuf.JsonObject",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "NullValue",
+          "typeName": "google.protobuf.NullValue",
+          "values": [
+            [
+              "NULL_VALUE",
+              0
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Struct",
+          "text": "/** Struct triggers import of JsonObject type from @protobuf-ts/runtime. A local message named JsonObject should cause a collision that needs aliasing. */\nexport interface Struct {\n    fields: { [key: string]: Value };\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "Value",
+          "text": "export interface Value {\n    kind: {\n        oneofKind: \"nullValue\";\n        nullValue: NullValue;\n    } | {\n        oneofKind: \"numberValue\";\n        numberValue: number;\n    } | {\n        oneofKind: \"stringValue\";\n        stringValue: string;\n    } | {\n        oneofKind: \"boolValue\";\n        boolValue: boolean;\n    } | {\n        oneofKind: \"structValue\";\n        structValue: Struct;\n    } | {\n        oneofKind: \"listValue\";\n        listValue: ListValue;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "NullValue",
+            "Struct",
+            "ListValue"
+          ]
+        },
+        {
+          "name": "ListValue",
+          "text": "export interface ListValue {\n    values: Value[];\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "JsonObject",
+          "text": "export interface JsonObject {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "NullValue",
+          "text": "export enum NullValue {\n    NULL_VALUE = 0,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

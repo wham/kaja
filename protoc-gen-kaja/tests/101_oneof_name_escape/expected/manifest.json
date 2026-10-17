@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "oneof_name_escape.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "oneofKind$",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "oneofKind$",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "other",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyMessage",
+          "text": "/** Message with a oneof named oneof_kind which collides with the oneofKindDiscriminator used by protobuf-ts for oneof unions. */\nexport interface MyMessage {\n    oneofKind$: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n    other: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

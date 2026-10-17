@@ -1,0 +1,303 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "circular.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SelfReference",
+          "typeName": "circular.SelfReference",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "child",
+              "kind": "message",
+              "T": "circular.SelfReference"
+            }
+          ]
+        },
+        {
+          "name": "PersonNode",
+          "typeName": "circular.PersonNode",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "address",
+              "kind": "message",
+              "T": "circular.AddressNode"
+            }
+          ]
+        },
+        {
+          "name": "AddressNode",
+          "typeName": "circular.AddressNode",
+          "fields": [
+            {
+              "no": 1,
+              "name": "street",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "resident",
+              "kind": "message",
+              "T": "circular.PersonNode"
+            }
+          ]
+        },
+        {
+          "name": "TreeNode",
+          "typeName": "circular.TreeNode",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "children",
+              "kind": "message",
+              "repeat": 2,
+              "T": "circular.TreeNode"
+            },
+            {
+              "no": 3,
+              "name": "parent",
+              "kind": "message",
+              "T": "circular.TreeNode"
+            }
+          ]
+        },
+        {
+          "name": "GraphNode",
+          "typeName": "circular.GraphNode",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "neighbors",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "circular.GraphNode"
+              }
+            }
+          ]
+        },
+        {
+          "name": "NodeA",
+          "typeName": "circular.NodeA",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "next",
+              "kind": "message",
+              "T": "circular.NodeB"
+            }
+          ]
+        },
+        {
+          "name": "NodeB",
+          "typeName": "circular.NodeB",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "next",
+              "kind": "message",
+              "T": "circular.NodeC"
+            }
+          ]
+        },
+        {
+          "name": "NodeC",
+          "typeName": "circular.NodeC",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "next",
+              "kind": "message",
+              "T": "circular.NodeA"
+            }
+          ]
+        },
+        {
+          "name": "Outer",
+          "typeName": "circular.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "circular.Outer.Inner"
+            }
+          ]
+        },
+        {
+          "name": "Outer_Inner",
+          "typeName": "circular.Outer.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "outer",
+              "kind": "message",
+              "T": "circular.Outer"
+            }
+          ]
+        },
+        {
+          "name": "OneofCircular",
+          "typeName": "circular.OneofCircular",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "nested",
+              "kind": "message",
+              "oneof": "value",
+              "T": "circular.OneofCircular"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SelfReference",
+          "text": "/** Direct self-reference */\nexport interface SelfReference {\n    id: string;\n    child?: SelfReference;\n}",
+          "references": [
+            "SelfReference"
+          ]
+        },
+        {
+          "name": "PersonNode",
+          "text": "/** Mutual reference (A -\u003e B -\u003e A) */\nexport interface PersonNode {\n    name: string;\n    address?: AddressNode;\n}",
+          "references": [
+            "AddressNode"
+          ]
+        },
+        {
+          "name": "AddressNode",
+          "text": "export interface AddressNode {\n    street: string;\n    resident?: PersonNode;\n}",
+          "references": [
+            "PersonNode"
+          ]
+        },
+        {
+          "name": "TreeNode",
+          "text": "/** Circular through repeated field */\nexport interface TreeNode {\n    value: string;\n    children: TreeNode[];\n    parent?: TreeNode;\n}",
+          "references": [
+            "TreeNode"
+          ]
+        },
+        {
+          "name": "GraphNode",
+          "text": "/** Circular through map */\nexport interface GraphNode {\n    id: string;\n    neighbors: { [key: string]: GraphNode };\n}",
+          "references": [
+            "GraphNode"
+          ]
+        },
+        {
+          "name": "NodeA",
+          "text": "/** Three-way circular (A -\u003e B -\u003e C -\u003e A) */\nexport interface NodeA {\n    id: string;\n    next?: NodeB;\n}",
+          "references": [
+            "NodeB"
+          ]
+        },
+        {
+          "name": "NodeB",
+          "text": "export interface NodeB {\n    id: string;\n    next?: NodeC;\n}",
+          "references": [
+            "NodeC"
+          ]
+        },
+        {
+          "name": "NodeC",
+          "text": "export interface NodeC {\n    id: string;\n    next?: NodeA;\n}",
+          "references": [
+            "NodeA"
+          ]
+        },
+        {
+          "name": "Outer",
+          "text": "/** Nested circular */\nexport interface Outer {\n    inner?: Outer_Inner;\n}",
+          "references": [
+            "Outer_Inner"
+          ]
+        },
+        {
+          "name": "Outer_Inner",
+          "text": "export interface Outer_Inner {\n    value: string;\n    outer?: Outer;\n}",
+          "references": [
+            "Outer"
+          ]
+        },
+        {
+          "name": "OneofCircular",
+          "text": "/** Circular with oneof */\nexport interface OneofCircular {\n    id: string;\n    value: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"nested\";\n        nested: OneofCircular;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "OneofCircular"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -20,7 +20,7 @@ function service(name: string, packageName: string, methods: string[]): Service 
     name,
     packageName,
     sourcePath: `${packageName}.proto`,
-    clientStubModuleId: `${packageName}.${name}`,
+    typeName: `${packageName}.${name}`,
     methods: methods.map((method) => ({ name: method })),
   };
 }

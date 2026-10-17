@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Msg",
+          "typeName": "test.Msg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Msg",
+          "text": "/** A message using the enum. */\nexport interface Msg {\n    status: Status;\n}",
+          "references": [
+            "Status"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "/** A status enum. */\nexport enum Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

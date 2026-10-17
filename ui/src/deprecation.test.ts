@@ -9,46 +9,48 @@ import type { Manifest } from "./sources";
 // One method the API asks callers off, one it says nothing about. protoc-gen-kaja
 // marks a method for `option deprecated = true` on an rpc, which is what an OpenAPI
 // `deprecated: true` becomes.
+const empty = (name: string) => ({ name, typeName: `petstore.${name}`, fields: [] });
+
 const manifest: Manifest = {
-  version: 1,
+  version: 2,
   modules: [
     {
       path: "proto/pet.ts",
       editorText: "",
+      messages: [empty("FindByTagsRequest"), empty("FindByStatusRequest"), empty("Pets")],
+      enums: [],
       services: [
         {
           name: "Pet",
           typeName: "petstore.Pet",
-          clientModule: "proto/pet.client.ts",
           methods: [
-            { name: "FindByTags", input: "FindByTagsRequest", output: "Pets", doc: "Finds Pets by tags.", deprecated: true },
-            { name: "FindByStatus", input: "FindByStatusRequest", output: "Pets", doc: "Finds Pets by status." },
+            {
+              name: "FindByTags",
+              input: "FindByTagsRequest",
+              output: "Pets",
+              I: "petstore.FindByTagsRequest",
+              O: "petstore.Pets",
+              doc: "Finds Pets by tags.",
+              deprecated: true,
+            },
+            {
+              name: "FindByStatus",
+              input: "FindByStatusRequest",
+              output: "Pets",
+              I: "petstore.FindByStatusRequest",
+              O: "petstore.Pets",
+              doc: "Finds Pets by status.",
+            },
           ],
         },
       ],
-      interfaces: ["FindByTagsRequest", "FindByStatusRequest", "Pets"],
-      enums: [],
       declarations: [],
     },
-    { path: "proto/pet.client.ts", editorText: "", services: [], interfaces: ["IPetClient"], enums: [], declarations: [] },
   ],
 };
 
-const stubCode = `
-export const proto$pet = {
-  Pet: {
-    typeName: "petstore.Pet",
-    methods: [
-      { name: "FindByTags", I: { typeName: "petstore.FindByTagsRequest", fields: [] } },
-      { name: "FindByStatus", I: { typeName: "petstore.FindByStatusRequest", fields: [] } },
-    ],
-  },
-};
-export const proto$pet$client = { PetClient: class {} };
-`;
-
 async function petstore() {
-  return loadApp(manifest, stubCode, { name: "petstore", app: { oneofKind: "openapi" } } as any);
+  return loadApp(manifest, { name: "petstore", app: { oneofKind: "openapi" } } as any);
 }
 
 describe("a method the API deprecated", () => {

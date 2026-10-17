@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.max_size": "1000",
+            "test.max_count": "500",
+            "test.offset": "-10",
+            "test.hash": "42",
+            "test.delta": "-7"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

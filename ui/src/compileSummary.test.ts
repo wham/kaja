@@ -96,8 +96,8 @@ describe("app details", () => {
   test("methods are counted across services", () => {
     const withServices = app("a", "success");
     withServices.services = [
-      { name: "S", packageName: "p", sourcePath: "", clientStubModuleId: "", methods: [{ name: "m" }, { name: "n" }] },
-      { name: "T", packageName: "p", sourcePath: "", clientStubModuleId: "", methods: [{ name: "o" }] },
+      { name: "S", packageName: "p", sourcePath: "", typeName: "", methods: [{ name: "m" }, { name: "n" }] },
+      { name: "T", packageName: "p", sourcePath: "", typeName: "", methods: [{ name: "o" }] },
     ];
     expect(countMethods(withServices)).toBe(3);
   });

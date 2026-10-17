@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "enum_detached.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Dummy",
+          "typeName": "test.Dummy",
+          "fields": [
+            {
+              "no": 1,
+              "name": "x",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "MyEnum",
+          "typeName": "test.MyEnum",
+          "values": [
+            [
+              "ZERO",
+              0
+            ],
+            [
+              "ONE",
+              1
+            ]
+          ],
+          "prefix": "MY_ENUM_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Dummy",
+          "text": "export interface Dummy {\n    x: number;\n}",
+          "references": []
+        },
+        {
+          "name": "MyEnum",
+          "text": "/** This is the enum comment */\nexport enum MyEnum {\n    ZERO = 0,\n    ONE = 1,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

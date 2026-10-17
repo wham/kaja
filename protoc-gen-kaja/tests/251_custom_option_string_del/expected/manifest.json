@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMsg",
+          "typeName": "test.TestMsg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.annotation": "helloworld"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMsg",
+          "text": "/** Tests that the DEL character (U+007F) in a custom option string is NOT escaped — the TS compiler's escapeString only covers U+0000-U+001F, not DEL. The Go plugin incorrectly escapes it as \\u007f. */\nexport interface TestMsg {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

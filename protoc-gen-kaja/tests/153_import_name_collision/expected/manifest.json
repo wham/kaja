@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "common.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "common.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    id: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "local_item",
+              "kind": "message",
+              "T": "test.Item"
+            },
+            {
+              "no": 2,
+              "name": "remote_item",
+              "kind": "message",
+              "T": "common.Item"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    localItem?: Item;\n    remoteItem?: Item$;\n}",
+          "references": [
+            "Item",
+            "Item$"
+          ]
+        }
+      ]
+    }
+  ]
+}

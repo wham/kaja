@@ -1,0 +1,274 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "gaps.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "FieldNumberGaps",
+          "typeName": "gaps.FieldNumberGaps",
+          "fields": [
+            {
+              "no": 1,
+              "name": "field1",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 100,
+              "name": "field100",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 50,
+              "name": "field50",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "field2",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 1000,
+              "name": "field1000",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 500,
+              "name": "field500",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "HighFieldNumbers",
+          "typeName": "gaps.HighFieldNumbers",
+          "fields": [
+            {
+              "no": 536870911,
+              "name": "field536870911",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 1000,
+              "name": "field1000",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10000,
+              "name": "field10000",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "SparseFields",
+          "typeName": "gaps.SparseFields",
+          "fields": [
+            {
+              "no": 1,
+              "name": "a",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10,
+              "name": "b",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 20,
+              "name": "c",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 30,
+              "name": "d",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 100,
+              "name": "e",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 200,
+              "name": "f",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 300,
+              "name": "g",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 1000,
+              "name": "h",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10000,
+              "name": "i",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 100000,
+              "name": "j",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ReversedOrder",
+          "typeName": "gaps.ReversedOrder",
+          "fields": [
+            {
+              "no": 100,
+              "name": "last",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 50,
+              "name": "middle",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 1,
+              "name": "first",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 75,
+              "name": "another",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 25,
+              "name": "yet_another",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "OneofWithGaps",
+          "typeName": "gaps.OneofWithGaps",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 50,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 5
+            },
+            {
+              "no": 100,
+              "name": "flag",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 8
+            },
+            {
+              "no": 200,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "MapWithHighNumber",
+          "typeName": "gaps.MapWithHighNumber",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 500,
+              "name": "data",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "FieldNumberGaps",
+          "text": "/** Test non-sequential field numbers */\nexport interface FieldNumberGaps {\n    field1: string;\n    field100: string;\n    field50: string;\n    field2: string;\n    field1000: string;\n    field500: string;\n}",
+          "references": []
+        },
+        {
+          "name": "HighFieldNumbers",
+          "text": "/** Test field numbers starting high */\nexport interface HighFieldNumbers {\n    /** Max field number */\n    field536870911: string;\n    field1000: string;\n    field10000: string;\n}",
+          "references": []
+        },
+        {
+          "name": "SparseFields",
+          "text": "/** Test sparse field numbers */\nexport interface SparseFields {\n    a: string;\n    b: string;\n    c: string;\n    d: string;\n    e: string;\n    f: string;\n    g: string;\n    h: string;\n    i: string;\n    j: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ReversedOrder",
+          "text": "/** Test reversed order field numbers (in proto definition) */\nexport interface ReversedOrder {\n    last: string;\n    middle: string;\n    first: string;\n    another: string;\n    yetAnother: string;\n}",
+          "references": []
+        },
+        {
+          "name": "OneofWithGaps",
+          "text": "/** Test oneof with gaps */\nexport interface OneofWithGaps {\n    id: string;\n    value: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: \"flag\";\n        flag: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "MapWithHighNumber",
+          "text": "/** Test map with high field number */\nexport interface MapWithHighNumber {\n    id: string;\n    data: { [key: string]: string };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

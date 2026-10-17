@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "EnumValue",
+          "typeName": "google.protobuf.EnumValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "EnumValue",
+          "text": "/** A message whose name ends with \"Value\" but is NOT a wrapper type. The Go plugin incorrectly treats it as a wrapper (like Int32Value). */\nexport interface EnumValue {\n    name: string;\n    number: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

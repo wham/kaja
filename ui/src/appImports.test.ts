@@ -12,11 +12,10 @@ function source(importPath: string, serviceNames: string[], enums: string[] = []
   } as unknown as Source;
 }
 
-// An app kaja generated the proto surface for: one module, named by a word kaja
-// chose, plus the .client module no script writes against.
+// An app kaja generated the proto surface for: one module, named by a word kaja chose.
 function generated(): App {
   const app = createPendingApp({ name: "theatre", app: { oneofKind: "openapi" } as any });
-  app.sources = [source("theatre/service", ["Shows"], ["Sort"]), source("theatre/service.client", [])];
+  app.sources = [source("theatre/service", ["Shows"], ["Sort"])];
   return app;
 }
 
@@ -68,12 +67,6 @@ describe("resolve", () => {
   it("reports a path no module answers to", () => {
     const app = generated();
     expect(resolve(app, "theatre/nope", "Shows")).toEqual({ unknownPath: true });
-  });
-
-  it("never resolves a name through the .client module", () => {
-    const app = generated();
-    app.sources.push(source("theatre/service.client", ["Shows"]));
-    expect(resolve(app, "theatre", "Shows")).toEqual({ source: app.sources[0] });
   });
 });
 

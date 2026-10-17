@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceInfo",
+          "typeName": "test.ResourceInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UserProfile",
+          "typeName": "test.UserProfile",
+          "fields": [
+            {
+              "no": 1,
+              "name": "display_name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.resource": {
+              "name": "users",
+              "tags": [
+                "admin",
+                "internal"
+              ]
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceInfo",
+          "text": "export interface ResourceInfo {\n    name: string;\n    tags: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "UserProfile",
+          "text": "export interface UserProfile {\n    displayName: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

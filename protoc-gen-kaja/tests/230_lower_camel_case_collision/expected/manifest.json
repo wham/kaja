@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "FieldMask",
+          "typeName": "google.protobuf.FieldMask",
+          "fields": [
+            {
+              "no": 1,
+              "name": "paths",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "lowerCamelCase",
+          "typeName": "google.protobuf.lowerCamelCase",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "FieldMask",
+          "text": "/** When FieldMask is present, the plugin imports lowerCamelCase from runtime. A local message named lowerCamelCase should cause a collision that needs aliasing. */\nexport interface FieldMask {\n    paths: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "lowerCamelCase",
+          "text": "export interface lowerCamelCase {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

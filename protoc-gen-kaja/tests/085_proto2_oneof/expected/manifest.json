@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Proto2WithOneof",
+          "typeName": "test.Proto2WithOneof",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "flag",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Proto2WithOneof",
+          "text": "/** Proto2 message with oneof - oneof fields should NOT have \"optional\" label in the @generated comment, even though proto2 marks them as LABEL_OPTIONAL in the descriptor. */\nexport interface Proto2WithOneof {\n    id: string;\n    name?: string;\n    value: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: \"flag\";\n        flag: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

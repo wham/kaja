@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Inner",
+          "typeName": "test.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "FixedKeyMessageMaps",
+          "typeName": "test.FixedKeyMessageMaps",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fixed32_key",
+              "kind": "map",
+              "K": 7,
+              "V": {
+                "kind": "message",
+                "T": "test.Inner"
+              }
+            },
+            {
+              "no": 2,
+              "name": "fixed64_key",
+              "kind": "map",
+              "K": 6,
+              "V": {
+                "kind": "message",
+                "T": "test.Inner"
+              }
+            },
+            {
+              "no": 3,
+              "name": "sfixed32_key",
+              "kind": "map",
+              "K": 15,
+              "V": {
+                "kind": "message",
+                "T": "test.Inner"
+              }
+            },
+            {
+              "no": 4,
+              "name": "sfixed64_key",
+              "kind": "map",
+              "K": 16,
+              "V": {
+                "kind": "message",
+                "T": "test.Inner"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Inner",
+          "text": "/** Test map fields with message values and fixed-width integer key types. The writer must use correct wire types and methods for keys even when the value is a message type (not just scalars). */\nexport interface Inner {\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "FixedKeyMessageMaps",
+          "text": "export interface FixedKeyMessageMaps {\n    fixed32Key: { [key: number]: Inner };\n    fixed64Key: { [key: string]: Inner };\n    sfixed32Key: { [key: number]: Inner };\n    sfixed64Key: { [key: string]: Inner };\n}",
+          "references": [
+            "Inner"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "jsonName": "constructor",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "jsonName": "__proto__",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "flag",
+              "kind": "scalar",
+              "jsonName": "typeof",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    /** Field with json_name option that's a reserved word */\n    value: string;\n    /** Another reserved property */\n    number: number;\n    /** Reserved keyword */\n    flag: boolean;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

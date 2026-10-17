@@ -19,7 +19,7 @@ function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
 // An app with one source and one service, which is all the import resolution reads.
 function teamsApp(): App {
   const app = createPendingApp({ name: "teams", app: { oneofKind: undefined } });
-  app.services = [{ name: "Teams", packageName: "teams", sourcePath: "teams/teams", clientStubModuleId: "", methods: [] }];
+  app.services = [{ name: "Teams", packageName: "teams", sourcePath: "teams/teams", typeName: "", methods: [] }];
   app.sources = [{ importPath: "teams/teams", serviceNames: ["Teams"], enums: {} } as unknown as Source];
   app.clients["teams.Teams"] = { methodsFor: () => ({ GetAllTeams: () => undefined }) } as any;
   return app;
@@ -170,7 +170,7 @@ describe("import forms that bind nothing", () => {
 
   it("names the modules to choose between when the app declares the name twice", async () => {
     const app = teamsApp();
-    app.services.push({ name: "Teams", packageName: "teams.v2", sourcePath: "teams/v2", clientStubModuleId: "", methods: [] });
+    app.services.push({ name: "Teams", packageName: "teams.v2", sourcePath: "teams/v2", typeName: "", methods: [] });
     app.sources.push({ importPath: "teams/v2", serviceNames: ["Teams"], enums: {} } as unknown as Source);
 
     const run = await runScriptCaptured(`import { Teams } from "teams";\nTeams.GetAllTeams({});`, makeKaja(), [app]);

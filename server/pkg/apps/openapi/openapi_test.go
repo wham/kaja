@@ -1746,10 +1746,10 @@ components:
 	}
 
 	for _, frag := range []string{
-		`"kaja.http_request": "GET /meters/{slug}"`,
-		`"kaja.http_in": "path"`,
-		`"kaja.http_required": true`,
-		`"kaja.enum_values": ["active", "paused"]`,
+		`"kaja.http_request":"GET /meters/{slug}"`,
+		`"kaja.http_in":"path"`,
+		`"kaja.http_required":true`,
+		`"kaja.enum_values":["active","paused"]`,
 		// The API's description reaches the generated interface as JSDoc, which is
 		// what the MCP catalog reads a field's doc from.
 		"Unique identifier of the meter.",

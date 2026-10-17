@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMsg",
+          "typeName": "test.TestMsg",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.timeout": {
+                  "seconds": "30"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMsg",
+          "text": "/** Tests that custom field options with WKT message types (like google.protobuf.Duration) are correctly emitted. */\nexport interface TestMsg {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

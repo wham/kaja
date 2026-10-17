@@ -1,0 +1,246 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.ReservedEnum"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "ReservedEnum",
+          "typeName": "test.ReservedEnum",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ABSTRACT",
+              1
+            ],
+            [
+              "AS",
+              2
+            ],
+            [
+              "ASYNC",
+              3
+            ],
+            [
+              "AWAIT",
+              4
+            ],
+            [
+              "BREAK",
+              5
+            ],
+            [
+              "CASE",
+              6
+            ],
+            [
+              "CATCH",
+              7
+            ],
+            [
+              "CLASS",
+              8
+            ],
+            [
+              "CONST",
+              9
+            ],
+            [
+              "CONTINUE",
+              10
+            ],
+            [
+              "DEBUGGER",
+              11
+            ],
+            [
+              "DEFAULT",
+              12
+            ],
+            [
+              "DELETE",
+              13
+            ],
+            [
+              "DO",
+              14
+            ],
+            [
+              "ELSE",
+              15
+            ],
+            [
+              "ENUM",
+              16
+            ],
+            [
+              "EXPORT",
+              17
+            ],
+            [
+              "EXTENDS",
+              18
+            ],
+            [
+              "FALSE",
+              19
+            ],
+            [
+              "FINALLY",
+              20
+            ],
+            [
+              "FOR",
+              21
+            ],
+            [
+              "FUNCTION",
+              22
+            ],
+            [
+              "IF",
+              23
+            ],
+            [
+              "IMPLEMENTS",
+              24
+            ],
+            [
+              "IMPORT",
+              25
+            ],
+            [
+              "IN",
+              26
+            ],
+            [
+              "INSTANCEOF",
+              27
+            ],
+            [
+              "INTERFACE",
+              28
+            ],
+            [
+              "LET",
+              29
+            ],
+            [
+              "NEW",
+              30
+            ],
+            [
+              "NULL",
+              31
+            ],
+            [
+              "PACKAGE",
+              32
+            ],
+            [
+              "PRIVATE",
+              33
+            ],
+            [
+              "PROTECTED",
+              34
+            ],
+            [
+              "PUBLIC",
+              35
+            ],
+            [
+              "RETURN",
+              36
+            ],
+            [
+              "STATIC",
+              37
+            ],
+            [
+              "SUPER",
+              38
+            ],
+            [
+              "SWITCH",
+              39
+            ],
+            [
+              "THIS",
+              40
+            ],
+            [
+              "THROW",
+              41
+            ],
+            [
+              "TRUE",
+              42
+            ],
+            [
+              "TRY",
+              43
+            ],
+            [
+              "TYPEOF",
+              44
+            ],
+            [
+              "VAR",
+              45
+            ],
+            [
+              "VOID",
+              46
+            ],
+            [
+              "WHILE",
+              47
+            ],
+            [
+              "WITH",
+              48
+            ],
+            [
+              "YIELD",
+              49
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    status: ReservedEnum;\n}",
+          "references": [
+            "ReservedEnum"
+          ]
+        },
+        {
+          "name": "ReservedEnum",
+          "text": "/** Enum with TypeScript reserved words as values */\nexport enum ReservedEnum {\n    UNSPECIFIED = 0,\n    ABSTRACT = 1,\n    AS = 2,\n    ASYNC = 3,\n    AWAIT = 4,\n    BREAK = 5,\n    CASE = 6,\n    CATCH = 7,\n    CLASS = 8,\n    CONST = 9,\n    CONTINUE = 10,\n    DEBUGGER = 11,\n    DEFAULT = 12,\n    DELETE = 13,\n    DO = 14,\n    ELSE = 15,\n    ENUM = 16,\n    EXPORT = 17,\n    EXTENDS = 18,\n    FALSE = 19,\n    FINALLY = 20,\n    FOR = 21,\n    FUNCTION = 22,\n    IF = 23,\n    // … 26 more\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

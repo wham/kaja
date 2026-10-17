@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "field_order.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "StyleOption",
+          "typeName": "fieldorder.StyleOption",
+          "fields": [
+            {
+              "no": 2,
+              "name": "beta",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 1,
+              "name": "alpha",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "StyledMessage",
+          "typeName": "fieldorder.StyledMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "fieldorder.style": {
+                  "beta": "round",
+                  "alpha": "bold"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "StyleOption",
+          "text": "/** Message with fields declared in REVERSE field-number order. protoc serializes by field number (alpha=1 first, beta=2 second), but the TS plugin emits JSON keys in declaration order (beta first, alpha… */\nexport interface StyleOption {\n    beta: string;\n    alpha: string;\n}",
+          "references": []
+        },
+        {
+          "name": "StyledMessage",
+          "text": "export interface StyledMessage {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

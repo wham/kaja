@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Config",
+          "typeName": "test.Config",
+          "fields": [
+            {
+              "no": 1,
+              "name": "meta",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "Widget",
+          "typeName": "test.Widget",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.cfg": {
+              "meta": {
+                "back\\slash": "val1",
+                "has\"quote": "val2"
+              }
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Config",
+          "text": "export interface Config {\n    meta: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "Widget",
+          "text": "export interface Widget {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

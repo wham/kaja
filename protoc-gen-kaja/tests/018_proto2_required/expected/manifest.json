@@ -1,0 +1,243 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "proto2.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "RequiredFields",
+          "typeName": "proto2_test.RequiredFields",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "id",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "age",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "DefaultValues",
+          "typeName": "proto2_test.DefaultValues",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "count",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "enabled",
+              "kind": "scalar",
+              "opt": true,
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "rate",
+              "kind": "scalar",
+              "opt": true,
+              "T": 1
+            },
+            {
+              "no": 5,
+              "name": "color",
+              "kind": "enum",
+              "opt": true,
+              "T": "proto2_test.Color"
+            }
+          ]
+        },
+        {
+          "name": "WithGroup",
+          "typeName": "proto2_test.WithGroup",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "WithGroup_Result",
+          "typeName": "proto2_test.WithGroup.Result",
+          "fields": [
+            {
+              "no": 3,
+              "name": "url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "title",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Extendable",
+          "typeName": "proto2_test.Extendable",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "proto2_test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "opt": true,
+              "T": "proto2_test.Container.Status"
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Container_Status",
+          "typeName": "proto2_test.Container.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        },
+        {
+          "name": "Color",
+          "typeName": "proto2_test.Color",
+          "values": [
+            [
+              "RED",
+              0
+            ],
+            [
+              "GREEN",
+              1
+            ],
+            [
+              "BLUE",
+              2
+            ]
+          ],
+          "prefix": "COLOR_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "RequiredFields",
+          "text": "/** Test proto2 with required fields */\nexport interface RequiredFields {\n    name: string;\n    id: number;\n    email?: string;\n    age?: number;\n    tags: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "DefaultValues",
+          "text": "/** Test proto2 with default values */\nexport interface DefaultValues {\n    name?: string;\n    count?: number;\n    enabled?: boolean;\n    rate?: number;\n    color?: Color;\n}",
+          "references": [
+            "Color"
+          ]
+        },
+        {
+          "name": "WithGroup",
+          "text": "/** Test proto2 groups (deprecated but valid) */\nexport interface WithGroup {\n    id?: number;\n}",
+          "references": []
+        },
+        {
+          "name": "WithGroup_Result",
+          "text": "export interface WithGroup_Result {\n    url: string;\n    title?: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Extendable",
+          "text": "/** Test proto2 extensions */\nexport interface Extendable {\n    name?: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Test nested enums in proto2 */\nexport interface Container {\n    status?: Container_Status;\n    value?: number;\n}",
+          "references": [
+            "Container_Status"
+          ]
+        },
+        {
+          "name": "Container_Status",
+          "text": "export enum Container_Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "Color",
+          "text": "export enum Color {\n    RED = 0,\n    GREEN = 1,\n    BLUE = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

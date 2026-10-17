@@ -1,0 +1,129 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "a.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "a.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "b.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "b.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    count: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "c.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "c.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "active",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    active: boolean;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "main.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "main.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "a_item",
+              "kind": "message",
+              "T": "a.Item"
+            },
+            {
+              "no": 2,
+              "name": "b_item",
+              "kind": "message",
+              "T": "b.Item"
+            },
+            {
+              "no": 3,
+              "name": "c_item",
+              "kind": "message",
+              "T": "c.Item"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    aItem?: Item;\n    bItem?: Item$;\n    cItem?: Item$2;\n}",
+          "references": [
+            "Item",
+            "Item$",
+            "Item$2"
+          ]
+        }
+      ]
+    }
+  ]
+}

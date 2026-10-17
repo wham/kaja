@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "IBinaryWriter",
+          "typeName": "test.IBinaryWriter",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "level",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "writer",
+              "kind": "message",
+              "T": "test.IBinaryWriter"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "IBinaryWriter",
+          "text": "/** A message that collides with the runtime import type IBinaryWriter. */\nexport interface IBinaryWriter {\n    name: string;\n    level: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    writer?: IBinaryWriter;\n}",
+          "references": [
+            "IBinaryWriter"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "JsTypeNormalTest",
+          "typeName": "test.JsTypeNormalTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "normal_int64",
+              "kind": "scalar",
+              "T": 3,
+              "L": 0
+            },
+            {
+              "no": 2,
+              "name": "regular_int64",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 3,
+              "name": "normal_uint64",
+              "kind": "scalar",
+              "T": 4,
+              "L": 0
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "JsTypeNormalTest",
+          "text": "/** Test that [jstype = JS_NORMAL] option is handled correctly. JS_NORMAL means \"use the normal representation\" which for int64/uint64 with long_type_string should produce bigint type and L: 0 /*LongType.… */\nexport interface JsTypeNormalTest {\n    /** Explicit JS_NORMAL - should output [jstype = JS_NORMAL] annotation and L: 0 /*LongType.BIGINT*\\/ in field descriptor */\n    normalInt64: bigint;\n    /** Regular field without jstype for comparison */\n    regularInt64: string;\n    /** JS_NORMAL on uint64 too */\n    normalUint64: bigint;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

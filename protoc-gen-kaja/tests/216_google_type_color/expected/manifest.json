@@ -1,0 +1,215 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/wrappers.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DoubleValue",
+          "typeName": "google.protobuf.DoubleValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "FloatValue",
+          "typeName": "google.protobuf.FloatValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 2
+            }
+          ]
+        },
+        {
+          "name": "Int64Value",
+          "typeName": "google.protobuf.Int64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 3
+            }
+          ]
+        },
+        {
+          "name": "UInt64Value",
+          "typeName": "google.protobuf.UInt64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 4
+            }
+          ]
+        },
+        {
+          "name": "Int32Value",
+          "typeName": "google.protobuf.Int32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "UInt32Value",
+          "typeName": "google.protobuf.UInt32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 13
+            }
+          ]
+        },
+        {
+          "name": "BoolValue",
+          "typeName": "google.protobuf.BoolValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "StringValue",
+          "typeName": "google.protobuf.StringValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "BytesValue",
+          "typeName": "google.protobuf.BytesValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DoubleValue",
+          "text": "/** Wrapper message for `double`. The JSON representation for `DoubleValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface DoubleValue {\n    /** The double value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "FloatValue",
+          "text": "/** Wrapper message for `float`. The JSON representation for `FloatValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface FloatValue {\n    /** The float value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Int64Value",
+          "text": "/** Wrapper message for `int64`. The JSON representation for `Int64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int64Value {\n    /** The int64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt64Value",
+          "text": "/** Wrapper message for `uint64`. The JSON representation for `UInt64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt64Value {\n    /** The uint64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Int32Value",
+          "text": "/** Wrapper message for `int32`. The JSON representation for `Int32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int32Value {\n    /** The int32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt32Value",
+          "text": "/** Wrapper message for `uint32`. The JSON representation for `UInt32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt32Value {\n    /** The uint32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "BoolValue",
+          "text": "/** Wrapper message for `bool`. The JSON representation for `BoolValue` is JSON `true` and `false`. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BoolValue {\n    /** The bool value. */\n    value: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "StringValue",
+          "text": "/** Wrapper message for `string`. The JSON representation for `StringValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface StringValue {\n    /** The string value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "BytesValue",
+          "text": "/** Wrapper message for `bytes`. The JSON representation for `BytesValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BytesValue {\n    /** The bytes value. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Color",
+          "typeName": "google.type.Color",
+          "fields": [
+            {
+              "no": 1,
+              "name": "red",
+              "kind": "scalar",
+              "T": 2
+            },
+            {
+              "no": 2,
+              "name": "green",
+              "kind": "scalar",
+              "T": 2
+            },
+            {
+              "no": 3,
+              "name": "blue",
+              "kind": "scalar",
+              "T": 2
+            },
+            {
+              "no": 4,
+              "name": "alpha",
+              "kind": "message",
+              "T": "google.protobuf.FloatValue"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Color",
+          "text": "/** Represents a color in the RGBA color space. */\nexport interface Color {\n    /** The amount of red in the color as a value in the interval [0, 1]. */\n    red: number;\n    /** The amount of green in the color as a value in the interval [0, 1]. */\n    green: number;\n    /** The amount of blue in the color as a value in the interval [0, 1]. */\n    blue: number;\n    /** The fraction of this color that should be applied to the pixel. */\n    alpha?: FloatValue;\n}",
+          "references": [
+            "FloatValue"
+          ]
+        }
+      ]
+    }
+  ]
+}

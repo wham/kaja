@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceConfig",
+          "typeName": "test.ResourceConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "codes",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "display_name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.resource_config": {
+              "name": "users",
+              "codes": [
+                10,
+                20,
+                30
+              ]
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceConfig",
+          "text": "export interface ResourceConfig {\n    name: string;\n    codes: number[];\n}",
+          "references": []
+        },
+        {
+          "name": "User",
+          "text": "export interface User {\n    displayName: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

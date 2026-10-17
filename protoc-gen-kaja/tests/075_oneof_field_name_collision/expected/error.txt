@@ -1,0 +1,1 @@
+test.proto:23:12: "result" is already defined in "test.AnotherTest".

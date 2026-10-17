@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "service_detached.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "First",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "First method comment."
+            },
+            {
+              "name": "Second",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Second method comment."
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

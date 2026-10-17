@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "oneof_kind_field.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "oneof_kind",
+              "kind": "scalar",
+              "localName": "oneofKind$",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "other",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyMessage",
+          "text": "/** Message with a field named oneof_kind which collides with the oneofKindDiscriminator used by protobuf-ts for oneof unions. */\nexport interface MyMessage {\n    oneofKind$: string;\n    other: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

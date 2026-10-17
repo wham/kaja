@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "repeated_fields.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Tag",
+          "typeName": "Tag",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Collection",
+          "typeName": "Collection",
+          "fields": [
+            {
+              "no": 1,
+              "name": "names",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "scores",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "flags",
+              "kind": "scalar",
+              "repeat": 1,
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "tags",
+              "kind": "message",
+              "repeat": 2,
+              "T": "Tag"
+            },
+            {
+              "no": 5,
+              "name": "data",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Tag",
+          "text": "export interface Tag {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Collection",
+          "text": "export interface Collection {\n    names: string[];\n    scores: number[];\n    flags: boolean[];\n    tags: Tag[];\n    data: Uint8Array[];\n}",
+          "references": [
+            "Tag"
+          ]
+        }
+      ]
+    }
+  ]
+}

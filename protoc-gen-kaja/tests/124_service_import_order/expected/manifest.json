@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "SearchRequest",
+          "typeName": "types.SearchRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "SearchResponse",
+          "typeName": "types.SearchResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "DeleteRequest",
+          "typeName": "types.DeleteRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "DeleteResponse",
+          "typeName": "types.DeleteResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "success",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "SearchRequest",
+          "text": "export interface SearchRequest {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "SearchResponse",
+          "text": "export interface SearchResponse {\n    result: string;\n}",
+          "references": []
+        },
+        {
+          "name": "DeleteRequest",
+          "text": "export interface DeleteRequest {\n    id: number;\n}",
+          "references": []
+        },
+        {
+          "name": "DeleteResponse",
+          "text": "export interface DeleteResponse {\n    success: boolean;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "api.MyService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "SearchRequest",
+              "output": "SearchResponse",
+              "I": "types.SearchRequest",
+              "O": "types.SearchResponse"
+            },
+            {
+              "name": "Delete",
+              "input": "DeleteRequest",
+              "output": "DeleteResponse",
+              "I": "types.DeleteRequest",
+              "O": "types.DeleteResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Pet",
+          "typeName": "zoo.types.Pet",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetPetRequest",
+          "typeName": "zoo.types.GetPetRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Keeper",
+          "typeName": "zoo.types.Keeper",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Pet",
+          "text": "export interface Pet {\n    id: string;\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetPetRequest",
+          "text": "export interface GetPetRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Keeper",
+          "text": "export interface Keeper {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "Pet",
+          "typeName": "zoo.Pet",
+          "methods": [
+            {
+              "name": "CreatePet",
+              "input": "Pet$",
+              "output": "Pet$",
+              "I": "zoo.types.Pet",
+              "O": "zoo.types.Pet"
+            },
+            {
+              "name": "GetPet",
+              "input": "GetPetRequest",
+              "output": "Pet$",
+              "I": "zoo.types.GetPetRequest",
+              "O": "zoo.types.Pet"
+            }
+          ]
+        },
+        {
+          "name": "Keeper",
+          "typeName": "zoo.Keeper",
+          "methods": [
+            {
+              "name": "GetKeeper",
+              "input": "GetPetRequest",
+              "output": "Keeper$",
+              "I": "zoo.types.GetPetRequest",
+              "O": "zoo.types.Keeper"
+            },
+            {
+              "name": "StreamKeepers",
+              "input": "GetPetRequest",
+              "output": "Keeper$",
+              "I": "zoo.types.GetPetRequest",
+              "O": "zoo.types.Keeper",
+              "serverStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

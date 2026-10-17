@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ServerStreamingCall",
+          "typeName": "test.ServerStreamingCall",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MyService",
+          "typeName": "test.MyService",
+          "methods": [
+            {
+              "name": "GetItems",
+              "input": "Request",
+              "output": "ServerStreamingCall",
+              "I": "test.Request",
+              "O": "test.ServerStreamingCall",
+              "serverStreaming": true
+            },
+            {
+              "name": "SetItem",
+              "input": "ServerStreamingCall",
+              "output": "ServerStreamingCall",
+              "I": "test.ServerStreamingCall",
+              "O": "test.ServerStreamingCall"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "ServerStreamingCall",
+          "text": "/** Message named after a call type */\nexport interface ServerStreamingCall {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

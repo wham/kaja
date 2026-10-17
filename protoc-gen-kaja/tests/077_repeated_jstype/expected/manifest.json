@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Values",
+          "typeName": "test.Values",
+          "fields": [
+            {
+              "no": 1,
+              "name": "numbers",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 3,
+              "L": 2
+            },
+            {
+              "no": 2,
+              "name": "ids",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 3
+            },
+            {
+              "no": 3,
+              "name": "default_longs",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 3
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Values",
+          "text": "export interface Values {\n    /** Repeated int64 with JS_NUMBER jstype */\n    numbers: number[];\n    /** Repeated int64 with JS_STRING jstype */\n    ids: string[];\n    /** Repeated int64 without jstype (should use global long_type) */\n    defaultLongs: string[];\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

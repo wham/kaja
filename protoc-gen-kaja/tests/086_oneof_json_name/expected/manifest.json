@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "oneof_json_name.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "OneofWithJsonName",
+          "typeName": "test.OneofWithJsonName",
+          "fields": [
+            {
+              "no": 1,
+              "name": "first_option",
+              "kind": "scalar",
+              "jsonName": "firstOpt",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "second_option",
+              "kind": "scalar",
+              "jsonName": "secondOpt",
+              "oneof": "choice",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "third_option",
+              "kind": "scalar",
+              "jsonName": "thirdOpt",
+              "oneof": "choice",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "OneofWithJsonName",
+          "text": "/** Test that custom json_name on oneof scalar fields is preserved in reflection metadata */\nexport interface OneofWithJsonName {\n    choice: {\n        oneofKind: \"firstOption\";\n        firstOption: string;\n    } | {\n        oneofKind: \"secondOption\";\n        secondOption: number;\n    } | {\n        oneofKind: \"thirdOption\";\n        thirdOption: boolean;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

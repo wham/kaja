@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "UnknownFieldHandler",
+          "typeName": "test.UnknownFieldHandler",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "code",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "handler",
+              "kind": "message",
+              "T": "test.UnknownFieldHandler"
+            },
+            {
+              "no": 2,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "UnknownFieldHandler",
+          "text": "export interface UnknownFieldHandler {\n    name: string;\n    code: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    handler?: UnknownFieldHandler;\n    label: string;\n}",
+          "references": [
+            "UnknownFieldHandler"
+          ]
+        }
+      ]
+    }
+  ]
+}

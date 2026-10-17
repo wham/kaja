@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "GetData",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "options": {
+                "test.api_version": "v2.0",
+                "test.deprecated_api": true,
+                "test.rate_limit": 100
+              },
+              "doc": "Method with custom options"
+            },
+            {
+              "name": "PostData",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Method without custom options"
+            },
+            {
+              "name": "UpdateData",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "options": {
+                "test.api_version": "v1.5"
+              },
+              "doc": "Method with only one custom option"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

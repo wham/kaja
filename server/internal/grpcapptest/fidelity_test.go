@@ -54,7 +54,7 @@ func TestReflectionKeepsWhatAMethodDeclares(t *testing.T) {
 	}{
 		{"the deprecated method's mark", "@deprecated"},
 		{"the optional field's presence", "note?: string"},
-		{"the enum", "STATUS_VOID"},
+		{"the enum", "VOID = 2"},
 		{"the map field", "labels"},
 		{"the oneof", "voucher"},
 		{"the server stream", "ListTickets"},
@@ -65,11 +65,11 @@ func TestReflectionKeepsWhatAMethodDeclares(t *testing.T) {
 	}
 }
 
-func sourceOf(t *testing.T, sources []*api.Source, suffix string) string {
+func sourceOf(t *testing.T, sources []module, suffix string) string {
 	t.Helper()
 	for _, source := range sources {
-		if strings.HasSuffix(source.GetPath(), suffix) {
-			return source.GetContent()
+		if strings.HasSuffix(source.Path, suffix) {
+			return source.EditorText
 		}
 	}
 	t.Fatalf("no generated source ending in %q, only %v", suffix, sourceNames(sources))

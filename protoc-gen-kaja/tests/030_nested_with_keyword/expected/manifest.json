@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "my_class",
+              "kind": "message",
+              "T": "test.Outer.class"
+            },
+            {
+              "no": 2,
+              "name": "my_const",
+              "kind": "message",
+              "T": "test.Outer.const"
+            }
+          ]
+        },
+        {
+          "name": "Outer_class",
+          "typeName": "test.Outer.class",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Outer_const",
+          "typeName": "test.Outer.const",
+          "fields": [
+            {
+              "no": 1,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Another",
+          "typeName": "test.Another",
+          "fields": [
+            {
+              "no": 1,
+              "name": "imported_class",
+              "kind": "message",
+              "T": "test.Outer.class"
+            },
+            {
+              "no": 2,
+              "name": "imported_const",
+              "kind": "message",
+              "T": "test.Outer.const"
+            }
+          ]
+        },
+        {
+          "name": "Level1",
+          "typeName": "test.Level1",
+          "fields": [
+            {
+              "no": 1,
+              "name": "my_interface",
+              "kind": "message",
+              "T": "test.Level1.interface"
+            }
+          ]
+        },
+        {
+          "name": "Level1_interface",
+          "typeName": "test.Level1.interface",
+          "fields": [
+            {
+              "no": 1,
+              "name": "nested",
+              "kind": "message",
+              "T": "test.Level1.interface.type"
+            }
+          ]
+        },
+        {
+          "name": "Level1_interface_type",
+          "typeName": "test.Level1.interface.type",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "/** Test nested message with reserved keyword name */\nexport interface Outer {\n    myClass?: Outer_class;\n    myConst?: Outer_const;\n}",
+          "references": [
+            "Outer_class",
+            "Outer_const"
+          ]
+        },
+        {
+          "name": "Outer_class",
+          "text": "export interface Outer_class {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Outer_const",
+          "text": "export interface Outer_const {\n    number: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Another",
+          "text": "/** Test referencing nested keyword types from another message */\nexport interface Another {\n    importedClass?: Outer_class;\n    importedConst?: Outer_const;\n}",
+          "references": [
+            "Outer_class",
+            "Outer_const"
+          ]
+        },
+        {
+          "name": "Level1",
+          "text": "/** Test multiple levels of nesting with keywords */\nexport interface Level1 {\n    myInterface?: Level1_interface;\n}",
+          "references": [
+            "Level1_interface"
+          ]
+        },
+        {
+          "name": "Level1_interface",
+          "text": "export interface Level1_interface {\n    nested?: Level1_interface_type;\n}",
+          "references": [
+            "Level1_interface_type"
+          ]
+        },
+        {
+          "name": "Level1_interface_type",
+          "text": "export interface Level1_interface_type {\n    data: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

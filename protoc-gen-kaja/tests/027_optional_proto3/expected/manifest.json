@@ -1,0 +1,350 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "optional.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "OptionalFields",
+          "typeName": "optional.OptionalFields",
+          "fields": [
+            {
+              "no": 1,
+              "name": "required_string",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "required_int",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "optional_string",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "optional_int",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "optional_bool",
+              "kind": "scalar",
+              "opt": true,
+              "T": 8
+            },
+            {
+              "no": 6,
+              "name": "optional_double",
+              "kind": "scalar",
+              "opt": true,
+              "T": 1
+            },
+            {
+              "no": 7,
+              "name": "optional_message",
+              "kind": "message",
+              "T": "optional.Nested"
+            },
+            {
+              "no": 8,
+              "name": "optional_enum",
+              "kind": "enum",
+              "opt": true,
+              "T": "optional.Status"
+            },
+            {
+              "no": 9,
+              "name": "required2",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 10,
+              "name": "optional2",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "required3",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 12,
+              "name": "optional3",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Nested",
+          "typeName": "optional.Nested",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "AllOptional",
+          "typeName": "optional.AllOptional",
+          "fields": [
+            {
+              "no": 1,
+              "name": "field1",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "field2",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "field3",
+              "kind": "scalar",
+              "opt": true,
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "field4",
+              "kind": "scalar",
+              "opt": true,
+              "T": 12
+            },
+            {
+              "no": 5,
+              "name": "field5",
+              "kind": "message",
+              "T": "optional.Nested"
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "optional.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "optional.Container.Inner"
+            },
+            {
+              "no": 2,
+              "name": "optional_name",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "typeName": "optional.Container.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "optional_value",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "required_value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "OptionalWithOneof",
+          "typeName": "optional.OptionalWithOneof",
+          "fields": [
+            {
+              "no": 1,
+              "name": "optional_field",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "another_optional",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "OptionalRequest",
+          "typeName": "optional.OptionalRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "limit",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "OptionalResponse",
+          "typeName": "optional.OptionalResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "count",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "optional.Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [
+        {
+          "name": "OptionalService",
+          "typeName": "optional.OptionalService",
+          "methods": [
+            {
+              "name": "GetData",
+              "input": "OptionalRequest",
+              "output": "OptionalResponse",
+              "I": "optional.OptionalRequest",
+              "O": "optional.OptionalResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "OptionalFields",
+          "text": "/** Test proto3 optional fields (proto3.15+ feature) */\nexport interface OptionalFields {\n    /** Regular required fields (proto3 default) */\n    requiredString: string;\n    requiredInt: number;\n    /** Optional scalar fields */\n    optionalString?: string;\n    optionalInt?: number;\n    optionalBool?: boolean;\n    optionalDouble?: number;\n    /** Optional message field */\n    optionalMessage?: Nested;\n    /** Optional enum field */\n    optionalEnum?: Status;\n    /** Mix of optional and required */\n    required2: string;\n    optional2?: string;\n    required3: number;\n    optional3?: number;\n}",
+          "references": [
+            "Nested",
+            "Status"
+          ]
+        },
+        {
+          "name": "Nested",
+          "text": "export interface Nested {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "AllOptional",
+          "text": "/** All optional fields */\nexport interface AllOptional {\n    field1?: string;\n    field2?: number;\n    field3?: boolean;\n    field4?: Uint8Array;\n    field5?: Nested;\n}",
+          "references": [
+            "Nested"
+          ]
+        },
+        {
+          "name": "Container",
+          "text": "/** Optional in nested message */\nexport interface Container {\n    inner?: Container_Inner;\n    optionalName?: string;\n}",
+          "references": [
+            "Container_Inner"
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "text": "export interface Container_Inner {\n    optionalValue?: string;\n    requiredValue: string;\n}",
+          "references": []
+        },
+        {
+          "name": "OptionalWithOneof",
+          "text": "/** Optional with oneof (edge case) */\nexport interface OptionalWithOneof {\n    optionalField?: string;\n    choice: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n    anotherOptional?: number;\n}",
+          "references": []
+        },
+        {
+          "name": "OptionalRequest",
+          "text": "export interface OptionalRequest {\n    query?: string;\n    limit?: number;\n}",
+          "references": []
+        },
+        {
+          "name": "OptionalResponse",
+          "text": "export interface OptionalResponse {\n    result?: string;\n    count?: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

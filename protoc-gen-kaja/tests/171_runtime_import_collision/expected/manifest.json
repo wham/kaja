@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "WireType",
+          "typeName": "test.WireType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "code",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "wire",
+              "kind": "message",
+              "T": "test.WireType"
+            },
+            {
+              "no": 2,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "WireType",
+          "text": "export interface WireType {\n    code: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    wire?: WireType;\n    label: string;\n}",
+          "references": [
+            "WireType"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "RuleConfig",
+          "typeName": "test.RuleConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "jsonName": "my-value",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "count",
+              "kind": "scalar",
+              "jsonName": "item-count",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.rule": {
+              "my-value": "hello",
+              "item-count": 5
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "RuleConfig",
+          "text": "export interface RuleConfig {\n    value: string;\n    count: number;\n}",
+          "references": []
+        },
+        {
+          "name": "MyMessage",
+          "text": "export interface MyMessage {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

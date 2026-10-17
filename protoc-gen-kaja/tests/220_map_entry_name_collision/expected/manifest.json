@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Entry",
+          "typeName": "testpkg.Entry",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Config",
+          "typeName": "testpkg.Config",
+          "fields": [
+            {
+              "no": 1,
+              "name": "settings",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "entries",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "message",
+                "T": "testpkg.Entry"
+              }
+            },
+            {
+              "no": 3,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Entry",
+          "text": "/** A message whose name \"Entry\" is a suffix of the synthetic map entry type name \"SettingsEntry\". This triggers a bug in findMessageType where HasSuffix matching finds this Entry instead of Config.Settin… */\nexport interface Entry {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Config",
+          "text": "export interface Config {\n    settings: { [key: string]: string };\n    entries: { [key: number]: Entry };\n    label: string;\n}",
+          "references": [
+            "Entry"
+          ]
+        }
+      ]
+    }
+  ]
+}

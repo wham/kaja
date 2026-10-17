@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "typeof_json_value_collision.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "google.protobuf.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "typeofJsonValue",
+          "typeName": "google.protobuf.typeofJsonValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** Timestamp triggers WKT code that imports typeofJsonValue from runtime */\nexport interface Timestamp {\n    seconds: string;\n    nanos: number;\n}",
+          "references": []
+        },
+        {
+          "name": "typeofJsonValue",
+          "text": "/** This message name collides with the runtime's typeofJsonValue import */\nexport interface typeofJsonValue {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

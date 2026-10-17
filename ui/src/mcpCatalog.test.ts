@@ -9,24 +9,81 @@ import type { Manifest } from "./sources";
 // A manifest in the shape protoc-gen-kaja writes for an OpenAPI app: the services
 // and the types a script writes against, declared as an agent reads them.
 const manifest: Manifest = {
-  version: 1,
+  version: 2,
   modules: [
     {
       path: "proto/theatre.ts",
       editorText: "",
+      messages: [
+        {
+          name: "Show",
+          typeName: "theatre.Show",
+          fields: [
+            { no: 1, name: "id", kind: "scalar", T: 9, options: { "kaja.http_required": true } },
+            { no: 2, name: "venue", kind: "message", T: "theatre.Venue" },
+            { no: 3, name: "extras", kind: "message", T: "google.protobuf.Value" },
+          ],
+        },
+        { name: "Venue", typeName: "theatre.Venue", fields: [{ no: 1, name: "name", kind: "scalar", T: 9 }] },
+        {
+          name: "ListShowsRequest",
+          typeName: "theatre.ListShowsRequest",
+          fields: [
+            { no: 1, name: "page_size", kind: "scalar", T: 5, options: { "kaja.http_in": "query" } },
+            { no: 2, name: "sort", kind: "enum", T: "theatre.Sort" },
+          ],
+        },
+        {
+          name: "ListShowsResponse",
+          typeName: "theatre.ListShowsResponse",
+          fields: [{ no: 1, name: "items", kind: "message", repeat: 2, T: "theatre.Show", options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }],
+        },
+        {
+          name: "GetShowRequest",
+          typeName: "theatre.GetShowRequest",
+          fields: [
+            { no: 1, name: "show_id", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
+            { no: 2, name: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } },
+            { no: 3, name: "status", kind: "scalar", T: 9, options: { "kaja.enum_values": ["onSale", "cancelled"] } },
+          ],
+        },
+      ],
+      enums: [
+        {
+          name: "Sort",
+          typeName: "theatre.Sort",
+          values: [
+            ["UNSPECIFIED", 0],
+            ["NEWEST", 1],
+          ],
+          prefix: "SORT_",
+        },
+      ],
       services: [
         {
           name: "Shows",
           typeName: "theatre.Shows",
-          clientModule: "proto/theatre.client.ts",
           methods: [
-            { name: "ListShows", input: "ListShowsRequest", output: "ListShowsResponse", doc: "Lists the shows on sale." },
-            { name: "GetShow", input: "GetShowRequest", output: "Show" },
+            {
+              name: "ListShows",
+              input: "ListShowsRequest",
+              output: "ListShowsResponse",
+              I: "theatre.ListShowsRequest",
+              O: "theatre.ListShowsResponse",
+              options: { "kaja.http_request": "GET /shows" },
+              doc: "Lists the shows on sale.",
+            },
+            {
+              name: "GetShow",
+              input: "GetShowRequest",
+              output: "Show",
+              I: "theatre.GetShowRequest",
+              O: "theatre.Show",
+              options: { "kaja.http_request": "GET /shows/{showId}" },
+            },
           ],
         },
       ],
-      interfaces: ["Show", "Venue", "ListShowsRequest", "ListShowsResponse", "GetShowRequest"],
-      enums: ["Sort"],
       declarations: [
         {
           name: "Show",
@@ -48,45 +105,19 @@ const manifest: Manifest = {
         { name: "Sort", text: "export enum Sort {\n    UNSPECIFIED = 0,\n    NEWEST = 1,\n}", references: [] },
       ],
     },
-    { path: "proto/theatre.client.ts", editorText: "", services: [], interfaces: ["IShowsClient"], enums: [], declarations: [] },
+    {
+      path: "google/protobuf/struct.ts",
+      editorText: "",
+      messages: [{ name: "Value", typeName: "google.protobuf.Value", fields: [] }],
+      enums: [],
+      services: [],
+      declarations: [],
+    },
   ],
 };
 
-// Stand-ins for the runtime MessageType objects, carrying the marks the app writes
-// where TypeScript has no way to say them.
-const stubCode = `
-const Venue = { typeName: "theatre.Venue", fields: [ { no: 1, name: "name", localName: "name", jsonName: "name", kind: "scalar", T: 9 } ] };
-const Value = { typeName: "google.protobuf.Value", fields: [] };
-const Show = { typeName: "theatre.Show", fields: [
-  { no: 1, name: "id", localName: "id", jsonName: "id", kind: "scalar", T: 9, options: { "kaja.http_required": true } },
-  { no: 2, name: "venue", localName: "venue", jsonName: "venue", kind: "message", T: () => Venue },
-  { no: 3, name: "extras", localName: "extras", jsonName: "extras", kind: "message", T: () => Value }
-] };
-const Sort = { 0: "UNSPECIFIED", 1: "NEWEST", UNSPECIFIED: 0, NEWEST: 1 };
-const ListShowsRequest = { typeName: "theatre.ListShowsRequest", fields: [
-  { no: 1, name: "page_size", localName: "pageSize", jsonName: "pageSize", kind: "scalar", T: 5, options: { "kaja.http_in": "query" } },
-  { no: 2, name: "sort", localName: "sort", jsonName: "sort", kind: "enum", T: () => ["theatre.Sort", Sort, "SORT_"] }
-] };
-const ListShowsResponse = { typeName: "theatre.ListShowsResponse", fields: [
-  { no: 1, name: "items", localName: "items", jsonName: "items", kind: "message", repeat: 2, T: () => Show, options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }
-] };
-const GetShowRequest = { typeName: "theatre.GetShowRequest", fields: [
-  { no: 1, name: "show_id", localName: "showId", jsonName: "showId", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
-  { no: 2, name: "fields", localName: "fields", jsonName: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } },
-  { no: 3, name: "status", localName: "status", jsonName: "status", kind: "scalar", T: 9, options: { "kaja.enum_values": ["onSale", "cancelled"] } }
-] };
-export const proto$theatre = {
-  Show, Venue, ListShowsRequest, ListShowsResponse, GetShowRequest, Sort,
-  Shows: { typeName: "theatre.Shows", methods: [
-    { name: "ListShows", options: { "kaja.http_request": "GET /shows" }, I: ListShowsRequest, O: ListShowsResponse },
-    { name: "GetShow", options: { "kaja.http_request": "GET /shows/{showId}" }, I: GetShowRequest, O: Show }
-  ] },
-};
-export const proto$theatre$client = { ShowsClient: class { listShows() {} } };
-`;
-
 async function loadTheatre(status: "success" | "pending" = "success") {
-  const app = await loadApp(manifest, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any);
+  const app = await loadApp(manifest, { name: "theatre", app: { oneofKind: "openapi" } } as any);
   app.compilation.status = status;
   return app;
 }

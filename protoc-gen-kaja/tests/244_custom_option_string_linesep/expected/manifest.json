@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Document",
+          "typeName": "test.Document",
+          "fields": [
+            {
+              "no": 1,
+              "name": "content",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.separator": "line\u2028sep"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Document",
+          "text": "export interface Document {\n    content: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

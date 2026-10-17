@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.description": "path\\to\\file"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "/** A message with a backslash in the custom option value */\nexport interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "OneofJsType",
+          "typeName": "test.OneofJsType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "number_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 3,
+              "L": 2
+            },
+            {
+              "no": 2,
+              "name": "string_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "big_val",
+              "kind": "scalar",
+              "oneof": "value",
+              "T": 4
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "OneofJsType",
+          "text": "/** Test jstype annotation on oneof fields with int64/uint64 types */\nexport interface OneofJsType {\n    value: {\n        oneofKind: \"numberVal\";\n        numberVal: number;\n    } | {\n        oneofKind: \"stringVal\";\n        stringVal: string;\n    } | {\n        oneofKind: \"bigVal\";\n        bigVal: string;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

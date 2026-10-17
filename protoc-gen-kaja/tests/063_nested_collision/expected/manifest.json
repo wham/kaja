@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer_Inner",
+          "typeName": "test.Outer_Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "test.Outer.Inner"
+            },
+            {
+              "no": 2,
+              "name": "outer_inner",
+              "kind": "message",
+              "T": "test.Outer_Inner"
+            }
+          ]
+        },
+        {
+          "name": "Outer_Inner$1",
+          "typeName": "test.Outer.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "number",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer_Inner",
+          "text": "/** Top-level message */\nexport interface Outer_Inner {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Outer",
+          "text": "/** Outer message with nested Inner (will collide with Outer_Inner) */\nexport interface Outer {\n    inner?: Outer_Inner$1;\n    outerInner?: Outer_Inner;\n}",
+          "references": [
+            "Outer_Inner$1",
+            "Outer_Inner"
+          ]
+        },
+        {
+          "name": "Outer_Inner$1",
+          "text": "export interface Outer_Inner$1 {\n    number: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

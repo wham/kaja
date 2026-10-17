@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "FixedKeyMaps",
+          "typeName": "test.FixedKeyMaps",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fixed32_key",
+              "kind": "map",
+              "K": 7,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "fixed64_key",
+              "kind": "map",
+              "K": 6,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 3,
+              "name": "sfixed32_key",
+              "kind": "map",
+              "K": 15,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 4,
+              "name": "sfixed64_key",
+              "kind": "map",
+              "K": 16,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "FixedKeyMaps",
+          "text": "/** Test map fields with fixed-width integer key types. These use Bit32/Bit64 wire types and fixed32/fixed64/sfixed32/sfixed64 writer methods, NOT Varint wire type with int32/uint32/int64/uint64 methods. */\nexport interface FixedKeyMaps {\n    fixed32Key: { [key: number]: string };\n    fixed64Key: { [key: string]: string };\n    sfixed32Key: { [key: number]: string };\n    sfixed64Key: { [key: string]: string };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyMessage",
+          "typeName": "test.MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "choice",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyMessage",
+          "text": "export interface MyMessage {\n    choice: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

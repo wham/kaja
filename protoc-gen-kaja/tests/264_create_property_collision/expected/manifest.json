@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "collision.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Collide",
+          "typeName": "test.collision.Collide",
+          "fields": [
+            {
+              "no": 1,
+              "name": "x_1_y",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "middle",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "x1y",
+              "kind": "scalar",
+              "jsonName": "x1y",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Collide",
+          "text": "/** When two fields have different proto names but collide after lowerCamelCase conversion, the create() method property assignment order should reflect JavaScript Object.entries() semantics: properties a… */\nexport interface Collide {\n    x1Y: string;\n    middle: number;\n    x1Y: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

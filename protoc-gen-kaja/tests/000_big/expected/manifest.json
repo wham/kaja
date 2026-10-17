@@ -1,0 +1,3951 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/timestamp.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "google.protobuf.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** A Timestamp represents a point in time independent of any time zone or local calendar, encoded as a count of seconds and fractions of seconds at nanosecond resolution. The count is relative to an epoc… */\nexport interface Timestamp {\n    /** Represents seconds of UTC time since Unix epoch 1970-01-01T00:00:00Z. Must be between -62135596800 and 253402300799 inclusive (which corresponds to 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z). */\n    seconds: string;\n    /** Non-negative fractions of a second at nanosecond resolution. This field is the nanosecond portion of the duration, not an alternative to seconds. Negative second values with fractions must still have… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/any.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Any",
+          "typeName": "google.protobuf.Any",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type_url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Any",
+          "text": "/** `Any` contains an arbitrary serialized protocol buffer message along with a URL that describes the type of the serialized message. In its binary encoding, an `Any` is an ordinary message; but in other… */\nexport interface Any {\n    /** Identifies the type of the serialized Protobuf message with a URI reference consisting of a prefix ending in a slash and the fully-qualified type name. Example: type.googleapis.com/google.protobuf.Str… */\n    typeUrl: string;\n    /** Holds a Protobuf serialization of the type described by type_url. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/duration.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Duration",
+          "typeName": "google.protobuf.Duration",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Duration",
+          "text": "/** A Duration represents a signed, fixed-length span of time represented as a count of seconds and fractions of seconds at nanosecond resolution. It is independent of any calendar and concepts like \"day\"… */\nexport interface Duration {\n    /** Signed seconds of the span of time. Must be from -315,576,000,000 to +315,576,000,000 inclusive. Note: these bounds are computed from: 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 yea… */\n    seconds: string;\n    /** Signed fractions of a second at nanosecond resolution of the span of time. Durations less than one second are represented with a 0 `seconds` field and a positive or negative `nanos` field. For duratio… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/empty.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Empty",
+          "typeName": "google.protobuf.Empty",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Empty",
+          "text": "/** A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance:… */\nexport interface Empty {}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/field_mask.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "FieldMask",
+          "typeName": "google.protobuf.FieldMask",
+          "fields": [
+            {
+              "no": 1,
+              "name": "paths",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "FieldMask",
+          "text": "/** `FieldMask` represents a set of symbolic field paths, for example: paths: \"f.a\" paths: \"f.b.d\" Here `f` represents a field in some root message, `a` and `b` fields in the message found in `f`, and `d`… */\nexport interface FieldMask {\n    /** The set of field mask paths. */\n    paths: string[];\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/struct.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Struct",
+          "typeName": "google.protobuf.Struct",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fields",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "google.protobuf.Value"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Value",
+          "typeName": "google.protobuf.Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "null_value",
+              "kind": "enum",
+              "oneof": "kind",
+              "T": "google.protobuf.NullValue"
+            },
+            {
+              "no": 2,
+              "name": "number_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 1
+            },
+            {
+              "no": 3,
+              "name": "string_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "bool_value",
+              "kind": "scalar",
+              "oneof": "kind",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "struct_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "list_value",
+              "kind": "message",
+              "oneof": "kind",
+              "T": "google.protobuf.ListValue"
+            }
+          ]
+        },
+        {
+          "name": "ListValue",
+          "typeName": "google.protobuf.ListValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "values",
+              "kind": "message",
+              "repeat": 2,
+              "T": "google.protobuf.Value"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "NullValue",
+          "typeName": "google.protobuf.NullValue",
+          "values": [
+            [
+              "NULL_VALUE",
+              0
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Struct",
+          "text": "/** Represents a JSON object. An unordered key-value map, intending to perfectly capture the semantics of a JSON object. This enables parsing any arbitrary JSON payload as a message field in ProtoJSON for… */\nexport interface Struct {\n    /** Unordered map of dynamically typed values. */\n    fields: { [key: string]: Value };\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "Value",
+          "text": "/** Represents a JSON value. `Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is exp… */\nexport interface Value {\n    /** The kind of value. */\n    kind: {\n        oneofKind: \"nullValue\";\n        nullValue: NullValue;\n    } | {\n        oneofKind: \"numberValue\";\n        numberValue: number;\n    } | {\n        oneofKind: \"stringValue\";\n        stringValue: string;\n    } | {\n        oneofKind: \"boolValue\";\n        boolValue: boolean;\n    } | {\n        oneofKind: \"structValue\";\n        structValue: Struct;\n    } | {\n        oneofKind: \"listValue\";\n        listValue: ListValue;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": [
+            "NullValue",
+            "Struct",
+            "ListValue"
+          ]
+        },
+        {
+          "name": "ListValue",
+          "text": "/** Represents a JSON array. */\nexport interface ListValue {\n    /** Repeated field of dynamically typed values. */\n    values: Value[];\n}",
+          "references": [
+            "Value"
+          ]
+        },
+        {
+          "name": "NullValue",
+          "text": "/** Represents a JSON `null`. `NullValue` is a sentinel, using an enum with only one value to represent the null value for the `Value` type union. A field of type `NullValue` with any value other than `0`… */\nexport enum NullValue {\n    NULL_VALUE = 0,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "google/protobuf/wrappers.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DoubleValue",
+          "typeName": "google.protobuf.DoubleValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "FloatValue",
+          "typeName": "google.protobuf.FloatValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 2
+            }
+          ]
+        },
+        {
+          "name": "Int64Value",
+          "typeName": "google.protobuf.Int64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 3
+            }
+          ]
+        },
+        {
+          "name": "UInt64Value",
+          "typeName": "google.protobuf.UInt64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 4
+            }
+          ]
+        },
+        {
+          "name": "Int32Value",
+          "typeName": "google.protobuf.Int32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "UInt32Value",
+          "typeName": "google.protobuf.UInt32Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 13
+            }
+          ]
+        },
+        {
+          "name": "BoolValue",
+          "typeName": "google.protobuf.BoolValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "StringValue",
+          "typeName": "google.protobuf.StringValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "BytesValue",
+          "typeName": "google.protobuf.BytesValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 12
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DoubleValue",
+          "text": "/** Wrapper message for `double`. The JSON representation for `DoubleValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface DoubleValue {\n    /** The double value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "FloatValue",
+          "text": "/** Wrapper message for `float`. The JSON representation for `FloatValue` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface FloatValue {\n    /** The float value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Int64Value",
+          "text": "/** Wrapper message for `int64`. The JSON representation for `Int64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int64Value {\n    /** The int64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt64Value",
+          "text": "/** Wrapper message for `uint64`. The JSON representation for `UInt64Value` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt64Value {\n    /** The uint64 value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Int32Value",
+          "text": "/** Wrapper message for `int32`. The JSON representation for `Int32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface Int32Value {\n    /** The int32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "UInt32Value",
+          "text": "/** Wrapper message for `uint32`. The JSON representation for `UInt32Value` is JSON number. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface UInt32Value {\n    /** The uint32 value. */\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "BoolValue",
+          "text": "/** Wrapper message for `bool`. The JSON representation for `BoolValue` is JSON `true` and `false`. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BoolValue {\n    /** The bool value. */\n    value: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "StringValue",
+          "text": "/** Wrapper message for `string`. The JSON representation for `StringValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface StringValue {\n    /** The string value. */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "BytesValue",
+          "text": "/** Wrapper message for `bytes`. The JSON representation for `BytesValue` is JSON string. Not recommended for use in new APIs, but still useful for legacy APIs and has no plan to be removed. */\nexport interface BytesValue {\n    /** The bytes value. */\n    value: Uint8Array;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "common/types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "AllScalars",
+          "typeName": "ecommerce.common.AllScalars",
+          "fields": [
+            {
+              "no": 1,
+              "name": "double_field",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 2,
+              "name": "float_field",
+              "kind": "scalar",
+              "T": 2
+            },
+            {
+              "no": 3,
+              "name": "int32_field",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "int64_field",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 5,
+              "name": "uint32_field",
+              "kind": "scalar",
+              "T": 13
+            },
+            {
+              "no": 6,
+              "name": "uint64_field",
+              "kind": "scalar",
+              "T": 4
+            },
+            {
+              "no": 7,
+              "name": "sint32_field",
+              "kind": "scalar",
+              "T": 17
+            },
+            {
+              "no": 8,
+              "name": "sint64_field",
+              "kind": "scalar",
+              "T": 18
+            },
+            {
+              "no": 9,
+              "name": "fixed32_field",
+              "kind": "scalar",
+              "T": 7
+            },
+            {
+              "no": 10,
+              "name": "fixed64_field",
+              "kind": "scalar",
+              "T": 6
+            },
+            {
+              "no": 11,
+              "name": "sfixed32_field",
+              "kind": "scalar",
+              "T": 15
+            },
+            {
+              "no": 12,
+              "name": "sfixed64_field",
+              "kind": "scalar",
+              "T": 16
+            },
+            {
+              "no": 13,
+              "name": "bool_field",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 14,
+              "name": "string_field",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "bytes_field",
+              "kind": "scalar",
+              "T": 12
+            },
+            {
+              "no": 16,
+              "name": "repeated_bytes",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 12
+            }
+          ]
+        },
+        {
+          "name": "AllWellKnownTypes",
+          "typeName": "ecommerce.common.AllWellKnownTypes",
+          "fields": [
+            {
+              "no": 1,
+              "name": "any_field",
+              "kind": "message",
+              "T": "google.protobuf.Any"
+            },
+            {
+              "no": 2,
+              "name": "duration_field",
+              "kind": "message",
+              "T": "google.protobuf.Duration"
+            },
+            {
+              "no": 3,
+              "name": "empty_field",
+              "kind": "message",
+              "T": "google.protobuf.Empty"
+            },
+            {
+              "no": 4,
+              "name": "mask_field",
+              "kind": "message",
+              "T": "google.protobuf.FieldMask"
+            },
+            {
+              "no": 5,
+              "name": "struct_field",
+              "kind": "message",
+              "T": "google.protobuf.Struct"
+            },
+            {
+              "no": 6,
+              "name": "timestamp_field",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 7,
+              "name": "double_value",
+              "kind": "message",
+              "T": "google.protobuf.DoubleValue"
+            },
+            {
+              "no": 8,
+              "name": "float_value",
+              "kind": "message",
+              "T": "google.protobuf.FloatValue"
+            },
+            {
+              "no": 9,
+              "name": "int64_value",
+              "kind": "message",
+              "T": "google.protobuf.Int64Value"
+            },
+            {
+              "no": 10,
+              "name": "uint64_value",
+              "kind": "message",
+              "T": "google.protobuf.UInt64Value"
+            },
+            {
+              "no": 11,
+              "name": "int32_value",
+              "kind": "message",
+              "T": "google.protobuf.Int32Value"
+            },
+            {
+              "no": 12,
+              "name": "uint32_value",
+              "kind": "message",
+              "T": "google.protobuf.UInt32Value"
+            },
+            {
+              "no": 13,
+              "name": "bool_value",
+              "kind": "message",
+              "T": "google.protobuf.BoolValue"
+            },
+            {
+              "no": 14,
+              "name": "string_value",
+              "kind": "message",
+              "T": "google.protobuf.StringValue"
+            },
+            {
+              "no": 15,
+              "name": "bytes_value",
+              "kind": "message",
+              "T": "google.protobuf.BytesValue"
+            }
+          ]
+        },
+        {
+          "name": "Address",
+          "typeName": "ecommerce.common.Address",
+          "fields": [
+            {
+              "no": 1,
+              "name": "street",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "city",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "state",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "zip_code",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "country",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "latitude",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 7,
+              "name": "longitude",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 8,
+              "name": "is_primary",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "Metadata",
+          "typeName": "ecommerce.common.Metadata",
+          "fields": [
+            {
+              "no": 1,
+              "name": "labels",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "counters",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 5
+              }
+            },
+            {
+              "no": 3,
+              "name": "flags",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 8
+              }
+            },
+            {
+              "no": 4,
+              "name": "indexed_data",
+              "kind": "map",
+              "K": 5,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 5,
+              "name": "bool_map",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 6,
+              "name": "long_map",
+              "kind": "map",
+              "K": 3,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 7,
+              "name": "price_map",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "ecommerce.common.Money"
+              }
+            }
+          ]
+        },
+        {
+          "name": "AuditInfo",
+          "typeName": "ecommerce.common.AuditInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "created_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 2,
+              "name": "updated_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 3,
+              "name": "created_by",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "updated_by",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "version",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Money",
+          "typeName": "ecommerce.common.Money",
+          "fields": [
+            {
+              "no": 1,
+              "name": "currency",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "amount_cents",
+              "kind": "scalar",
+              "T": 3
+            }
+          ]
+        },
+        {
+          "name": "PageInfo",
+          "typeName": "ecommerce.common.PageInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "page",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "page_size",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "total_count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "has_next",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 5,
+              "name": "has_prev",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "ReservedExample",
+          "typeName": "ecommerce.common.ReservedExample",
+          "fields": [
+            {
+              "no": 1,
+              "name": "active_field",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "current_field",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "LegacyConfig",
+          "typeName": "ecommerce.common.LegacyConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "FeatureFlags",
+          "typeName": "ecommerce.common.FeatureFlags",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "enabled",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 3,
+              "name": "active",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "info",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "ecommerce.common.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ],
+            [
+              "PENDING",
+              3
+            ],
+            [
+              "DELETED",
+              4
+            ]
+          ],
+          "prefix": "STATUS_"
+        },
+        {
+          "name": "Priority",
+          "typeName": "ecommerce.common.Priority",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "LOW",
+              1
+            ],
+            [
+              "MEDIUM",
+              2
+            ],
+            [
+              "HIGH",
+              3
+            ],
+            [
+              "CRITICAL",
+              4
+            ]
+          ],
+          "prefix": "PRIORITY_"
+        },
+        {
+          "name": "Region",
+          "typeName": "ecommerce.common.Region",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "US_EAST",
+              1
+            ],
+            [
+              "US_WEST",
+              2
+            ],
+            [
+              "EU",
+              3
+            ],
+            [
+              "EUROPE",
+              3
+            ],
+            [
+              "ASIA",
+              4
+            ],
+            [
+              "AP",
+              4
+            ]
+          ],
+          "prefix": "REGION_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "AllScalars",
+          "text": "/** Message containing all 15 proto3 scalar types */\nexport interface AllScalars {\n    doubleField: number;\n    floatField: number;\n    int32Field: number;\n    int64Field: string;\n    uint32Field: number;\n    uint64Field: string;\n    sint32Field: number;\n    sint64Field: string;\n    fixed32Field: number;\n    fixed64Field: string;\n    sfixed32Field: number;\n    sfixed64Field: string;\n    boolField: boolean;\n    stringField: string;\n    bytesField: Uint8Array;\n    /** Repeated bytes field */\n    repeatedBytes: Uint8Array[];\n}",
+          "references": []
+        },
+        {
+          "name": "AllWellKnownTypes",
+          "text": "/** Message containing all well-known types */\nexport interface AllWellKnownTypes {\n    anyField?: Any;\n    durationField?: Duration;\n    emptyField?: Empty;\n    maskField?: FieldMask;\n    structField?: Struct;\n    timestampField?: Timestamp;\n    doubleValue?: DoubleValue;\n    floatValue?: FloatValue;\n    int64Value?: Int64Value;\n    uint64Value?: UInt64Value;\n    int32Value?: Int32Value;\n    uint32Value?: UInt32Value;\n    boolValue?: BoolValue;\n    stringValue?: StringValue;\n    bytesValue?: BytesValue;\n}",
+          "references": [
+            "Any",
+            "Duration",
+            "Empty",
+            "FieldMask",
+            "Struct",
+            "Timestamp",
+            "DoubleValue",
+            "FloatValue",
+            "Int64Value",
+            "UInt64Value",
+            "Int32Value",
+            "UInt32Value",
+            "BoolValue",
+            "StringValue",
+            "BytesValue"
+          ]
+        },
+        {
+          "name": "Address",
+          "text": "/** Address with scalar types. Contains location data with latitude/longitude. Special chars in comment: \u003chtml\u003e \u0026 \"quotes\" and backslash-n \\n */\nexport interface Address {\n    street: string;\n    city: string;\n    state: string;\n    zipCode: string;\n    country: string;\n    /** trailing: latitude in degrees */\n    latitude: number;\n    /** trailing: longitude in degrees */\n    longitude: number;\n    isPrimary: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "Metadata",
+          "text": "/** Metadata with various map key types */\nexport interface Metadata {\n    labels: { [key: string]: string };\n    counters: { [key: string]: number };\n    flags: { [key: string]: boolean };\n    indexedData: { [key: number]: string };\n    /** Bool map key */\n    boolMap: { [key: string]: string };\n    /** Int64 map key */\n    longMap: { [key: string]: string };\n    /** Map with message values */\n    priceMap: { [key: string]: Money };\n}",
+          "references": [
+            "Money"
+          ]
+        },
+        {
+          "name": "AuditInfo",
+          "text": "/** Audit info with timestamps */\nexport interface AuditInfo {\n    createdAt?: Timestamp;\n    updatedAt?: Timestamp;\n    createdBy: string;\n    updatedBy: string;\n    version: number;\n}",
+          "references": [
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "Money",
+          "text": "/** Money representation */\nexport interface Money {\n    currency: string;\n    amountCents: string;\n}",
+          "references": []
+        },
+        {
+          "name": "PageInfo",
+          "text": "/** Pagination */\nexport interface PageInfo {\n    page: number;\n    pageSize: number;\n    totalCount: number;\n    hasNext: boolean;\n    hasPrev: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "ReservedExample",
+          "text": "/** Message with reserved field numbers and names */\nexport interface ReservedExample {\n    activeField: string;\n    currentField: string;\n}",
+          "references": []
+        },
+        {
+          "name": "LegacyConfig",
+          "text": "/** Deprecated: use FeatureFlags instead */\nexport interface LegacyConfig {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "FeatureFlags",
+          "text": "/** Message with deprecated fields */\nexport interface FeatureFlags {\n    name: string;\n    enabled: boolean;\n    /** Deprecated: use enabled instead */\n    active: boolean;\n    description: string;\n    /** Deprecated: use description instead */\n    info: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "/** Common status enum used across services */\nexport enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n    PENDING = 3,\n    DELETED = 4,\n}",
+          "references": []
+        },
+        {
+          "name": "Priority",
+          "text": "/** Enum with deprecated values */\nexport enum Priority {\n    UNSPECIFIED = 0,\n    LOW = 1,\n    MEDIUM = 2,\n    HIGH = 3,\n    CRITICAL = 4,\n}",
+          "references": []
+        },
+        {
+          "name": "Region",
+          "text": "/** Enum with allow_alias - multiple names for the same value */\nexport enum Region {\n    UNSPECIFIED = 0,\n    US_EAST = 1,\n    US_WEST = 2,\n    EU = 3,\n    EUROPE = 3,\n    ASIA = 4,\n    AP = 4,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "analytics/events.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Event",
+          "typeName": "ecommerce.analytics.Event",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "session_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "type",
+              "kind": "enum",
+              "T": "ecommerce.analytics.EventType"
+            },
+            {
+              "no": 5,
+              "name": "timestamp",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 6,
+              "name": "page_view",
+              "kind": "message",
+              "oneof": "payload",
+              "T": "ecommerce.analytics.PageViewEvent"
+            },
+            {
+              "no": 7,
+              "name": "click",
+              "kind": "message",
+              "oneof": "payload",
+              "T": "ecommerce.analytics.ClickEvent"
+            },
+            {
+              "no": 8,
+              "name": "search",
+              "kind": "message",
+              "oneof": "payload",
+              "T": "ecommerce.analytics.SearchEvent"
+            },
+            {
+              "no": 9,
+              "name": "purchase",
+              "kind": "message",
+              "oneof": "payload",
+              "T": "ecommerce.analytics.PurchaseEvent"
+            },
+            {
+              "no": 12,
+              "name": "constructor",
+              "kind": "scalar",
+              "oneof": "payload",
+              "T": 5
+            },
+            {
+              "no": 10,
+              "name": "properties",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 11,
+              "name": "metadata",
+              "kind": "message",
+              "T": "ecommerce.common.Metadata"
+            },
+            {
+              "no": 13,
+              "name": "analytics_status",
+              "kind": "enum",
+              "T": "ecommerce.analytics.Status"
+            }
+          ]
+        },
+        {
+          "name": "PageViewEvent",
+          "typeName": "ecommerce.analytics.PageViewEvent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "url",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "referrer",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "duration_ms",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "ClickEvent",
+          "typeName": "ecommerce.analytics.ClickEvent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "element_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "element_type",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "page_url",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "SearchEvent",
+          "typeName": "ecommerce.analytics.SearchEvent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "results_count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "filters",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "PurchaseEvent",
+          "typeName": "ecommerce.analytics.PurchaseEvent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "order_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "total",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 3,
+              "name": "product_ids",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "TrackEventRequest",
+          "typeName": "ecommerce.analytics.TrackEventRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "event",
+              "kind": "message",
+              "T": "ecommerce.analytics.Event"
+            }
+          ]
+        },
+        {
+          "name": "TrackEventResponse",
+          "typeName": "ecommerce.analytics.TrackEventResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "success",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "StreamEventsRequest",
+          "typeName": "ecommerce.analytics.StreamEventsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "types",
+              "kind": "enum",
+              "repeat": 1,
+              "T": "ecommerce.analytics.EventType"
+            }
+          ]
+        },
+        {
+          "name": "BatchEvent",
+          "typeName": "ecommerce.analytics.BatchEvent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "event",
+              "kind": "message",
+              "T": "ecommerce.analytics.Event"
+            },
+            {
+              "no": 2,
+              "name": "source",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "BatchEventResponse",
+          "typeName": "ecommerce.analytics.BatchEventResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "processed_count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "failed_count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "GetEventsRequest",
+          "typeName": "ecommerce.analytics.GetEventsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "type",
+              "kind": "enum",
+              "T": "ecommerce.analytics.EventType"
+            },
+            {
+              "no": 3,
+              "name": "start_time",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 4,
+              "name": "end_time",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 5,
+              "name": "page",
+              "kind": "message",
+              "T": "ecommerce.common.PageInfo"
+            }
+          ]
+        },
+        {
+          "name": "GetEventsResponse",
+          "typeName": "ecommerce.analytics.GetEventsResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "events",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.analytics.Event"
+            },
+            {
+              "no": 2,
+              "name": "page",
+              "kind": "message",
+              "T": "ecommerce.common.PageInfo"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "EventType",
+          "typeName": "ecommerce.analytics.EventType",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "PAGE_VIEW",
+              1
+            ],
+            [
+              "CLICK",
+              2
+            ],
+            [
+              "SEARCH",
+              3
+            ],
+            [
+              "PURCHASE",
+              4
+            ],
+            [
+              "ADD_TO_CART",
+              5
+            ]
+          ],
+          "prefix": "EVENT_TYPE_"
+        },
+        {
+          "name": "Status",
+          "typeName": "ecommerce.analytics.Status",
+          "values": [
+            [
+              "ANALYTICS_STATUS_UNSPECIFIED",
+              0
+            ],
+            [
+              "ANALYTICS_STATUS_PROCESSED",
+              1
+            ],
+            [
+              "ANALYTICS_STATUS_FAILED",
+              2
+            ]
+          ]
+        }
+      ],
+      "services": [
+        {
+          "name": "AnalyticsService",
+          "typeName": "ecommerce.analytics.AnalyticsService",
+          "methods": [
+            {
+              "name": "TrackEvent",
+              "input": "TrackEventRequest",
+              "output": "TrackEventResponse",
+              "I": "ecommerce.analytics.TrackEventRequest",
+              "O": "ecommerce.analytics.TrackEventResponse",
+              "doc": "Unary"
+            },
+            {
+              "name": "GetEvents",
+              "input": "GetEventsRequest",
+              "output": "GetEventsResponse",
+              "I": "ecommerce.analytics.GetEventsRequest",
+              "O": "ecommerce.analytics.GetEventsResponse",
+              "doc": "Unary"
+            },
+            {
+              "name": "StreamEvents",
+              "input": "StreamEventsRequest",
+              "output": "Event",
+              "I": "ecommerce.analytics.StreamEventsRequest",
+              "O": "ecommerce.analytics.Event",
+              "serverStreaming": true,
+              "doc": "Server-streaming"
+            },
+            {
+              "name": "BatchIngest",
+              "input": "BatchEvent",
+              "output": "BatchEventResponse",
+              "I": "ecommerce.analytics.BatchEvent",
+              "O": "ecommerce.analytics.BatchEventResponse",
+              "clientStreaming": true,
+              "doc": "Client-streaming"
+            },
+            {
+              "name": "LiveAnalytics",
+              "input": "TrackEventRequest",
+              "output": "GetEventsResponse",
+              "I": "ecommerce.analytics.TrackEventRequest",
+              "O": "ecommerce.analytics.GetEventsResponse",
+              "serverStreaming": true,
+              "clientStreaming": true,
+              "doc": "Bidirectional streaming"
+            }
+          ]
+        },
+        {
+          "name": "DebugService",
+          "typeName": "ecommerce.analytics.DebugService",
+          "methods": []
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Event",
+          "text": "/** Event with oneof payload including reserved name member */\nexport interface Event {\n    id: string;\n    userId: string;\n    sessionId: string;\n    type: EventType;\n    timestamp?: Timestamp;\n    payload: {\n        oneofKind: \"pageView\";\n        pageView: PageViewEvent;\n    } | {\n        oneofKind: \"click\";\n        click: ClickEvent;\n    } | {\n        oneofKind: \"search\";\n        search: SearchEvent;\n    } | {\n        oneofKind: \"purchase\";\n        purchase: PurchaseEvent;\n    } | {\n        oneofKind: \"constructor\";\n        constructor: number;\n    } | {\n        oneofKind: undefined;\n    };\n    properties: { [key: string]: string };\n    metadata?: Metadata;\n    /** Local status vs common.Status */\n    analyticsStatus: Status;\n}",
+          "references": [
+            "EventType",
+            "Timestamp",
+            "PageViewEvent",
+            "ClickEvent",
+            "SearchEvent",
+            "PurchaseEvent",
+            "Metadata",
+            "Status"
+          ]
+        },
+        {
+          "name": "PageViewEvent",
+          "text": "export interface PageViewEvent {\n    url: string;\n    referrer: string;\n    durationMs: number;\n}",
+          "references": []
+        },
+        {
+          "name": "ClickEvent",
+          "text": "export interface ClickEvent {\n    elementId: string;\n    elementType: string;\n    pageUrl: string;\n}",
+          "references": []
+        },
+        {
+          "name": "SearchEvent",
+          "text": "export interface SearchEvent {\n    query: string;\n    resultsCount: number;\n    filters: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "PurchaseEvent",
+          "text": "export interface PurchaseEvent {\n    orderId: string;\n    total?: Money;\n    productIds: string[];\n}",
+          "references": [
+            "Money"
+          ]
+        },
+        {
+          "name": "TrackEventRequest",
+          "text": "export interface TrackEventRequest {\n    event?: Event;\n}",
+          "references": [
+            "Event"
+          ]
+        },
+        {
+          "name": "TrackEventResponse",
+          "text": "export interface TrackEventResponse {\n    success: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "StreamEventsRequest",
+          "text": "/** Streaming request for real-time event feed */\nexport interface StreamEventsRequest {\n    userId: string;\n    types: EventType[];\n}",
+          "references": [
+            "EventType"
+          ]
+        },
+        {
+          "name": "BatchEvent",
+          "text": "/** Request for batch event ingestion */\nexport interface BatchEvent {\n    event?: Event;\n    source: string;\n}",
+          "references": [
+            "Event"
+          ]
+        },
+        {
+          "name": "BatchEventResponse",
+          "text": "/** Response for batch event ingestion */\nexport interface BatchEventResponse {\n    processedCount: number;\n    failedCount: number;\n}",
+          "references": []
+        },
+        {
+          "name": "GetEventsRequest",
+          "text": "export interface GetEventsRequest {\n    userId: string;\n    type: EventType;\n    startTime?: Timestamp;\n    endTime?: Timestamp;\n    page?: PageInfo;\n}",
+          "references": [
+            "EventType",
+            "Timestamp",
+            "PageInfo"
+          ]
+        },
+        {
+          "name": "GetEventsResponse",
+          "text": "export interface GetEventsResponse {\n    events: Event[];\n    page?: PageInfo;\n}",
+          "references": [
+            "Event",
+            "PageInfo"
+          ]
+        },
+        {
+          "name": "EventType",
+          "text": "/** Event type enum with reserved values */\nexport enum EventType {\n    UNSPECIFIED = 0,\n    PAGE_VIEW = 1,\n    CLICK = 2,\n    SEARCH = 3,\n    PURCHASE = 4,\n    ADD_TO_CART = 5,\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "/** Same-name type as common.Status to test cross-package name collision */\nexport enum Status {\n    ANALYTICS_STATUS_UNSPECIFIED = 0,\n    ANALYTICS_STATUS_PROCESSED = 1,\n    ANALYTICS_STATUS_FAILED = 2,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "common/options.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceInfo",
+          "typeName": "ecommerce.common.ResourceInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "pattern",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceInfo",
+          "text": "/** Resource information for message-level option */\nexport interface ResourceInfo {\n    type: string;\n    pattern: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "auth/user.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Permission",
+          "typeName": "ecommerce.auth.Permission",
+          "fields": [
+            {
+              "no": 1,
+              "name": "resource",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "actions",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "scope",
+              "kind": "message",
+              "T": "ecommerce.auth.Permission.Scope"
+            }
+          ]
+        },
+        {
+          "name": "Permission_Scope",
+          "typeName": "ecommerce.auth.Permission.Scope",
+          "fields": [
+            {
+              "no": 1,
+              "name": "type",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "ids",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UserProfile",
+          "typeName": "ecommerce.auth.UserProfile",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "ecommerce.common.sensitive": true
+              }
+            },
+            {
+              "no": 4,
+              "name": "role",
+              "kind": "enum",
+              "T": "ecommerce.auth.Role"
+            },
+            {
+              "no": 5,
+              "name": "address",
+              "kind": "message",
+              "T": "ecommerce.common.Address"
+            },
+            {
+              "no": 6,
+              "name": "permissions",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.auth.Permission"
+            },
+            {
+              "no": 7,
+              "name": "metadata",
+              "kind": "message",
+              "T": "ecommerce.common.Metadata"
+            },
+            {
+              "no": 8,
+              "name": "audit",
+              "kind": "message",
+              "T": "ecommerce.common.AuditInfo"
+            },
+            {
+              "no": 9,
+              "name": "preferences",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile.Preferences"
+            },
+            {
+              "no": 10,
+              "name": "display_name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "__proto__",
+              "kind": "scalar",
+              "T": 8
+            }
+          ],
+          "options": {
+            "ecommerce.common.resource": {
+              "type": "auth.googleapis.com/User",
+              "pattern": "users/{user_id}"
+            }
+          }
+        },
+        {
+          "name": "UserProfile_Preferences",
+          "typeName": "ecommerce.auth.UserProfile.Preferences",
+          "fields": [
+            {
+              "no": 1,
+              "name": "language",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "timezone",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "email_notifications",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "sms_notifications",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        },
+        {
+          "name": "AuthRequest",
+          "typeName": "ecommerce.auth.AuthRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "password",
+              "kind": "scalar",
+              "oneof": "credentials",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "oauth_token",
+              "kind": "scalar",
+              "oneof": "credentials",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "api_key",
+              "kind": "scalar",
+              "oneof": "credentials",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "device_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "AuthResponse",
+          "typeName": "ecommerce.auth.AuthResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "access_token",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "refresh_token",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "typeName": "ecommerce.auth.CreateUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "password",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "ecommerce.common.sensitive": true
+              }
+            },
+            {
+              "no": 4,
+              "name": "role",
+              "kind": "enum",
+              "T": "ecommerce.auth.Role"
+            },
+            {
+              "no": 5,
+              "name": "address",
+              "kind": "message",
+              "T": "ecommerce.common.Address"
+            }
+          ]
+        },
+        {
+          "name": "CreateUserResponse",
+          "typeName": "ecommerce.auth.CreateUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "GetUserRequest",
+          "typeName": "ecommerce.auth.GetUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetUserResponse",
+          "typeName": "ecommerce.auth.GetUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "ListUsersRequest",
+          "typeName": "ecommerce.auth.ListUsersRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "role",
+              "kind": "enum",
+              "T": "ecommerce.auth.Role"
+            },
+            {
+              "no": 2,
+              "name": "page",
+              "kind": "message",
+              "T": "ecommerce.common.PageInfo"
+            }
+          ]
+        },
+        {
+          "name": "ListUsersResponse",
+          "typeName": "ecommerce.auth.ListUsersResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "BulkCreateUsersRequest",
+          "typeName": "ecommerce.auth.BulkCreateUsersRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "password",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "role",
+              "kind": "enum",
+              "T": "ecommerce.auth.Role"
+            }
+          ]
+        },
+        {
+          "name": "BulkCreateUsersResponse",
+          "typeName": "ecommerce.auth.BulkCreateUsersResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "created_count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "user_ids",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UserChatMessage",
+          "typeName": "ecommerce.auth.UserChatMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "content",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UpdateUserRequest",
+          "typeName": "ecommerce.auth.UpdateUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "UpdateUserResponse",
+          "typeName": "ecommerce.auth.UpdateUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Role",
+          "typeName": "ecommerce.auth.Role",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "CUSTOMER",
+              1
+            ],
+            [
+              "ADMIN",
+              2
+            ],
+            [
+              "SUPPORT",
+              3
+            ]
+          ],
+          "prefix": "ROLE_"
+        }
+      ],
+      "services": [
+        {
+          "name": "AuthService",
+          "typeName": "ecommerce.auth.AuthService",
+          "methods": [
+            {
+              "name": "Authenticate",
+              "input": "AuthRequest",
+              "output": "AuthResponse",
+              "I": "ecommerce.auth.AuthRequest",
+              "O": "ecommerce.auth.AuthResponse",
+              "doc": "Unary RPC"
+            },
+            {
+              "name": "CreateUser",
+              "input": "CreateUserRequest",
+              "output": "CreateUserResponse",
+              "I": "ecommerce.auth.CreateUserRequest",
+              "O": "ecommerce.auth.CreateUserResponse",
+              "options": {
+                "ecommerce.common.api_version": "v2",
+                "ecommerce.common.rate_limit": 100
+              },
+              "doc": "Unary with custom method options"
+            },
+            {
+              "name": "GetUser",
+              "input": "GetUserRequest",
+              "output": "GetUserResponse",
+              "I": "ecommerce.auth.GetUserRequest",
+              "O": "ecommerce.auth.GetUserResponse",
+              "idempotency": "NO_SIDE_EFFECTS",
+              "doc": "Unary with NO_SIDE_EFFECTS idempotency"
+            },
+            {
+              "name": "UpdateUser",
+              "input": "UpdateUserRequest",
+              "output": "UpdateUserResponse",
+              "I": "ecommerce.auth.UpdateUserRequest",
+              "O": "ecommerce.auth.UpdateUserResponse",
+              "idempotency": "IDEMPOTENT",
+              "doc": "Unary with IDEMPOTENT idempotency"
+            },
+            {
+              "name": "ListUsers",
+              "input": "ListUsersRequest",
+              "output": "ListUsersResponse",
+              "I": "ecommerce.auth.ListUsersRequest",
+              "O": "ecommerce.auth.ListUsersResponse",
+              "serverStreaming": true,
+              "doc": "Server-streaming RPC"
+            },
+            {
+              "name": "BulkCreateUsers",
+              "input": "BulkCreateUsersRequest",
+              "output": "BulkCreateUsersResponse",
+              "I": "ecommerce.auth.BulkCreateUsersRequest",
+              "O": "ecommerce.auth.BulkCreateUsersResponse",
+              "clientStreaming": true,
+              "doc": "Client-streaming RPC"
+            },
+            {
+              "name": "UserChat",
+              "input": "UserChatMessage",
+              "output": "UserChatMessage",
+              "I": "ecommerce.auth.UserChatMessage",
+              "O": "ecommerce.auth.UserChatMessage",
+              "serverStreaming": true,
+              "clientStreaming": true,
+              "doc": "Bidirectional streaming RPC"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Permission",
+          "text": "/** Nested permission message */\nexport interface Permission {\n    resource: string;\n    actions: string[];\n    scope?: Permission_Scope;\n}",
+          "references": [
+            "Permission_Scope"
+          ]
+        },
+        {
+          "name": "Permission_Scope",
+          "text": "export interface Permission_Scope {\n    type: string;\n    ids: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "UserProfile",
+          "text": "/** User profile with nested messages */\nexport interface UserProfile {\n    id: string;\n    username: string;\n    email: string;\n    role: Role;\n    address?: Address;\n    permissions: Permission[];\n    metadata?: Metadata;\n    audit?: AuditInfo;\n    preferences?: UserProfile_Preferences;\n    /** Field with json_name */\n    displayName: string;\n    /** Reserved property name */\n    Proto: boolean;\n}",
+          "references": [
+            "Role",
+            "Address",
+            "Permission",
+            "Metadata",
+            "AuditInfo",
+            "UserProfile_Preferences"
+          ]
+        },
+        {
+          "name": "UserProfile_Preferences",
+          "text": "/** Nested preferences */\nexport interface UserProfile_Preferences {\n    language: string;\n    timezone: string;\n    emailNotifications: boolean;\n    smsNotifications: boolean;\n}",
+          "references": []
+        },
+        {
+          "name": "AuthRequest",
+          "text": "/** Authentication request with oneof */\nexport interface AuthRequest {\n    credentials: {\n        oneofKind: \"password\";\n        password: string;\n    } | {\n        oneofKind: \"oauthToken\";\n        oauthToken: string;\n    } | {\n        oneofKind: \"apiKey\";\n        apiKey: string;\n    } | {\n        oneofKind: undefined;\n    };\n    username: string;\n    deviceId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "AuthResponse",
+          "text": "export interface AuthResponse {\n    accessToken: string;\n    refreshToken: string;\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "text": "export interface CreateUserRequest {\n    username: string;\n    email: string;\n    password: string;\n    role: Role;\n    address?: Address;\n}",
+          "references": [
+            "Role",
+            "Address"
+          ]
+        },
+        {
+          "name": "CreateUserResponse",
+          "text": "export interface CreateUserResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "GetUserRequest",
+          "text": "export interface GetUserRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetUserResponse",
+          "text": "export interface GetUserResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "ListUsersRequest",
+          "text": "/** Request for listing users with server streaming */\nexport interface ListUsersRequest {\n    role: Role;\n    page?: PageInfo;\n}",
+          "references": [
+            "Role",
+            "PageInfo"
+          ]
+        },
+        {
+          "name": "ListUsersResponse",
+          "text": "/** Response for listing users */\nexport interface ListUsersResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "BulkCreateUsersRequest",
+          "text": "/** Request for bulk creating users with client streaming */\nexport interface BulkCreateUsersRequest {\n    username: string;\n    email: string;\n    password: string;\n    role: Role;\n}",
+          "references": [
+            "Role"
+          ]
+        },
+        {
+          "name": "BulkCreateUsersResponse",
+          "text": "/** Response for bulk user creation */\nexport interface BulkCreateUsersResponse {\n    createdCount: number;\n    userIds: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "UserChatMessage",
+          "text": "/** Chat message for bidirectional streaming */\nexport interface UserChatMessage {\n    userId: string;\n    content: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UpdateUserRequest",
+          "text": "export interface UpdateUserRequest {\n    id: string;\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "UpdateUserResponse",
+          "text": "export interface UpdateUserResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "Role",
+          "text": "/** User role enum */\nexport enum Role {\n    UNSPECIFIED = 0,\n    CUSTOMER = 1,\n    ADMIN = 2,\n    SUPPORT = 3,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "internal/collision.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "WireType",
+          "typeName": "ecommerce.internal.WireType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "id",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "MessageType",
+          "typeName": "ecommerce.internal.MessageType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Metadata",
+          "typeName": "ecommerce.internal.Metadata",
+          "fields": [
+            {
+              "no": 1,
+              "name": "internal_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "source",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "ecommerce.internal.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "wire",
+              "kind": "message",
+              "T": "ecommerce.internal.WireType"
+            },
+            {
+              "no": 2,
+              "name": "msg",
+              "kind": "message",
+              "T": "ecommerce.internal.MessageType"
+            },
+            {
+              "no": 3,
+              "name": "meta",
+              "kind": "message",
+              "T": "ecommerce.internal.Metadata"
+            },
+            {
+              "no": 4,
+              "name": "common_meta",
+              "kind": "message",
+              "T": "ecommerce.common.Metadata"
+            },
+            {
+              "no": 5,
+              "name": "inner",
+              "kind": "message",
+              "T": "ecommerce.internal.Container.Inner"
+            }
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "typeName": "ecommerce.internal.Container.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "wire_ref",
+              "kind": "message",
+              "T": "ecommerce.internal.WireType"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "WireType",
+          "text": "/** Message named WireType - collides with protobuf-ts runtime import */\nexport interface WireType {\n    name: string;\n    id: number;\n}",
+          "references": []
+        },
+        {
+          "name": "MessageType",
+          "text": "/** Message named MessageType - collides with protobuf-ts runtime import */\nexport interface MessageType {\n    name: string;\n    description: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Metadata",
+          "text": "/** Same-name type as common.Metadata to test cross-package collision */\nexport interface Metadata {\n    internalId: string;\n    source: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Container with nested messages referencing collision types */\nexport interface Container {\n    wire?: WireType;\n    msg?: MessageType;\n    meta?: Metadata;\n    commonMeta?: Metadata$;\n    inner?: Container_Inner;\n}",
+          "references": [
+            "WireType",
+            "MessageType",
+            "Metadata",
+            "Metadata$",
+            "Container_Inner"
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "text": "export interface Container_Inner {\n    value: string;\n    wireRef?: WireType;\n}",
+          "references": [
+            "WireType"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "store/product.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Product",
+          "typeName": "ecommerce.store.Product",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "category",
+              "kind": "enum",
+              "T": "ecommerce.store.Category"
+            },
+            {
+              "no": 5,
+              "name": "price",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 6,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "image_urls",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 8,
+              "name": "status",
+              "kind": "enum",
+              "T": "ecommerce.common.Status"
+            },
+            {
+              "no": 9,
+              "name": "variants",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Product.Variant"
+            },
+            {
+              "no": 10,
+              "name": "metadata",
+              "kind": "message",
+              "T": "ecommerce.common.Metadata"
+            },
+            {
+              "no": 11,
+              "name": "audit",
+              "kind": "message",
+              "T": "ecommerce.common.AuditInfo"
+            },
+            {
+              "no": 12,
+              "name": "view_count",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 13,
+              "name": "serial_number",
+              "kind": "scalar",
+              "T": 4,
+              "L": 2
+            },
+            {
+              "no": 14,
+              "name": "internal_code",
+              "kind": "scalar",
+              "jsonName": "@code",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "const",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 16,
+              "name": "class",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 17,
+              "name": "typeof",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 18,
+              "name": "delete",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Product_Variant",
+          "typeName": "ecommerce.store.Product.Variant",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "attributes",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 4,
+              "name": "price",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 5,
+              "name": "stock_quantity",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 6,
+              "name": "sku",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Product_Variant$1",
+          "typeName": "ecommerce.store.Product_Variant",
+          "fields": [
+            {
+              "no": 1,
+              "name": "variant_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "product_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "label",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Review",
+          "typeName": "ecommerce.store.Review",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "product_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "rating",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 5,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "comment",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 7,
+              "name": "image_urls",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 8,
+              "name": "verified_purchase",
+              "kind": "scalar",
+              "T": 8
+            },
+            {
+              "no": 9,
+              "name": "helpful_count",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 10,
+              "name": "breakdown",
+              "kind": "message",
+              "T": "ecommerce.store.Review.RatingBreakdown"
+            },
+            {
+              "no": 11,
+              "name": "audit",
+              "kind": "message",
+              "T": "ecommerce.common.AuditInfo"
+            }
+          ]
+        },
+        {
+          "name": "Review_RatingBreakdown",
+          "typeName": "ecommerce.store.Review.RatingBreakdown",
+          "fields": [
+            {
+              "no": 1,
+              "name": "quality",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "accuracy",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "CreateProductRequest",
+          "typeName": "ecommerce.store.CreateProductRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "category",
+              "kind": "enum",
+              "T": "ecommerce.store.Category"
+            },
+            {
+              "no": 4,
+              "name": "price",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 5,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "CreateProductResponse",
+          "typeName": "ecommerce.store.CreateProductResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product",
+              "kind": "message",
+              "T": "ecommerce.store.Product"
+            }
+          ]
+        },
+        {
+          "name": "ListProductsRequest",
+          "typeName": "ecommerce.store.ListProductsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "category",
+              "kind": "enum",
+              "T": "ecommerce.store.Category"
+            },
+            {
+              "no": 2,
+              "name": "tags",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "page",
+              "kind": "message",
+              "T": "ecommerce.common.PageInfo"
+            }
+          ]
+        },
+        {
+          "name": "ListProductsResponse",
+          "typeName": "ecommerce.store.ListProductsResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "products",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Product"
+            },
+            {
+              "no": 2,
+              "name": "page",
+              "kind": "message",
+              "T": "ecommerce.common.PageInfo"
+            }
+          ]
+        },
+        {
+          "name": "GetProductRequest",
+          "typeName": "ecommerce.store.GetProductRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetProductResponse",
+          "typeName": "ecommerce.store.GetProductResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product",
+              "kind": "message",
+              "T": "ecommerce.store.Product"
+            },
+            {
+              "no": 2,
+              "name": "reviews",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Review"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Category",
+          "typeName": "ecommerce.store.Category",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ELECTRONICS",
+              1
+            ],
+            [
+              "CLOTHING",
+              2
+            ],
+            [
+              "BOOKS",
+              3
+            ],
+            [
+              "HOME",
+              4
+            ],
+            [
+              "SPORTS",
+              5
+            ]
+          ],
+          "prefix": "CATEGORY_"
+        }
+      ],
+      "services": [
+        {
+          "name": "ProductService",
+          "typeName": "ecommerce.store.ProductService",
+          "methods": [
+            {
+              "name": "CreateProduct",
+              "input": "CreateProductRequest",
+              "output": "CreateProductResponse",
+              "I": "ecommerce.store.CreateProductRequest",
+              "O": "ecommerce.store.CreateProductResponse"
+            },
+            {
+              "name": "GetProduct",
+              "input": "GetProductRequest",
+              "output": "GetProductResponse",
+              "I": "ecommerce.store.GetProductRequest",
+              "O": "ecommerce.store.GetProductResponse"
+            },
+            {
+              "name": "ListProducts",
+              "input": "ListProductsRequest",
+              "output": "ListProductsResponse",
+              "I": "ecommerce.store.ListProductsRequest",
+              "O": "ecommerce.store.ListProductsResponse"
+            },
+            {
+              "name": "LegacySearch",
+              "input": "ListProductsRequest",
+              "output": "ListProductsResponse",
+              "I": "ecommerce.store.ListProductsRequest",
+              "O": "ecommerce.store.ListProductsResponse",
+              "doc": "Deprecated method",
+              "deprecated": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Product",
+          "text": "/** Product with nested variants */\nexport interface Product {\n    id: string;\n    name: string;\n    description: string;\n    category: Category;\n    price?: Money;\n    tags: string[];\n    imageUrls: string[];\n    status: Status;\n    variants: Product_Variant[];\n    metadata?: Metadata;\n    audit?: AuditInfo;\n    /** jstype JS_STRING on int64 field */\n    viewCount: string;\n    /** jstype JS_NUMBER on uint64 field */\n    serialNumber: number;\n    /** json_name with special characters */\n    internalCode: string;\n    /** TypeScript keywords as field names */\n    const: string;\n    class: string;\n    typeof: string;\n    delete: string;\n}",
+          "references": [
+            "Category",
+            "Money",
+            "Status",
+            "Product_Variant",
+            "Metadata",
+            "AuditInfo"
+          ]
+        },
+        {
+          "name": "Product_Variant",
+          "text": "/** Nested variant message (also see top-level Product_Variant) */\nexport interface Product_Variant {\n    id: string;\n    name: string;\n    attributes: { [key: string]: string };\n    price?: Money;\n    stockQuantity: number;\n    sku: string;\n}",
+          "references": [
+            "Money"
+          ]
+        },
+        {
+          "name": "Product_Variant$1",
+          "text": "/** Top-level message that collides with Product.Variant in generated code */\nexport interface Product_Variant$1 {\n    variantId: string;\n    productId: string;\n    label: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Review",
+          "text": "/** Review with nested rating breakdown */\nexport interface Review {\n    id: string;\n    productId: string;\n    userId: string;\n    rating: number;\n    title: string;\n    comment: string;\n    imageUrls: string[];\n    verifiedPurchase: boolean;\n    helpfulCount: number;\n    breakdown?: Review_RatingBreakdown;\n    audit?: AuditInfo;\n}",
+          "references": [
+            "Review_RatingBreakdown",
+            "AuditInfo"
+          ]
+        },
+        {
+          "name": "Review_RatingBreakdown",
+          "text": "export interface Review_RatingBreakdown {\n    quality: number;\n    value: number;\n    accuracy: number;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateProductRequest",
+          "text": "export interface CreateProductRequest {\n    name: string;\n    description: string;\n    category: Category;\n    price?: Money;\n    tags: string[];\n}",
+          "references": [
+            "Category",
+            "Money"
+          ]
+        },
+        {
+          "name": "CreateProductResponse",
+          "text": "export interface CreateProductResponse {\n    product?: Product;\n}",
+          "references": [
+            "Product"
+          ]
+        },
+        {
+          "name": "ListProductsRequest",
+          "text": "export interface ListProductsRequest {\n    category: Category;\n    tags: string[];\n    page?: PageInfo;\n}",
+          "references": [
+            "Category",
+            "PageInfo"
+          ]
+        },
+        {
+          "name": "ListProductsResponse",
+          "text": "export interface ListProductsResponse {\n    products: Product[];\n    page?: PageInfo;\n}",
+          "references": [
+            "Product",
+            "PageInfo"
+          ]
+        },
+        {
+          "name": "GetProductRequest",
+          "text": "export interface GetProductRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetProductResponse",
+          "text": "export interface GetProductResponse {\n    product?: Product;\n    reviews: Review[];\n}",
+          "references": [
+            "Product",
+            "Review"
+          ]
+        },
+        {
+          "name": "Category",
+          "text": "/** Product category enum */\nexport enum Category {\n    UNSPECIFIED = 0,\n    ELECTRONICS = 1,\n    CLOTHING = 2,\n    BOOKS = 3,\n    HOME = 4,\n    SPORTS = 5,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "store/order.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Order",
+          "typeName": "ecommerce.store.Order",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "status",
+              "kind": "enum",
+              "T": "ecommerce.store.OrderStatus"
+            },
+            {
+              "no": 4,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order.LineItem"
+            },
+            {
+              "no": 5,
+              "name": "subtotal",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 6,
+              "name": "tax",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 7,
+              "name": "shipping",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 8,
+              "name": "total",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 9,
+              "name": "shipping_info",
+              "kind": "message",
+              "T": "ecommerce.store.Order.ShippingInfo"
+            },
+            {
+              "no": 10,
+              "name": "payment",
+              "kind": "message",
+              "T": "ecommerce.store.Order.PaymentInfo"
+            },
+            {
+              "no": 11,
+              "name": "audit",
+              "kind": "message",
+              "T": "ecommerce.common.AuditInfo"
+            },
+            {
+              "no": 12,
+              "name": "fulfillments",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order.Fulfillment"
+            },
+            {
+              "no": 13,
+              "name": "credit_card_id",
+              "kind": "scalar",
+              "oneof": "paymentSource",
+              "T": 9
+            },
+            {
+              "no": 14,
+              "name": "bank_account_id",
+              "kind": "scalar",
+              "oneof": "paymentSource",
+              "T": 9
+            },
+            {
+              "no": 15,
+              "name": "wallet_id",
+              "kind": "scalar",
+              "oneof": "paymentSource",
+              "T": 9
+            },
+            {
+              "no": 16,
+              "name": "coupon_code",
+              "kind": "scalar",
+              "oneof": "discount",
+              "T": 9
+            },
+            {
+              "no": 17,
+              "name": "loyalty_points",
+              "kind": "scalar",
+              "oneof": "discount",
+              "T": 5
+            },
+            {
+              "no": 18,
+              "name": "percentage_off",
+              "kind": "scalar",
+              "oneof": "discount",
+              "T": 1
+            },
+            {
+              "no": 19,
+              "name": "notes",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 20,
+              "name": "gift_wrap",
+              "kind": "scalar",
+              "opt": true,
+              "T": 8
+            },
+            {
+              "no": 21,
+              "name": "priority_level",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 22,
+              "name": "flags",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 23,
+              "name": "oneof_kind",
+              "kind": "scalar",
+              "localName": "oneofKind$",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Order_LineItem",
+          "typeName": "ecommerce.store.Order.LineItem",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "variant_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "unit_price",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 5,
+              "name": "total_price",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 6,
+              "name": "product",
+              "kind": "message",
+              "T": "ecommerce.store.Product"
+            }
+          ]
+        },
+        {
+          "name": "Order_ShippingInfo",
+          "typeName": "ecommerce.store.Order.ShippingInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "address",
+              "kind": "message",
+              "T": "ecommerce.common.Address"
+            },
+            {
+              "no": 2,
+              "name": "carrier",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "tracking_number",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "estimated_delivery",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            }
+          ]
+        },
+        {
+          "name": "Order_PaymentInfo",
+          "typeName": "ecommerce.store.Order.PaymentInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "method",
+              "kind": "enum",
+              "T": "ecommerce.store.PaymentMethod"
+            },
+            {
+              "no": 2,
+              "name": "transaction_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "amount",
+              "kind": "message",
+              "T": "ecommerce.common.Money"
+            },
+            {
+              "no": 4,
+              "name": "processed_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            }
+          ]
+        },
+        {
+          "name": "Order_Fulfillment",
+          "typeName": "ecommerce.store.Order.Fulfillment",
+          "fields": [
+            {
+              "no": 1,
+              "name": "fulfillment_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order.LineItem"
+            },
+            {
+              "no": 3,
+              "name": "tracking",
+              "kind": "message",
+              "T": "ecommerce.store.Order.Fulfillment.Tracking"
+            },
+            {
+              "no": 4,
+              "name": "shipped_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            }
+          ]
+        },
+        {
+          "name": "Order_Fulfillment_Tracking",
+          "typeName": "ecommerce.store.Order.Fulfillment.Tracking",
+          "fields": [
+            {
+              "no": 1,
+              "name": "carrier",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "tracking_number",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "checkpoints",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order.Fulfillment.Tracking.Checkpoint"
+            },
+            {
+              "no": 4,
+              "name": "latest",
+              "kind": "message",
+              "T": "ecommerce.store.Order.Fulfillment.Tracking.Checkpoint"
+            }
+          ]
+        },
+        {
+          "name": "Order_Fulfillment_Tracking_Checkpoint",
+          "typeName": "ecommerce.store.Order.Fulfillment.Tracking.Checkpoint",
+          "fields": [
+            {
+              "no": 1,
+              "name": "location",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "status",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "timestamp",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 4,
+              "name": "description",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "OrderGroup",
+          "typeName": "ecommerce.store.OrderGroup",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "children",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.OrderGroup"
+            },
+            {
+              "no": 4,
+              "name": "orders",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order"
+            }
+          ]
+        },
+        {
+          "name": "CreateOrderRequest",
+          "typeName": "ecommerce.store.CreateOrderRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.CreateOrderRequest.Item"
+            },
+            {
+              "no": 3,
+              "name": "shipping_address",
+              "kind": "message",
+              "T": "ecommerce.common.Address"
+            },
+            {
+              "no": 4,
+              "name": "payment_method",
+              "kind": "enum",
+              "T": "ecommerce.store.PaymentMethod"
+            }
+          ]
+        },
+        {
+          "name": "CreateOrderRequest_Item",
+          "typeName": "ecommerce.store.CreateOrderRequest.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "variant_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "CreateOrderResponse",
+          "typeName": "ecommerce.store.CreateOrderResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "order",
+              "kind": "message",
+              "T": "ecommerce.store.Order"
+            }
+          ]
+        },
+        {
+          "name": "GetOrderRequest",
+          "typeName": "ecommerce.store.GetOrderRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetOrderResponse",
+          "typeName": "ecommerce.store.GetOrderResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "order",
+              "kind": "message",
+              "T": "ecommerce.store.Order"
+            }
+          ]
+        },
+        {
+          "name": "UpdateOrderStatusRequest",
+          "typeName": "ecommerce.store.UpdateOrderStatusRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "status",
+              "kind": "enum",
+              "T": "ecommerce.store.OrderStatus"
+            }
+          ]
+        },
+        {
+          "name": "UpdateOrderStatusResponse",
+          "typeName": "ecommerce.store.UpdateOrderStatusResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "order",
+              "kind": "message",
+              "T": "ecommerce.store.Order"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "OrderStatus",
+          "typeName": "ecommerce.store.OrderStatus",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "PENDING",
+              1
+            ],
+            [
+              "CONFIRMED",
+              2
+            ],
+            [
+              "SHIPPED",
+              3
+            ],
+            [
+              "DELIVERED",
+              4
+            ],
+            [
+              "CANCELLED",
+              5
+            ],
+            [
+              "REFUNDED",
+              6
+            ]
+          ],
+          "prefix": "ORDER_STATUS_"
+        },
+        {
+          "name": "PaymentMethod",
+          "typeName": "ecommerce.store.PaymentMethod",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "CREDIT_CARD",
+              1
+            ],
+            [
+              "VISA",
+              1
+            ],
+            [
+              "DEBIT_CARD",
+              2
+            ],
+            [
+              "PAYPAL",
+              3
+            ],
+            [
+              "CRYPTO",
+              4
+            ],
+            [
+              "BITCOIN",
+              4
+            ]
+          ],
+          "prefix": "PAYMENT_METHOD_"
+        }
+      ],
+      "services": [
+        {
+          "name": "OrderService",
+          "typeName": "ecommerce.store.OrderService",
+          "methods": [
+            {
+              "name": "CreateOrder",
+              "input": "CreateOrderRequest",
+              "output": "CreateOrderResponse",
+              "I": "ecommerce.store.CreateOrderRequest",
+              "O": "ecommerce.store.CreateOrderResponse"
+            },
+            {
+              "name": "GetOrder",
+              "input": "GetOrderRequest",
+              "output": "GetOrderResponse",
+              "I": "ecommerce.store.GetOrderRequest",
+              "O": "ecommerce.store.GetOrderResponse"
+            },
+            {
+              "name": "UpdateOrderStatus",
+              "input": "UpdateOrderStatusRequest",
+              "output": "UpdateOrderStatusResponse",
+              "I": "ecommerce.store.UpdateOrderStatusRequest",
+              "O": "ecommerce.store.UpdateOrderStatusResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Order",
+          "text": "/** Order with 4-level deep nesting */\nexport interface Order {\n    id: string;\n    userId: string;\n    status: OrderStatus;\n    items: Order_LineItem[];\n    subtotal?: Money;\n    tax?: Money;\n    shipping?: Money;\n    total?: Money;\n    shippingInfo?: Order_ShippingInfo;\n    payment?: Order_PaymentInfo;\n    audit?: AuditInfo;\n    fulfillments: Order_Fulfillment[];\n    /** Multiple oneofs in one message */\n    paymentSource: {\n        oneofKind: \"creditCardId\";\n        creditCardId: string;\n    } | {\n        oneofKind: \"bankAccountId\";\n        bankAccountId: string;\n    } | {\n        oneofKind: \"walletId\";\n        walletId: string;\n    } | {\n        oneofKind: undefined;\n    };\n    discount: {\n        oneofKind: \"couponCode\";\n        couponCode: string;\n    } | {\n        oneofKind: \"loyaltyPoints\";\n        loyaltyPoints: number;\n    } | {\n        oneofKind: \"percentageOff\";\n        percentageOff: number;\n    } | {\n        oneofKind: undefined;\n    };\n    /** Proto3 optional fields */\n    notes?: string;\n    giftWrap?: boolean;\n    priorityLevel?: number;\n    /** Bool map key */\n    flags: { [key: string]: string };\n    /** Field named oneof_kind (discriminator collision) */\n    oneofKind$: string;\n}",
+          "references": [
+            "OrderStatus",
+            "Order_LineItem",
+            "Money",
+            "Order_ShippingInfo",
+            "Order_PaymentInfo",
+            "AuditInfo",
+            "Order_Fulfillment"
+          ]
+        },
+        {
+          "name": "Order_LineItem",
+          "text": "export interface Order_LineItem {\n    productId: string;\n    variantId: string;\n    quantity: number;\n    unitPrice?: Money;\n    totalPrice?: Money;\n    product?: Product;\n}",
+          "references": [
+            "Money",
+            "Product"
+          ]
+        },
+        {
+          "name": "Order_ShippingInfo",
+          "text": "export interface Order_ShippingInfo {\n    address?: Address;\n    carrier: string;\n    trackingNumber: string;\n    estimatedDelivery?: Timestamp;\n}",
+          "references": [
+            "Address",
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "Order_PaymentInfo",
+          "text": "export interface Order_PaymentInfo {\n    method: PaymentMethod;\n    transactionId: string;\n    amount?: Money;\n    processedAt?: Timestamp;\n}",
+          "references": [
+            "PaymentMethod",
+            "Money",
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "Order_Fulfillment",
+          "text": "/** 4-level deep nesting: Order \u003e Fulfillment \u003e Tracking \u003e Checkpoint */\nexport interface Order_Fulfillment {\n    fulfillmentId: string;\n    items: Order_LineItem[];\n    tracking?: Order_Fulfillment_Tracking;\n    shippedAt?: Timestamp;\n}",
+          "references": [
+            "Order_LineItem",
+            "Order_Fulfillment_Tracking",
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "Order_Fulfillment_Tracking",
+          "text": "export interface Order_Fulfillment_Tracking {\n    carrier: string;\n    trackingNumber: string;\n    checkpoints: Order_Fulfillment_Tracking_Checkpoint[];\n    latest?: Order_Fulfillment_Tracking_Checkpoint;\n}",
+          "references": [
+            "Order_Fulfillment_Tracking_Checkpoint"
+          ]
+        },
+        {
+          "name": "Order_Fulfillment_Tracking_Checkpoint",
+          "text": "export interface Order_Fulfillment_Tracking_Checkpoint {\n    location: string;\n    status: string;\n    timestamp?: Timestamp;\n    description: string;\n}",
+          "references": [
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "OrderGroup",
+          "text": "/** Self-referential message */\nexport interface OrderGroup {\n    id: string;\n    name: string;\n    children: OrderGroup[];\n    orders: Order[];\n}",
+          "references": [
+            "OrderGroup",
+            "Order"
+          ]
+        },
+        {
+          "name": "CreateOrderRequest",
+          "text": "export interface CreateOrderRequest {\n    userId: string;\n    items: CreateOrderRequest_Item[];\n    shippingAddress?: Address;\n    paymentMethod: PaymentMethod;\n}",
+          "references": [
+            "CreateOrderRequest_Item",
+            "Address",
+            "PaymentMethod"
+          ]
+        },
+        {
+          "name": "CreateOrderRequest_Item",
+          "text": "export interface CreateOrderRequest_Item {\n    productId: string;\n    variantId: string;\n    quantity: number;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateOrderResponse",
+          "text": "export interface CreateOrderResponse {\n    order?: Order;\n}",
+          "references": [
+            "Order"
+          ]
+        },
+        {
+          "name": "GetOrderRequest",
+          "text": "export interface GetOrderRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetOrderResponse",
+          "text": "export interface GetOrderResponse {\n    order?: Order;\n}",
+          "references": [
+            "Order"
+          ]
+        },
+        {
+          "name": "UpdateOrderStatusRequest",
+          "text": "export interface UpdateOrderStatusRequest {\n    id: string;\n    status: OrderStatus;\n}",
+          "references": [
+            "OrderStatus"
+          ]
+        },
+        {
+          "name": "UpdateOrderStatusResponse",
+          "text": "export interface UpdateOrderStatusResponse {\n    order?: Order;\n}",
+          "references": [
+            "Order"
+          ]
+        },
+        {
+          "name": "OrderStatus",
+          "text": "/** Order status enum */\nexport enum OrderStatus {\n    UNSPECIFIED = 0,\n    PENDING = 1,\n    CONFIRMED = 2,\n    SHIPPED = 3,\n    DELIVERED = 4,\n    CANCELLED = 5,\n    REFUNDED = 6,\n}",
+          "references": []
+        },
+        {
+          "name": "PaymentMethod",
+          "text": "/** Payment method with allow_alias */\nexport enum PaymentMethod {\n    UNSPECIFIED = 0,\n    CREDIT_CARD = 1,\n    VISA = 1,\n    DEBIT_CARD = 2,\n    PAYPAL = 3,\n    CRYPTO = 4,\n    BITCOIN = 4,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "root.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Dashboard",
+          "typeName": "ecommerce.Dashboard",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user",
+              "kind": "message",
+              "T": "ecommerce.auth.UserProfile"
+            },
+            {
+              "no": 2,
+              "name": "featured_products",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Product"
+            },
+            {
+              "no": 3,
+              "name": "recent_orders",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.store.Order"
+            },
+            {
+              "no": 4,
+              "name": "recent_events",
+              "kind": "message",
+              "repeat": 2,
+              "T": "ecommerce.analytics.Event"
+            },
+            {
+              "no": 5,
+              "name": "metadata",
+              "kind": "message",
+              "T": "ecommerce.common.Metadata"
+            },
+            {
+              "no": 6,
+              "name": "parent",
+              "kind": "message",
+              "T": "ecommerce.Dashboard"
+            },
+            {
+              "no": 7,
+              "name": "title",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            },
+            {
+              "no": 8,
+              "name": "refresh_interval_seconds",
+              "kind": "scalar",
+              "opt": true,
+              "T": 5
+            },
+            {
+              "no": 9,
+              "name": "is_public",
+              "kind": "scalar",
+              "opt": true,
+              "T": 8
+            },
+            {
+              "no": 10,
+              "name": "internal_data",
+              "kind": "message",
+              "T": "ecommerce.internal.Container"
+            }
+          ]
+        },
+        {
+          "name": "Entry",
+          "typeName": "ecommerce.Entry",
+          "fields": [
+            {
+              "no": 1,
+              "name": "key",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Settings",
+          "typeName": "ecommerce.Settings",
+          "fields": [
+            {
+              "no": 1,
+              "name": "properties",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "entries",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "message",
+                "T": "ecommerce.Entry"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Dashboard",
+          "text": "/** Aggregated response combining data from multiple services */\nexport interface Dashboard {\n    user?: UserProfile;\n    featuredProducts: Product[];\n    recentOrders: Order[];\n    recentEvents: Event[];\n    metadata?: Metadata;\n    /** Circular self-reference via optional */\n    parent?: Dashboard;\n    /** Proto3 optional scalar fields */\n    title?: string;\n    refreshIntervalSeconds?: number;\n    isPublic?: boolean;\n    /** Reference to internal collision types */\n    internalData?: Container;\n}",
+          "references": [
+            "UserProfile",
+            "Product",
+            "Order",
+            "Event",
+            "Metadata",
+            "Dashboard",
+            "Container"
+          ]
+        },
+        {
+          "name": "Entry",
+          "text": "/** Top-level message named Entry to coexist with map entry types */\nexport interface Entry {\n    key: string;\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Settings",
+          "text": "/** Settings with a map field (generates SettingsEntry internally) */\nexport interface Settings {\n    properties: { [key: string]: string };\n    entries: { [key: string]: Entry };\n}",
+          "references": [
+            "Entry"
+          ]
+        }
+      ]
+    }
+  ]
+}

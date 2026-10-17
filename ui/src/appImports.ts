@@ -11,16 +11,9 @@ import { Source } from "./sources";
 // disk has as many modules as you wrote, and a path is how you pick between two
 // that agree.
 
-// importable are the modules a script may import from. The generated `.client`
-// modules declare the transport's own I<Service>Client, which no script writes
-// against.
-export function importable(app: App): Source[] {
-  return app.sources.filter((source) => !source.importPath.endsWith(".client"));
-}
-
 // declaring returns the app's modules that export `name` under it.
 export function declaring(app: App, name: string): Source[] {
-  return importable(app).filter((source) => source.serviceNames.includes(name) || source.enums[name] !== undefined);
+  return app.sources.filter((source) => source.serviceNames.includes(name) || source.enums[name] !== undefined);
 }
 
 // moduleSpecifier is what a script writes to reach `name` in `source`.
@@ -60,7 +53,7 @@ export function resolve(app: App, specifier: string, name: string): Resolution {
 // a value and the message a type, so both are re-exported under the one name,
 // which is what resolve already does at run time: the type binds nothing there.
 export function barrel(app: App): { path: string; content: string } {
-  const sources = importable(app);
+  const sources = app.sources;
   const namespaces = new Map<Source, string>();
   const namespace = (source: Source) => {
     if (!namespaces.has(source)) {

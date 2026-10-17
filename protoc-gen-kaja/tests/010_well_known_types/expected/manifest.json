@@ -1,0 +1,118 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "google/protobuf/timestamp.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "google.protobuf.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** A Timestamp represents a point in time independent of any time zone or local calendar, encoded as a count of seconds and fractions of seconds at nanosecond resolution. The count is relative to an epoc… */\nexport interface Timestamp {\n    /** Represents seconds of UTC time since Unix epoch 1970-01-01T00:00:00Z. Must be between -62135596800 and 253402300799 inclusive (which corresponds to 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z). */\n    seconds: string;\n    /** Non-negative fractions of a second at nanosecond resolution. This field is the nanosecond portion of the duration, not an alternative to seconds. Negative second values with fractions must still have… */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "well_known_types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Event",
+          "typeName": "wkt.Event",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "created_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 3,
+              "name": "updated_at",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            }
+          ]
+        },
+        {
+          "name": "Schedule",
+          "typeName": "wkt.Schedule",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "start_time",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 3,
+              "name": "end_time",
+              "kind": "message",
+              "T": "google.protobuf.Timestamp"
+            },
+            {
+              "no": 4,
+              "name": "events",
+              "kind": "message",
+              "repeat": 2,
+              "T": "wkt.Event"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Event",
+          "text": "export interface Event {\n    name: string;\n    createdAt?: Timestamp;\n    updatedAt?: Timestamp;\n}",
+          "references": [
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "Schedule",
+          "text": "export interface Schedule {\n    title: string;\n    startTime?: Timestamp;\n    endTime?: Timestamp;\n    events: Event[];\n}",
+          "references": [
+            "Timestamp",
+            "Event"
+          ]
+        }
+      ]
+    }
+  ]
+}

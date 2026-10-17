@@ -1,8 +1,7 @@
 import { appTypeLabel } from "./appTypes";
 
 // Which way a method streams, read off the proto. Taken structurally rather than as
-// a Method, since the flags reach here off a MethodInfo too — the generated stub is
-// where the code a person clicks into is written.
+// a Method, since the flags reach here off a MethodInfo too.
 export interface Streams {
   serverStreaming?: boolean;
   clientStreaming?: boolean;

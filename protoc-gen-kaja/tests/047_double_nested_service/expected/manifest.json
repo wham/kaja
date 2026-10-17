@@ -1,0 +1,101 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "middle",
+              "kind": "message",
+              "T": "test.Outer.Middle"
+            }
+          ]
+        },
+        {
+          "name": "Outer_Middle",
+          "typeName": "test.Outer.Middle",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "test.Outer.Middle.Inner"
+            }
+          ]
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "typeName": "test.Outer.Middle.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "export interface Outer {\n    middle?: Outer_Middle;\n}",
+          "references": [
+            "Outer_Middle"
+          ]
+        },
+        {
+          "name": "Outer_Middle",
+          "text": "export interface Outer_Middle {\n    inner?: Outer_Middle_Inner;\n}",
+          "references": [
+            "Outer_Middle_Inner"
+          ]
+        },
+        {
+          "name": "Outer_Middle_Inner",
+          "text": "export interface Outer_Middle_Inner {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "Outer_Middle_Inner",
+              "output": "Outer_Middle_Inner",
+              "I": "test.Outer.Middle.Inner",
+              "O": "test.Outer.Middle.Inner",
+              "doc": "Uses doubly-nested type"
+            },
+            {
+              "name": "DoAnother",
+              "input": "Outer_Middle",
+              "output": "Outer_Middle",
+              "I": "test.Outer.Middle",
+              "O": "test.Outer.Middle",
+              "doc": "Uses singly-nested type"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

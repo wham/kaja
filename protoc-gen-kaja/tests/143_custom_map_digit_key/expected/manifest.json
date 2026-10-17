@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Config",
+          "typeName": "test.Config",
+          "fields": [
+            {
+              "no": 1,
+              "name": "labels",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.config": {
+              "labels": {
+                "123abc": "val1",
+                "normal": "val2"
+              }
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Config",
+          "text": "export interface Config {\n    labels: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

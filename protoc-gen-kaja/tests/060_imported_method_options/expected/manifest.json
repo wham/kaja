@@ -1,0 +1,120 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "GetUserRequest",
+          "typeName": "api.GetUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetUserResponse",
+          "typeName": "api.GetUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "DeleteUserRequest",
+          "typeName": "api.DeleteUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "DeleteUserResponse",
+          "typeName": "api.DeleteUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "success",
+              "kind": "scalar",
+              "T": 8
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "UserService",
+          "typeName": "api.UserService",
+          "methods": [
+            {
+              "name": "GetUser",
+              "input": "GetUserRequest",
+              "output": "GetUserResponse",
+              "I": "api.GetUserRequest",
+              "O": "api.GetUserResponse",
+              "options": {
+                "custom.auth_level": "admin",
+                "custom.timeout_ms": 5000,
+                "custom.cache_enabled": true
+              },
+              "doc": "Method using imported custom options"
+            },
+            {
+              "name": "DeleteUser",
+              "input": "DeleteUserRequest",
+              "output": "DeleteUserResponse",
+              "I": "api.DeleteUserRequest",
+              "O": "api.DeleteUserResponse",
+              "options": {
+                "custom.auth_level": "superadmin"
+              },
+              "doc": "Method with only some imported options"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "GetUserRequest",
+          "text": "export interface GetUserRequest {\n    userId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetUserResponse",
+          "text": "export interface GetUserResponse {\n    name: string;\n    email: string;\n}",
+          "references": []
+        },
+        {
+          "name": "DeleteUserRequest",
+          "text": "export interface DeleteUserRequest {\n    userId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "DeleteUserResponse",
+          "text": "export interface DeleteUserResponse {\n    success: boolean;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

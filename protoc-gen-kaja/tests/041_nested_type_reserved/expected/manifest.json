@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "nested",
+              "kind": "message",
+              "T": "test.Outer.constructor"
+            }
+          ]
+        },
+        {
+          "name": "Outer_constructor",
+          "typeName": "test.Outer.constructor",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Array$",
+          "typeName": "test.Array",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Outer",
+          "text": "export interface Outer {\n    nested?: Outer_constructor;\n}",
+          "references": [
+            "Outer_constructor"
+          ]
+        },
+        {
+          "name": "Outer_constructor",
+          "text": "export interface Outer_constructor {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Array$",
+          "text": "/** Test top-level message with reserved type name */\nexport interface Array$ {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Inner",
+          "typeName": "test.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "opt": true,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Outer",
+          "typeName": "test.Outer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "required_inner",
+              "kind": "message",
+              "T": "test.Inner"
+            },
+            {
+              "no": 2,
+              "name": "required_string",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "optional_inner",
+              "kind": "message",
+              "T": "test.Inner"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Inner",
+          "text": "export interface Inner {\n    value?: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Outer",
+          "text": "/** Required message fields should still be optional in TypeScript */\nexport interface Outer {\n    requiredInner?: Inner;\n    requiredString: string;\n    optionalInner?: Inner;\n}",
+          "references": [
+            "Inner"
+          ]
+        }
+      ]
+    }
+  ]
+}

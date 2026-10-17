@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DoubleValue",
+          "typeName": "google.protobuf.DoubleValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "FloatValue",
+          "typeName": "google.protobuf.FloatValue",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 2
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "DoubleValue",
+          "text": "/** Minimal wrappers for testing float/double scalar type values in internalJsonWrite and internalJsonRead methods. */\nexport interface DoubleValue {\n    value: number;\n}",
+          "references": []
+        },
+        {
+          "name": "FloatValue",
+          "text": "export interface FloatValue {\n    value: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

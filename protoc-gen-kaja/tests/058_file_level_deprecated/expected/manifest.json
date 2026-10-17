@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "deprecated.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DeprecatedMessage",
+          "typeName": "test.DeprecatedMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "DeprecatedStatus",
+          "typeName": "test.DeprecatedStatus",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ]
+        }
+      ],
+      "services": [
+        {
+          "name": "DeprecatedService",
+          "typeName": "test.DeprecatedService",
+          "methods": [
+            {
+              "name": "GetStatus",
+              "input": "DeprecatedMessage",
+              "output": "DeprecatedMessage",
+              "I": "test.DeprecatedMessage",
+              "O": "test.DeprecatedMessage",
+              "deprecated": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "DeprecatedMessage",
+          "text": "/** Top-level message in a deprecated file */\nexport interface DeprecatedMessage {\n    name: string;\n    age: number;\n}",
+          "references": []
+        },
+        {
+          "name": "DeprecatedStatus",
+          "text": "/** Top-level enum in a deprecated file */\nexport enum DeprecatedStatus {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

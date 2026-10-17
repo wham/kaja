@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9,
+              "options": {
+                "test.field_metadata": "aGVsbG8="
+              }
+            },
+            {
+              "no": 2,
+              "name": "count",
+              "kind": "scalar",
+              "T": 5,
+              "options": {
+                "test.field_metadata": "AQID"
+              }
+            }
+          ],
+          "options": {
+            "test.msg_tag": "dGFnMQ=="
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n    count: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

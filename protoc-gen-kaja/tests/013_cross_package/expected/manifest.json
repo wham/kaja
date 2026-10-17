@@ -1,0 +1,345 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "common/types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Timestamp",
+          "typeName": "common.Timestamp",
+          "fields": [
+            {
+              "no": 1,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 3
+            },
+            {
+              "no": 2,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "Address",
+          "typeName": "common.Address",
+          "fields": [
+            {
+              "no": 1,
+              "name": "street",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "city",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "state",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "zip",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "country",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "common.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ],
+            [
+              "DELETED",
+              3
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Timestamp",
+          "text": "/** Common types shared across packages */\nexport interface Timestamp {\n    seconds: string;\n    nanos: number;\n}",
+          "references": []
+        },
+        {
+          "name": "Address",
+          "text": "export interface Address {\n    street: string;\n    city: string;\n    state: string;\n    zip: string;\n    country: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n    DELETED = 3,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "user/service.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "UserProfile",
+          "typeName": "user.UserProfile",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "address",
+              "kind": "message",
+              "T": "common.Address"
+            },
+            {
+              "no": 5,
+              "name": "status",
+              "kind": "enum",
+              "T": "common.Status"
+            },
+            {
+              "no": 6,
+              "name": "created_at",
+              "kind": "message",
+              "T": "common.Timestamp"
+            },
+            {
+              "no": 7,
+              "name": "updated_at",
+              "kind": "message",
+              "T": "common.Timestamp"
+            }
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "typeName": "user.CreateUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "address",
+              "kind": "message",
+              "T": "common.Address"
+            }
+          ]
+        },
+        {
+          "name": "CreateUserResponse",
+          "typeName": "user.CreateUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "user.UserProfile"
+            }
+          ]
+        },
+        {
+          "name": "UpdateUserRequest",
+          "typeName": "user.UpdateUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "username",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "address",
+              "kind": "message",
+              "T": "common.Address"
+            }
+          ]
+        },
+        {
+          "name": "UpdateUserResponse",
+          "typeName": "user.UpdateUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "user.UserProfile"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "UserManagementService",
+          "typeName": "user.UserManagementService",
+          "methods": [
+            {
+              "name": "CreateUser",
+              "input": "CreateUserRequest",
+              "output": "CreateUserResponse",
+              "I": "user.CreateUserRequest",
+              "O": "user.CreateUserResponse"
+            },
+            {
+              "name": "UpdateUser",
+              "input": "UpdateUserRequest",
+              "output": "UpdateUserResponse",
+              "I": "user.UpdateUserRequest",
+              "O": "user.UpdateUserResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "UserProfile",
+          "text": "/** User service with cross-package imports */\nexport interface UserProfile {\n    id: string;\n    username: string;\n    email: string;\n    address?: Address;\n    status: Status;\n    createdAt?: Timestamp;\n    updatedAt?: Timestamp;\n}",
+          "references": [
+            "Address",
+            "Status",
+            "Timestamp"
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "text": "export interface CreateUserRequest {\n    username: string;\n    email: string;\n    address?: Address;\n}",
+          "references": [
+            "Address"
+          ]
+        },
+        {
+          "name": "CreateUserResponse",
+          "text": "export interface CreateUserResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        },
+        {
+          "name": "UpdateUserRequest",
+          "text": "export interface UpdateUserRequest {\n    id: string;\n    username: string;\n    email: string;\n    address?: Address;\n}",
+          "references": [
+            "Address"
+          ]
+        },
+        {
+          "name": "UpdateUserResponse",
+          "text": "export interface UpdateUserResponse {\n    profile?: UserProfile;\n}",
+          "references": [
+            "UserProfile"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "root.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "CrossPackageTest",
+          "typeName": "test.CrossPackageTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "profile",
+              "kind": "message",
+              "T": "user.UserProfile"
+            },
+            {
+              "no": 2,
+              "name": "address",
+              "kind": "message",
+              "T": "common.Address"
+            },
+            {
+              "no": 3,
+              "name": "status",
+              "kind": "enum",
+              "T": "common.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "CrossPackageTest",
+          "text": "/** Test message that uses cross-package types */\nexport interface CrossPackageTest {\n    profile?: UserProfile;\n    address?: Address;\n    status: Status;\n}",
+          "references": [
+            "UserProfile",
+            "Address",
+            "Status"
+          ]
+        }
+      ]
+    }
+  ]
+}

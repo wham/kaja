@@ -1,14 +1,14 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import type { IMessageType } from "@protobuf-ts/runtime";
-import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
+import { stackIntercept } from "@protobuf-ts/runtime-rpc";
+import type { RpcMetadata, RpcTransport } from "@protobuf-ts/runtime-rpc";
 import { APP_HEADER, appHeaders, appType, HEADER_META_PREFIX, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { Call, CallOptions, callResponseHeaders, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import { rpcErrorMessage } from "./rpcMessage";
 import { TOOL_ERROR_CODE, ToolFailure, UPSTREAM_TRAILER, decodeTrailerValue, parseUpstream } from "./upstream";
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
+import type { Reflection } from "./protoReflection";
 import { getBaseUrlForApp, GRPC_WEB_FORMAT } from "./server/connection";
-import { Stub } from "./sources";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 import { uuidV4 } from "./uuid";
 
@@ -67,15 +67,16 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
   }
 }
 
-export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
-  // One transport, and no choice inside it: whatever an app talks to upstream, the
-  // call kaja is handed is gRPC-Web over the page's own origin — which on the desktop
-  // is the mux the app mounts behind its webview's scheme.
-  const transport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp(), format: GRPC_WEB_FORMAT });
-
-  const stubModule = stub[service.clientStubModuleId];
-  const ClientClass = stubModule[service.name + "Client"];
-  const clientStub = new ClientClass(transport);
+// One transport, and no choice inside it: whatever an app talks to upstream, the call
+// kaja is handed is gRPC-Web over the page's own origin — which on the desktop is the
+// mux the app mounts behind its webview's scheme.
+export function createClient(
+  service: Service,
+  reflection: Reflection,
+  appRef: AppRef,
+  transport: RpcTransport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp(), format: GRPC_WEB_FORMAT }),
+): Client {
+  const serviceType = reflection.services.get(service.typeName);
 
   // The headers of one call, on their way to the door. They carry the X-Header-
   // prefix: their ${NAME} references travel unexpanded, since the value behind one may
@@ -96,7 +97,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     method,
     unsupported: unsupportedReason(method, appType(appRef.configuration)),
     isServerStreaming: method.serverStreaming && !method.clientStreaming,
-    inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
+    info: serviceType?.methods.find((m) => m.name === method.name),
   }));
 
   // Bound methods are kept per run rather than rebuilt per import, and weakly, so a
@@ -107,7 +108,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     const methods: Methods = {};
     // Read rather than captured, so a renamed app still answers for its own budget.
     Object.defineProperty(methods, APP_OF, { get: () => appRef.configuration.name });
-    for (const { method, unsupported, isServerStreaming, inputType } of prepared) {
+    for (const { method, unsupported, isServerStreaming, info } of prepared) {
       const newMethodCall = (input: any, requestHeaders: MethodCallHeaders): MethodCall => ({
         id: uuidV4(),
         appName: appRef.configuration.name,
@@ -156,19 +157,19 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           // with an error that names neither. create() fills those in with the zero values the
           // wire format omits anyway. The literal itself stays on the method call, so the
           // console and the value completions keep showing what was actually written.
-          const message = inputType ? inputType.create(input) : input;
-          const options: RpcOptions = { meta: requestMeta(requestHeaders) };
-          const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
+          if (!info) throw new Error(`${service.name}.${method.name} is not on the app's ${service.typeName}`);
+          const message = info.I.create(input);
+          const options = transport.mergeOptions({ meta: requestMeta(requestHeaders), ...(abort ? { abort } : {}) });
+          methodCall.inputTypeName = info.I.typeName;
+          methodCall.inputType = info.I;
+          methodCall.outputTypeName = info.O.typeName;
+          methodCall.outputType = info.O;
 
           if (isServerStreaming) {
-            const streamCall = call as ServerStreamingCall<any, any>;
-            methodCall.inputTypeName = streamCall.method?.I?.typeName;
-            methodCall.inputType = streamCall.method?.I;
-            methodCall.outputTypeName = streamCall.method?.O?.typeName;
-            methodCall.outputType = streamCall.method?.O;
+            const call = stackIntercept<any, any>("serverStreaming", transport, info, options, message);
             methodCall.streamOutputs = [];
 
-            for await (const message of streamCall.responses) {
+            for await (const message of call.responses) {
               // Appended, not copied: the console holds this object rather than a snapshot, so
               // rebuilding the array per message would be quadratic for a stream nothing reads
               // differently.
@@ -179,17 +180,14 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             methodCall.streamComplete = true;
             methodCall.durationMs = elapsed();
 
-            const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
+            const [headers, trailers] = await Promise.all([call.headers, call.trailers]);
             collectResponseHeaders(methodCall, headers, trailers);
           } else {
+            const call = stackIntercept<any, any>("unary", transport, info, options, message);
             const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
             methodCall.durationMs = elapsed();
             methodCall.output = response;
             methodCall.error = toolFailure(mcp, response);
-            methodCall.inputTypeName = call.method?.I?.typeName;
-            methodCall.inputType = call.method?.I;
-            methodCall.outputTypeName = call.method?.O?.typeName;
-            methodCall.outputType = call.method?.O;
 
             collectResponseHeaders(methodCall, headers, trailers);
           }
@@ -255,10 +253,6 @@ function toolFailure(mcp: boolean, response: unknown): ToolFailure | undefined {
   const blocks = Array.isArray(result.content) ? (result.content as { type?: unknown; text?: unknown }[]) : [];
   const text = blocks.find((block) => block.type === "text" && typeof block.text === "string")?.text as string | undefined;
   return { message: text ?? "The tool reported failure.", code: TOOL_ERROR_CODE, body: response };
-}
-
-function lcfirst(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 // callError turns a thrown error into what the console shows for the call.

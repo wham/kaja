@@ -1,9 +1,10 @@
-import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
+import { MethodInfo } from "@protobuf-ts/runtime-rpc";
 import { createClient } from "./client";
 import { addImport, defaultMessage, FieldSet, Imports } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId } from "./apps";
+import { buildReflection, Reflection } from "./protoReflection";
 import { WorkspaceApp } from "./server/api";
-import { findInStub, loadSources, Manifest, parseStub, Source, Stub } from "./sources";
+import { loadSources, Manifest, Source } from "./sources";
 import { moduleSpecifier } from "./appImports";
 import { appType } from "./appTypes";
 import { DEPRECATION_NOTE } from "./deprecation";
@@ -18,7 +19,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
     return `// Error: Could not find source for service ${service.name}`;
   }
 
-  const serviceInfo: ServiceInfo | undefined = findInStub(app.stub, source, service.name);
+  const serviceInfo = app.reflection.services.get(service.typeName);
   if (!serviceInfo) {
     return `// Error: Could not find service info for ${service.name}`;
   }
@@ -31,41 +32,33 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app, fields, method.deprecated === true);
 }
 
-export async function loadApp(manifest: Manifest, stubCode: string, configuration: WorkspaceApp): Promise<App> {
-  const stub = await parseStub(stubCode);
-  const sources = loadSources(manifest, stub, configuration.name);
+export function loadApp(manifest: Manifest, configuration: WorkspaceApp): App {
+  const reflection = buildReflection(manifest.modules);
+  const sources = loadSources(manifest, reflection, configuration.name);
   const services: Service[] = [];
 
   manifest.modules.forEach((module, index) => {
     const source = sources[index];
     for (const service of module.services) {
-      const serviceInfo: ServiceInfo | undefined = findInStub(stub, source, service.name);
-      if (!serviceInfo) continue;
       // The package is the type name without the service ("quirks.v1.Quirks" -> "quirks.v1").
       const lastDotIndex = service.typeName.lastIndexOf(".");
       const packageName = lastDotIndex > 0 ? service.typeName.substring(0, lastDotIndex) : "";
-      const clientSource = sources.find((s) => s.path === configuration.name + "/" + service.clientModule);
-      const signatures = new Map(service.methods.map((method) => [method.name, method]));
-
-      const methods: Method[] = serviceInfo.methods.map((methodInfo) => {
-        const signature = signatures.get(methodInfo.name);
-        return {
-          name: methodInfo.name,
-          serverStreaming: methodInfo.serverStreaming,
-          clientStreaming: methodInfo.clientStreaming,
-          input: signature?.input,
-          output: signature?.output,
-          doc: signature?.doc,
-          http: httpRequest(methodInfo),
-          deprecated: signature?.deprecated,
-        };
-      });
+      const methods: Method[] = service.methods.map((method) => ({
+        name: method.name,
+        serverStreaming: method.serverStreaming === true,
+        clientStreaming: method.clientStreaming === true,
+        input: method.input,
+        output: method.output,
+        doc: method.doc,
+        http: httpRequest(method.options),
+        deprecated: method.deprecated,
+      }));
 
       services.push({
         name: service.name,
         packageName,
         sourcePath: source.importPath,
-        clientStubModuleId: clientSource?.stubModuleId || "",
+        typeName: service.typeName,
         methods,
       });
     }
@@ -81,17 +74,17 @@ export async function loadApp(manifest: Manifest, stubCode: string, configuratio
     configuration,
     appRef,
     services,
-    clients: createClients(services, stub, appRef),
+    clients: createClients(services, reflection, appRef),
     sources,
-    stub,
+    reflection,
   };
 }
 
-function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients {
+function createClients(services: Service[], reflection: Reflection, appRef: AppRef): Clients {
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[serviceId(service)] = createClient(service, stub, appRef);
+    clients[serviceId(service)] = createClient(service, reflection, appRef);
   }
 
   return clients;
@@ -134,7 +127,7 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
 
 // httpRequest reads the HTTP request a method transcodes to, when the app wrote one
 // onto the method. See server/pkg/apps/openapi/http.proto.
-function httpRequest(methodInfo: MethodInfo): string | undefined {
-  const value = (methodInfo.options as { [key: string]: unknown } | undefined)?.["kaja.http_request"];
+function httpRequest(options: { [key: string]: unknown } | undefined): string | undefined {
+  const value = options?.["kaja.http_request"];
   return typeof value === "string" && value !== "" ? value : undefined;
 }

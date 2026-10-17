@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Test",
+          "typeName": "Test",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status_map",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "enum",
+                "T": "Status"
+              }
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "Status",
+          "values": [
+            [
+              "UNKNOWN",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Test",
+          "text": "export interface Test {\n    statusMap: { [key: string]: Status };\n}",
+          "references": [
+            "Status"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNKNOWN = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

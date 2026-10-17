@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "custom_message_options.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "age",
+              "kind": "scalar",
+              "T": 5
+            }
+          ],
+          "options": {
+            "test.resource_name": "users",
+            "test.cacheable": true
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "User",
+          "text": "export interface User {\n    name: string;\n    age: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

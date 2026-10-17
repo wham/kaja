@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "protobuf-ts.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [
+        {
+          "name": "ServerStyle",
+          "typeName": "ts.ServerStyle",
+          "values": [
+            [
+              "NO_SERVER",
+              0
+            ],
+            [
+              "GENERIC_SERVER",
+              1
+            ],
+            [
+              "GRPC1_SERVER",
+              2
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ServerStyle",
+          "text": "export enum ServerStyle {\n    NO_SERVER = 0,\n    GENERIC_SERVER = 1,\n    GRPC1_SERVER = 2,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Alpha",
+          "typeName": "test.Alpha",
+          "fields": [
+            {
+              "no": 1,
+              "name": "a",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Beta",
+          "typeName": "test.Beta",
+          "fields": [
+            {
+              "no": 1,
+              "name": "b",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "MySvc",
+          "typeName": "test.MySvc",
+          "methods": [
+            {
+              "name": "Chat",
+              "input": "Alpha",
+              "output": "Beta",
+              "I": "test.Alpha",
+              "O": "test.Beta",
+              "serverStreaming": true,
+              "clientStreaming": true
+            }
+          ],
+          "options": {
+            "ts.server": [
+              "GENERIC_SERVER"
+            ]
+          }
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Alpha",
+          "text": "export interface Alpha {\n    a: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Beta",
+          "text": "export interface Beta {\n    b: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Task",
+          "typeName": "test.Task",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "ACTIVE",
+              0
+            ],
+            [
+              "RUNNING",
+              1
+            ],
+            [
+              "STARTED",
+              1
+            ],
+            [
+              "STOPPED",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Task",
+          "text": "export interface Task {\n    status: Status;\n}",
+          "references": [
+            "Status"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "/** Enum where alias is deprecated but original is not */\nexport enum Status {\n    ACTIVE = 0,\n    RUNNING = 1,\n    STARTED = 1,\n    STOPPED = 2,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

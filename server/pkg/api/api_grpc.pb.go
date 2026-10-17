@@ -53,7 +53,7 @@ const (
 type ApiClient interface {
 	// Compile streams the compilation of an app's proto surface: each log line as it
 	// is written, then one last message carrying the terminal status and, on success,
-	// the generated sources and the stub.
+	// the manifest the app compiled to.
 	Compile(ctx context.Context, in *CompileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CompileResponse], error)
 	OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grpc.CallOption) (*OpenAppResponse, error)
 	RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error)
@@ -389,7 +389,7 @@ func (c *apiClient) ScanScriptVariables(ctx context.Context, in *ScanScriptVaria
 type ApiServer interface {
 	// Compile streams the compilation of an app's proto surface: each log line as it
 	// is written, then one last message carrying the terminal status and, on success,
-	// the generated sources and the stub.
+	// the manifest the app compiled to.
 	Compile(*CompileRequest, grpc.ServerStreamingServer[CompileResponse]) error
 	OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error)
 	RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error)

@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "DoSomething",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Method comment."
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

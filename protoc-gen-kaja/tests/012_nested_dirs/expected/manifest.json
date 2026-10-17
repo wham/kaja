@@ -1,0 +1,160 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "api/v1/service.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ApiInfo",
+          "typeName": "api.v1.ApiInfo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "version",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "HealthCheckRequest",
+          "typeName": "api.v1.HealthCheckRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "service",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "HealthCheckResponse",
+          "typeName": "api.v1.HealthCheckResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "api.v1.HealthCheckResponse.Status"
+            },
+            {
+              "no": 2,
+              "name": "info",
+              "kind": "message",
+              "T": "api.v1.ApiInfo"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "HealthCheckResponse_Status",
+          "typeName": "api.v1.HealthCheckResponse.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "SERVING",
+              1
+            ],
+            [
+              "NOT_SERVING",
+              2
+            ],
+            [
+              "UNKNOWN",
+              3
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [
+        {
+          "name": "HealthService",
+          "typeName": "api.v1.HealthService",
+          "methods": [
+            {
+              "name": "Check",
+              "input": "HealthCheckRequest",
+              "output": "HealthCheckResponse",
+              "I": "api.v1.HealthCheckRequest",
+              "O": "api.v1.HealthCheckResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "ApiInfo",
+          "text": "/** Nested directory structure with versioned API */\nexport interface ApiInfo {\n    version: string;\n    name: string;\n}",
+          "references": []
+        },
+        {
+          "name": "HealthCheckRequest",
+          "text": "export interface HealthCheckRequest {\n    service: string;\n}",
+          "references": []
+        },
+        {
+          "name": "HealthCheckResponse",
+          "text": "export interface HealthCheckResponse {\n    status: HealthCheckResponse_Status;\n    info?: ApiInfo;\n}",
+          "references": [
+            "HealthCheckResponse_Status",
+            "ApiInfo"
+          ]
+        },
+        {
+          "name": "HealthCheckResponse_Status",
+          "text": "export enum HealthCheckResponse_Status {\n    UNSPECIFIED = 0,\n    SERVING = 1,\n    NOT_SERVING = 2,\n    UNKNOWN = 3,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "root.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "NestedTest",
+          "typeName": "test.NestedTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "info",
+              "kind": "message",
+              "T": "api.v1.ApiInfo"
+            },
+            {
+              "no": 2,
+              "name": "status",
+              "kind": "enum",
+              "T": "api.v1.HealthCheckResponse.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "NestedTest",
+          "text": "/** Test message that uses types from nested directory */\nexport interface NestedTest {\n    info?: ApiInfo;\n    status: HealthCheckResponse_Status;\n}",
+          "references": [
+            "ApiInfo",
+            "HealthCheckResponse_Status"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Ping",
+          "typeName": "test.Ping",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Pong",
+          "typeName": "test.Pong",
+          "fields": [
+            {
+              "no": 1,
+              "name": "reply",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "LogEntry",
+          "typeName": "test.LogEntry",
+          "fields": [
+            {
+              "no": 1,
+              "name": "line",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Summary",
+          "typeName": "test.Summary",
+          "fields": [
+            {
+              "no": 1,
+              "name": "count",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "PingService",
+          "typeName": "test.PingService",
+          "methods": [
+            {
+              "name": "DoPing",
+              "input": "Ping",
+              "output": "Pong",
+              "I": "test.Ping",
+              "O": "test.Pong"
+            }
+          ]
+        },
+        {
+          "name": "LogService",
+          "typeName": "test.LogService",
+          "methods": [
+            {
+              "name": "StreamLogs",
+              "input": "LogEntry",
+              "output": "Summary",
+              "I": "test.LogEntry",
+              "O": "test.Summary",
+              "clientStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Ping",
+          "text": "export interface Ping {\n    text: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Pong",
+          "text": "export interface Pong {\n    reply: string;\n}",
+          "references": []
+        },
+        {
+          "name": "LogEntry",
+          "text": "export interface LogEntry {\n    line: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Summary",
+          "text": "export interface Summary {\n    count: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

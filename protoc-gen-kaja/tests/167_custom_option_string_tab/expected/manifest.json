@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "MyMessage",
+          "typeName": "MyMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "description": "hello\tworld"
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "MyMessage",
+          "text": "export interface MyMessage {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

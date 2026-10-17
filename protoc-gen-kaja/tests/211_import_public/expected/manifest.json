@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "base.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Base",
+          "typeName": "test.Base",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "id",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Base",
+          "text": "export interface Base {\n    name: string;\n    id: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "re_export.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Wrapper",
+          "typeName": "test.Wrapper",
+          "fields": [
+            {
+              "no": 1,
+              "name": "base",
+              "kind": "message",
+              "T": "test.Base"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Wrapper",
+          "text": "export interface Wrapper {\n    base?: Base;\n}",
+          "references": [
+            "Base"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "consumer.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Consumer",
+          "typeName": "test.Consumer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "base",
+              "kind": "message",
+              "T": "test.Base"
+            },
+            {
+              "no": 2,
+              "name": "wrapper",
+              "kind": "message",
+              "T": "test.Wrapper"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Consumer",
+          "text": "export interface Consumer {\n    base?: Base;\n    wrapper?: Wrapper;\n}",
+          "references": [
+            "Base",
+            "Wrapper"
+          ]
+        }
+      ]
+    }
+  ]
+}

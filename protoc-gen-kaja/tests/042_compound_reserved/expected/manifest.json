@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "to",
+          "typeName": "test.to",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "message",
+              "T": "test.to.String"
+            }
+          ]
+        },
+        {
+          "name": "to_String",
+          "typeName": "test.to.String",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "to",
+          "text": "export interface to {\n    data?: to_String;\n}",
+          "references": [
+            "to_String"
+          ]
+        },
+        {
+          "name": "to_String",
+          "text": "export interface to_String {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

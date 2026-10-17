@@ -35,23 +35,28 @@ const saveMovieRequest = messageType("movies.v1.SaveMovieRequest", [{ name: "mov
 function moviesApp(): App {
   const path = "demo/proto/movies.ts";
   return {
-    stub: {
-      demo$proto$movies: {
-        MoviesService: {
-          typeName: "movies.v1.Movies",
-          methods: [
-            { name: "GetMovie", I: getMovieRequest, O: movie },
-            { name: "SaveMovie", I: saveMovieRequest, O: movie },
-            { name: "FindMovies", I: findMoviesRequest, O: movie },
-          ],
-        },
-      },
+    services: [{ name: "MoviesService", packageName: "movies.v1", sourcePath: "demo/proto/movies", typeName: "movies.v1.Movies", methods: [] }],
+    reflection: {
+      messages: new Map(),
+      enums: new Map(),
+      services: new Map([
+        [
+          "movies.v1.Movies",
+          {
+            typeName: "movies.v1.Movies",
+            methods: [
+              { name: "GetMovie", I: getMovieRequest, O: movie },
+              { name: "SaveMovie", I: saveMovieRequest, O: movie },
+              { name: "FindMovies", I: findMoviesRequest, O: movie },
+            ],
+          },
+        ],
+      ]),
     },
     sources: [
       {
         path,
         importPath: "demo/proto/movies",
-        stubModuleId: "demo$proto$movies",
         serviceNames: ["MoviesService"],
         interfaces: {},
         enums: {},

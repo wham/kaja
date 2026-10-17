@@ -1,0 +1,162 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "reserved.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ReservedNumbers",
+          "typeName": "reserved_test.ReservedNumbers",
+          "fields": [
+            {
+              "no": 1,
+              "name": "field1",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 5,
+              "name": "field5",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 11,
+              "name": "field11",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ReservedNames",
+          "typeName": "reserved_test.ReservedNames",
+          "fields": [
+            {
+              "no": 1,
+              "name": "current_field",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "another_field",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ReservedBoth",
+          "typeName": "reserved_test.ReservedBoth",
+          "fields": [
+            {
+              "no": 1,
+              "name": "active",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "new_field",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "reserved_test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "nested",
+              "kind": "message",
+              "T": "reserved_test.Container.Nested"
+            }
+          ]
+        },
+        {
+          "name": "Container_Nested",
+          "typeName": "reserved_test.Container.Nested",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 6,
+              "name": "new_value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "StatusWithReserved",
+          "typeName": "reserved_test.StatusWithReserved",
+          "values": [
+            [
+              "STATUS_UNKNOWN",
+              0
+            ],
+            [
+              "STATUS_ACTIVE",
+              1
+            ],
+            [
+              "STATUS_PENDING",
+              5
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ReservedNumbers",
+          "text": "/** Test reserved field numbers */\nexport interface ReservedNumbers {\n    field1: string;\n    field5: string;\n    field11: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ReservedNames",
+          "text": "/** Test reserved field names */\nexport interface ReservedNames {\n    currentField: string;\n    anotherField: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ReservedBoth",
+          "text": "/** Test both reserved numbers and names */\nexport interface ReservedBoth {\n    active: string;\n    newField: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Test reserved in nested messages */\nexport interface Container {\n    id: string;\n    nested?: Container_Nested;\n}",
+          "references": [
+            "Container_Nested"
+          ]
+        },
+        {
+          "name": "Container_Nested",
+          "text": "export interface Container_Nested {\n    value: string;\n    newValue: string;\n}",
+          "references": []
+        },
+        {
+          "name": "StatusWithReserved",
+          "text": "/** Test reserved enum values */\nexport enum StatusWithReserved {\n    STATUS_UNKNOWN = 0,\n    STATUS_ACTIVE = 1,\n    STATUS_PENDING = 5,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

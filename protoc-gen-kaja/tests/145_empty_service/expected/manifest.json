@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "EmptyService",
+          "typeName": "test.EmptyService",
+          "methods": []
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

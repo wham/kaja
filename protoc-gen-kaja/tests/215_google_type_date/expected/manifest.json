@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Date",
+          "typeName": "google.type.Date",
+          "fields": [
+            {
+              "no": 1,
+              "name": "year",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "month",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "day",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Date",
+          "text": "/** Represents a whole or partial calendar date. */\nexport interface Date {\n    /** Year of date. */\n    year: number;\n    /** Month of year. */\n    month: number;\n    /** Day of month. */\n    day: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

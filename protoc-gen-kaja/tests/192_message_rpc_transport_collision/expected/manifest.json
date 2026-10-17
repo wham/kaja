@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "RpcTransport",
+          "typeName": "test.RpcTransport",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "Searcher",
+          "typeName": "test.Searcher",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "RpcTransport",
+              "output": "Response",
+              "I": "test.RpcTransport",
+              "O": "test.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "RpcTransport",
+          "text": "/** Message named RpcTransport collides with runtime-rpc import in client file */\nexport interface RpcTransport {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

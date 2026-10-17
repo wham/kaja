@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ReservedProps",
+          "typeName": "test.ReservedProps",
+          "fields": [
+            {
+              "no": 1,
+              "name": "__proto__",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "to_string",
+              "kind": "scalar",
+              "localName": "toString$",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "normal",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "message",
+              "T": "test.Container.Inner"
+            }
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "typeName": "test.Container.Inner",
+          "fields": [
+            {
+              "no": 1,
+              "name": "__proto__",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "to_string",
+              "kind": "scalar",
+              "localName": "toString$",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ReservedProps",
+          "text": "/** Test field names that are reserved object properties */\nexport interface ReservedProps {\n    /** __proto__ is a reserved object property */\n    Proto: string;\n    /** toString is a reserved object property */\n    toString$: number;\n    /** Normal field for comparison */\n    normal: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Container",
+          "text": "/** Test in nested message too */\nexport interface Container {\n    data?: Container_Inner;\n}",
+          "references": [
+            "Container_Inner"
+          ]
+        },
+        {
+          "name": "Container_Inner",
+          "text": "export interface Container_Inner {\n    Proto: string;\n    toString$: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

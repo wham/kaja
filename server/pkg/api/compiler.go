@@ -6,20 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wham/kaja/v2/internal/tempdir"
-	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
 )
 
-// Every message type is generated without a create and a binary codec of its own,
-// leaving the runtime to drive all three off the field descriptors. That is most of
-// what a message generates, and an app is compiled and bundled where it is read - in
-// the browser - so the cost of the specialized codec is paid by the person waiting
-// for the app to open, against calls a person makes one at a time. kaja_manifest has
-// the plugin say what it generated, so the UI never parses the TypeScript back.
-const kajaParameter = "force_optimize_code_size,kaja_manifest"
+// kaja_manifest has the plugin answer with a manifest rather than with TypeScript: an
+// app is data the UI builds its types from, never code it evaluates.
+const kajaParameter = "kaja_manifest"
 
 type Compiler struct {
 	logger *Logger
@@ -29,75 +23,20 @@ func NewCompiler(logger *Logger) *Compiler {
 	return &Compiler{logger: logger}
 }
 
-// run compiles the proto directory into the TypeScript sources, the stub and the
-// manifest the client loads an app from. It runs where the call is answered, so its
-// logger writes each line straight on to the stream.
-func (c *Compiler) run(protoDir string) ([]*Source, string, string, error) {
+// run compiles the proto directory into the manifest the client loads an app from. It
+// runs where the call is answered, so its logger writes each line straight on to the
+// stream.
+func (c *Compiler) run(protoDir string) (string, error) {
 	c.logger.info("Starting compilation")
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		c.logger.error("Failed to get working directory", err)
-		return nil, "", "", err
-	}
-	c.logger.debug("cwd: " + cwd)
-
-	sourcesDir, err := tempdir.NewSourcesDir()
-	if err != nil {
-		c.logger.error("Failed to create temp directory", err)
-		return nil, "", "", err
-	}
-	c.logger.debug("sourcesDir: " + sourcesDir)
-
-	manifest, err := c.compile(sourcesDir, protoDir)
+	manifest, err := c.compile(protoDir)
 	if err != nil {
 		c.logger.error("Compilation failed", err)
-		return nil, "", "", err
-	}
-
-	sources := c.getSources(sourcesDir)
-
-	c.logger.debug("Building stub")
-	stub, err := ui.BuildStub(sourcesDir)
-	if err != nil {
-		c.logger.error("Failed to build stub", err)
-		return nil, "", "", err
+		return "", err
 	}
 
 	c.logger.info("Compilation completed successfully, Kaja is ready to go")
-
-	return sources, string(stub), manifest, nil
-}
-
-func (c *Compiler) getSources(sourcesDir string) []*Source {
-	var sources []*Source
-
-	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			relativePath := strings.TrimPrefix(path, sourcesDir+"/")
-			if strings.HasSuffix(relativePath, ".ts") {
-				content, err := os.ReadFile(path)
-				if err != nil {
-					c.logger.error("Failed to read source file", err)
-					return err
-				}
-				sources = append(sources, &Source{
-					Path:    relativePath,
-					Content: string(content),
-				})
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		c.logger.error("Failed to walk sourcesDir", err)
-	}
-
-	return sources
+	return manifest, nil
 }
 
 // compilerFor reads what a proto directory holds and says how to compile it. A
@@ -126,7 +65,7 @@ func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, err
 	return protoc.New(protoc.WithProtoPaths(protoDir)), protoFiles, nil
 }
 
-func (c *Compiler) compile(sourcesDir string, protoDir string) (string, error) {
+func (c *Compiler) compile(protoDir string) (string, error) {
 	c.logger.debug("protoDir: " + protoDir)
 
 	compiler, protoFiles, err := c.compilerFor(protoDir)
@@ -145,24 +84,12 @@ func (c *Compiler) compile(sourcesDir string, protoDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("protoc-gen-kaja: %v", err)
 	}
-
-	manifest := ""
 	for _, f := range generated {
 		if f.Name == kaja.ManifestName {
-			manifest = f.Content
-			continue
-		}
-		outPath := filepath.Join(sourcesDir, f.Name)
-		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-			return "", fmt.Errorf("creating directory for %s: %v", f.Name, err)
-		}
-		if err := os.WriteFile(outPath, []byte(f.Content), 0o644); err != nil {
-			return "", fmt.Errorf("writing %s: %v", f.Name, err)
+			return f.Content, nil
 		}
 	}
-
-	c.logger.debug("Compilation completed successfully")
-	return manifest, nil
+	return "", fmt.Errorf("protoc-gen-kaja wrote no %s", kaja.ManifestName)
 }
 
 func findProtoFiles(dir string) ([]string, error) {

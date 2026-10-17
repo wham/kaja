@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Int64Value",
+          "typeName": "google.protobuf.Int64Value",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 3
+            }
+          ]
+        },
+        {
+          "name": "ScalarType",
+          "typeName": "google.protobuf.ScalarType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Int64Value",
+          "text": "export interface Int64Value {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ScalarType",
+          "text": "export interface ScalarType {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

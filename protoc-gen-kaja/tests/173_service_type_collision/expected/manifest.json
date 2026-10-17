@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ServiceType",
+          "typeName": "test.ServiceType",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "SearchService",
+          "typeName": "test.SearchService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "ServiceType",
+          "text": "/** Message with same name as runtime-rpc's ServiceType import. */\nexport interface ServiceType {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

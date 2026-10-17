@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Compact",
+          "typeName": "test.Compact",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Compact",
+          "text": "export interface Compact {\n    name: string;\n    value: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

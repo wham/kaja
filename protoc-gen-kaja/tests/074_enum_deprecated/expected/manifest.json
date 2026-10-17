@@ -1,0 +1,92 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Task",
+          "typeName": "test.Task",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            },
+            {
+              "no": 2,
+              "name": "priority",
+              "kind": "enum",
+              "T": "test.Priority"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ]
+        },
+        {
+          "name": "Priority",
+          "typeName": "test.Priority",
+          "values": [
+            [
+              "PRIORITY_UNSPECIFIED",
+              0
+            ],
+            [
+              "LOW",
+              1
+            ],
+            [
+              "MEDIUM",
+              2
+            ],
+            [
+              "HIGH",
+              3
+            ]
+          ]
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Task",
+          "text": "export interface Task {\n    status: Status;\n    priority: Priority;\n}",
+          "references": [
+            "Status",
+            "Priority"
+          ]
+        },
+        {
+          "name": "Status",
+          "text": "/** Deprecated enum */\nexport enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        },
+        {
+          "name": "Priority",
+          "text": "/** Enum with deprecated values */\nexport enum Priority {\n    PRIORITY_UNSPECIFIED = 0,\n    LOW = 1,\n    MEDIUM = 2,\n    HIGH = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

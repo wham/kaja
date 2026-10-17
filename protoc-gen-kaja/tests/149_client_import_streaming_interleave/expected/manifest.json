@@ -1,0 +1,130 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "item.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ItemRequest",
+          "typeName": "test.ItemRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "item_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ItemResponse",
+          "typeName": "test.ItemResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "title",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ItemRequest",
+          "text": "export interface ItemRequest {\n    itemId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ItemResponse",
+          "text": "export interface ItemResponse {\n    title: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "user.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "UserRequest",
+          "typeName": "test.UserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "UserResponse",
+          "typeName": "test.UserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "UserRequest",
+          "text": "export interface UserRequest {\n    userId: string;\n}",
+          "references": []
+        },
+        {
+          "name": "UserResponse",
+          "text": "export interface UserResponse {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "DataService",
+          "typeName": "test.DataService",
+          "methods": [
+            {
+              "name": "GetUser",
+              "input": "UserRequest",
+              "output": "UserResponse",
+              "I": "test.UserRequest",
+              "O": "test.UserResponse"
+            },
+            {
+              "name": "GetItem",
+              "input": "ItemRequest",
+              "output": "ItemResponse",
+              "I": "test.ItemRequest",
+              "O": "test.ItemResponse"
+            },
+            {
+              "name": "SearchUser",
+              "input": "UserRequest",
+              "output": "UserResponse",
+              "I": "test.UserRequest",
+              "O": "test.UserResponse",
+              "serverStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

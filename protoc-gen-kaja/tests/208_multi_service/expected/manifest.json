@@ -1,0 +1,101 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Item",
+          "typeName": "test.Item",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "SearchService",
+          "typeName": "test.SearchService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response"
+            }
+          ]
+        },
+        {
+          "name": "ItemService",
+          "typeName": "test.ItemService",
+          "methods": [
+            {
+              "name": "GetItem",
+              "input": "Request",
+              "output": "Item",
+              "I": "test.Request",
+              "O": "test.Item"
+            },
+            {
+              "name": "ListItems",
+              "input": "Request",
+              "output": "Item",
+              "I": "test.Request",
+              "O": "test.Item",
+              "serverStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Item",
+          "text": "export interface Item {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

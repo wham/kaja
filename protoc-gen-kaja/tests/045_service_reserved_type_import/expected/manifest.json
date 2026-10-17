@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "String$",
+          "typeName": "types.String",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Array$",
+          "typeName": "types.Array",
+          "fields": [
+            {
+              "no": 1,
+              "name": "items",
+              "kind": "scalar",
+              "repeat": 2,
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Number$",
+          "typeName": "types.Number",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "String$",
+          "text": "/** This message has a reserved TypeScript type name */\nexport interface String$ {\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Array$",
+          "text": "/** Another reserved type name */\nexport interface Array$ {\n    items: string[];\n}",
+          "references": []
+        },
+        {
+          "name": "Number$",
+          "text": "/** And another */\nexport interface Number$ {\n    value: number;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "service.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [],
+      "services": [
+        {
+          "name": "TypeService",
+          "typeName": "api.TypeService",
+          "methods": [
+            {
+              "name": "GetString",
+              "input": "String$",
+              "output": "String$",
+              "I": "types.String",
+              "O": "types.String",
+              "doc": "Uses String from types.proto"
+            },
+            {
+              "name": "GetArray",
+              "input": "Array$",
+              "output": "Array$",
+              "I": "types.Array",
+              "O": "types.Array",
+              "doc": "Uses Array from types.proto"
+            },
+            {
+              "name": "GetNumber",
+              "input": "Number$",
+              "output": "Number$",
+              "I": "types.Number",
+              "O": "types.Number",
+              "doc": "Uses Number from types.proto"
+            }
+          ]
+        }
+      ],
+      "declarations": []
+    }
+  ]
+}

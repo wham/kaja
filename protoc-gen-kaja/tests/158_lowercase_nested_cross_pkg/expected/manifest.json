@@ -1,0 +1,87 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "types.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "lowercaseParent",
+          "typeName": "other.lowercaseParent",
+          "fields": [
+            {
+              "no": 1,
+              "name": "inner",
+              "kind": "message",
+              "T": "other.lowercaseParent.Nested"
+            }
+          ]
+        },
+        {
+          "name": "lowercaseParent_Nested",
+          "typeName": "other.lowercaseParent.Nested",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "lowercaseParent",
+          "text": "export interface lowercaseParent {\n    inner?: lowercaseParent_Nested;\n}",
+          "references": [
+            "lowercaseParent_Nested"
+          ]
+        },
+        {
+          "name": "lowercaseParent_Nested",
+          "text": "export interface lowercaseParent_Nested {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "main.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Container",
+          "typeName": "test.Container",
+          "fields": [
+            {
+              "no": 1,
+              "name": "nested",
+              "kind": "message",
+              "T": "other.lowercaseParent.Nested"
+            },
+            {
+              "no": 2,
+              "name": "parent",
+              "kind": "message",
+              "T": "other.lowercaseParent"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Container",
+          "text": "export interface Container {\n    nested?: lowercaseParent_Nested;\n    parent?: lowercaseParent;\n}",
+          "references": [
+            "lowercaseParent_Nested",
+            "lowercaseParent"
+          ]
+        }
+      ]
+    }
+  ]
+}

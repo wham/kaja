@@ -1,6 +1,7 @@
 import { Call, CallOptions, Kaja } from "./kaja";
 import { APP_OF } from "./rateLimit";
-import { Sources, Stub } from "./sources";
+import { emptyReflection, Reflection } from "./protoReflection";
+import { Sources } from "./sources";
 import { WorkspaceApp, Log } from "./server/api";
 
 // Mutable reference clients read at request time, so an app's name and headers are
@@ -47,7 +48,7 @@ export interface App {
   services: Service[];
   clients: Clients;
   sources: Sources;
-  stub: Stub;
+  reflection: Reflection;
 }
 
 export function createPendingApp(configuration: WorkspaceApp): App {
@@ -58,7 +59,7 @@ export function createPendingApp(configuration: WorkspaceApp): App {
     services: [],
     clients: {},
     sources: [],
-    stub: { serviceInfos: {} },
+    reflection: emptyReflection(),
   };
 }
 
@@ -75,7 +76,8 @@ export interface Service {
   name: string;
   packageName: string;
   sourcePath: string;
-  clientStubModuleId: string;
+  // The proto name the runtime knows the service by ("pkg.Shows").
+  typeName: string;
   methods: Array<Method>;
 }
 

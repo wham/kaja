@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "BoolMapTest",
+          "typeName": "test.BoolMapTest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "bool_to_string",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            },
+            {
+              "no": 2,
+              "name": "bool_to_int",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "scalar",
+                "T": 5
+              }
+            },
+            {
+              "no": 3,
+              "name": "bool_to_message",
+              "kind": "map",
+              "K": 8,
+              "V": {
+                "kind": "message",
+                "T": "test.SubMessage"
+              }
+            }
+          ]
+        },
+        {
+          "name": "SubMessage",
+          "typeName": "test.SubMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "BoolMapTest",
+          "text": "export interface BoolMapTest {\n    /** Map with boolean key - in TypeScript, boolean object keys become strings So the interface should use { [key: string]: string } not { [key: boolean]: string } */\n    boolToString: { [key: string]: string };\n    boolToInt: { [key: string]: number };\n    boolToMessage: { [key: string]: SubMessage };\n}",
+          "references": [
+            "SubMessage"
+          ]
+        },
+        {
+          "name": "SubMessage",
+          "text": "export interface SubMessage {\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

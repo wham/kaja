@@ -1,0 +1,104 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "base.ts",
+      "editorText": "",
+      "messages": [],
+      "enums": [
+        {
+          "name": "Status",
+          "typeName": "test.Status",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ACTIVE",
+              1
+            ],
+            [
+              "INACTIVE",
+              2
+            ]
+          ],
+          "prefix": "STATUS_"
+        }
+      ],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Status",
+          "text": "export enum Status {\n    UNSPECIFIED = 0,\n    ACTIVE = 1,\n    INACTIVE = 2,\n}",
+          "references": []
+        }
+      ]
+    },
+    {
+      "path": "re_export.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Wrapper",
+          "typeName": "test.Wrapper",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Wrapper",
+          "text": "export interface Wrapper {\n    status: Status;\n}",
+          "references": [
+            "Status"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "consumer.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Consumer",
+          "typeName": "test.Consumer",
+          "fields": [
+            {
+              "no": 1,
+              "name": "status",
+              "kind": "enum",
+              "T": "test.Status"
+            },
+            {
+              "no": 2,
+              "name": "wrapper",
+              "kind": "message",
+              "T": "test.Wrapper"
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Consumer",
+          "text": "export interface Consumer {\n    status: Status;\n    wrapper?: Wrapper;\n}",
+          "references": [
+            "Status",
+            "Wrapper"
+          ]
+        }
+      ]
+    }
+  ]
+}

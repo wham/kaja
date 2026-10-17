@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Empty",
+          "typeName": "test.Empty",
+          "fields": []
+        },
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "query",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "Search",
+              "input": "Request",
+              "output": "Request",
+              "I": "test.Request",
+              "O": "test.Request"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Empty",
+          "text": "export interface Empty {}",
+          "references": []
+        },
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    query: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

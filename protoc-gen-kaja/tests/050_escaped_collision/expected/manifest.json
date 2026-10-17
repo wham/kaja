@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": []
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "Name",
+              "localName": "name$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "This becomes \"name$\" after escaping"
+            },
+            {
+              "name": "Constructor",
+              "localName": "constructor$",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Let me try: constructor and Constructor$ (if allowed)"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

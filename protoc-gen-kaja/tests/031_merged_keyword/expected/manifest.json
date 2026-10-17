@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "from$",
+          "typeName": "test.from",
+          "fields": []
+        },
+        {
+          "name": "from_of",
+          "typeName": "test.from.of",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "class$",
+          "typeName": "test.class",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "my",
+          "typeName": "test.my",
+          "fields": []
+        },
+        {
+          "name": "my_class",
+          "typeName": "test.my.class",
+          "fields": [
+            {
+              "no": 1,
+              "name": "value",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "from$",
+          "text": "export interface from$ {}",
+          "references": []
+        },
+        {
+          "name": "from_of",
+          "text": "export interface from_of {\n    /** \"from_of\" is NOT a reserved keyword, should stay \"from_of\" */\n    value: string;\n}",
+          "references": []
+        },
+        {
+          "name": "class$",
+          "text": "/** Top level keywords should still be escaped */\nexport interface class$ {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "my",
+          "text": "/** Test case where parent is safe but merged name might look like keyword */\nexport interface my {}",
+          "references": []
+        },
+        {
+          "name": "my_class",
+          "text": "export interface my_class {\n    /** \"my_class\" is NOT a keyword (only \"class\" is), should be \"my_class\" */\n    value: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

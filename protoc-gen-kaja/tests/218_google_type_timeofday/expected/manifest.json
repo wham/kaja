@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TimeOfDay",
+          "typeName": "google.type.TimeOfDay",
+          "fields": [
+            {
+              "no": 1,
+              "name": "hours",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "minutes",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "seconds",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 4,
+              "name": "nanos",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TimeOfDay",
+          "text": "/** Represents a time of day. */\nexport interface TimeOfDay {\n    /** Hours of day in 24 hour format. */\n    hours: number;\n    /** Minutes of hour of day. */\n    minutes: number;\n    /** Seconds of minutes of the time. */\n    seconds: number;\n    /** Fractions of seconds in nanoseconds. */\n    nanos: number;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

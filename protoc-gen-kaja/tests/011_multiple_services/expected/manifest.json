@@ -1,0 +1,457 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "multiple_services.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "User",
+          "typeName": "platform.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 4,
+              "name": "role",
+              "kind": "enum",
+              "T": "platform.UserRole"
+            }
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "typeName": "platform.CreateUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "email",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "CreateUserResponse",
+          "typeName": "platform.CreateUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user",
+              "kind": "message",
+              "T": "platform.User"
+            }
+          ]
+        },
+        {
+          "name": "GetUserRequest",
+          "typeName": "platform.GetUserRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "GetUserResponse",
+          "typeName": "platform.GetUserResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user",
+              "kind": "message",
+              "T": "platform.User"
+            }
+          ]
+        },
+        {
+          "name": "Product",
+          "typeName": "platform.Product",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "price",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 4,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "CreateProductRequest",
+          "typeName": "platform.CreateProductRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "price",
+              "kind": "scalar",
+              "T": 1
+            },
+            {
+              "no": 3,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            }
+          ]
+        },
+        {
+          "name": "CreateProductResponse",
+          "typeName": "platform.CreateProductResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product",
+              "kind": "message",
+              "T": "platform.Product"
+            }
+          ]
+        },
+        {
+          "name": "ListProductsRequest",
+          "typeName": "platform.ListProductsRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "page_size",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 2,
+              "name": "page_token",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "ListProductsResponse",
+          "typeName": "platform.ListProductsResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "products",
+              "kind": "message",
+              "repeat": 2,
+              "T": "platform.Product"
+            },
+            {
+              "no": 2,
+              "name": "next_page_token",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Order",
+          "typeName": "platform.Order",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 3,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "platform.OrderItem"
+            },
+            {
+              "no": 4,
+              "name": "total",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "OrderItem",
+          "typeName": "platform.OrderItem",
+          "fields": [
+            {
+              "no": 1,
+              "name": "product_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "quantity",
+              "kind": "scalar",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "price",
+              "kind": "scalar",
+              "T": 1
+            }
+          ]
+        },
+        {
+          "name": "CreateOrderRequest",
+          "typeName": "platform.CreateOrderRequest",
+          "fields": [
+            {
+              "no": 1,
+              "name": "user_id",
+              "kind": "scalar",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "items",
+              "kind": "message",
+              "repeat": 2,
+              "T": "platform.OrderItem"
+            }
+          ]
+        },
+        {
+          "name": "CreateOrderResponse",
+          "typeName": "platform.CreateOrderResponse",
+          "fields": [
+            {
+              "no": 1,
+              "name": "order",
+              "kind": "message",
+              "T": "platform.Order"
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "UserRole",
+          "typeName": "platform.UserRole",
+          "values": [
+            [
+              "UNSPECIFIED",
+              0
+            ],
+            [
+              "ADMIN",
+              1
+            ],
+            [
+              "USER",
+              2
+            ],
+            [
+              "GUEST",
+              3
+            ]
+          ],
+          "prefix": "USER_ROLE_"
+        }
+      ],
+      "services": [
+        {
+          "name": "UserService",
+          "typeName": "platform.UserService",
+          "methods": [
+            {
+              "name": "CreateUser",
+              "input": "CreateUserRequest",
+              "output": "CreateUserResponse",
+              "I": "platform.CreateUserRequest",
+              "O": "platform.CreateUserResponse"
+            },
+            {
+              "name": "GetUser",
+              "input": "GetUserRequest",
+              "output": "GetUserResponse",
+              "I": "platform.GetUserRequest",
+              "O": "platform.GetUserResponse"
+            }
+          ]
+        },
+        {
+          "name": "ProductService",
+          "typeName": "platform.ProductService",
+          "methods": [
+            {
+              "name": "CreateProduct",
+              "input": "CreateProductRequest",
+              "output": "CreateProductResponse",
+              "I": "platform.CreateProductRequest",
+              "O": "platform.CreateProductResponse"
+            },
+            {
+              "name": "ListProducts",
+              "input": "ListProductsRequest",
+              "output": "ListProductsResponse",
+              "I": "platform.ListProductsRequest",
+              "O": "platform.ListProductsResponse"
+            }
+          ]
+        },
+        {
+          "name": "OrderService",
+          "typeName": "platform.OrderService",
+          "methods": [
+            {
+              "name": "CreateOrder",
+              "input": "CreateOrderRequest",
+              "output": "CreateOrderResponse",
+              "I": "platform.CreateOrderRequest",
+              "O": "platform.CreateOrderResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "User",
+          "text": "/** User management messages */\nexport interface User {\n    id: string;\n    name: string;\n    email: string;\n    role: UserRole;\n}",
+          "references": [
+            "UserRole"
+          ]
+        },
+        {
+          "name": "CreateUserRequest",
+          "text": "export interface CreateUserRequest {\n    name: string;\n    email: string;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateUserResponse",
+          "text": "export interface CreateUserResponse {\n    user?: User;\n}",
+          "references": [
+            "User"
+          ]
+        },
+        {
+          "name": "GetUserRequest",
+          "text": "export interface GetUserRequest {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "GetUserResponse",
+          "text": "export interface GetUserResponse {\n    user?: User;\n}",
+          "references": [
+            "User"
+          ]
+        },
+        {
+          "name": "Product",
+          "text": "/** Product management messages */\nexport interface Product {\n    id: string;\n    name: string;\n    price: number;\n    quantity: number;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateProductRequest",
+          "text": "export interface CreateProductRequest {\n    name: string;\n    price: number;\n    quantity: number;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateProductResponse",
+          "text": "export interface CreateProductResponse {\n    product?: Product;\n}",
+          "references": [
+            "Product"
+          ]
+        },
+        {
+          "name": "ListProductsRequest",
+          "text": "export interface ListProductsRequest {\n    pageSize: number;\n    pageToken: string;\n}",
+          "references": []
+        },
+        {
+          "name": "ListProductsResponse",
+          "text": "export interface ListProductsResponse {\n    products: Product[];\n    nextPageToken: string;\n}",
+          "references": [
+            "Product"
+          ]
+        },
+        {
+          "name": "Order",
+          "text": "/** Order management messages */\nexport interface Order {\n    id: string;\n    userId: string;\n    items: OrderItem[];\n    total: number;\n}",
+          "references": [
+            "OrderItem"
+          ]
+        },
+        {
+          "name": "OrderItem",
+          "text": "export interface OrderItem {\n    productId: string;\n    quantity: number;\n    price: number;\n}",
+          "references": []
+        },
+        {
+          "name": "CreateOrderRequest",
+          "text": "export interface CreateOrderRequest {\n    userId: string;\n    items: OrderItem[];\n}",
+          "references": [
+            "OrderItem"
+          ]
+        },
+        {
+          "name": "CreateOrderResponse",
+          "text": "export interface CreateOrderResponse {\n    order?: Order;\n}",
+          "references": [
+            "Order"
+          ]
+        },
+        {
+          "name": "UserRole",
+          "text": "export enum UserRole {\n    UNSPECIFIED = 0,\n    ADMIN = 1,\n    USER = 2,\n    GUEST = 3,\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

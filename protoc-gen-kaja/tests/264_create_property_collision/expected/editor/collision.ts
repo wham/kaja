@@ -1,0 +1,16 @@
+/**
+ * When two fields have different proto names but collide after lowerCamelCase
+ * conversion, the create() method property assignment order should reflect
+ * JavaScript Object.entries() semantics: properties appear at the position
+ * where they were FIRST created, not where the LAST duplicate was assigned.
+ *
+ * Here x_1_y (field 1) and x1y (field 3) both map to localName "x1Y".
+ * In JS, the property "x1Y" is created at field 1's position but its value
+ * is overwritten by field 3. Object.entries() returns "x1Y" before "middle"
+ * because it was created first.
+ */
+export interface Collide {
+    x1Y: string;
+    middle: number;
+    x1Y: number;
+}

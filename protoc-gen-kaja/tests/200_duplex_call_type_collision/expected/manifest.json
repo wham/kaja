@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "DuplexStreamingCall",
+          "typeName": "test.DuplexStreamingCall",
+          "fields": [
+            {
+              "no": 1,
+              "name": "data",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "Process",
+              "input": "DuplexStreamingCall",
+              "output": "Response",
+              "I": "test.DuplexStreamingCall",
+              "O": "test.Response"
+            },
+            {
+              "name": "Chat",
+              "input": "DuplexStreamingCall",
+              "output": "Response",
+              "I": "test.DuplexStreamingCall",
+              "O": "test.Response",
+              "serverStreaming": true,
+              "clientStreaming": true
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "DuplexStreamingCall",
+          "text": "/** A message named DuplexStreamingCall which collides with the runtime-rpc type. Since the service has a duplex streaming method, DuplexStreamingCall is actually imported from @protobuf-ts/runtime-rpc, c… */\nexport interface DuplexStreamingCall {\n    data: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

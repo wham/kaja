@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "TestMessage",
+          "typeName": "test.TestMessage",
+          "fields": [
+            {
+              "no": 1,
+              "name": "text",
+              "kind": "scalar",
+              "oneof": "Proto",
+              "T": 9
+            },
+            {
+              "no": 2,
+              "name": "number",
+              "kind": "scalar",
+              "oneof": "Proto",
+              "T": 5
+            },
+            {
+              "no": 3,
+              "name": "flag",
+              "kind": "scalar",
+              "oneof": "toString$",
+              "T": 8
+            },
+            {
+              "no": 4,
+              "name": "value",
+              "kind": "scalar",
+              "oneof": "toString$",
+              "T": 1
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "TestMessage",
+          "text": "export interface TestMessage {\n    Proto: {\n        oneofKind: \"text\";\n        text: string;\n    } | {\n        oneofKind: \"number\";\n        number: number;\n    } | {\n        oneofKind: undefined;\n    };\n    toString$: {\n        oneofKind: \"flag\";\n        flag: boolean;\n    } | {\n        oneofKind: \"value\";\n        value: number;\n    } | {\n        oneofKind: undefined;\n    };\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

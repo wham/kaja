@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "message_trailing.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Foo",
+          "typeName": "test.Foo",
+          "fields": [
+            {
+              "no": 1,
+              "name": "bar",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Empty",
+          "typeName": "test.Empty",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "Foo",
+          "text": "/** Leading comment for Foo Trailing comment on Foo */\nexport interface Foo {\n    bar: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Empty",
+          "text": "/** Trailing on empty message */\nexport interface Empty {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

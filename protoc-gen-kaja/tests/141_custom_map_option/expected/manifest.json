@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "ResourceConfig",
+          "typeName": "test.ResourceConfig",
+          "fields": [
+            {
+              "no": 1,
+              "name": "labels",
+              "kind": "map",
+              "K": 9,
+              "V": {
+                "kind": "scalar",
+                "T": 9
+              }
+            }
+          ]
+        },
+        {
+          "name": "User",
+          "typeName": "test.User",
+          "fields": [
+            {
+              "no": 1,
+              "name": "name",
+              "kind": "scalar",
+              "T": 9
+            }
+          ],
+          "options": {
+            "test.resource_config": {
+              "labels": {
+                "env": "prod",
+                "team": "backend"
+              }
+            }
+          }
+        }
+      ],
+      "enums": [],
+      "services": [],
+      "declarations": [
+        {
+          "name": "ResourceConfig",
+          "text": "/** Message type for the custom option */\nexport interface ResourceConfig {\n    labels: { [key: string]: string };\n}",
+          "references": []
+        },
+        {
+          "name": "User",
+          "text": "/** Message with a custom option that has a map field */\nexport interface User {\n    name: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

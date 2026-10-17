@@ -1,0 +1,116 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "EmptyRequest",
+          "typeName": "test.EmptyRequest",
+          "fields": []
+        },
+        {
+          "name": "EmptyResponse",
+          "typeName": "test.EmptyResponse",
+          "fields": []
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "MakeUnaryRequest",
+              "localName": "makeUnaryRequest$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse",
+              "doc": "These method names collide with gRPC client methods and should be escaped"
+            },
+            {
+              "name": "MakeClientStreamRequest",
+              "localName": "makeClientStreamRequest$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "MakeServerStreamRequest",
+              "localName": "makeServerStreamRequest$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "MakeBidiStreamRequest",
+              "localName": "makeBidiStreamRequest$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "GetChannel",
+              "localName": "getChannel$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "WaitForReady",
+              "localName": "waitForReady$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "Methods",
+              "localName": "methods$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse",
+              "doc": "These collide with generic client properties"
+            },
+            {
+              "name": "TypeName",
+              "localName": "typeName$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            },
+            {
+              "name": "Options",
+              "localName": "options$",
+              "input": "EmptyRequest",
+              "output": "EmptyResponse",
+              "I": "test.EmptyRequest",
+              "O": "test.EmptyResponse"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "EmptyRequest",
+          "text": "export interface EmptyRequest {}",
+          "references": []
+        },
+        {
+          "name": "EmptyResponse",
+          "text": "export interface EmptyResponse {}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}

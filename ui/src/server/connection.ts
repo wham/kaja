@@ -1,5 +1,5 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import { ApiClient } from "./api.client";
+import { ApiClient } from "./api";
 
 /**
  * How every call kaja makes is framed, on the Api lane and the app lane alike. The

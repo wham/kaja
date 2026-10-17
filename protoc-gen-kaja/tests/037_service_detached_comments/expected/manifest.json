@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "modules": [
+    {
+      "path": "test.ts",
+      "editorText": "",
+      "messages": [
+        {
+          "name": "Request",
+          "typeName": "test.Request",
+          "fields": [
+            {
+              "no": 1,
+              "name": "id",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        },
+        {
+          "name": "Response",
+          "typeName": "test.Response",
+          "fields": [
+            {
+              "no": 1,
+              "name": "result",
+              "kind": "scalar",
+              "T": 9
+            }
+          ]
+        }
+      ],
+      "enums": [],
+      "services": [
+        {
+          "name": "TestService",
+          "typeName": "test.TestService",
+          "methods": [
+            {
+              "name": "First",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Comment for first method"
+            },
+            {
+              "name": "Second",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Comment for second method"
+            },
+            {
+              "name": "Third",
+              "input": "Request",
+              "output": "Response",
+              "I": "test.Request",
+              "O": "test.Response",
+              "doc": "Comment for third method"
+            }
+          ]
+        }
+      ],
+      "declarations": [
+        {
+          "name": "Request",
+          "text": "export interface Request {\n    id: string;\n}",
+          "references": []
+        },
+        {
+          "name": "Response",
+          "text": "export interface Response {\n    result: string;\n}",
+          "references": []
+        }
+      ]
+    }
+  ]
+}
