@@ -1,9 +1,10 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import ts from "@typescript/typescript6";
+import type { CallExpression, File, Node, OptionalCallExpression } from "@babel/types";
 import { App } from "./apps";
 import { declaredValues } from "./declarations";
 import { findInStub, Source } from "./sources";
+import { isCall, keyName, memberAccess, nodePath, parseScript } from "./scriptSyntax";
 import { recallValues, RememberedValue } from "./typeMemory";
 
 // A scalar value position inside a request literal, resolved back to the proto
@@ -50,14 +51,13 @@ export function suggestValues(code: string, offset: number, apps: App[]): ValueS
 }
 
 export function resolveValuePosition(code: string, offset: number, apps: App[]): ValuePosition | undefined {
-  const file = ts.createSourceFile("completion.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ true, ts.ScriptKind.TS);
-
-  const node = nodeAt(file, offset);
-  if (!node) {
+  const file = parseScript(code);
+  if (!file) {
     return undefined;
   }
 
-  const enclosing = enclosingCall(node, offset);
+  const path = nodePath(file, offset);
+  const enclosing = enclosingCall(path, offset);
   if (!enclosing) {
     return undefined;
   }
@@ -72,87 +72,52 @@ export function resolveValuePosition(code: string, offset: number, apps: App[]):
     return undefined;
   }
 
-  const literal = stringLiteralAt(node, offset);
+  const literal = path.at(-1);
 
   return {
     ...field,
-    stringRange: literal ? { start: literal.getStart(file) + 1, end: literal.getEnd() - 1 } : undefined,
+    stringRange:
+      literal?.type === "StringLiteral" && offset > literal.start! && offset < literal.end! ? { start: literal.start! + 1, end: literal.end! - 1 } : undefined,
   };
-}
-
-function nodeAt(file: ts.SourceFile, offset: number): ts.Node | undefined {
-  let found: ts.Node | undefined = undefined;
-
-  const visit = (node: ts.Node) => {
-    if (offset < node.getStart(file) || offset > node.getEnd()) {
-      return;
-    }
-    found = node;
-    node.forEachChild(visit);
-  };
-
-  file.forEachChild(visit);
-
-  return found;
-}
-
-function stringLiteralAt(node: ts.Node, offset: number): ts.StringLiteral | undefined {
-  let current: ts.Node | undefined = node;
-  while (current) {
-    if (ts.isStringLiteral(current) && offset > current.getStart() && offset < current.getEnd()) {
-      return current;
-    }
-    current = current.parent;
-  }
-  return undefined;
 }
 
 // Walk out of the node under the cursor to the call it is an argument of,
 // collecting the property names passed on the way, e.g. ["movie", "title"].
-function enclosingCall(node: ts.Node, offset: number): { call: ts.CallExpression; path: string[] } | undefined {
+function enclosingCall(nodes: Node[], offset: number): { call: CallExpression | OptionalCallExpression; path: string[] } | undefined {
   const path: string[] = [];
-  let child: ts.Node = node;
-  let current: ts.Node | undefined = node;
 
-  while (current) {
-    if (ts.isPropertyAssignment(current)) {
+  for (let index = nodes.length - 1; index >= 0; index--) {
+    const current = nodes[index];
+    const child = nodes[index + 1];
+    if (current.type === "ObjectProperty") {
       // The cursor has to be past the property name; sitting on the name itself
       // is a property completion, which TypeScript already handles.
-      if (offset < current.name.getEnd()) {
+      if (offset < current.key.end!) {
         return undefined;
       }
-      path.unshift(propertyName(current));
-    } else if (ts.isCallExpression(current)) {
-      if (path.length === 0 || !current.arguments.includes(child as ts.Expression)) {
+      path.unshift(current.computed ? "" : (keyName(current.key) ?? ""));
+    } else if (isCall(current)) {
+      if (path.length === 0 || !current.arguments.includes(child as never)) {
         return undefined;
       }
       return { call: current, path };
     }
-    child = current;
-    current = current.parent;
   }
 
   return undefined;
-}
-
-function propertyName(property: ts.PropertyAssignment): string {
-  const name = property.name;
-  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
-    return name.text;
-  }
-  return "";
 }
 
 // Resolve `SomeService.SomeMethod(...)` to the method's input message type. The
 // service identifier is matched through its import so two apps declaring the
 // same service name stay apart.
-function resolveInputType(file: ts.SourceFile, call: ts.CallExpression, apps: App[]): IMessageType<any> | undefined {
-  if (!ts.isPropertyAccessExpression(call.expression) || !ts.isIdentifier(call.expression.expression)) {
+function resolveInputType(file: File, call: CallExpression | OptionalCallExpression, apps: App[]): IMessageType<any> | undefined {
+  const callee = memberAccess(call.callee);
+  if (!callee || callee.object.type !== "Identifier") {
     return undefined;
   }
 
-  const serviceName = call.expression.expression.text;
-  const methodName = call.expression.name.text;
+  const serviceName = callee.object.name;
+  const methodName = callee.name;
   const importPath = importPathOf(file, serviceName);
 
   const serviceInfo = findServiceInfo(apps, serviceName, importPath);
@@ -165,17 +130,13 @@ function resolveInputType(file: ts.SourceFile, call: ts.CallExpression, apps: Ap
   return method?.I;
 }
 
-function importPathOf(file: ts.SourceFile, localName: string): string | undefined {
-  for (const statement of file.statements) {
-    if (!ts.isImportDeclaration(statement) || !statement.importClause || !ts.isStringLiteral(statement.moduleSpecifier)) {
+function importPathOf(file: File, localName: string): string | undefined {
+  for (const statement of file.program.body) {
+    if (statement.type !== "ImportDeclaration") {
       continue;
     }
-    const bindings = statement.importClause.namedBindings;
-    if (!bindings || !ts.isNamedImports(bindings)) {
-      continue;
-    }
-    if (bindings.elements.some((element) => element.name.text === localName)) {
-      return statement.moduleSpecifier.text;
+    if (statement.specifiers.some((specifier) => specifier.type === "ImportSpecifier" && specifier.local.name === localName)) {
+      return statement.source.value;
     }
   }
   return undefined;

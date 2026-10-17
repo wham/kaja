@@ -1,4 +1,4 @@
-import ts from "@typescript/typescript6";
+import type { File } from "@babel/types";
 
 /**
  * What a script's imports bound, which is the only thing that says what a name
@@ -8,24 +8,22 @@ import ts from "@typescript/typescript6";
  */
 
 /** Every name the file imported, whatever it imported it from. */
-export function importedNames(file: ts.SourceFile): Set<string> {
+export function importedNames(file: File): Set<string> {
   return boundNames(file, () => true);
 }
 
 // Whatever the kaja runtime was bound to in this file, alias included — Monaco's
 // auto-import can write the relative form of the module.
-export function runtimeNames(file: ts.SourceFile): Set<string> {
+export function runtimeNames(file: File): Set<string> {
   return boundNames(file, (path) => path === "kaja" || path === "./kaja");
 }
 
-function boundNames(file: ts.SourceFile, wanted: (modulePath: string) => boolean): Set<string> {
+function boundNames(file: File, wanted: (modulePath: string) => boolean): Set<string> {
   const names = new Set<string>();
-  for (const statement of file.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
-    if (!ts.isStringLiteral(statement.moduleSpecifier) || !wanted(statement.moduleSpecifier.text)) continue;
-    const bindings = statement.importClause?.namedBindings;
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) names.add(element.name.text);
+  for (const statement of file.program.body) {
+    if (statement.type !== "ImportDeclaration" || !wanted(statement.source.value)) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportSpecifier") names.add(specifier.local.name);
     }
   }
   return names;

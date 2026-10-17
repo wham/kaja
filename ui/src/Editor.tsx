@@ -125,9 +125,9 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   target: monaco.typescript.ScriptTarget.ESNext,
   module: monaco.typescript.ModuleKind.ESNext,
   // ModuleDetectionKind.Force, which monaco's typescript namespace doesn't export.
-  // The task runner transpiles with it (scriptRunner), so without it here a script
-  // with no import is a global script to the editor alone: top-level await is an
-  // error in it, and its top-level names collide with every other such script.
+  // The task runner reads every script as a module (scriptSyntax), so without it here
+  // a script with no import is a global script to the editor alone: top-level await is
+  // an error in it, and its top-level names collide with every other such script.
   moduleDetection: 3,
 });
 
@@ -265,14 +265,16 @@ const MIGHT_RUN = /\.run\s*\(/;
 /**
  * The squiggle under a destination that reaches nothing — the failure a click on the
  * cell would have raised, said where the name is written instead of where it is
- * pressed. It stops nothing: a script is transpiled rather than compiled, so the rest
- * of it runs exactly as it did, which is the same thing Run already does with a type
- * error.
+ * pressed. It stops nothing: a script's types are erased rather than checked, so the
+ * rest of it runs exactly as it did, which is the same thing Run already does with a
+ * type error.
  */
 export function markRuns(model: monaco.editor.ITextModel): void {
   if (model.isDisposed() || model.getLanguageId() !== "typescript") return;
   const code = model.getValue();
   const references = MIGHT_RUN.test(code) ? readRunReferences(code) : [];
+  // A buffer mid-keystroke keeps the marks it had until it parses again.
+  if (!references) return;
   // The destinations on screen are the ones worth knowing the parameters of, and this
   // is the one pass that has read them. What comes back rewrites the declaration the
   // editor checks a `kaja.run`'s input against.

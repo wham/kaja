@@ -64,8 +64,10 @@ export function setScriptListing(scripts: Script[] | undefined): void {
  * read of what it was. Every write the window makes goes through here, so a parameter
  * added to a script is one its callers can name a beat later.
  */
+const TAKES_ANYTHING: ScriptParameters = { keys: [], open: true };
+
 export function setScriptSource(name: string, code: string): void {
-  parameters.set(linkName(name), readInputParameters(code));
+  parameters.set(linkName(name), readInputParameters(code) ?? TAKES_ANYTHING);
   settle();
 }
 
@@ -98,11 +100,12 @@ export function demandScriptParameters(names: string[]): Promise<void> {
 async function readParameters(script: Script, name: string): Promise<void> {
   try {
     const file = await readScriptFile(script);
-    // A file that cannot be read is one nothing can be said about, so it takes
-    // anything. Recorded rather than left unknown, or every keystroke would ask again.
-    parameters.set(name, file ? readInputParameters(file.content) : { keys: [], open: true });
+    // A file that cannot be read, or doesn't parse, is one nothing can be said about,
+    // so it takes anything. Recorded rather than left unknown, or every keystroke would
+    // ask again.
+    parameters.set(name, (file && readInputParameters(file.content)) ?? TAKES_ANYTHING);
   } catch {
-    parameters.set(name, { keys: [], open: true });
+    parameters.set(name, TAKES_ANYTHING);
   } finally {
     reading.delete(name);
     settle();

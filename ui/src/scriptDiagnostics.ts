@@ -6,9 +6,9 @@ import { readRunReferences, RunReference, unresolvedIn } from "./scriptRuns";
 /**
  * What the editor says about a script nobody has open.
  *
- * A script is transpiled, not compiled (scriptRunner), so nothing on the run path
- * type-checks: a script with type errors runs, and a syntax error is the only thing
- * that stops one. The person who opens the file sees the rest anyway, because Monaco
+ * A script's types are erased, not compiled (scriptRunner), so nothing on the run path
+ * checks anything: a script with type errors runs, and one that doesn't parse stops
+ * with no more than that to say. The person who opens the file sees the rest, because Monaco
  * checks every script model against the generated app modules — so this asks that
  * same worker rather than standing up a second checker, which is what keeps what an
  * agent is told from disagreeing with the squiggles in the window.
@@ -46,7 +46,7 @@ const MODULE_NOT_FOUND = [2307, 2792];
 let queue: Promise<unknown> = Promise.resolve();
 
 export function checkScript(code: string, scriptNames: string[]): Promise<ScriptDiagnostic[]> {
-  const references = readRunReferences(code);
+  const references = readRunReferences(code) ?? [];
   const known = demandScriptParameters(references.map((reference) => reference.name)).catch(() => {});
   const checked = queue.then(
     () => known.then(() => diagnose(code)),
@@ -75,10 +75,10 @@ async function diagnose(code: string): Promise<ScriptDiagnostic[]> {
     const worker = await (await monaco.typescript.getTypeScriptWorker())(uri);
     const file = uri.toString();
 
-    // A file that doesn't parse has no types to check: the run reports the syntax
-    // error itself, and what the checker says past one is noise.
-    const syntactic = await worker.getSyntacticDiagnostics(file);
-    if (syntactic.some((diagnostic) => diagnostic.category === ERROR)) return [];
+    // A file that doesn't parse has no types to check, and what the checker says past a
+    // syntax error is noise.
+    const syntactic = (await worker.getSyntacticDiagnostics(file)).filter((diagnostic) => diagnostic.category === ERROR);
+    if (syntactic.length > 0) return syntactic.map((diagnostic) => locate(model, diagnostic));
 
     const semantic = await worker.getSemanticDiagnostics(file);
     return semantic

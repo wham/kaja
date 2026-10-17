@@ -6,22 +6,22 @@ const IMPORT = 'import { kaja } from "kaja";\n';
 describe("readRunReferences", () => {
   it("reads the name a cell runs", () => {
     const code = `${IMPORT}kaja.table(["a"], [[kaja.run("reports/churn", { id: 7 })]]);`;
-    expect(readRunReferences(code).map((reference) => reference.name)).toEqual(["reports/churn"]);
+    expect(readRunReferences(code)!.map((reference) => reference.name)).toEqual(["reports/churn"]);
   });
 
   it("covers the name and not its quotes", () => {
     const code = `${IMPORT}kaja.run("churn");`;
-    const [reference] = readRunReferences(code);
+    const [reference] = readRunReferences(code)!;
     expect(code.slice(reference.start, reference.end)).toBe("churn");
   });
 
   it("follows the alias the import bound", () => {
     const code = 'import { kaja as k } from "kaja";\nk.run("churn");';
-    expect(readRunReferences(code).map((reference) => reference.name)).toEqual(["churn"]);
+    expect(readRunReferences(code)!.map((reference) => reference.name)).toEqual(["churn"]);
   });
 
   it("reads a file that has not written its import yet", () => {
-    expect(readRunReferences('kaja.run("churn");').map((reference) => reference.name)).toEqual(["churn"]);
+    expect(readRunReferences('kaja.run("churn");')!.map((reference) => reference.name)).toEqual(["churn"]);
   });
 
   it("leaves a run on something else alone", () => {
@@ -39,9 +39,8 @@ describe("readRunReferences", () => {
     expect(readRunReferences(code)).toEqual([]);
   });
 
-  it("reads a name being typed, before its closing quote", () => {
-    const code = `${IMPORT}kaja.run("rep`;
-    expect(readRunReferences(code).map((reference) => reference.name)).toEqual(["rep"]);
+  it("has nothing to say about a file that doesn't parse", () => {
+    expect(readRunReferences(`${IMPORT}kaja.run("rep`)).toBeUndefined();
   });
 });
 
