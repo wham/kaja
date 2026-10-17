@@ -3,9 +3,11 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,6 +29,14 @@ func LoadGetWorkspaceResponse(workspaceFile string) *GetWorkspaceResponse {
 }
 
 func loadWorkspaceFile(workspaceFile string, logger *Logger) *Workspace {
+	_, workspace := readWorkspaceFile(workspaceFile, logger)
+	return workspace
+}
+
+// readWorkspaceFile reads kaja.json into a Workspace and hands back the bytes it read
+// as well, which is what a fingerprint of the file is taken over. A file that isn't
+// there is an empty workspace and no bytes.
+func readWorkspaceFile(workspaceFile string, logger *Logger) ([]byte, *Workspace) {
 	workspace := &Workspace{
 		Apps: []*WorkspaceApp{},
 	}
@@ -39,23 +49,23 @@ func loadWorkspaceFile(workspaceFile string, logger *Logger) *Workspace {
 		} else {
 			logger.error(fmt.Sprintf("Failed opening workspace file %s", workspaceFile), err)
 		}
-		return workspace
+		return nil, workspace
 	}
 	defer file.Close()
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		logger.error(fmt.Sprintf("Failed to read workspace file %s", workspaceFile), err)
-		return workspace
+		return nil, workspace
 	}
 
-	fileContent = migrateWorkspace(fileContent, logger)
+	migrated := migrateWorkspace(fileContent, logger)
 
-	if err := protojson.Unmarshal(fileContent, workspace); err != nil {
+	if err := protojson.Unmarshal(migrated, workspace); err != nil {
 		logger.error(fmt.Sprintf("Failed to unmarshal workspace file %s", workspaceFile), err)
 	}
 
-	return workspace
+	return fileContent, workspace
 }
 
 // migrateWorkspace drops the config shapes kaja no longer declares. Reserving a
@@ -302,7 +312,28 @@ func SaveWorkspace(workspaceFile string, workspace *Workspace) error {
 	}
 	indented.WriteByte('\n')
 
-	if err := os.WriteFile(workspaceFile, indented.Bytes(), 0644); err != nil {
+	// Written whole or not at all: a reader - the watcher above all - must never see
+	// half a file, so it lands under a temporary name and is renamed into place.
+	dir := filepath.Dir(workspaceFile)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create the workspace folder: %w", err)
+	}
+	temp, err := os.CreateTemp(dir, ".kaja-*.json")
+	if err != nil {
+		return fmt.Errorf("failed to write workspace file: %w", err)
+	}
+	_, writeErr := temp.Write(indented.Bytes())
+	closeErr := temp.Close()
+	if writeErr != nil || closeErr != nil {
+		os.Remove(temp.Name())
+		return fmt.Errorf("failed to write workspace file: %w", errors.Join(writeErr, closeErr))
+	}
+	if err := os.Chmod(temp.Name(), 0o644); err != nil {
+		os.Remove(temp.Name())
+		return fmt.Errorf("failed to write workspace file: %w", err)
+	}
+	if err := os.Rename(temp.Name(), workspaceFile); err != nil {
+		os.Remove(temp.Name())
 		return fmt.Errorf("failed to write workspace file: %w", err)
 	}
 

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -245,7 +246,7 @@ func TestTranscodeAuthInjection(t *testing.T) {
 
 			in := &instance{baseURL: srv.URL, client: srv.Client(), auth: tc.auth}
 			binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-			if _, err := in.transcode(binding, []byte(`{}`), nil); err != nil {
+			if _, err := in.transcode(context.Background(), binding, []byte(`{}`), nil, in.auth); err != nil {
 				t.Fatalf("transcode: %v", err)
 			}
 		})
@@ -265,7 +266,7 @@ func TestTranscodeSurfacesHeaders(t *testing.T) {
 
 	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-	ex, err := in.transcode(binding, []byte(`{}`), nil)
+	ex, err := in.transcode(context.Background(), binding, []byte(`{}`), nil, in.auth)
 	if err != nil {
 		t.Fatalf("transcode: %v", err)
 	}
@@ -293,7 +294,7 @@ func TestTranscodeSurfacesBasicAuthUsername(t *testing.T) {
 
 	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBasic, username: "my-api-key"}}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-	ex, err := in.transcode(binding, []byte(`{}`), nil)
+	ex, err := in.transcode(context.Background(), binding, []byte(`{}`), nil, in.auth)
 	if err != nil {
 		t.Fatalf("transcode: %v", err)
 	}
@@ -318,7 +319,7 @@ func TestTranscodeSurfacesHeadersOnError(t *testing.T) {
 
 	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-	_, err := in.transcode(binding, []byte(`{}`), nil)
+	_, err := in.transcode(context.Background(), binding, []byte(`{}`), nil, in.auth)
 
 	var upstream *apps.UpstreamError
 	if !errors.As(err, &upstream) {

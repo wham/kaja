@@ -1,7 +1,8 @@
 import { Block, isAwaitingUser } from "./blocks";
-import { callKey, MethodCall } from "./kaja";
+import { callKey, isCallInFlight, MethodCall } from "./kaja";
 import { archivePayload, dropRunPayloads } from "./payloadArchive";
 import {
+  callStatus,
   ConsoleItem,
   ConsoleTab,
   ConsoleView,
@@ -60,6 +61,7 @@ class Group implements RunGroup {
   readonly strip = new RunStrip();
   readonly metrics: RunMetrics;
   drew = false;
+  scriptFailed = false;
   dropped = 0;
   // There are a handful in a run at most, so the one it is parked on is found rather
   // than tracked.
@@ -75,12 +77,6 @@ class Group implements RunGroup {
   #seq = 0;
   #drawnAt = 0;
   readonly #failed = new Map<string, { item: ConsoleItem; seq: number }>();
-  /**
-   * Calls this run had no room left for. Remembered only so that settling one is not
-   * counted as another call left out, and held here rather than on the file so the set
-   * is let go with the run it belongs to.
-   */
-  readonly ignored = new Set<string>();
 
   constructor(public run: Run) {
     this.metrics = new RunMetrics(run.startedAt);
@@ -126,8 +122,17 @@ class Group implements RunGroup {
     return this.#limits.reduce((waiting, item) => waiting + (item.block?.kind === "limit" ? (item.block.waiting ?? 0) : 0), 0);
   }
 
+  get full(): boolean {
+    return this.items.length >= MAX_ITEMS_PER_RUN;
+  }
+
+  // The tables this run drew, which is what a source can still be paged from.
+  tableBlockIds(): string[] {
+    return this.drawn.filter((item) => item.block?.kind === "table").map((item) => item.id);
+  }
+
   append(item: ConsoleItem): boolean {
-    if (this.items.length >= MAX_ITEMS_PER_RUN) {
+    if (this.full) {
       this.dropped++;
       return false;
     }
@@ -139,6 +144,7 @@ class Group implements RunGroup {
     if (item.block !== undefined || (item.logs !== undefined && !item.printed)) {
       this.drawn.push(item);
       this.drew = true;
+      if (item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR)) this.scriptFailed = true;
     }
     if (item.block !== undefined && isAwaitingUser(item.block)) this.#asked.push(item);
     if (item.block?.kind === "limit") this.#limits.push(item);
@@ -194,9 +200,12 @@ export class FileConsole {
   readonly #byItem = new Map<string, { item: ConsoleItem; group: Group }>();
   // A queue with a head rather than a shifting array: a spike pushes thousands
   // through it.
-  readonly #holding: ConsoleItem[] = [];
+  #holding: ConsoleItem[] = [];
   #held = 0;
   #ordered: RunGroup[] | null = null;
+
+  // Told which tables left with their runs, so the sources held for them can go too.
+  constructor(private readonly onTablesDropped: (blockIds: string[]) => void = () => {}) {}
 
   get groups(): RunGroup[] {
     if (!this.#ordered) this.#ordered = this.runs.map((run) => this.#groups.get(run.id)!).filter(Boolean);
@@ -257,17 +266,25 @@ export class FileConsole {
   #trimRuns(): void {
     if (this.runs.length <= MAX_RUNS_PER_FILE) return;
     const gone = this.runs.splice(0, this.runs.length - MAX_RUNS_PER_FILE);
+    const goneIds = new Set(gone.map((run) => run.id));
+    const tables: string[] = [];
     for (const run of gone) {
       const group = this.#groups.get(run.id);
       this.#groups.delete(run.id);
       if (!group) continue;
+      tables.push(...group.tableBlockIds());
       for (const item of group.items) {
         this.#byItem.delete(item.id);
         if (item.call) this.#byCall.delete(item.call.id);
       }
     }
+    // A payload still on the heap under a trimmed run would otherwise be shelved under
+    // a run nothing can ask for.
+    this.#holding = this.#holding.slice(this.#held).filter((item) => !goneIds.has(item.runId));
+    this.#held = 0;
     // The rows are gone, so nothing is left that could ask for what is under them.
-    dropRunPayloads(gone.map((run) => run.id));
+    dropRunPayloads([...goneIds]);
+    if (tables.length > 0) this.onTablesDropped(tables);
     this.#ordered = null;
   }
 
@@ -283,13 +300,18 @@ export class FileConsole {
       return;
     }
     const group = this.#groups.get(runId);
-    if (group === undefined || group.ignored.has(call.id)) return;
+    if (group === undefined) return;
+    if (group.full) {
+      // A call is first seen as it is issued, so only that sighting counts it as left out;
+      // its settling comes back here too and is not another call. Remembering each one
+      // would be a set that grows for as long as the run does.
+      if (isCallInFlight(call)) group.dropped++;
+      return;
+    }
     const item: ConsoleItem = { id: newItemId(), runId, timestamp: call.timestamp, call, key: callKey(call) };
     if (this.#append(runId, item)) {
       this.#byCall.set(call.id, item);
       this.#hold(item);
-    } else {
-      group.ignored.add(call.id);
     }
     void now;
   }
@@ -387,8 +409,14 @@ export class FileConsole {
     this.#trimRuns();
   }
 
+  tableBlockIds(): string[] {
+    return [...this.#groups.values()].flatMap((group) => group.tableBlockIds());
+  }
+
   clear(now: number): void {
     dropRunPayloads(this.runs.map((run) => run.id));
+    const tables = this.tableBlockIds();
+    if (tables.length > 0) this.onTablesDropped(tables);
     this.runs = [];
     this.#groups.clear();
     this.#byCall.clear();
@@ -421,11 +449,30 @@ export class FileConsole {
    * A call keeps what it carried in memory until enough newer calls push it out, and
    * then it is shelved rather than thrown away: the row keeps its ref and the pane
    * fetches the payload back when the row is selected. The error is not let go — it is
-   * small, and it is what the row's status is read from.
+   * small — and the verdict is written on the row, since it was read off the response
+   * that is leaving. A call still in flight goes to the back of the queue instead: its
+   * response has not come, and shelving it would shelve nothing.
    */
   #hold(item: ConsoleItem): void {
     this.#holding.push(item);
-    if (this.#holding.length - this.#held <= MAX_PAYLOADS_PER_FILE) return;
+    let passes = this.#holding.length - this.#held;
+    while (this.#holding.length - this.#held > MAX_PAYLOADS_PER_FILE && passes-- > 0) {
+      const old = this.#take();
+      if (!old?.call) continue;
+      if (isCallInFlight(old.call)) {
+        this.#holding.push(old);
+        continue;
+      }
+      old.status = callStatus(old.call);
+      old.archivedPayload = archivePayload(old.runId, { input: old.call.input, output: old.call.output, streamOutputs: old.call.streamOutputs });
+      old.call.input = undefined;
+      old.call.output = undefined;
+      old.call.streamOutputs = old.call.streamOutputs && [];
+      old.payloadsDropped = true;
+    }
+  }
+
+  #take(): ConsoleItem | undefined {
     const old = this.#holding[this.#held];
     this.#holding[this.#held] = undefined as unknown as ConsoleItem;
     this.#held++;
@@ -433,12 +480,7 @@ export class FileConsole {
       this.#holding.splice(0, this.#held);
       this.#held = 0;
     }
-    if (!old?.call) return;
-    old.archivedPayload = archivePayload(old.runId, { input: old.call.input, output: old.call.output, streamOutputs: old.call.streamOutputs });
-    old.call.input = undefined;
-    old.call.output = undefined;
-    old.call.streamOutputs = old.call.streamOutputs && [];
-    old.payloadsDropped = true;
+    return old;
   }
 }
 
@@ -456,6 +498,7 @@ export class Consoles {
   readonly #listeners = new Map<string, Set<() => void>>();
   readonly #flagListeners = new Set<() => void>();
   readonly #quietListeners = new Set<QuietListener>();
+  readonly #tableListeners = new Set<(blockIds: string[]) => void>();
   readonly #dirty = new Set<string>();
   #frame: number | null = null;
   #mru: string | null = null;
@@ -479,7 +522,7 @@ export class Consoles {
   #ensure(fileId: string, now: number): FileConsole {
     let file = this.#files.get(fileId);
     if (!file) {
-      file = new FileConsole();
+      file = new FileConsole(this.#tablesDropped);
     } else if (this.#mru !== fileId) {
       this.#files.delete(fileId);
     }
@@ -636,7 +679,7 @@ export class Consoles {
   dropFile(fileId: string): void {
     const file = this.#files.get(fileId);
     if (!this.#files.delete(fileId)) return;
-    if (file) dropRunPayloads(file.runs.map((run) => run.id));
+    if (file) this.#release(file);
     if (this.#mru === fileId) this.#mru = null;
     this.#touch(fileId, true);
     this.#flagsChanged();
@@ -685,6 +728,23 @@ export class Consoles {
   subscribeQuiet(listener: QuietListener): () => void {
     this.#quietListeners.add(listener);
     return () => this.#quietListeners.delete(listener);
+  }
+
+  // Which tables left with a run that was trimmed, cleared or dropped: the one thing
+  // that holds a finished run's `Kaja` past the run is a table it can still page.
+  subscribeTablesDropped(listener: (blockIds: string[]) => void): () => void {
+    this.#tableListeners.add(listener);
+    return () => this.#tableListeners.delete(listener);
+  }
+
+  #tablesDropped = (blockIds: string[]): void => {
+    for (const listener of this.#tableListeners) listener(blockIds);
+  };
+
+  #release(file: FileConsole): void {
+    dropRunPayloads(file.runs.map((run) => run.id));
+    const tables = file.tableBlockIds();
+    if (tables.length > 0) this.#tablesDropped(tables);
   }
 
   fileVersion(fileId: string | undefined): number {
@@ -757,7 +817,7 @@ export class Consoles {
       this.#files.delete(fileId);
       // A payload goes with the row that could select it, and an evicted file's rows
       // are as gone as a discarded one's.
-      dropRunPayloads(file.runs.map((run) => run.id));
+      this.#release(file);
       if (this.#mru === fileId) this.#mru = null;
     }
   }

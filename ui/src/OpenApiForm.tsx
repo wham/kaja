@@ -55,10 +55,7 @@ import { rpcErrorMessage } from "./rpcMessage";
 type SourceMode = "url" | "file" | "paste";
 
 type ReadState =
-  | { status: "idle" }
-  | { status: "reading" }
-  | { status: "read"; document: OpenApiDocument; readAt: number }
-  | { status: "problem"; problem: OpenApiProblem };
+  { status: "idle" } | { status: "reading" } | { status: "read"; document: OpenApiDocument; readAt: number } | { status: "problem"; problem: OpenApiProblem };
 
 const READ_DEBOUNCE_MS = 600;
 const PASTE_DEBOUNCE_MS = 400;

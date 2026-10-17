@@ -54,7 +54,7 @@ func (p *Problem) Error() string {
 
 // Inspect reads what a server exposes without creating an app, so the New MCP
 // app form can fill itself in from what answered.
-func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *Problem) {
+func Inspect(ctx context.Context, parameters map[string]string, authorizer *Authorizer) (*Surface, *Problem) {
 	endpoint := strings.TrimSpace(parameters["url"])
 	if endpoint == "" {
 		return nil, &Problem{Kind: ProblemTarget, Message: "Enter the server's MCP endpoint."}
@@ -72,7 +72,7 @@ func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *P
 		return nil, &Problem{Kind: ProblemTarget, Message: "That isn't an HTTP endpoint.", Detail: err.Error()}
 	}
 
-	credential, err := credentialSource(parameters, authorizer)
+	credential, _, err := credentialSource(parameters, authorizer)
 	if err != nil {
 		return nil, &Problem{Kind: ProblemUnauthorized, Message: "This kaja cannot sign in to an MCP server.", Detail: err.Error()}
 	}
@@ -83,7 +83,7 @@ func Inspect(parameters map[string]string, authorizer *Authorizer) (*Surface, *P
 		return nil, &Problem{Kind: ProblemSignIn, Message: "Sign in to read this server."}
 	}
 	client := NewClient(endpoint, credential, &http.Client{Timeout: inspectTimeout})
-	surface, err := client.ReadSurface(nil)
+	surface, err := client.ReadSurface(ctx, nil)
 	if err != nil {
 		problem := classify(err)
 		if problem.Kind == ProblemNotMCP && speaksLegacySSE(endpoint, client.http) {

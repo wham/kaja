@@ -258,22 +258,21 @@ func inspectFolder(folder *api.FolderApp, inspection *mcp.AppInspection) {
 	inspection.Summary = fmt.Sprintf("The folder %s.", folder.Path)
 }
 
+// Add writes the app as one edit of kaja.json, read and written under the service's
+// write lock, so an app added while the window is saving something else lands beside
+// it rather than over it.
 func (w *workspaceApps) Add(ctx context.Context, draft mcp.AppDraft) error {
 	app, err := buildWorkspaceApp(draft)
 	if err != nil {
 		return err
 	}
-	response, err := w.service.GetWorkspace(ctx, &api.GetWorkspaceRequest{})
-	if err != nil {
-		return err
-	}
-	workspace := response.Workspace
-	if hasApp(workspace, draft.Name) {
-		return fmt.Errorf("an app named %q is already in the workspace; pick another name", draft.Name)
-	}
-	workspace.Apps = append(workspace.Apps, app)
-	_, err = w.service.UpdateWorkspace(ctx, &api.UpdateWorkspaceRequest{Workspace: workspace})
-	return err
+	return w.service.MutateWorkspace(func(workspace *api.Workspace) error {
+		if hasApp(workspace, draft.Name) {
+			return fmt.Errorf("an app named %q is already in the workspace; pick another name", draft.Name)
+		}
+		workspace.Apps = append(workspace.Apps, app)
+		return nil
+	})
 }
 
 // buildWorkspaceApp reads a draft into the typed message by the proto's own field

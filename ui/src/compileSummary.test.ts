@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { App, CompilationStatus, createPendingApp } from "./apps";
 import { LogLevel } from "./server/api";
-import { appWarnings, countMethods, firstErrorMessage, settledLabel, summarizeCompilation } from "./compileSummary";
+import { countMethods, countWarnings, firstErrorLine, firstErrorMessage, settledLabel, summarizeCompilation, warningCount } from "./compileSummary";
 
+// The surface keeps what the store read off the log, which is what the store writes
+// when a compile lands (appStore.ts).
 function app(name: string, status: CompilationStatus, logs: { level: LogLevel; message: string }[] = []): App {
   const app = createPendingApp({ name, grpc: { url: "", protoDir: "", headers: {} }, app: { oneofKind: "grpc" } } as any);
-  app.compilation = { status, logs: logs.map((log) => ({ level: log.level, message: log.message })) as any };
+  app.compilation = { status, warnings: countWarnings(logs), error: status === "error" ? firstErrorLine(logs) : undefined };
   return app;
 }
 
@@ -77,8 +79,12 @@ describe("summarizeCompilation", () => {
 
 describe("app details", () => {
   test("warnings are only read off a successful compile", () => {
-    expect(appWarnings(app("a", "success", [WARN]))).toHaveLength(1);
-    expect(appWarnings(app("a", "error", [WARN]))).toHaveLength(0);
+    expect(warningCount(app("a", "success", [WARN]))).toBe(1);
+    expect(warningCount(app("a", "error", [WARN]))).toBe(0);
+  });
+
+  test("a surface read back from the last session reads as ready", () => {
+    expect(summarizeCompilation([app("a", "cached"), app("b", "success")], true)).toMatchObject({ state: "ready", label: "2 apps", ready: 2 });
   });
 
   test("the first error is the line worth showing", () => {

@@ -90,7 +90,7 @@ func TestInvokeUnknownMethod(t *testing.T) {
 // A server-streaming method reaches the same door and writes as many messages as it
 // has: a compilation's log, then its verdict.
 func TestInvokeServerStreaming(t *testing.T) {
-	request, err := proto.Marshal(&CompileRequest{ProtoDir: t.TempDir()})
+	request, err := proto.Marshal(&CompileRequest{App: &WorkspaceApp{Name: "quirks", App: &WorkspaceApp_Twirp{Twirp: &TwirpApp{Url: "http://localhost:8080", ProtoDir: t.TempDir()}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestInvokeServerStreaming(t *testing.T) {
 // A stream nobody is reading any more ends rather than parking its handler on a send
 // forever: the browser's request is what the call lives as long as.
 func TestInvokeServerStreamingEndsWhenTheCallerGoesAway(t *testing.T) {
-	request, err := proto.Marshal(&CompileRequest{ProtoDir: t.TempDir()})
+	request, err := proto.Marshal(&CompileRequest{App: &WorkspaceApp{Name: "quirks", App: &WorkspaceApp_Twirp{Twirp: &TwirpApp{Url: "http://localhost:8080", ProtoDir: t.TempDir()}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

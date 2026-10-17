@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Api_Compile_FullMethodName                = "/Api/Compile"
-	Api_OpenApp_FullMethodName                = "/Api/OpenApp"
 	Api_RenameApp_FullMethodName              = "/Api/RenameApp"
 	Api_InspectOpenApi_FullMethodName         = "/Api/InspectOpenApi"
 	Api_InspectGrpc_FullMethodName            = "/Api/InspectGrpc"
@@ -51,11 +50,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ApiClient interface {
-	// Compile streams the compilation of an app's proto surface: each log line as it
-	// is written, then one last message carrying the terminal status and, on success,
-	// the manifest the app compiled to.
+	// Compile opens an app and compiles its proto surface in one call: each log line as
+	// it is written, then one last message carrying the terminal status and, on
+	// success, the manifest the app compiled to. Opening registers the app's instance
+	// under its name, which is the address every call carries.
 	Compile(ctx context.Context, in *CompileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CompileResponse], error)
-	OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grpc.CallOption) (*OpenAppResponse, error)
 	RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error)
 	InspectOpenApi(ctx context.Context, in *InspectOpenApiRequest, opts ...grpc.CallOption) (*InspectOpenApiResponse, error)
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
@@ -114,16 +113,6 @@ func (c *apiClient) Compile(ctx context.Context, in *CompileRequest, opts ...grp
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_CompileClient = grpc.ServerStreamingClient[CompileResponse]
-
-func (c *apiClient) OpenApp(ctx context.Context, in *OpenAppRequest, opts ...grpc.CallOption) (*OpenAppResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OpenAppResponse)
-	err := c.cc.Invoke(ctx, Api_OpenApp_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
 
 func (c *apiClient) RenameApp(ctx context.Context, in *RenameAppRequest, opts ...grpc.CallOption) (*RenameAppResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -387,11 +376,11 @@ func (c *apiClient) ScanScriptVariables(ctx context.Context, in *ScanScriptVaria
 // All implementations should embed UnimplementedApiServer
 // for forward compatibility.
 type ApiServer interface {
-	// Compile streams the compilation of an app's proto surface: each log line as it
-	// is written, then one last message carrying the terminal status and, on success,
-	// the manifest the app compiled to.
+	// Compile opens an app and compiles its proto surface in one call: each log line as
+	// it is written, then one last message carrying the terminal status and, on
+	// success, the manifest the app compiled to. Opening registers the app's instance
+	// under its name, which is the address every call carries.
 	Compile(*CompileRequest, grpc.ServerStreamingServer[CompileResponse]) error
-	OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error)
 	RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error)
 	InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error)
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
@@ -433,9 +422,6 @@ type UnimplementedApiServer struct{}
 
 func (UnimplementedApiServer) Compile(*CompileRequest, grpc.ServerStreamingServer[CompileResponse]) error {
 	return status.Error(codes.Unimplemented, "method Compile not implemented")
-}
-func (UnimplementedApiServer) OpenApp(context.Context, *OpenAppRequest) (*OpenAppResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method OpenApp not implemented")
 }
 func (UnimplementedApiServer) RenameApp(context.Context, *RenameAppRequest) (*RenameAppResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RenameApp not implemented")
@@ -539,24 +525,6 @@ func _Api_Compile_Handler(srv interface{}, stream grpc.ServerStream) error {
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_CompileServer = grpc.ServerStreamingServer[CompileResponse]
-
-func _Api_OpenApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OpenAppRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).OpenApp(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Api_OpenApp_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).OpenApp(ctx, req.(*OpenAppRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
 
 func _Api_RenameApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RenameAppRequest)
@@ -983,10 +951,6 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "Api",
 	HandlerType: (*ApiServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "OpenApp",
-			Handler:    _Api_OpenApp_Handler,
-		},
 		{
 			MethodName: "RenameApp",
 			Handler:    _Api_RenameApp_Handler,

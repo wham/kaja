@@ -27,7 +27,7 @@ func openTestApp(t *testing.T, endpoint, token string) *instance {
 // the token to say about the app.
 func openTestAppWith(t *testing.T, parameters map[string]string) *instance {
 	t.Helper()
-	opened, err := New().Open(parameters, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), parameters, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -297,8 +297,8 @@ func TestDefaultEndpoint(t *testing.T) {
 	if got, want := in.endpoint, (openAIWire{}).endpoint(); got != want {
 		t.Errorf("endpoint = %q, want %q", got, want)
 	}
-	if in.auth != authBearer {
-		t.Errorf("auth = %q, want %q", in.auth, authBearer)
+	if in.credential.auth != authBearer {
+		t.Errorf("auth = %q, want %q", in.credential.auth, authBearer)
 	}
 
 	// Naming the API is enough to reach it: the endpoint and the credential the
@@ -307,19 +307,19 @@ func TestDefaultEndpoint(t *testing.T) {
 	if got, want := in.endpoint, (anthropicWire{}).endpoint(); got != want {
 		t.Errorf("endpoint = %q, want %q", got, want)
 	}
-	if in.auth != authAPIKey {
-		t.Errorf("auth = %q, want %q", in.auth, authAPIKey)
+	if in.credential.auth != authAPIKey {
+		t.Errorf("auth = %q, want %q", in.credential.auth, authAPIKey)
 	}
-	if in.keyName != defaultAPIKeyName {
-		t.Errorf("keyName = %q, want %q", in.keyName, defaultAPIKeyName)
+	if in.credential.keyName != defaultAPIKeyName {
+		t.Errorf("keyName = %q, want %q", in.credential.keyName, defaultAPIKeyName)
 	}
 }
 
 func TestUnknownApiAndAuthAreRefused(t *testing.T) {
-	if _, err := New().Open(map[string]string{"api": "gemini"}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{"api": "gemini"}, t.TempDir(), func(string) {}); err == nil {
 		t.Error("expected an API kaja does not speak to be refused rather than guessed at")
 	}
-	if _, err := New().Open(map[string]string{"auth": "hmac"}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{"auth": "hmac"}, t.TempDir(), func(string) {}); err == nil {
 		t.Error("expected a credential kaja cannot send to be refused")
 	}
 }
@@ -549,4 +549,34 @@ func invoke(in *instance, method string, request []byte, headers map[string]stri
 		result.ResponseHeaders = report.ResponseHeaders
 	}
 	return result, nil
+}
+
+// The credential is read off the call rather than held from Open, so a token replaced
+// in kaja.json reaches the next call without the app being compiled again.
+func TestCredentialIsReadOffTheCall(t *testing.T) {
+	var gotAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"id": "1", "choices": []}`)
+	}))
+	defer server.Close()
+
+	in := openTestApp(t, server.URL, "opened-with")
+	request := encodeRequest(t, in, `{"model": "m", "user_prompt": "hi"}`)
+	call := &apps.Call{Method: "openai.OpenAI/ChatCompletion", Request: request, Parameters: map[string]string{"endpoint": server.URL, "token": "replaced"}}
+	if _, err := in.Invoke(context.Background(), call); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if gotAuthorization != "Bearer replaced" {
+		t.Errorf("Authorization = %q, want the token the call carried", gotAuthorization)
+	}
+
+	// A call carrying no parameters sends what the app was opened with.
+	if _, err := invoke(in, "openai.OpenAI/ChatCompletion", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if gotAuthorization != "Bearer opened-with" {
+		t.Errorf("Authorization = %q, want the token the app was opened with", gotAuthorization)
+	}
 }

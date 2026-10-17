@@ -486,7 +486,9 @@ func (a *Authorizer) listen() error {
 	a.listener = listener
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+callbackPath, a.callback)
-	go func() { _ = (&http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}).Serve(listener) }()
+	go func() {
+		_ = (&http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}).Serve(listener)
+	}()
 	return nil
 }
 

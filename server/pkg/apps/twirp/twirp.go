@@ -37,7 +37,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+func (a *App) Open(_ context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	url := strings.TrimSpace(parameters["url"])
 	if url == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "url")
@@ -71,10 +71,15 @@ type instance struct {
 	client  *http.Client
 }
 
+func (in *instance) Close() error {
+	in.client.CloseIdleConnections()
+	return nil
+}
+
 func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
 	endpoint := in.baseURL + "/twirp/" + strings.TrimPrefix(call.Method, "/")
 
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(call.Request))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(call.Request))
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}

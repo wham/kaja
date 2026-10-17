@@ -217,6 +217,8 @@ export function Console({
   const activeView = file.view ?? defaultView(selectedGroup);
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
+  const onShowLogs = useCallback(() => onLogFloorChange("all"), [onLogFloorChange]);
+  const onGoToCanvas = useCallback(() => onViewChange("canvas"), [onViewChange]);
 
   const selectRun = useCallback(
     (group: RunGroup) => {
@@ -343,14 +345,15 @@ export function Console({
       logFloor={logFloor}
       printed={printed}
       now={now}
+      version={file.version}
       tailing={tailing}
       tailingRef={tailingRef}
       onTailingChange={setTailing}
       onSelectRow={selectRow}
       onTabChange={onTabChange}
       onEmbeddedChange={onEmbeddedChange}
-      onShowLogs={() => onLogFloorChange("all")}
-      onGoToCanvas={() => onViewChange("canvas")}
+      onShowLogs={onShowLogs}
+      onGoToCanvas={onGoToCanvas}
     />
   );
 

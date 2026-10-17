@@ -810,7 +810,7 @@ func TestAnAppSignedInSendsItsToken(t *testing.T) {
 		t.Fatalf("the sign-in: %v", err)
 	}
 
-	credential, err := credentialSource(map[string]string{"url": fake.endpoint(), "auth": AuthOAuth}, authorizer)
+	credential, _, err := credentialSource(map[string]string{"url": fake.endpoint(), "auth": AuthOAuth}, authorizer)
 	if err != nil {
 		t.Fatalf("credentialSource: %v", err)
 	}
@@ -826,7 +826,7 @@ func TestAnAppSignedInSendsItsToken(t *testing.T) {
 // A build with nowhere to keep a sign-in says so where the credential is asked
 // for, rather than opening an app that would be refused on every call.
 func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
-	if _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, nil); err == nil {
+	if _, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, nil); err == nil {
 		t.Fatal("expected the app to refuse to open")
 	}
 }
@@ -835,7 +835,7 @@ func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
 // going out without one.
 func TestAnAppNotSignedInSaysSo(t *testing.T) {
 	authorizer := testAuthorizer(t)
-	credential, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, authorizer)
+	credential, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, authorizer)
 	if err != nil {
 		t.Fatalf("credentialSource: %v", err)
 	}

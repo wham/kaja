@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Block, TableBlock } from "./blocks";
-import { Kaja } from "./kaja";
+import { Kaja, LiveTables } from "./kaja";
 import { bodyMinHeight, tableSummary, tableWindow } from "./tableView";
 
 // A Kaja with nowhere to draw but a map of what it drew, which is what a table
@@ -564,5 +564,24 @@ describe("kaja.run", () => {
   it("refuses a destination that names nothing", () => {
     const { kaja } = draw();
     expect(() => kaja.run("  ")).toThrow(/name the script to run/);
+  });
+});
+
+describe("LiveTables", () => {
+  it("lets go of the tables whose rows are gone, and the owner with them", () => {
+    const tables = new LiveTables();
+    const owner = {} as Kaja;
+    tables.open("table-1", {} as never, owner);
+    tables.open("table-2", {} as never, owner);
+
+    tables.drop(["table-1", "never-opened"]);
+
+    expect(tables.size).toBe(1);
+    expect(tables.has("table-1")).toBe(false);
+    expect(tables.owner("table-2")).toBe(owner);
+    expect(tables.ownedBy(owner)).toHaveLength(1);
+
+    tables.drop(["table-2"]);
+    expect(tables.ownedBy(owner)).toHaveLength(0);
   });
 });

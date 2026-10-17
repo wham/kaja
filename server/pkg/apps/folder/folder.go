@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -105,7 +106,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+func (a *App) Open(_ context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	path := strings.TrimSpace(parameters["path"])
 	if path == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "path")
@@ -134,9 +135,14 @@ type method struct {
 // compile compiles the static proto and resolves every method's request and
 // response descriptors, keyed by method name.
 func compile(protoDir string) (map[string]method, error) {
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir)).Compile("folder.proto")
+	// With comments, and written beside the source: the manifest is compiled off this
+	// set rather than off the .proto a second time.
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("folder.proto")
 	if err != nil {
 		return nil, fmt.Errorf("compiling generated proto: %w", err)
+	}
+	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
+		return nil, err
 	}
 	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
 	if err != nil {

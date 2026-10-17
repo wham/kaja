@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestTheAppsClientReadsThisServer(t *testing.T) {
 
 	surface, err := client.NewClient(endpoint.URL, func() (map[string]string, error) {
 		return map[string]string{"Authorization": "Bearer " + token}, nil
-	}, endpoint.Client()).ReadSurface(nil)
+	}, endpoint.Client()).ReadSurface(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("reading the surface: %v", err)
 	}

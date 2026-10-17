@@ -108,7 +108,7 @@ func TestLiveDemoApp(t *testing.T) {
 	skipUnlessReachable(t, "seating.kaja.tools:443")
 
 	const seating = "dns:seating.kaja.tools:443"
-	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
+	sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "seating",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: seating, Reflection: true}},
 	})

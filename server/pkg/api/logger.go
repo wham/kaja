@@ -25,7 +25,7 @@ func NewStreamingLogger(sink func(*Log)) *Logger {
 }
 
 func (l *Logger) debug(message string) {
-	slog.Info(message)
+	slog.Debug(message)
 	l.log(LogLevel_LEVEL_DEBUG, message)
 }
 

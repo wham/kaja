@@ -419,7 +419,7 @@ func TestInvokeMapField(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -465,7 +465,7 @@ func TestOpenAndInvoke(t *testing.T) {
 
 	dir := t.TempDir()
 	app := New()
-	opened, err := app.Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, dir, func(string) {})
+	opened, err := app.Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, dir, func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestHeaderParameters(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -600,7 +600,7 @@ func TestInvokeUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -641,7 +641,7 @@ func TestInvokeUnreadableResponse(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -738,7 +738,7 @@ components:
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -996,7 +996,7 @@ func TestIngestEventsInvoke(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -1086,7 +1086,7 @@ components:
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -1115,7 +1115,7 @@ func TestTranscodeArrayQuery(t *testing.T) {
 	in := &instance{baseURL: srv.URL, client: srv.Client()}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []queryParam{{name: "tags"}}, responseWrap: "array"}
 
-	if _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
+	if _, err := in.transcode(context.Background(), binding, []byte(`{"tags":["foo","bar"]}`), nil, in.auth); err != nil {
 		t.Fatalf("transcode: %v", err)
 	}
 	if gotRawQuery != "tags=foo&tags=bar" {
@@ -1180,7 +1180,7 @@ paths:
 	const svc = "openapi.uploaded_petstore.UploadedPetstore"
 	for _, tc := range []struct{ name, content string }{{"yaml", yamlSpec}, {"json", jsonSpec}} {
 		t.Run(tc.name, func(t *testing.T) {
-			opened, err := New().Open(map[string]string{"spec_content": tc.content}, t.TempDir(), func(string) {})
+			opened, err := New().Open(context.Background(), map[string]string{"spec_content": tc.content}, t.TempDir(), func(string) {})
 			if err != nil {
 				t.Fatalf("Open: %v", err)
 			}
@@ -1225,7 +1225,7 @@ paths:
 			}))
 			defer srv.Close()
 
-			s, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{token: tc.token, username: tc.user, password: tc.password}, func(string) {})
+			s, problem := loadSpec(context.Background(), srv.URL+"/openapi.yaml", fetchCredentials{token: tc.token, username: tc.user, password: tc.password}, func(string) {})
 			if problem != nil {
 				t.Fatalf("loadSpec: %v", problem)
 			}
@@ -1251,7 +1251,7 @@ func TestLoadSpecReportsLoginRedirect(t *testing.T) {
 	defer srv.Close()
 
 	var logs []string
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(m string) { logs = append(logs, m) })
+	_, problem := loadSpec(context.Background(), srv.URL+"/openapi.yaml", fetchCredentials{}, func(m string) { logs = append(logs, m) })
 	if problem == nil {
 		t.Fatal("expected a problem for an unauthenticated fetch")
 	}
@@ -1273,7 +1273,7 @@ func TestLoadSpecReportsUnauthorizedStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	_, problem := loadSpec(context.Background(), srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
 	if problem == nil || problem.Kind != problemUnauthorized {
 		t.Fatalf("problem = %v, want kind %q", problem, problemUnauthorized)
 	}
@@ -1289,7 +1289,7 @@ func TestLoadSpecNonYAMLErrorIncludesSnippet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	_, problem := loadSpec(context.Background(), srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
 	if problem == nil {
 		t.Fatal("expected a problem for a non-spec body")
 	}
@@ -1316,7 +1316,7 @@ paths:
       responses:
         "200": { description: ok }
 `
-	if _, err := New().Open(map[string]string{"spec_content": relativeServerSpec}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{"spec_content": relativeServerSpec}, t.TempDir(), func(string) {}); err == nil {
 		t.Fatal("expected error for uploaded spec with relative server URL, got nil")
 	}
 }
@@ -1374,7 +1374,7 @@ paths:
       responses:
         "200": { description: ok }
 `
-	opened, err := New().Open(map[string]string{
+	opened, err := New().Open(context.Background(), map[string]string{
 		"spec_content": relativeServerSpec,
 		"base_url":     "https://api.example.com",
 	}, t.TempDir(), func(string) {})
@@ -1389,14 +1389,14 @@ paths:
 // TestOpenRequiresSpecSource rejects an app configured with neither a URL nor
 // uploaded content.
 func TestOpenRequiresSpecSource(t *testing.T) {
-	if _, err := New().Open(map[string]string{}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{}, t.TempDir(), func(string) {}); err == nil {
 		t.Fatal("expected error when neither spec_url nor spec_content is set, got nil")
 	}
 }
 
 func TestOpenRejectsNonHTTPScheme(t *testing.T) {
 	for _, specURL := range []string{"file:///etc/passwd", "gopher://example.com/", "ftp://example.com/spec.yaml"} {
-		if _, err := New().Open(map[string]string{"spec_url": specURL}, t.TempDir(), func(string) {}); err == nil {
+		if _, err := New().Open(context.Background(), map[string]string{"spec_url": specURL}, t.TempDir(), func(string) {}); err == nil {
 			t.Errorf("expected error opening spec_url %q, got nil", specURL)
 		}
 	}
@@ -2108,4 +2108,42 @@ func writeGenerated(t *testing.T, gen *generated) string {
 		t.Fatalf("write: %v", err)
 	}
 	return dir
+}
+
+// The credential is read off the call rather than held from Open, so a token replaced
+// in kaja.json reaches the next call without the app being compiled again.
+func TestCredentialIsReadOffTheCall(t *testing.T) {
+	var gotAuthorization string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, petstoreSpec) })
+	mux.HandleFunc("/v3/pets/1", func(w http.ResponseWriter, r *http.Request) {
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"id":1,"name":"Rex"}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	parameters := map[string]string{"spec_url": srv.URL + "/openapi.yaml", "token": "opened-with"}
+	opened, err := New().Open(context.Background(), parameters, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
+	request := encodeRequest(t, inst, method, `{"petId":1}`)
+
+	replaced := map[string]string{"spec_url": parameters["spec_url"], "token": "replaced"}
+	if _, err := inst.Invoke(context.Background(), &apps.Call{Method: method, Request: request, Parameters: replaced}); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if gotAuthorization != "Bearer replaced" {
+		t.Errorf("Authorization = %q, want the token the call carried", gotAuthorization)
+	}
+	if _, err := invoke(inst, method, request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if gotAuthorization != "Bearer opened-with" {
+		t.Errorf("Authorization = %q, want the token the app was opened with", gotAuthorization)
+	}
 }

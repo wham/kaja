@@ -1,8 +1,9 @@
 import { Method, Service } from "./apps";
 import { Block, isAwaitingUser } from "./blocks";
+import { consoles } from "./consoles";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { MethodCall } from "./kaja";
-import { ConsoleItem, Run } from "./runs";
+import { ConsoleItem, Run, RunStatus } from "./runs";
 import { Log } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -50,6 +51,10 @@ interface StoredItem {
   logs?: Log[];
   printed?: boolean;
   block?: Block;
+  // A row whose payload was shelved keeps its verdict; the shelf itself is emptied when
+  // a window opens, so the ref is not kept.
+  payloadsDropped?: boolean;
+  status?: RunStatus;
 }
 
 interface StoredRun {
@@ -190,6 +195,8 @@ function toStoredItem(item: ConsoleItem): StoredItem {
     logs: item.logs,
     printed: item.printed,
     block: storedBlock(item.block),
+    payloadsDropped: item.payloadsDropped,
+    status: item.status,
   };
 }
 
@@ -231,6 +238,8 @@ export function deserializeFile(stored: StoredFile): LoadedRuns {
         logs: item.logs,
         printed: item.printed,
         block: item.block,
+        payloadsDropped: item.payloadsDropped,
+        status: item.status,
       });
     }
   }
@@ -278,13 +287,44 @@ export function saveRuns(fileId: string, runs: Run[], items: ConsoleItem[], now 
   writeArchive(pruneArchive({ ...readArchive(), [fileId]: serializeFile(runs, items, now) }, now));
 }
 
+// The files whose console is to be saved once the window is idle. A run ending is the
+// frame the console repaints on, and walking every item the file holds is not work for
+// that frame; it is read when the save runs, so what is saved is the console as it
+// stands then.
+const deferredSaves = new Set<string>();
+let deferredHandle: number | undefined;
+
+export function saveRunsLater(fileId: string): void {
+  deferredSaves.add(fileId);
+  if (deferredHandle !== undefined) return;
+  deferredHandle =
+    typeof requestIdleCallback === "function" ? requestIdleCallback(flushDeferredSaves, { timeout: 2000 }) : window.setTimeout(flushDeferredSaves, 200);
+}
+
+export function flushDeferredSaves(): void {
+  if (deferredHandle !== undefined) {
+    if (typeof cancelIdleCallback === "function") cancelIdleCallback(deferredHandle);
+    window.clearTimeout(deferredHandle);
+    deferredHandle = undefined;
+  }
+  const files = [...deferredSaves];
+  deferredSaves.clear();
+  const now = Date.now();
+  for (const fileId of files) {
+    const file = consoles.file(fileId);
+    saveRuns(fileId, file.runs, file.allItems(), now);
+  }
+}
+
 export function loadRuns(fileId: string, now = Date.now()): LoadedRuns | undefined {
   const stored = pruneArchive(readArchive(), now)[fileId];
   return stored ? deserializeFile(stored) : undefined;
 }
 
-// A draft saved to disk, or a script renamed: same console, new name.
+// A draft saved to disk, or a script renamed: same console, new name. A save still
+// waiting is written first, so it lands under the name that is moving.
 export function renameStoredFile(oldId: string, newId: string): void {
+  flushDeferredSaves();
   const archive = readArchive();
   const stored = archive[oldId];
   if (!stored) return;
@@ -293,6 +333,7 @@ export function renameStoredFile(oldId: string, newId: string): void {
 }
 
 export function dropStoredFile(fileId: string): void {
+  deferredSaves.delete(fileId);
   const archive = readArchive();
   if (!(fileId in archive)) return;
   const { [fileId]: _dropped, ...rest } = archive;

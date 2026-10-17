@@ -7,7 +7,7 @@ import { AppTypeIcon } from "./AppTypeIcon";
 import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
-import { appWarnings, countMethods, firstErrorMessage, isCompiling, settledLabel, summarizeCompilation, appAddress, CompileState } from "./compileSummary";
+import { countMethods, firstErrorMessage, isCompiling, settledLabel, summarizeCompilation, appAddress, CompileState, warningCount } from "./compileSummary";
 
 // How long the green receipt stays up after a batch settles, before the
 // indicator falls back to its resting label.
@@ -52,7 +52,7 @@ function StateIcon({ state }: { state: CompileState }) {
 // keyboard.
 function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => void; onRecompile: () => void }) {
   const status = app.compilation.status;
-  const warnings = appWarnings(app);
+  const warnings = warningCount(app);
 
   const detail = () => {
     if (status === "error") {
@@ -79,7 +79,7 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
             <Spinner size="sm" className="size-[14px]" />
           ) : status === "error" ? (
             <CircleX size={ICON_SIZE} className="text-destructive" />
-          ) : warnings.length > 0 ? (
+          ) : warnings > 0 ? (
             <TriangleAlert size={ICON_SIZE} className="text-amber-600 dark:text-amber-400" />
           ) : (
             <Check size={ICON_SIZE} className="text-emerald-600 dark:text-emerald-400" />

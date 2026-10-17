@@ -9,7 +9,7 @@ type stubApp struct {
 	instance *stubInstance
 }
 
-func (a *stubApp) Open(parameters map[string]string, protoDir string, log func(string)) (*Opened, error) {
+func (a *stubApp) Open(_ context.Context, parameters map[string]string, protoDir string, log func(string)) (*Opened, error) {
 	return &Opened{Instance: a.instance}, nil
 }
 
@@ -40,7 +40,7 @@ func openedUnder(t *testing.T, manager *Manager, name string) string {
 // for a surface that has not changed.
 func TestManagerRenameMovesTheOpenApp(t *testing.T) {
 	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
-	if _, err := manager.Open("theatre", "grpc", nil, "", func(string) {}); err != nil {
+	if _, err := manager.Open(context.Background(), "theatre", "grpc", nil, "", func(string) {}); err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
 
@@ -59,7 +59,7 @@ func TestManagerRenameMovesTheOpenApp(t *testing.T) {
 // all, which is every app a compilation never got to.
 func TestManagerRenameLeavesAnUnopenedAppAlone(t *testing.T) {
 	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
-	if _, err := manager.Open("theatre", "grpc", nil, "", func(string) {}); err != nil {
+	if _, err := manager.Open(context.Background(), "theatre", "grpc", nil, "", func(string) {}); err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
 

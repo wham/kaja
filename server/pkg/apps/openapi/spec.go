@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -322,8 +323,8 @@ type fetchCredentials struct {
 // tenant's /api/v2/openapi.yaml) can be read. The spec's own security schemes are
 // not known yet, so it falls back the same way invocations do: username/password
 // as HTTP Basic, otherwise a bearer token. An explicit spec header wins over both.
-func loadSpec(specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem) {
-	req, err := http.NewRequest(http.MethodGet, specURL, nil)
+func loadSpec(ctx context.Context, specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, specURL, nil)
 	if err != nil {
 		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}
 	}

@@ -400,73 +400,110 @@ func TestExpandVariables(t *testing.T) {
 	}
 }
 
-func TestOpenApp_ExpandsVariables(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "config-*.json")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	configContent := `{"variables": {"KAJA_HOST": "kaja.tools"}}`
-	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
+// compileStream collects what Compile streams: the log, then the verdict.
+type compileStream struct {
+	grpc.ServerStream
+	ctx      context.Context
+	status   CompileStatus
+	manifest string
+	logs     []*Log
+}
 
-	service := NewApiService(tmpfile.Name(), true, "", "", nil)
+func (s *compileStream) Context() context.Context { return s.ctx }
 
-	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
-		App: &WorkspaceApp{
-			Name: "quirks",
-			App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${KAJA_HOST}:443", ProtoDir: "quirks/proto"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("OpenApp failed: %v", err)
+func (s *compileStream) Send(response *CompileResponse) error {
+	s.logs = append(s.logs, response.GetLogs()...)
+	if response.GetStatus() != CompileStatus_STATUS_RUNNING {
+		s.status = response.GetStatus()
+		s.manifest = response.GetManifest()
 	}
-	if response.Status != OpenStatus_OPEN_STATUS_OK {
-		t.Fatalf("expected OK status, got %v: %v", response.Status, response.Logs)
+	return nil
+}
+
+func compile(t *testing.T, service *ApiService, app *WorkspaceApp, fresh bool) *compileStream {
+	t.Helper()
+	stream := &compileStream{ctx: context.Background()}
+	if err := service.Compile(&CompileRequest{App: app, Fresh: fresh}, stream); err != nil {
+		t.Fatalf("Compile: %v", err)
 	}
+	return stream
+}
+
+func TestCompile_ExpandsVariables(t *testing.T) {
+	path := writeWorkspace(t, `{"variables": {"KAJA_HOST": "kaja.tools"}}`)
+	service := NewApiService(path, true, "", "", nil)
+	defer service.Close()
+
+	stream := compile(t, service, &WorkspaceApp{
+		Name: "quirks",
+		App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${KAJA_HOST}:443", ProtoDir: "quirks/proto"}},
+	}, false)
 	// The address is the app's own and never leaves this process, so the logs of the
 	// open are where an expansion can be seen at all.
-	if !logged(response.Logs, "dns:kaja.tools:443") {
-		t.Errorf("expected the expanded address in the logs, got %v", response.Logs)
+	if !logged(stream.logs, "dns:kaja.tools:443") {
+		t.Errorf("expected the expanded address in the logs, got %v", stream.logs)
 	}
 }
 
-func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "config-*.json")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	if _, err := tmpfile.Write([]byte("{}")); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
+func TestCompile_LogsUnresolvedVariableReference(t *testing.T) {
+	path := writeWorkspace(t, `{}`)
+	service := NewApiService(path, true, "", "", nil)
+	defer service.Close()
 
-	service := NewApiService(tmpfile.Name(), true, "", "", nil)
-
-	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
-		App: &WorkspaceApp{
-			Name: "quirks",
-			App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${MISSING}:443", ProtoDir: "quirks/proto"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("OpenApp failed: %v", err)
-	}
+	stream := compile(t, service, &WorkspaceApp{
+		Name: "quirks",
+		App:  &WorkspaceApp_Grpc{Grpc: &GrpcApp{Url: "dns:${MISSING}:443", ProtoDir: "quirks/proto"}},
+	}, false)
 
 	// The reference is left as-is and the logs call it out.
-	if !logged(response.Logs, "dns:${MISSING}:443") {
-		t.Errorf("expected the unresolved reference to pass through, got %v", response.Logs)
+	if !logged(stream.logs, "dns:${MISSING}:443") {
+		t.Errorf("expected the unresolved reference to pass through, got %v", stream.logs)
 	}
-	found := false
-	for _, log := range response.Logs {
-		if strings.Contains(log.Message, "${MISSING}") {
-			found = true
-			break
-		}
+	if !logged(stream.logs, "${MISSING}") {
+		t.Errorf("expected a log about the unresolved ${MISSING} reference, got %v", stream.logs)
 	}
-	if !found {
-		t.Errorf("expected a log about the unresolved ${MISSING} reference, got %v", response.Logs)
+}
+
+// A surface compiled once is handed back the next time the same app is compiled, and
+// fresh is what reads it again.
+func TestCompile_ReusesTheSurfaceUnlessFresh(t *testing.T) {
+	protoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(protoDir, "quirks.proto"), []byte("syntax = \"proto3\";\npackage quirks;\nmessage Ping {}\nservice Quirks { rpc Ping(Ping) returns (Ping); }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := writeWorkspace(t, `{}`)
+	service := NewApiService(path, true, "", "", nil)
+	defer service.Close()
+	app := &WorkspaceApp{Name: "quirks", App: &WorkspaceApp_Twirp{Twirp: &TwirpApp{Url: "http://localhost:8080", ProtoDir: protoDir}}}
+
+	first := compile(t, service, app, false)
+	if first.status != CompileStatus_STATUS_READY || first.manifest == "" {
+		t.Fatalf("first compile: %v\n%v", first.status, first.logs)
+	}
+	if logged(first.logs, "Reused the surface") {
+		t.Error("the first compile claims to have reused a surface")
+	}
+
+	second := compile(t, service, app, false)
+	if second.status != CompileStatus_STATUS_READY || second.manifest != first.manifest {
+		t.Fatalf("second compile: %v", second.status)
+	}
+	if !logged(second.logs, "Reused the surface") {
+		t.Errorf("expected the second compile to reuse the surface, got %v", second.logs)
+	}
+
+	third := compile(t, service, app, true)
+	if third.status != CompileStatus_STATUS_READY || logged(third.logs, "Reused the surface") {
+		t.Errorf("expected fresh to compile again, got %v %v", third.status, third.logs)
+	}
+
+	// An edited .proto is a different surface, not a stale hit.
+	if err := os.WriteFile(filepath.Join(protoDir, "quirks.proto"), []byte("syntax = \"proto3\";\npackage quirks;\nmessage Ping {}\nmessage Pong {}\nservice Quirks { rpc Ping(Ping) returns (Pong); }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	edited := compile(t, service, app, false)
+	if edited.status != CompileStatus_STATUS_READY || logged(edited.logs, "Reused the surface") || edited.manifest == first.manifest {
+		t.Errorf("expected the edited proto to be compiled again, got %v", edited.logs)
 	}
 }
 
@@ -542,8 +579,9 @@ func (s *workspaceStream) Send(response *GetWorkspaceResponse) error {
 }
 
 // A watcher is answered with the file rather than with a notice that something
-// happened, so nothing is fetched after being told - and the stream says nothing while
-// the file is as it was, since whoever opened it has just read that.
+// happened, so nothing is fetched after being told. It opens with the state as it
+// stands, carrying the generation the window compares against what it holds, and
+// then says something only when the file changes.
 func TestWatchWorkspaceSendsTheChangedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kaja.json")
 	if err := os.WriteFile(path, []byte(`{"apps":[]}`), 0644); err != nil {
@@ -556,13 +594,25 @@ func TestWatchWorkspaceSendsTheChangedFile(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream := &workspaceStream{ctx: ctx, sent: make(chan *GetWorkspaceResponse, 1)}
+	stream := &workspaceStream{ctx: ctx, sent: make(chan *GetWorkspaceResponse, 2)}
 	watch := make(chan error, 1)
 	go func() { watch <- service.WatchWorkspace(&WatchWorkspaceRequest{}, stream) }()
 
+	var opening *GetWorkspaceResponse
+	select {
+	case opening = <-stream.sent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream did not open with the current workspace")
+	}
+	if opening.Generation == "" || len(opening.Workspace.Apps) != 0 {
+		t.Fatalf("the opening message is %v, want the file as it stands with a generation", opening)
+	}
+	if current, _ := service.GetWorkspace(ctx, &GetWorkspaceRequest{}); current.Generation != opening.Generation {
+		t.Errorf("GetWorkspace and the stream disagree on the generation: %s vs %s", current.Generation, opening.Generation)
+	}
 	time.Sleep(300 * time.Millisecond)
 	if len(stream.sent) != 0 {
-		t.Fatal("the stream opened with a message, but nothing had changed")
+		t.Fatal("the stream said something more, but nothing had changed")
 	}
 
 	// Written on a beat rather than once: the watcher reads the modification time it
@@ -581,6 +631,9 @@ func TestWatchWorkspaceSendsTheChangedFile(t *testing.T) {
 			}
 			if response.Runtime == nil || !response.Runtime.CanUpdateWorkspace {
 				t.Error("the message carries no runtime, which is what GetWorkspace answers with")
+			}
+			if response.Generation == opening.Generation {
+				t.Error("the file changed and the generation did not")
 			}
 			cancel()
 			if err := <-watch; err != nil {

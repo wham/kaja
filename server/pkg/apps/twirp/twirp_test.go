@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
@@ -15,7 +16,7 @@ import (
 // instance the manager would have registered.
 func openTestApp(t *testing.T, url string) *instance {
 	t.Helper()
-	opened, err := New().Open(map[string]string{"url": url, "proto_dir": "quirks/proto"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"url": url, "proto_dir": "quirks/proto"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -29,10 +30,10 @@ func openTestApp(t *testing.T, url string) *instance {
 }
 
 func TestOpenRequiresUrlAndProtoDir(t *testing.T) {
-	if _, err := New().Open(map[string]string{"proto_dir": "p"}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{"proto_dir": "p"}, t.TempDir(), func(string) {}); err == nil {
 		t.Error("expected an error for a missing url")
 	}
-	if _, err := New().Open(map[string]string{"url": "https://example.com"}, t.TempDir(), func(string) {}); err == nil {
+	if _, err := New().Open(context.Background(), map[string]string{"url": "https://example.com"}, t.TempDir(), func(string) {}); err == nil {
 		t.Error("expected an error for a missing proto_dir")
 	}
 }
@@ -175,4 +176,46 @@ func invoke(in *instance, method string, request []byte, headers map[string]stri
 		result.ResponseHeaders = report.ResponseHeaders
 	}
 	return result, nil
+}
+
+// Stop reaches the upstream: a call carries the request's context, so a browser that
+// went away is a request the upstream sees closed rather than one kaja waits out.
+func TestACancelledCallClosesTheUpstreamRequest(t *testing.T) {
+	started := make(chan struct{})
+	ended := make(chan error, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Read first: an HTTP/1.1 server only watches the connection for a close once
+		// the body is consumed.
+		io.ReadAll(r.Body)
+		close(started)
+		select {
+		case <-r.Context().Done():
+			ended <- r.Context().Err()
+		case <-time.After(5 * time.Second):
+			ended <- errors.New("the upstream never saw the cancellation")
+		}
+	}))
+	defer server.Close()
+
+	in := openTestApp(t, server.URL)
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := in.Invoke(ctx, &apps.Call{Method: "quirks.v1.Quirks/Sum", Request: []byte{0x08, 0x02}})
+		result <- err
+	}()
+	<-started
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Invoke ended with %v, want the cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Invoke did not return after the call was cancelled")
+	}
+	if err := <-ended; err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("the upstream saw %v, want its request cancelled", err)
+	}
 }

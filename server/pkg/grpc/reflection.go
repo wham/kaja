@@ -372,7 +372,13 @@ const DescriptorSetName = "reflection.binpb"
 // WriteDescriptorSet writes the discovered descriptors into dir as a
 // FileDescriptorSet, which is what the compiler reads them back out of.
 func WriteDescriptorSet(result *ReflectionResult, dir string) error {
-	set := &descriptorpb.FileDescriptorSet{File: result.FileDescriptors}
+	return WriteDescriptors(&descriptorpb.FileDescriptorSet{File: result.FileDescriptors}, dir)
+}
+
+// WriteDescriptors writes a descriptor set into dir under the one name the compiler
+// reads. An app that generates its own proto surface compiles it once to answer calls
+// with, and writing the result here is what spares the manifest a second parse.
+func WriteDescriptors(set *descriptorpb.FileDescriptorSet, dir string) error {
 	encoded, err := proto.Marshal(set)
 	if err != nil {
 		return fmt.Errorf("encoding the descriptors: %w", err)

@@ -104,7 +104,18 @@ message, so nothing anywhere branches on what kind of method a call names.
 
 **There is no deadline.** A call lives exactly as long as the browser's
 request: no timer of Kaja's own to cut a long stream short, and Stop's aborted
-fetch cancels the call upstream.
+fetch cancels the call upstream on every lane — the forwarded stream and the
+in-process apps' HTTP requests alike carry the request's context, so a
+cancelled call is a request the upstream sees closed rather than one Kaja goes
+on waiting for.
+
+**What the door reads about the app, it reads off a snapshot.** `kaja.json`
+is parsed and its variables resolved once, and that reading is dropped when the
+file moves on disk, a write lands, a stored value changes or another workspace
+is opened — so a call expands its headers and reads the app's credential without
+touching the disk or the keychain, and still sees a replaced token on the next
+call. Every app type reads its credential per call this way, from the
+parameters the call carries (`apps.Call.Parameters`).
 
 ## The way back
 
@@ -309,21 +320,30 @@ the door to look up, no upstream.
 2. The same `grpc.Serve` de-frames the message → `ApiService.Invoke`, which
    dispatches off the generated `Api_ServiceDesc` and hands back the stream
    its responses arrive on — here, a stream of one.
-3. `GetWorkspace` reads `kaja.json`, migrates, resolves variables and
-   builds `Runtime`. The one build difference in the whole trace: the desktop
-   has a `VariableStore`, so a value can resolve `KEYCHAIN`; the web resolves
-   against the environment alone.
+3. `GetWorkspace` answers from the workspace snapshot — `kaja.json` read,
+   migrated and its variables resolved once — plus `Runtime`, and a
+   `generation` fingerprinting the file and the variable statuses. The one
+   build difference in the whole trace: the desktop has a `VariableStore`, so
+   a value can resolve `KEYCHAIN`; the web resolves against the environment
+   alone.
 4. Back — one data frame and a trailer carrying `grpc-status` alone: nothing
    was forwarded, so there is no `kaja-upstream` to say. A failed call is
    `status.Convert`'s `UNKNOWN`, carrying the service's own message.
 
 Two methods here stream, and nothing in a request says which kind of call it
 is: the door is the same `grpc.Serve`, writing more data frames before the same
-trailer. `Compile` streams the log as it is written, then the verdict.
-`WatchWorkspace` stays open for the life of the window and sends the whole
-workspace each time `kaja.json` changes on disk — the file being watched is
-read where the change is noticed, so nothing is fetched after being told, and
-neither build has a notification transport of its own.
+trailer. `Compile` is one call for what used to be two: it opens the app —
+registering its instance under the app's name, the address every call carries —
+and compiles its surface, streaming the log as it is written, then the verdict
+with the manifest. A surface compiled earlier in the process is reused unless
+the request says `fresh`; an app that generates its own proto compiles it once
+and leaves the descriptors for the manifest, so protoc runs once per app.
+`WatchWorkspace` opens with the workspace as it stands, which the window
+accepts or ignores by its `generation`, then sends the whole workspace each time
+`kaja.json` changes on disk — the file being watched is read where the change
+is noticed, so nothing is fetched after being told, and neither build has a
+notification transport of its own. The stream ends when another workspace is
+opened, and the window opens a new one.
 
 ### 7. A script's own `fetch` — `await fetch("https://api.example.com/v1/things")`
 

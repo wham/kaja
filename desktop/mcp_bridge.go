@@ -214,7 +214,7 @@ func (a *App) startMCPServer() {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mcp", a.agents.ServeMCP)
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	a.mcpServer = srv
 	a.mcpURL = fmt.Sprintf("http://%s/mcp", ln.Addr().String())
 	slog.Info("MCP server started", "url", a.mcpURL)

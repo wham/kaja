@@ -449,6 +449,16 @@ export class LiveTables {
   ownedBy(owner: Kaja): LiveTable[] {
     return [...this.#entries.values()].filter((entry) => entry.owner === owner).map((entry) => entry.table);
   }
+
+  // The rows that could page these tables are gone, so the sources - and the `Kaja`
+  // held beside each - can go with them.
+  drop(blockIds: string[]): void {
+    for (const blockId of blockIds) this.#entries.delete(blockId);
+  }
+
+  get size(): number {
+    return this.#entries.size;
+  }
 }
 
 export class Kaja {

@@ -203,6 +203,10 @@ const streamKeepalive = 15 * time.Second
 // everything a dropped one would have.
 const notificationBuffer = 8
 
+// maxRequestBody bounds one JSON-RPC request. A tool call carries a script or its
+// arguments, which is kilobytes; anything near this is not a request.
+const maxRequestBody = 4 << 20
+
 // sessionHeader is what a handshake pins and every request after it echoes, which
 // is what tells two agents on one endpoint apart. Streamable HTTP makes echoing it
 // the client's job once a server has issued one.
@@ -311,7 +315,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req rpcRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&req); err != nil {
 		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: codeParse, Message: "parse error"}})
 		return
 	}

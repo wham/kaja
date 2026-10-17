@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"sort"
 	"strings"
@@ -39,9 +40,17 @@ const (
 	// sessionIdle is how long a session outlives its last window. It is what lets
 	// discovery keep working across a reload; only run_script needs a live window.
 	sessionIdle = 30 * time.Minute
-	// maxSessions bounds what one server holds. Only sessions with no window attached
-	// are ever let go.
-	maxSessions = 64
+	// maxIdleSessions is how many sessions with no window attached are kept beyond
+	// the idle timeout's reach; past it the longest idle go first.
+	maxIdleSessions = 64
+	// maxSessions is the hard bound on sessions, attached ones included: a browser
+	// offering itself past it is refused rather than let the registry grow without
+	// end, since every session holds a catalog.
+	maxSessions = 256
+	// abortWait is how long a window is given to take an abort. Unlike the activity
+	// chatter an abort is not something the next message says again, so it waits
+	// rather than being dropped on a full buffer.
+	abortWait = 2 * time.Second
 	// runTimeout is the longest a run may take, matching the desktop's.
 	runTimeout = 2 * time.Minute
 	// streamBuffer is how many messages may be in flight to one window before the
@@ -64,6 +73,9 @@ var (
 	ErrNoWindow = errors.New("no Kaja window is attached to this agent session. " +
 		"A script runs in a Kaja window, not in the process answering you — open Kaja, and in a browser connect the agent again")
 	ErrWindowClosed = errors.New("the Kaja window was closed while the script was running, so the run was lost")
+	// ErrTooManySessions is a browser offering itself to a server already holding as
+	// many sessions as it will.
+	ErrTooManySessions = errors.New("this Kaja is holding as many agent sessions as it can; try again later")
 )
 
 // Message is what the server sends down a window's stream.
@@ -262,12 +274,50 @@ func (s *Stream) send(message Message) {
 	}
 }
 
+// sendWithin waits for the window to take the message, up to wait: an abort dropped
+// on a full buffer is a script left running that nobody will come for.
+func (s *Stream) sendWithin(message Message, wait time.Duration) bool {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case s.messages <- message:
+		return true
+	case <-s.closed:
+		return false
+	case <-timer.C:
+		return false
+	}
+}
+
+// abort tells the window to drop a run, and says so in the log when the window did not
+// take the message in time.
+func (s *Stream) abort(runID string) {
+	if !s.sendWithin(Message{Type: "abort", RunID: runID}, abortWait) {
+		slog.Warn("The window did not take the abort", "runId", runID, "streamId", s.ID)
+	}
+}
+
 // SetCatalog records what a window says is callable. Kept for as long as the session
 // is, so discovery survives the window being closed.
 func (s *Session) SetCatalog(catalog mcp.Catalog) {
 	s.mu.Lock()
 	s.catalog = catalog
 	s.mu.Unlock()
+}
+
+// SetCatalogFrom is SetCatalog for a push that names the window it came from: only the
+// window on duty is believed, so a tab that has just loaded and compiled half its apps
+// cannot overwrite the full picture the window being looked at pushed. A window gaining
+// duty is told so and pushes again. It reports whether the catalog was taken.
+func (s *Session) SetCatalogFrom(streamID string, catalog mcp.Catalog) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	on := s.duty()
+	if on == nil || on.ID != streamID {
+		return false
+	}
+	s.catalog = catalog
+	return true
 }
 
 // Result delivers a run's outcome from the window back to the waiting agent.
@@ -333,10 +383,10 @@ func (s *Session) Run(ctx context.Context, path, code, client string, progress f
 	case <-stream.closed:
 		return mcp.RunResult{}, ErrWindowClosed
 	case <-ctx.Done():
-		stream.send(Message{Type: "abort", RunID: runID})
+		stream.abort(runID)
 		return mcp.RunResult{}, ctx.Err()
 	case <-time.After(runTimeout):
-		stream.send(Message{Type: "abort", RunID: runID})
+		stream.abort(runID)
 		return mcp.RunResult{}, fmt.Errorf("the script did not finish within %s, so the run was stopped", runTimeout)
 	}
 }
@@ -523,6 +573,9 @@ func (r *Registry) Open(token string) (*Session, error) {
 	if session := r.sessions[token]; session != nil {
 		return session, nil
 	}
+	if len(r.sessions) >= maxSessions {
+		return nil, ErrTooManySessions
+	}
 	session := &Session{
 		token:     token,
 		scripts:   r.scripts,
@@ -572,7 +625,7 @@ func (r *Registry) Drop(token string) {
 }
 
 // sweep drops sessions no window has been attached to for a while, and trims the
-// oldest of those when there are too many. Must be called with mu held.
+// longest idle of those when there are too many. Must be called with mu held.
 func (r *Registry) sweep() {
 	idle := make([]*Session, 0, len(r.sessions))
 	for token, session := range r.sessions {
@@ -589,12 +642,12 @@ func (r *Registry) sweep() {
 		}
 		idle = append(idle, session)
 	}
-	if len(r.sessions) <= maxSessions {
+	if len(r.sessions) <= maxIdleSessions {
 		return
 	}
 	sort.Slice(idle, func(i, j int) bool { return idle[i].idleSince.Before(idle[j].idleSince) })
 	for _, session := range idle {
-		if len(r.sessions) <= maxSessions {
+		if len(r.sessions) <= maxIdleSessions {
 			return
 		}
 		delete(r.sessions, session.token)

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 )
@@ -13,8 +14,8 @@ const listPageLimit = 20
 // ReadSurface reads everything the server exposes: what it says it is, and the
 // tools, resources and prompts it lists. It is what both opening an app and
 // inspecting one are built on.
-func (c *Client) ReadSurface(log func(string)) (*Surface, error) {
-	if err := c.ensureEra(); err != nil {
+func (c *Client) ReadSurface(ctx context.Context, log func(string)) (*Surface, error) {
+	if err := c.ensureEra(ctx); err != nil {
 		return nil, err
 	}
 
@@ -42,7 +43,7 @@ func (c *Client) ReadSurface(log func(string)) (*Surface, error) {
 	unknown := declared.Tools == nil && declared.Resources == nil && declared.Prompts == nil
 
 	if declared.Tools != nil || unknown {
-		tools, err := listAll[Tool](c, "tools/list", "tools")
+		tools, err := listAll[Tool](ctx, c, "tools/list", "tools")
 		if err != nil {
 			return nil, fmt.Errorf("listing tools: %w", err)
 		}
@@ -51,15 +52,15 @@ func (c *Client) ReadSurface(log func(string)) (*Surface, error) {
 	if declared.Resources != nil || unknown {
 		// Resources are optional even where the capability is declared, and a
 		// server that lists none is still worth opening for its tools.
-		if resources, err := listAll[Resource](c, "resources/list", "resources"); err == nil {
+		if resources, err := listAll[Resource](ctx, c, "resources/list", "resources"); err == nil {
 			surface.Resources = resources
 		}
-		if templates, err := listAll[ResourceTemplate](c, "resources/templates/list", "resourceTemplates"); err == nil {
+		if templates, err := listAll[ResourceTemplate](ctx, c, "resources/templates/list", "resourceTemplates"); err == nil {
 			surface.ResourceTemplates = templates
 		}
 	}
 	if declared.Prompts != nil || unknown {
-		if prompts, err := listAll[Prompt](c, "prompts/list", "prompts"); err == nil {
+		if prompts, err := listAll[Prompt](ctx, c, "prompts/list", "prompts"); err == nil {
 			surface.Prompts = prompts
 		}
 	}
@@ -129,7 +130,7 @@ func readGreeting(greeting json.RawMessage, surface *Surface) {
 
 // listAll walks a paginated list method to the end, gathering the items under
 // the given result key.
-func listAll[T any](c *Client, method string, key string) ([]T, error) {
+func listAll[T any](ctx context.Context, c *Client, method string, key string) ([]T, error) {
 	var items []T
 	cursor := ""
 	for page := 0; page < listPageLimit; page++ {
@@ -137,7 +138,7 @@ func listAll[T any](c *Client, method string, key string) ([]T, error) {
 		if cursor != "" {
 			params["cursor"] = cursor
 		}
-		result, _, err := c.send(method, params, nil, nil)
+		result, _, err := c.send(ctx, method, params, nil, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -68,6 +68,16 @@ describe("serializeFile", () => {
   });
 });
 
+describe("a shelved row", () => {
+  it("keeps its verdict across the store and loses the shelf it pointed at", () => {
+    const shelved = { ...call(undefined), payloadsDropped: true, archivedPayload: 7, status: "success" as const };
+    const loaded = deserializeFile(serializeFile([run], [shelved], NOW));
+    expect(loaded.items[0].payloadsDropped).toBe(true);
+    expect(loaded.items[0].status).toBe("success");
+    expect(loaded.items[0].archivedPayload).toBeUndefined();
+  });
+});
+
 function archiveEntry(fileId: string, startedAt: number, storedAt: number): [string, StoredFile] {
   return [
     fileId,

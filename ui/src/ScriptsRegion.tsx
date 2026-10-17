@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   ClipboardPaste,
@@ -133,7 +133,7 @@ export interface ScriptsRegionProps {
   onRevealScripts?: () => void;
 }
 
-export function ScriptsRegion(props: ScriptsRegionProps) {
+export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionProps) {
   const { scripts, folders, drafts, canWrite } = props;
   const [draftsOpen, setDraftsOpen] = usePersistedState("draftsExpanded", true);
   const [filesOpen, setFilesOpen] = usePersistedState("filesExpanded", true);
@@ -689,7 +689,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
       </CursorMenu>
     </nav>
   );
-}
+});
 
 /**
  * A group header is a 22px row like the ones under it, its chevron in the same column

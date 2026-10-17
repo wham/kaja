@@ -23,12 +23,17 @@ import (
 type instance struct {
 	endpoint string
 	wire     wire
-	auth     string
-	token    string
-	keyName  string
-	input    protoreflect.MessageDescriptor
-	output   protoreflect.MessageDescriptor
-	client   *http.Client
+	// credential is the one the app was opened with, sent by a call that carries no
+	// parameters of its own.
+	credential credential
+	input      protoreflect.MessageDescriptor
+	output     protoreflect.MessageDescriptor
+	client     *http.Client
+}
+
+func (in *instance) Close() error {
+	in.client.CloseIdleConnections()
+	return nil
 }
 
 func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
@@ -52,7 +57,14 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		return nil, err
 	}
 
-	respBody, status, reqHeaders, respHeaders, err := in.call(body, call.Headers)
+	credential := in.credential
+	if call.Parameters != nil {
+		if credential, err = credentialFor(call.Parameters, in.wire); err != nil {
+			return nil, err
+		}
+	}
+
+	respBody, status, reqHeaders, respHeaders, err := in.call(ctx, body, call.Headers, credential)
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +140,8 @@ func (in *instance) readChat(reqMsg *dynamicpb.Message) (chat, error) {
 // An error is returned only for transport failures (the upstream could not be
 // reached); HTTP error responses are returned with their status so the caller
 // can shape them into a structured error.
-func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, map[string]string, map[string]string, error) {
-	httpReq, err := http.NewRequest(http.MethodPost, in.endpoint, bytes.NewReader(body))
+func (in *instance) call(ctx context.Context, body []byte, headers map[string]string, credential credential) ([]byte, int, map[string]string, map[string]string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, in.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, nil, nil, fmt.Errorf("building request: %w", err)
 	}
@@ -140,7 +152,7 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, m
 	for name, value := range in.wire.required() {
 		httpReq.Header.Set(name, value)
 	}
-	in.setCredential(httpReq.Header)
+	credential.apply(httpReq.Header)
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}
@@ -162,15 +174,15 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, m
 	return respBody, resp.StatusCode, reqHeaders, respHeaders, nil
 }
 
-func (in *instance) setCredential(header http.Header) {
-	if in.auth == authNone || in.token == "" {
+func (c credential) apply(header http.Header) {
+	if c.auth == authNone || c.token == "" {
 		return
 	}
-	switch in.auth {
+	switch c.auth {
 	case authAPIKey:
-		header.Set(in.keyName, in.token)
+		header.Set(c.keyName, c.token)
 	default:
-		header.Set("Authorization", "Bearer "+in.token)
+		header.Set("Authorization", "Bearer "+c.token)
 	}
 }
 

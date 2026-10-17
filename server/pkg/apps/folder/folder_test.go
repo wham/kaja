@@ -20,7 +20,7 @@ func open(t *testing.T) (*instance, string) {
 	t.Helper()
 	path := t.TempDir()
 	protoDir := t.TempDir()
-	opened, err := New().Open(map[string]string{"path": path}, protoDir, func(string) {})
+	opened, err := New().Open(context.Background(), map[string]string{"path": path}, protoDir, func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/ui"
@@ -107,7 +108,11 @@ func main() {
 	// the launch scripts to use the /status endpoint.
 	fmt.Println("Server started")
 	slog.Info("Server started", "URL", "http://localhost:41520")
-	slog.Error("Failed to start server", "error", http.ListenAndServe(":41520", root))
+	// No write timeout: a watch and a long stream are responses that take as long as
+	// they take. The header timeout is what a client holding a connection open
+	// without saying anything costs.
+	server := &http.Server{Addr: ":41520", Handler: root, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
+	slog.Error("Failed to start server", "error", server.ListenAndServe())
 	os.Exit(1)
 }
 
