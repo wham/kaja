@@ -1,5 +1,6 @@
-import ts from "@typescript/typescript6";
+import type { Node, StringLiteral } from "@babel/types";
 import { Declaration } from "./declarations";
+import { parseScript, walk } from "./scriptSyntax";
 
 export interface Source {
   path: string;
@@ -104,36 +105,34 @@ export function remapSourcesToNewName(sources: Sources, oldName: string, newName
  * text around it, so whatever the author wrote keeps its formatting.
  */
 export function remapEditorCode(editorCode: string, oldName: string, newName: string): string {
-  const file = ts.createSourceFile("script.ts", editorCode, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
-  const specifiers: ts.StringLiteral[] = [];
-
-  const visit = (node: ts.Node) => {
+  // A script mid-edit is left as it is, and its imports go red until it is fixed.
+  const file = parseScript(editorCode);
+  if (!file) return editorCode;
+  const specifiers: StringLiteral[] = [];
+  walk(file.program, (node) => {
     const specifier = moduleSpecifierOf(node);
-    if (specifier && (specifier.text === oldName || specifier.text.startsWith(oldName + "/"))) {
+    if (specifier && (specifier.value === oldName || specifier.value.startsWith(oldName + "/"))) {
       specifiers.push(specifier);
     }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
+  });
 
   let code = editorCode;
   // Back to front, so an earlier edit cannot move a later one's positions.
   for (const specifier of specifiers.reverse()) {
-    const start = specifier.getStart(file);
+    const start = specifier.start!;
     const quote = code[start];
-    code = code.slice(0, start) + quote + newName + specifier.text.slice(oldName.length) + quote + code.slice(specifier.end);
+    code = code.slice(0, start) + quote + newName + specifier.value.slice(oldName.length) + quote + code.slice(specifier.end!);
   }
   return code;
 }
 
 // The module a node names, in each of the ways a script can name one.
-function moduleSpecifierOf(node: ts.Node): ts.StringLiteral | undefined {
-  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-    return node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier : undefined;
+function moduleSpecifierOf(node: Node): StringLiteral | undefined {
+  if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration" || node.type === "ExportNamedDeclaration") {
+    return node.source ?? undefined;
   }
-  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-    const [argument] = node.arguments;
-    return argument && ts.isStringLiteral(argument) ? argument : undefined;
+  if (node.type === "ImportExpression") {
+    return node.source.type === "StringLiteral" ? node.source : undefined;
   }
   return undefined;
 }

@@ -1,5 +1,6 @@
-import ts from "@typescript/typescript6";
+import type { File } from "@babel/types";
 import { deriveDraftTitle } from "./draftTitle";
+import { parseScript } from "./scriptSyntax";
 
 // How many drafts the sidebar draws before the rest become `n more…`. Capped rather
 // than scrolled, so the Scripts region stays a predictable share of the panel.
@@ -125,19 +126,16 @@ export function orderDrafts(drafts: Draft[]): Draft[] {
  * it, so whatever the author wrote keeps its formatting.
  */
 export function appendCall(existingCode: string, generatedCode: string): string {
-  const existing = ts.createSourceFile("existing.ts", existingCode, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
-  const generated = ts.createSourceFile("generated.ts", generatedCode, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
-
-  const body = statementsText(generated, generatedCode);
-  if (!body) return existingCode;
+  const generated = parseScript(generatedCode);
+  const body = generated ? statementsText(generated, generatedCode) : "";
+  if (!generated || !body) return existingCode;
 
   let code = existingCode;
   const additions: string[] = [];
 
   for (const imported of importsOf(generated, generatedCode)) {
-    const target = importsOf(ts.createSourceFile("existing.ts", code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS), code).find(
-      (candidate) => candidate.module === imported.module,
-    );
+    // A draft mid-edit has no import lines to merge into, so the call brings its own.
+    const target = importsOf(parseScript(code), code).find((candidate) => candidate.module === imported.module);
 
     if (!target) {
       additions.push(imported.text);
@@ -156,7 +154,7 @@ export function appendCall(existingCode: string, generatedCode: string): string 
   }
 
   if (additions.length > 0) {
-    const last = importsOf(ts.createSourceFile("existing.ts", code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS), code).at(-1);
+    const last = importsOf(parseScript(code), code).at(-1);
     const at = last ? last.end : 0;
     code = code.slice(0, at) + (at === 0 ? "" : "\n") + additions.join("\n") + code.slice(at);
   }
@@ -171,20 +169,19 @@ interface ImportLine {
   end: number;
 }
 
-function importsOf(file: ts.SourceFile, code: string): ImportLine[] {
+function importsOf(file: File | undefined, code: string): ImportLine[] {
   const lines: ImportLine[] = [];
-  for (const statement of file.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    const bindings = statement.importClause?.namedBindings;
-    const names = bindings && ts.isNamedImports(bindings) ? bindings.elements.map((element) => element.name.text) : [];
-    lines.push({ module: statement.moduleSpecifier.text, names, text: code.slice(statement.getStart(file), statement.end), end: statement.end });
+  for (const statement of file?.program.body ?? []) {
+    if (statement.type !== "ImportDeclaration") continue;
+    const names = statement.specifiers.flatMap((specifier) => (specifier.type === "ImportSpecifier" ? [specifier.local.name] : []));
+    lines.push({ module: statement.source.value, names, text: code.slice(statement.start!, statement.end!), end: statement.end! });
   }
   return lines;
 }
 
 // Everything in the generated file that isn't an import: the call itself.
-function statementsText(file: ts.SourceFile, code: string): string {
-  const rest = file.statements.filter((statement) => !ts.isImportDeclaration(statement));
+function statementsText(file: File, code: string): string {
+  const rest = file.program.body.filter((statement) => statement.type !== "ImportDeclaration");
   if (rest.length === 0) return "";
-  return code.slice(rest[0].getStart(file), rest[rest.length - 1].end).trim();
+  return code.slice(rest[0].start!, rest[rest.length - 1].end!).trim();
 }

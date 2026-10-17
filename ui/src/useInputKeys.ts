@@ -23,7 +23,9 @@ export function useInputKeys(model: monaco.editor.ITextModel | undefined): strin
     }
     const read = () =>
       setKeys((previous) => {
+        // A buffer mid-keystroke keeps the caret it had until it parses again.
         const next = readInputKeys(model.getValue());
+        if (!next) return previous;
         return next.length === previous.length && next.every((key, index) => key === previous[index]) ? previous : next;
       });
     read();

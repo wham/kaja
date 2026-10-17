@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import ts from "@typescript/typescript6";
 import { App } from "./apps";
 import { clearTypeMemory, rememberValues } from "./typeMemory";
 import { resolveValuePosition, suggestValues } from "./valueCompletions";
@@ -53,7 +52,6 @@ function moviesApp(): App {
         path,
         importPath: "demo/proto/movies",
         stubModuleId: "demo$proto$movies",
-        file: ts.createSourceFile(path, "", ts.ScriptTarget.Latest),
         serviceNames: ["MoviesService"],
         interfaces: {},
         enums: {},

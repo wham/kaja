@@ -1,14 +1,13 @@
 import * as prettier from "prettier";
 import prettierPluginBabel from "prettier/plugins/babel";
 import prettierPluginEsTree from "prettier/plugins/estree";
-import prettierPluginTypescript from "prettier/plugins/typescript";
 
 export async function formatJson(code: string): Promise<string> {
   return format(code, "json", [prettierPluginBabel, prettierPluginEsTree]);
 }
 
 export async function formatTypeScript(code: string): Promise<string> {
-  return format(code, "typescript", [prettierPluginTypescript, prettierPluginEsTree]);
+  return format(code, "babel-ts", [prettierPluginBabel, prettierPluginEsTree]);
 }
 
 // Formats and remaps an offset in the original code to the corresponding offset
@@ -16,8 +15,8 @@ export async function formatTypeScript(code: string): Promise<string> {
 export async function formatTypeScriptWithCursor(code: string, cursorOffset: number): Promise<{ code: string; cursorOffset: number }> {
   try {
     const result = await prettier.formatWithCursor(code, {
-      parser: "typescript",
-      plugins: [prettierPluginTypescript, prettierPluginEsTree],
+      parser: "babel-ts",
+      plugins: [prettierPluginBabel, prettierPluginEsTree],
       cursorOffset,
     });
     return { code: result.formatted, cursorOffset: result.cursorOffset };

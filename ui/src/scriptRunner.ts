@@ -1,47 +1,20 @@
-import ts from "@typescript/typescript6";
+import type { ImportDeclaration } from "@babel/types";
 import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { appFor, resolve as resolveImport } from "./appImports";
+import { blank, Range, typeRanges } from "./eraseTypes";
 import { scriptConsole } from "./scriptConsole";
 import { scriptGlobals } from "./scriptGlobals";
+import { parseScript } from "./scriptSyntax";
 import { deviceConsole } from "./uiLog";
-
-// Scripts are TypeScript but new Function only accepts JavaScript, so transpile
-// first. Parse errors are thrown with line numbers pointing into the user's source.
-// moduleDetection: Force keeps top-level await parseable even with no imports.
-function transpile(code: string): string {
-  const output = ts.transpileModule(code, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ESNext,
-      module: ts.ModuleKind.ESNext,
-      moduleDetection: ts.ModuleDetectionKind.Force,
-    },
-    reportDiagnostics: true,
-  });
-  const errors = (output.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
-  if (errors.length > 0) {
-    throw new Error(errors.map(formatDiagnostic).join("\n"));
-  }
-  return output.outputText;
-}
-
-function formatDiagnostic(diagnostic: ts.Diagnostic): string {
-  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-  if (diagnostic.file && diagnostic.start !== undefined) {
-    const { line } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-    return `Line ${line + 1}: ${message}`;
-  }
-  return message;
-}
 
 // Only named imports bind, because the bindings are looked up by name. A default or
 // namespace clause would otherwise drop through and surface as "X is not defined"
 // pointing at the use rather than at the import that never bound anything.
-function requireNamedImport(importClause: ts.ImportClause | undefined, path: string, example: string): void {
-  if (!importClause) return;
-  const form = importClause.name
+function requireNamedImport(statement: ImportDeclaration, path: string, example: string): void {
+  const form = statement.specifiers.some((specifier) => specifier.type === "ImportDefaultSpecifier")
     ? "a default import"
-    : importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)
+    : statement.specifiers.some((specifier) => specifier.type === "ImportNamespaceSpecifier")
       ? "a namespace import"
       : undefined;
   if (!form) return;
@@ -51,82 +24,82 @@ function requireNamedImport(importClause: ts.ImportClause | undefined, path: str
 // prepareTask resolves a script's imports against the loaded apps and splits out the
 // runnable body, returning the args every binding maps to plus the code.
 function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
-  const file = ts.createSourceFile("task.js", transpile(code), ts.ScriptTarget.Latest);
+  // What is wrong with a script that doesn't parse is the editor's to say, and an
+  // agent's run carries the same diagnostics.
+  const file = parseScript(code);
+  if (!file) throw new Error("The script doesn't parse.");
   const args: { [key: string]: Client | Object } = {};
-  const runStatements: ts.Statement[] = [];
+  // The imports are bound here rather than run, and an export has nowhere to go from
+  // inside new Function, so both are erased along with the types.
+  const erased: Range[] = typeRanges(file, code);
 
-  file.statements.forEach((statement) => {
-    // moduleDetection: Force can make the transpiler emit a bare `export {};`, which new
-    // Function would reject.
-    if (ts.isExportDeclaration(statement)) {
-      return;
+  for (const statement of file.program.body) {
+    if (statement.type === "ExportAllDeclaration" || (statement.type === "ExportNamedDeclaration" && !statement.declaration)) {
+      erased.push([statement.start!, statement.end!]);
+      continue;
     }
-    if (ts.isImportDeclaration(statement)) {
-      // slice(1, -1) removes the quotes.
-      const path = statement.moduleSpecifier.getText(file).slice(1, -1);
-      // Monaco backs the kaja module with a model at ts:/kaja.ts, so its auto-import and
-      // go-to-definition can emit the relative "./kaja" form.
-      if (path === "kaja" || path === "./kaja") {
-        requireNamedImport(statement.importClause, path, "kaja");
-        const importClause = statement.importClause;
-        if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
-          importClause.namedBindings.elements.forEach((importSpecifier) => {
-            const alias = importSpecifier.name.text;
-            const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
-            if (name === "kaja") {
-              args[alias] = kaja;
-            }
-          });
-        }
-        return;
-      }
-      const app = appFor(apps, path);
-      if (!app) {
-        // A silent drop here surfaces later as an opaque "X is not defined" when the body
-        // uses the binding; name the unresolved app instead.
-        throw new Error(`Cannot resolve import "${path}": app "${path.split("/")[0]}" was not found (it may have been deleted).`);
-      }
-
-      requireNamedImport(statement.importClause, path, app.services[0]?.name ?? "Service");
-
-      const importClause = statement.importClause;
-      if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
-        importClause.namedBindings.elements.forEach((importSpecifier) => {
-          const alias = importSpecifier.name.text;
-          const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
-          // Resolved per name rather than per statement: the app's bare name is answered
-          // by whichever of its modules declares the name, so one import line may reach
-          // into two of them.
-          const resolution = resolveImport(app, path, name);
-          if ("unknownPath" in resolution) {
-            throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
-          }
-          if ("ambiguous" in resolution) {
-            const paths = resolution.ambiguous.map((s) => `"${s.importPath}"`).join(" and ");
-            throw new Error(`Cannot resolve "${name}" from "${path}": app "${app.configuration.name}" declares it in ${paths}. Import it from one of those.`);
-          }
-          // An interface a script imports for its type has nothing to bind at run time.
-          if ("absent" in resolution) return;
-          const source = resolution.source;
-          // Matched on source path too, to handle duplicate service names.
-          const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
-          if (service) {
-            const client = app.clients[serviceId(service)];
-            // Bound to this run's Kaja, not assigned onto the shared client: two scripts running
-            // at once import the same client and must not be able to take each other's run out
-            // from under it.
-            if (client) args[alias] = client.methodsFor(kaja);
-          } else if (source.enums[name]) {
-            args[alias] = source.enums[name].object;
-          }
-        });
-      }
-    } else {
-      runStatements.push(statement);
+    if (statement.type === "ExportNamedDeclaration") {
+      erased.push([statement.start!, statement.declaration!.start!]);
+      continue;
     }
-  });
+    if (statement.type !== "ImportDeclaration") continue;
+    erased.push([statement.start!, statement.end!]);
+    if (statement.importKind === "type") continue;
 
-  return { args, runCode: printStatements(runStatements) };
+    const path = statement.source.value;
+    const named = statement.specifiers.flatMap((specifier) =>
+      specifier.type === "ImportSpecifier" && specifier.importKind !== "type"
+        ? [{ alias: specifier.local.name, name: specifier.imported.type === "Identifier" ? specifier.imported.name : specifier.imported.value }]
+        : [],
+    );
+    // Monaco backs the kaja module with a model at ts:/kaja.ts, so its auto-import and
+    // go-to-definition can emit the relative "./kaja" form.
+    if (path === "kaja" || path === "./kaja") {
+      requireNamedImport(statement, path, "kaja");
+      for (const { alias, name } of named) {
+        if (name === "kaja") args[alias] = kaja;
+      }
+      continue;
+    }
+    const app = appFor(apps, path);
+    if (!app) {
+      // A silent drop here surfaces later as an opaque "X is not defined" when the body
+      // uses the binding; name the unresolved app instead.
+      throw new Error(`Cannot resolve import "${path}": app "${path.split("/")[0]}" was not found (it may have been deleted).`);
+    }
+
+    requireNamedImport(statement, path, app.services[0]?.name ?? "Service");
+
+    for (const { alias, name } of named) {
+      // Resolved per name rather than per statement: the app's bare name is answered
+      // by whichever of its modules declares the name, so one import line may reach
+      // into two of them.
+      const resolution = resolveImport(app, path, name);
+      if ("unknownPath" in resolution) {
+        throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
+      }
+      if ("ambiguous" in resolution) {
+        const paths = resolution.ambiguous.map((s) => `"${s.importPath}"`).join(" and ");
+        throw new Error(`Cannot resolve "${name}" from "${path}": app "${app.configuration.name}" declares it in ${paths}. Import it from one of those.`);
+      }
+      // An interface a script imports for its type has nothing to bind at run time.
+      if ("absent" in resolution) continue;
+      const source = resolution.source;
+      // Matched on source path too, to handle duplicate service names.
+      const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
+      if (service) {
+        const client = app.clients[serviceId(service)];
+        // Bound to this run's Kaja, not assigned onto the shared client: two scripts running
+        // at once import the same client and must not be able to take each other's run out
+        // from under it.
+        if (client) args[alias] = client.methodsFor(kaja);
+      } else if (source.enums[name]) {
+        args[alias] = source.enums[name].object;
+      }
+    }
+  }
+
+  return { args, runCode: blank(code, erased) };
 }
 
 // runScript resolves once the script settles, so the caller can show it as running.
@@ -211,13 +184,4 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
     }
     return { console: lines, error: err instanceof Error ? err.message : String(err) };
   }
-}
-
-function printStatements(statements: ts.Statement[]): string {
-  let sourceFile = ts.createSourceFile("temp.ts", "", ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
-  sourceFile = ts.factory.updateSourceFile(sourceFile, statements);
-
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-
-  return printer.printFile(sourceFile);
 }

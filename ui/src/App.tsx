@@ -1334,7 +1334,7 @@ export function App() {
       try {
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
         const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
-        setLinkSheet({ script, parameters: content ? readInputKeys(content) : [] });
+        setLinkSheet({ script, parameters: (content ? readInputKeys(content) : undefined) ?? [] });
       } catch (err) {
         showFileError(`Copy deeplink failed: ${rpcErrorMessage(err)}`);
       }

@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 
-// The task runner transpiles without type checking, so only a syntax error can
+// The task runner erases types without checking them, so only a syntax error can
 // stop a script from running. TypeScript numbers those below 2000; anything
 // above is a semantic complaint the run doesn't care about. Run's disabled state
 // and the finder trigger's error count both read this, which is what keeps the

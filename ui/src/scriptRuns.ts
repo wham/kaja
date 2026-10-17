@@ -1,6 +1,7 @@
-import ts from "@typescript/typescript6";
+import type { Node } from "@babel/types";
 import { runtimeNames } from "./scriptBindings";
 import { isLinkedScript, linkName } from "./scriptLink";
+import { isCall, literalText, memberAccess, parseScript, walk } from "./scriptSyntax";
 
 /**
  * The scripts a script says it can reach: every `kaja.run("…")` in it, and where the
@@ -25,38 +26,31 @@ export interface RunReference {
   end: number;
 }
 
-export function readRunReferences(code: string): RunReference[] {
-  const file = ts.createSourceFile("script.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
+/** Every destination the script names, in source order, or undefined where it doesn't parse. */
+export function readRunReferences(code: string): RunReference[] | undefined {
+  const file = parseScript(code);
+  if (!file) return undefined;
   // A file mid-edit may not have written the import yet, and the runtime is spelled
   // `kaja` everywhere it isn't aliased.
   const runtime = runtimeNames(file);
   const receivers = runtime.size > 0 ? runtime : new Set(["kaja"]);
 
   const references: RunReference[] = [];
-  const visit = (node: ts.Node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === "run" &&
-      ts.isIdentifier(node.expression.expression) &&
-      receivers.has(node.expression.expression.text)
-    ) {
-      const named = node.arguments[0];
-      if (named && (ts.isStringLiteral(named) || ts.isNoSubstitutionTemplateLiteral(named))) {
-        const reference = contents(named, file, code);
-        if (reference) references.push(reference);
-      }
+  walk(file.program, (node) => {
+    if (!isCall(node)) return;
+    const callee = memberAccess(node.callee);
+    if (callee?.name === "run" && callee.object.type === "Identifier" && receivers.has(callee.object.name)) {
+      const reference = contents(node.arguments[0], code);
+      if (reference) references.push(reference);
     }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(file, visit);
+  });
 
   return references;
 }
 
 /** The destination the cursor is inside, which is where a script name is being typed. */
 export function runNameAt(code: string, offset: number): RunReference | undefined {
-  return readRunReferences(code).find((reference) => offset >= reference.start && offset <= reference.end);
+  return readRunReferences(code)?.find((reference) => offset >= reference.start && offset <= reference.end);
 }
 
 /**
@@ -65,7 +59,7 @@ export function runNameAt(code: string, offset: number): RunReference | undefine
  * itself refuses by name.
  */
 export function unresolvedRuns(code: string, scriptNames: string[]): RunReference[] {
-  return unresolvedIn(readRunReferences(code), scriptNames);
+  return unresolvedIn(readRunReferences(code) ?? [], scriptNames);
 }
 
 /** The same, over references already read, so one pass answers everything asked of it. */
@@ -85,7 +79,7 @@ export function remapRunReferences(code: string, renames: Map<string, string>): 
   if (renames.size === 0) return code;
   let next = code;
   // Back to front, so an earlier edit cannot move a later one's offsets.
-  for (const reference of readRunReferences(code).reverse()) {
+  for (const reference of (readRunReferences(code) ?? []).reverse()) {
     const moved = destinationAfter(reference.name, renames);
     if (moved === undefined) continue;
     next = next.slice(0, reference.start) + moved + next.slice(reference.end);
@@ -103,15 +97,10 @@ function destinationAfter(name: string, renames: Map<string, string>): string | 
   return undefined;
 }
 
-function contents(node: ts.StringLiteralLike, file: ts.SourceFile, code: string): RunReference | undefined {
-  const start = node.getStart(file);
-  const quote = code[start];
-  if (quote !== '"' && quote !== "'" && quote !== "`") return undefined;
-  // A literal mid-edit has no closing quote yet, which is what a name being typed
-  // looks like.
-  const closed = node.end - start > 1 && code[node.end - 1] === quote;
-  const from = start + 1;
-  const to = closed ? node.end - 1 : node.end;
+function contents(node: Node | undefined, code: string): RunReference | undefined {
+  if (!node || literalText(node) === undefined) return undefined;
+  const from = node.start! + 1;
+  const to = node.end! - 1;
   const name = code.slice(from, to);
   // An escape makes what is written and what it means two different strings, and a
   // script name needs neither: the disk resolves a relative, forward-slashed name.

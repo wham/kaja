@@ -85,11 +85,42 @@ return pick<number>([base]) + 1;`,
     expect(run.result).toBe("ok");
   });
 
-  it("reports syntax errors with the line in the script", async () => {
+  // Where it is wrong is the editor's to say, and an agent's run carries its diagnostics.
+  it("refuses a script that doesn't parse", async () => {
     const run = await runScriptCaptured(`const a = 1;\nconst b = ;`, makeKaja(), []);
 
     expect(run.result).toBeUndefined();
-    expect(run.error).toContain("Line 2");
+    expect(run.error).toBe("The script doesn't parse.");
+  });
+
+  it("keeps a script's lines where they were written", async () => {
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\ninterface A {\n  a: string;\n}\nthrow new Error("here");`, makeKaja(), []);
+
+    expect(run.error).toBe("here");
+  });
+
+  it("binds nothing for an import of types alone", async () => {
+    const run = await runScriptCaptured(
+      `import type { Team } from "teams/teams";\nconst team: Team | undefined = undefined;\nreturn team ?? "none";`,
+      makeKaja(),
+      [],
+    );
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("none");
+  });
+
+  it("runs a script that exports what it declares", async () => {
+    const run = await runScriptCaptured(`export const answer = 42;\nexport {};\nreturn answer;`, makeKaja(), []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe(42);
+  });
+
+  it("names what to write instead of an enum", async () => {
+    const run = await runScriptCaptured(`enum Color {\n  Red,\n}`, makeKaja(), []);
+
+    expect(run.error).toBe("Line 1: Kaja runs a script by erasing its types, so an enum can't run: use a union of strings, or an object `as const`.");
   });
 
   it("captures runtime errors", async () => {

@@ -1,7 +1,8 @@
 import { fetchHost, fetchKey } from "./fetchCall";
 import { SUBJECT_FIELDS } from "./loopKey";
+import type { Node, ObjectExpression, ObjectProperty } from "@babel/types";
 import { importedNames, runtimeNames } from "./scriptBindings";
-import ts from "@typescript/typescript6";
+import { isCall, keyName, literalText, memberAccess, parseScript, walk } from "./scriptSyntax";
 
 // A request small enough to read at a glance is described by its values, which is
 // usually where two explorations of the same call differ. A bigger one stays quiet
@@ -18,40 +19,34 @@ export interface DraftCall {
 }
 
 // Receivers are matched against what the file imports, so `console.log` and friends
-// are never mistaken for a service call.
+// are never mistaken for a service call. A file that doesn't parse makes none.
 export function readCalls(code: string): DraftCall[] {
-  const file = ts.createSourceFile("draft.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
+  const file = parseScript(code);
+  if (!file) return [];
   const imported = importedNames(file);
   const runtime = runtimeNames(file);
   const calls: DraftCall[] = [];
 
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
-      const fetched = fetchCall(node);
-      if (fetched) {
-        calls.push(fetched);
-        ts.forEachChild(node, visit);
-        return;
-      }
+  walk(file.program, (node) => {
+    if (!isCall(node)) return;
+    const fetched = fetchCall(node.callee, node.arguments);
+    if (fetched) {
+      calls.push(fetched);
+      return;
     }
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
-      const service = node.expression.expression.text;
-      // The kaja runtime is imported like a service and called like one, but
-      // `kaja.table(...)` is the script drawing rather than a call it made — a script that
-      // only draws would otherwise be titled `text +3`.
-      if (runtime.has(service)) {
-        ts.forEachChild(node, visit);
-        return;
-      }
-      // With no imports to check against (a hand-written script), fall back to the shape a
-      // service call has: a capitalized receiver.
-      if (imported.size > 0 ? imported.has(service) : /^[A-Z]/.test(service)) {
-        calls.push({ service, method: node.expression.name.text, subject: subjectOf(node.arguments[0]) });
-      }
+    const callee = memberAccess(node.callee);
+    if (!callee || callee.object.type !== "Identifier") return;
+    const service = callee.object.name;
+    // The kaja runtime is imported like a service and called like one, but
+    // `kaja.table(...)` is the script drawing rather than a call it made — a script that
+    // only draws would otherwise be titled `text +3`.
+    if (runtime.has(service)) return;
+    // With no imports to check against (a hand-written script), fall back to the shape a
+    // service call has: a capitalized receiver.
+    if (imported.size > 0 ? imported.has(service) : /^[A-Z]/.test(service)) {
+      calls.push({ service, method: callee.name, subject: subjectOf(node.arguments[0]) });
     }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(file, visit);
+  });
 
   return calls;
 }
@@ -64,43 +59,39 @@ export function readCalls(code: string): DraftCall[] {
  * A URL this cannot read — built out of variables, or not a URL at all — names
  * nothing rather than being guessed at, on the same rule a request's subject is.
  */
-function fetchCall(node: ts.CallExpression): DraftCall | undefined {
-  if (!ts.isIdentifier(node.expression) || node.expression.text !== "fetch") return undefined;
+function fetchCall(callee: Node, args: Node[]): DraftCall | undefined {
+  if (callee.type !== "Identifier" || callee.name !== "fetch") return undefined;
 
-  const url = urlText(node.arguments[0]);
+  const url = urlText(args[0]);
   if (url === undefined) return undefined;
   const host = fetchHost(url);
   if (host === url) return undefined;
-  return { service: "fetch", method: `${methodText(node.arguments[1])} ${host}`, subject: fetchKey(url) };
+  return { service: "fetch", method: `${methodText(args[1])} ${host}`, subject: fetchKey(url) };
 }
 
 // The literal part of the address. A template's head is enough for the host, which is
 // the half of the title that has to be right.
-function urlText(argument: ts.Expression | undefined): string | undefined {
-  if (!argument) return undefined;
-  if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) return argument.text;
-  if (ts.isTemplateExpression(argument)) return argument.head.text;
-  return undefined;
+function urlText(argument: Node | undefined): string | undefined {
+  if (argument?.type === "TemplateLiteral") return argument.quasis[0].value.cooked ?? undefined;
+  return literalText(argument);
 }
 
 // A verb written as anything but a literal is not one this can read, and GET is what
 // fetch does when nothing says otherwise.
-function methodText(argument: ts.Expression | undefined): string {
-  if (!argument || !ts.isObjectLiteralExpression(argument)) return "GET";
-  for (const property of argument.properties) {
-    if (!ts.isPropertyAssignment(property) || property.name.getText === undefined) continue;
-    const name = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : undefined;
-    if (name !== "method") continue;
-    const value = property.initializer;
-    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value.text.toUpperCase();
+function methodText(argument: Node | undefined): string {
+  if (argument?.type !== "ObjectExpression") return "GET";
+  for (const property of properties(argument)) {
+    if (keyName(property.key) !== "method") continue;
+    const value = literalText(property.value);
+    if (value !== undefined) return value.toUpperCase();
   }
   return "GET";
 }
 
 // The generated request only ever holds zero values, so an empty string, a 0 or a
 // false is the absence of an answer rather than one worth showing.
-function subjectOf(argument: ts.Expression | undefined): string | undefined {
-  if (!argument || !ts.isObjectLiteralExpression(argument)) return undefined;
+function subjectOf(argument: Node | undefined): string | undefined {
+  if (argument?.type !== "ObjectExpression") return undefined;
 
   for (const pattern of SUBJECT_FIELDS) {
     const found = findLiteral(argument, pattern, 0);
@@ -110,22 +101,27 @@ function subjectOf(argument: ts.Expression | undefined): string | undefined {
   return filled ? truncate(filled.join(", ")) : undefined;
 }
 
+// The `name: value` properties of an object, which is all a request literal is made of:
+// a shorthand, a spread or a method is something else.
+function properties(object: ObjectExpression): ObjectProperty[] {
+  return object.properties.filter((property): property is ObjectProperty => property.type === "ObjectProperty" && !property.shorthand && !property.computed);
+}
+
 // Undefined for anything bigger or nested, so a large body never gets a title made of
 // whichever field happened to come first.
-function filledValues(object: ts.ObjectLiteralExpression): string[] | undefined {
+function filledValues(object: ObjectExpression): string[] | undefined {
   if (object.properties.length === 0 || object.properties.length > SMALL_REQUEST_FIELDS) return undefined;
+  if (properties(object).length !== object.properties.length) return undefined;
 
   const values: string[] = [];
-  for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property)) return undefined;
-    const value = property.initializer;
-    if (ts.isStringLiteral(value)) {
-      if (!isZeroText(value.text)) values.push(value.text);
-    } else if (ts.isNumericLiteral(value)) {
-      if (Number(value.text) !== 0) values.push(value.text);
-    } else if (value.kind === ts.SyntaxKind.TrueKeyword) {
-      values.push("true");
-    } else if (value.kind !== ts.SyntaxKind.FalseKeyword) {
+  for (const { value } of properties(object)) {
+    if (value.type === "StringLiteral") {
+      if (!isZeroText(value.value)) values.push(value.value);
+    } else if (value.type === "NumericLiteral") {
+      if (value.value !== 0) values.push(String(value.value));
+    } else if (value.type === "BooleanLiteral") {
+      if (value.value) values.push("true");
+    } else {
       // An object, an array, an expression: not a request you can read at a glance.
       return undefined;
     }
@@ -133,17 +129,16 @@ function filledValues(object: ts.ObjectLiteralExpression): string[] | undefined 
   return values.length > 0 ? values : undefined;
 }
 
-function findLiteral(object: ts.ObjectLiteralExpression, pattern: RegExp, depth: number): string | undefined {
-  for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property) || !property.name) continue;
-    const name = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : undefined;
-    const value = property.initializer;
+function findLiteral(object: ObjectExpression, pattern: RegExp, depth: number): string | undefined {
+  for (const property of properties(object)) {
+    const name = property.key.type === "Identifier" || property.key.type === "StringLiteral" ? keyName(property.key) : undefined;
+    const value = property.value;
 
     if (name && pattern.test(name)) {
-      if (ts.isStringLiteral(value) && !isZeroText(value.text)) return truncate(value.text);
-      if (ts.isNumericLiteral(value) && Number(value.text) !== 0) return value.text;
+      if (value.type === "StringLiteral" && !isZeroText(value.value)) return truncate(value.value);
+      if (value.type === "NumericLiteral" && value.value !== 0) return String(value.value);
     }
-    if (depth < 2 && ts.isObjectLiteralExpression(value)) {
+    if (depth < 2 && value.type === "ObjectExpression") {
       const nested = findLiteral(value, pattern, depth + 1);
       if (nested) return nested;
     }

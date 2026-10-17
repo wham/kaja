@@ -1,13 +1,14 @@
+import type { Expression, File, Identifier, Node, ObjectPattern } from "@babel/types";
 import { runtimeNames } from "./scriptBindings";
 import { baseName } from "./scriptLink";
-import ts from "@typescript/typescript6";
+import { literalText, memberAccess, parseScript, walk } from "./scriptSyntax";
 
 /**
  * The parameters a script takes, in the order it reads them.
  *
  * `kaja://run/<script>?key=value` leaves the whole query to the script, so the
  * only thing that knows which keys a script takes is the script — and the only
- * thing that knows what a name in it means is the compiler. So this reads the
+ * thing that knows what a name in it means is its syntax. So this reads the
  * AST rather than the text: `kaja` is an ordinary local binding, and a key is
  * written four ways that a pattern over the source would either miss or invent.
  * `kaja.input["a key"]`, `const { url: link } = kaja.input` and an alias one
@@ -32,37 +33,34 @@ export interface ScriptParameters {
   open: boolean;
 }
 
-export function readInputKeys(code: string): string[] {
-  return readInputParameters(code).keys;
+/** The keys the script names, or undefined where it doesn't parse. */
+export function readInputKeys(code: string): string[] | undefined {
+  return readInputParameters(code)?.keys;
 }
 
-export function readInputParameters(code: string): ScriptParameters {
-  // Parents, because what a read of the map *is* is a question about where it sits:
-  // the object of a property access is a key, and the argument of a call is the whole
-  // map going somewhere this cannot follow.
-  const file = ts.createSourceFile("script.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ true, ts.ScriptKind.TS);
+export function readInputParameters(code: string): ScriptParameters | undefined {
+  const file = parseScript(code);
+  if (!file) return undefined;
   // A file mid-edit may not have written the import yet, and the runtime is
   // spelled `kaja` everywhere it isn't aliased.
   const runtime = runtimeNames(file);
   const receivers = runtime.size > 0 ? runtime : new Set(["kaja"]);
-  const aliases = inputAliases(file, receivers);
-
-  const isInput = (node: ts.Node): boolean => {
-    if (ts.isIdentifier(node)) return aliases.has(node.text) && isReference(node);
-    return ts.isPropertyAccessExpression(node) && node.name.text === "input" && ts.isIdentifier(node.expression) && receivers.has(node.expression.text);
+  const isInputMember = (node: Node): boolean => {
+    const access = memberAccess(node);
+    return access?.name === "input" && access.object.type === "Identifier" && receivers.has(access.object.name);
   };
+  const aliases = inputAliases(file, isInputMember);
+  const declared = declaredIdentifiers(file);
 
   const keys = new Set<string>();
   let open = false;
-  const visit = (node: ts.Node) => {
-    if (isInput(node)) {
-      const read = readThrough(node);
-      for (const key of read.keys) keys.add(key);
-      open = open || read.open;
-    }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(file, visit);
+  walk(file.program, (node, parent) => {
+    const isInput = node.type === "Identifier" ? aliases.has(node.name) && isReference(node, parent, declared) : isInputMember(node);
+    if (!isInput) return;
+    const read = readThrough(node, parent);
+    for (const key of read.keys) keys.add(key);
+    open = open || read.open;
+  });
 
   return { keys: [...keys], open };
 }
@@ -70,93 +68,131 @@ export function readInputParameters(code: string): ScriptParameters {
 // What a reference to the input map reads, read off where the reference sits. A
 // place this doesn't recognise is the map going somewhere whole, which names no key
 // and leaves the script open.
-function readThrough(node: ts.Node): ScriptParameters {
-  const parent = node.parent;
+function readThrough(node: Node, parent: Node | undefined): ScriptParameters {
   if (!parent) return { keys: [], open: true };
-  if (ts.isPropertyAccessExpression(parent) && parent.expression === node) return { keys: [parent.name.text], open: false };
-  if (ts.isElementAccessExpression(parent) && parent.expression === node) {
-    const literal = stringLiteral(parent.argumentExpression);
+  if ((parent.type === "MemberExpression" || parent.type === "OptionalMemberExpression") && parent.object === node) {
+    if (!parent.computed && parent.property.type === "Identifier") return { keys: [parent.property.name], open: false };
+    const literal = literalText(parent.property);
     return literal === undefined ? { keys: [], open: true } : { keys: [literal], open: false };
   }
-  if (ts.isVariableDeclaration(parent) && parent.initializer === node) {
+  if (parent.type === "VariableDeclarator" && parent.init === node) {
     // A name bound to the map itself, whose own uses are read where they are written.
-    if (ts.isIdentifier(parent.name)) return { keys: [], open: false };
-    if (ts.isObjectBindingPattern(parent.name)) {
-      return { keys: boundKeys(parent.name), open: parent.name.elements.some((element) => element.dotDotDotToken !== undefined) };
+    if (parent.id.type === "Identifier") return { keys: [], open: false };
+    if (parent.id.type === "ObjectPattern") {
+      return { keys: boundKeys(parent.id), open: parent.id.properties.some((property) => property.type === "RestElement") };
     }
   }
   return { keys: [], open: true };
 }
 
-// Whether an identifier is being read rather than declared. The name in
-// `const input = kaja.input` is spelled like a use of the map and is the opposite of
-// one, and reading it as the map going somewhere would leave every aliasing script
-// open.
-function isReference(node: ts.Identifier): boolean {
-  const parent = node.parent;
-  if (!parent) return false;
-  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
-  if (ts.isVariableDeclaration(parent) && parent.name === node) return false;
-  if (ts.isParameter(parent) && parent.name === node) return false;
-  if (ts.isBindingElement(parent) && (parent.name === node || parent.propertyName === node)) return false;
-  if (ts.isPropertyAssignment(parent) && parent.name === node) return false;
-  if (ts.isPropertySignature(parent) || ts.isPropertyDeclaration(parent)) return parent.name !== node;
-  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent) || ts.isImportClause(parent)) return false;
-  if (ts.isFunctionDeclaration(parent) || ts.isFunctionExpression(parent) || ts.isClassDeclaration(parent) || ts.isMethodDeclaration(parent)) {
-    return parent.name !== node;
+// Whether an identifier is being read rather than declared or used as a name. The name
+// in `const input = kaja.input` is spelled like a use of the map and is the opposite of
+// one, and reading it as the map going somewhere would leave every aliasing script open.
+function isReference(node: Identifier, parent: Node | undefined, declared: Set<Node>): boolean {
+  if (!parent || declared.has(node)) return false;
+  switch (parent.type) {
+    case "MemberExpression":
+    case "OptionalMemberExpression":
+      return parent.computed || parent.property !== node;
+    case "ObjectProperty":
+    case "ObjectMethod":
+    case "ClassProperty":
+    case "ClassMethod":
+    case "TSPropertySignature":
+      return parent.computed || parent.key !== node;
+    case "ImportSpecifier":
+    case "ImportDefaultSpecifier":
+    case "ImportNamespaceSpecifier":
+    case "ExportSpecifier":
+      return false;
+    case "FunctionDeclaration":
+    case "FunctionExpression":
+    case "ClassDeclaration":
+    case "ClassExpression":
+      return parent.id !== node;
   }
   return true;
+}
+
+// Every identifier a declaration binds: a variable, a parameter, a caught error, and
+// whatever a destructuring of any of them names.
+function declaredIdentifiers(file: File): Set<Node> {
+  const declared = new Set<Node>();
+  const bind = (pattern: Node | null | undefined): void => {
+    if (!pattern) return;
+    switch (pattern.type) {
+      case "Identifier":
+        declared.add(pattern);
+        break;
+      case "ObjectPattern":
+        for (const property of pattern.properties) bind(property.type === "RestElement" ? property.argument : property.value);
+        break;
+      case "ArrayPattern":
+        for (const element of pattern.elements) bind(element);
+        break;
+      case "RestElement":
+        bind(pattern.argument);
+        break;
+      case "AssignmentPattern":
+        bind(pattern.left);
+        break;
+      case "TSParameterProperty":
+        bind(pattern.parameter);
+        break;
+    }
+  };
+  walk(file.program, (node) => {
+    if (node.type === "VariableDeclarator") bind(node.id);
+    else if (node.type === "CatchClause") bind(node.param);
+    else if (
+      node.type === "FunctionDeclaration" ||
+      node.type === "FunctionExpression" ||
+      node.type === "ArrowFunctionExpression" ||
+      node.type === "ObjectMethod" ||
+      node.type === "ClassMethod"
+    ) {
+      for (const param of node.params) bind(param);
+    }
+  });
+  return declared;
 }
 
 // Names bound to the input map itself (`const input = kaja.input`), so the
 // reads a line later are reads of a parameter. A name bound to one of those is one
 // too, so the set is grown until it stops growing.
-function inputAliases(file: ts.SourceFile, receivers: Set<string>): Set<string> {
+function inputAliases(file: File, isInputMember: (node: Node) => boolean): Set<string> {
   const aliases = new Set<string>();
-  const isMap = (node: ts.Expression): boolean => {
-    if (ts.isIdentifier(node)) return aliases.has(node.text);
-    return ts.isPropertyAccessExpression(node) && node.name.text === "input" && ts.isIdentifier(node.expression) && receivers.has(node.expression.text);
-  };
+  const isMap = (node: Expression): boolean => (node.type === "Identifier" ? aliases.has(node.name) : isInputMember(node));
   let grew = true;
   while (grew) {
     grew = false;
-    const visit = (node: ts.Node) => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && isMap(node.initializer) && !aliases.has(node.name.text)) {
-        aliases.add(node.name.text);
+    walk(file.program, (node) => {
+      if (node.type === "VariableDeclarator" && node.id.type === "Identifier" && node.init && isMap(node.init) && !aliases.has(node.id.name)) {
+        aliases.add(node.id.name);
         grew = true;
       }
-      ts.forEachChild(node, visit);
-    };
-    ts.forEachChild(file, visit);
+    });
   }
   return aliases;
 }
 
 // The keys a destructuring reads. A rename (`{ url: link }`) is a read of
 // `url`, which is the name the link has to carry.
-function boundKeys(pattern: ts.ObjectBindingPattern): string[] {
+function boundKeys(pattern: ObjectPattern): string[] {
   const keys: string[] = [];
-  for (const element of pattern.elements) {
+  for (const property of pattern.properties) {
     // `...rest` names no key.
-    if (element.dotDotDotToken) continue;
-    if (element.propertyName) {
-      const literal = ts.isComputedPropertyName(element.propertyName)
-        ? stringLiteral(element.propertyName.expression)
-        : ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName)
-          ? element.propertyName.text
+    if (property.type === "RestElement") continue;
+    const key = property.computed
+      ? literalText(property.key)
+      : property.key.type === "Identifier"
+        ? property.key.name
+        : property.key.type === "StringLiteral"
+          ? property.key.value
           : undefined;
-      if (literal !== undefined) keys.push(literal);
-    } else if (ts.isIdentifier(element.name)) {
-      keys.push(element.name.text);
-    }
+    if (key !== undefined) keys.push(key);
   }
   return keys;
-}
-
-function stringLiteral(node: ts.Expression | undefined): string | undefined {
-  if (!node) return undefined;
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  return undefined;
 }
 
 /**

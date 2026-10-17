@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import ts from "@typescript/typescript6";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { kajaModuleDeclaration } from "./kajaModule";
 import { readInputKeys, readInputParameters, runInputDeclaration, ScriptInputs } from "./scriptInputs";
 
@@ -66,8 +68,8 @@ describe("readInputKeys", () => {
     expect(readInputKeys(code)).toEqual(["since"]);
   });
 
-  it("reads what it can out of a file that doesn't parse", () => {
-    expect(readInputKeys(script(`const url = kaja.input.url;\nconst broken = (;`))).toEqual(["url"]);
+  it("has nothing to say about a file that doesn't parse", () => {
+    expect(readInputKeys(script(`const url = kaja.input.url;\nconst broken = (;`))).toBeUndefined();
   });
 
   it("has nothing to say about a script that takes nothing", () => {
@@ -76,7 +78,7 @@ describe("readInputKeys", () => {
 });
 
 describe("readInputParameters", () => {
-  const open = (body: string) => readInputParameters(script(body)).open;
+  const open = (body: string) => readInputParameters(script(body))!.open;
 
   it("is closed over a script that names every key it reads", () => {
     expect(readInputParameters(script(`const url = kaja.input.url;`))).toEqual({ keys: ["url"], open: false });
@@ -159,36 +161,47 @@ describe("runInputDeclaration", () => {
  * read through, and a script written against both.
  */
 describe("what TypeScript makes of the declaration", () => {
-  const FILES = { module: "/kaja.ts", declaration: "/kaja-scripts.d.ts", script: "/script.ts" };
+  const TSC = join(import.meta.dir, "..", "node_modules", "typescript", "bin", "tsc");
 
+  // TS 7 has no compiler to call in process, so the files are written out and checked
+  // by its binary.
   function errors(scripts: ScriptInputs[], body: string): string[] {
-    const files: Record<string, string> = {
-      [FILES.module]: kajaModuleDeclaration([]),
-      [FILES.declaration]: runInputDeclaration(scripts),
-      [FILES.script]: `import { kaja } from "./kaja";\n${body}\n`,
-    };
-    const options: ts.CompilerOptions = {
-      target: ts.ScriptTarget.ESNext,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Classic,
-      moduleDetection: ts.ModuleDetectionKind.Force,
-      strict: true,
-      noEmit: true,
-      skipLibCheck: true,
-    };
-    const host = ts.createCompilerHost(options);
-    const readSource = host.getSourceFile.bind(host);
-    host.getSourceFile = (name, version, onError, create) =>
-      files[name] === undefined ? readSource(name, version, onError, create) : ts.createSourceFile(name, files[name], version, true);
-    const exists = host.fileExists.bind(host);
-    host.fileExists = (name) => files[name] !== undefined || exists(name);
-    const read = host.readFile.bind(host);
-    host.readFile = (name) => files[name] ?? read(name);
+    const root = join(tmpdir(), "kaja");
+    mkdirSync(root, { recursive: true });
+    const dir = mkdtempSync(join(root, "run-input-"));
+    try {
+      writeFileSync(join(dir, "kaja.ts"), kajaModuleDeclaration([]));
+      writeFileSync(join(dir, "kaja-scripts.d.ts"), runInputDeclaration(scripts));
+      writeFileSync(join(dir, "script.ts"), `import { kaja } from "./kaja";\n${body}\n`);
+      const options = ["--noEmit", "--pretty", "false", "--strict", "--skipLibCheck", "--target", "esnext", "--module", "esnext"];
+      options.push("--moduleResolution", "bundler", "--moduleDetection", "force");
+      // Through bun, because the binary is a `#!/usr/bin/env node` script and CI's image has no node.
+      const tsc = Bun.spawnSync([process.execPath, TSC, ...options, "kaja.ts", "kaja-scripts.d.ts", "script.ts"], { cwd: dir });
+      const output = tsc.stdout.toString();
+      // A failure that reports no diagnostic is a check that never ran, which would
+      // otherwise read as a script with nothing wrong in it.
+      if (tsc.exitCode !== 0 && !/error TS\d+/.test(output)) throw new Error(`tsc exited ${tsc.exitCode}: ${output}${tsc.stderr.toString()}`);
+      return diagnostics(output, "script.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 
-    const program = ts.createProgram(Object.keys(files), options, host);
-    return program
-      .getSemanticDiagnostics(program.getSourceFile(FILES.script))
-      .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, " "));
+  // A message is its first line and the chain indented under it, joined the way the
+  // compiler's own flattening joins it.
+  function diagnostics(output: string, file: string): string[] {
+    const messages: string[][] = [];
+    let mine = false;
+    for (const line of output.split("\n")) {
+      const match = /^(.+?)\(\d+,\d+\): error TS\d+: (.*)$/.exec(line);
+      if (match) {
+        mine = match[1] === file;
+        if (mine) messages.push([match[2]]);
+      } else if (mine && /^\s/.test(line)) {
+        messages.at(-1)!.push(line.trim());
+      }
+    }
+    return messages.map((parts) => parts.join(" "));
   }
 
   const churn: ScriptInputs[] = [
