@@ -2,7 +2,6 @@ import ts from "@typescript/typescript6";
 import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { appFor, resolve as resolveImport } from "./appImports";
-import { printStatements } from "./appLoader";
 import { scriptConsole } from "./scriptConsole";
 import { scriptGlobals } from "./scriptGlobals";
 import { deviceConsole } from "./uiLog";
@@ -212,4 +211,13 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
     }
     return { console: lines, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function printStatements(statements: ts.Statement[]): string {
+  let sourceFile = ts.createSourceFile("temp.ts", "", ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
+  sourceFile = ts.factory.updateSourceFile(sourceFile, statements);
+
+  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+
+  return printer.printFile(sourceFile);
 }
