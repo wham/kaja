@@ -3,7 +3,7 @@ import { Block } from "./blocks";
 import { Consoles } from "./consoles";
 import { MethodCall } from "./kaja";
 import { shelf } from "./payloadArchive";
-import { defaultView, followSelection, Run, RunSelection, slowestOf, worstStatus } from "./runs";
+import { defaultView, followSelection, itemStatus, Run, RunSelection, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -197,6 +197,35 @@ describe("a run of a thousand calls", () => {
     }
   });
 
+  // The status was read off a response that has left the heap; the row keeps the verdict.
+  it("keeps a shelved call's verdict rather than reading it as pending", () => {
+    const created = start("a.ts");
+    for (let i = 0; i < 700; i++) {
+      store.recordCall("a.ts", created.id, call("GetShow", { output: { ok: true }, error: i === 0 ? { code: "NOT_FOUND" } : undefined }), NOW);
+    }
+    paint();
+
+    const group = store.file("a.ts").groups[0];
+    expect(group.calls[0].payloadsDropped).toBe(true);
+    expect(itemStatus(group.calls[0])).toBe("error");
+    expect(group.calls[1].payloadsDropped).toBe(true);
+    expect(itemStatus(group.calls[1])).toBe("success");
+    expect(group.status).toBe("error");
+    expect(group.inFlight).toBe(false);
+  });
+
+  it("shelves a settled call and sends one still in flight to the back of the queue", () => {
+    const created = start("a.ts");
+    const open = call("GetShow", { output: undefined, durationMs: undefined });
+    store.recordCall("a.ts", created.id, open, NOW);
+    for (let i = 0; i < 600; i++) store.recordCall("a.ts", created.id, call("GetShow", { output: { ok: true } }), NOW);
+    paint();
+
+    const calls = store.file("a.ts").groups[0].calls;
+    expect(calls[0].payloadsDropped).toBeUndefined();
+    expect(calls[1].payloadsDropped).toBe(true);
+  });
+
   it("repaints once a frame, not once a call", () => {
     const created = start("a.ts");
     let notified = 0;
@@ -219,6 +248,69 @@ describe("a run of a thousand calls", () => {
     expect(group.drawn).toHaveLength(1);
     expect(group.strip.calls).toBe(200);
     expect(group.strip.methodLabel).toBe("Shows.GetShow ×200");
+  });
+});
+
+describe("a run past the row cap", () => {
+  const CAP = 20_000;
+
+  it("counts a call it has no room for once, as it is issued, and not again as it settles", () => {
+    const created = start("a.ts");
+    for (let i = 0; i < CAP; i++) store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    const late = call("GetShow", { output: undefined, durationMs: undefined });
+    store.recordCall("a.ts", created.id, late, NOW);
+    late.output = {};
+    late.durationMs = 5;
+    store.recordCall("a.ts", created.id, late, NOW);
+    store.recordCall("a.ts", created.id, late, NOW);
+    paint();
+
+    const group = store.file("a.ts").groups[0];
+    expect(group.calls).toHaveLength(CAP);
+    expect(group.dropped).toBe(1);
+    expect(group.status).toBe("success");
+  });
+});
+
+describe("what leaves with a trimmed run", () => {
+  it("is never shelved under it", () => {
+    const first = start("a.ts", "run-0");
+    const kept: ReturnType<typeof call>[] = [];
+    for (let i = 0; i < 10; i++) {
+      const made = call("GetShow", { output: { seats: [i] } });
+      kept.push(made);
+      store.recordCall("a.ts", first.id, made, NOW);
+    }
+    for (let i = 1; i <= 25; i++) start("a.ts", `run-${i}`);
+    expect(store.file("a.ts").runs[0].id).toBe("run-1");
+
+    const newest = store.file("a.ts").runs[24];
+    for (let i = 0; i < 600; i++) store.recordCall("a.ts", newest.id, call("GetShow", { output: { ok: true } }), NOW);
+    paint();
+
+    // The trimmed run's calls still carry what they carried: nothing shelved them.
+    expect(kept.every((made) => made.output !== undefined)).toBe(true);
+  });
+
+  it("names the tables that went, so their sources can go too", () => {
+    const dropped: string[][] = [];
+    store.subscribeTablesDropped((blockIds) => dropped.push(blockIds));
+    const oldest = start("a.ts", "run-0");
+    store.recordBlock("a.ts", oldest.id, "table-old", { kind: "table", columns: ["a"], rows: [] }, NOW);
+    store.recordBlock("a.ts", oldest.id, "text-old", { kind: "text", text: "not a table" }, NOW);
+    for (let i = 1; i <= 25; i++) start("a.ts", `run-${i}`);
+
+    expect(dropped).toEqual([["table-old"]]);
+
+    const newest = store.file("a.ts").runs[24];
+    store.recordBlock("a.ts", newest.id, "table-new", { kind: "table", columns: ["a"], rows: [] }, NOW);
+    store.clearFile("a.ts", NOW);
+    expect(dropped[1]).toEqual(["table-new"]);
+
+    const other = start("b.ts");
+    store.recordBlock("b.ts", other.id, "table-b", { kind: "table", columns: ["a"], rows: [] }, NOW);
+    store.dropFile("b.ts");
+    expect(dropped[2]).toEqual(["table-b"]);
   });
 });
 

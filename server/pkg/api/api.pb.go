@@ -21,55 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type OpenStatus int32
-
-const (
-	OpenStatus_OPEN_STATUS_UNKNOWN OpenStatus = 0
-	OpenStatus_OPEN_STATUS_OK      OpenStatus = 1
-	OpenStatus_OPEN_STATUS_ERROR   OpenStatus = 2
-)
-
-// Enum value maps for OpenStatus.
-var (
-	OpenStatus_name = map[int32]string{
-		0: "OPEN_STATUS_UNKNOWN",
-		1: "OPEN_STATUS_OK",
-		2: "OPEN_STATUS_ERROR",
-	}
-	OpenStatus_value = map[string]int32{
-		"OPEN_STATUS_UNKNOWN": 0,
-		"OPEN_STATUS_OK":      1,
-		"OPEN_STATUS_ERROR":   2,
-	}
-)
-
-func (x OpenStatus) Enum() *OpenStatus {
-	p := new(OpenStatus)
-	*p = x
-	return p
-}
-
-func (x OpenStatus) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (OpenStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[0].Descriptor()
-}
-
-func (OpenStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[0]
-}
-
-func (x OpenStatus) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use OpenStatus.Descriptor instead.
-func (OpenStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{0}
-}
-
 type GrpcProblemKind int32
 
 const (
@@ -137,11 +88,11 @@ func (x GrpcProblemKind) String() string {
 }
 
 func (GrpcProblemKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[1].Descriptor()
+	return file_proto_api_proto_enumTypes[0].Descriptor()
 }
 
 func (GrpcProblemKind) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[1]
+	return &file_proto_api_proto_enumTypes[0]
 }
 
 func (x GrpcProblemKind) Number() protoreflect.EnumNumber {
@@ -150,7 +101,7 @@ func (x GrpcProblemKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GrpcProblemKind.Descriptor instead.
 func (GrpcProblemKind) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
+	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
 type OpenApiProblemKind int32
@@ -208,11 +159,11 @@ func (x OpenApiProblemKind) String() string {
 }
 
 func (OpenApiProblemKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[2].Descriptor()
+	return file_proto_api_proto_enumTypes[1].Descriptor()
 }
 
 func (OpenApiProblemKind) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[2]
+	return &file_proto_api_proto_enumTypes[1]
 }
 
 func (x OpenApiProblemKind) Number() protoreflect.EnumNumber {
@@ -221,7 +172,7 @@ func (x OpenApiProblemKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OpenApiProblemKind.Descriptor instead.
 func (OpenApiProblemKind) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
 }
 
 type McpProblemKind int32
@@ -301,11 +252,11 @@ func (x McpProblemKind) String() string {
 }
 
 func (McpProblemKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[3].Descriptor()
+	return file_proto_api_proto_enumTypes[2].Descriptor()
 }
 
 func (McpProblemKind) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[3]
+	return &file_proto_api_proto_enumTypes[2]
 }
 
 func (x McpProblemKind) Number() protoreflect.EnumNumber {
@@ -314,7 +265,7 @@ func (x McpProblemKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use McpProblemKind.Descriptor instead.
 func (McpProblemKind) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 type CompileStatus int32
@@ -353,11 +304,11 @@ func (x CompileStatus) String() string {
 }
 
 func (CompileStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[4].Descriptor()
+	return file_proto_api_proto_enumTypes[3].Descriptor()
 }
 
 func (CompileStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[4]
+	return &file_proto_api_proto_enumTypes[3]
 }
 
 func (x CompileStatus) Number() protoreflect.EnumNumber {
@@ -366,7 +317,7 @@ func (x CompileStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CompileStatus.Descriptor instead.
 func (CompileStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
 type LogLevel int32
@@ -405,11 +356,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[5].Descriptor()
+	return file_proto_api_proto_enumTypes[4].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[5]
+	return &file_proto_api_proto_enumTypes[4]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -418,7 +369,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
 }
 
 type VariableSource int32
@@ -461,11 +412,11 @@ func (x VariableSource) String() string {
 }
 
 func (VariableSource) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[6].Descriptor()
+	return file_proto_api_proto_enumTypes[5].Descriptor()
 }
 
 func (VariableSource) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[6]
+	return &file_proto_api_proto_enumTypes[5]
 }
 
 func (x VariableSource) Number() protoreflect.EnumNumber {
@@ -474,12 +425,19 @@ func (x VariableSource) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use VariableSource.Descriptor instead.
 func (VariableSource) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
 type CompileRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProtoDir      string                 `protobuf:"bytes,1,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The app to open and compile. A "grpc" app describes a gRPC service (proto files
+	// come from a static directory or gRPC reflection), while every other app generates
+	// its own proto surface. The server flattens the app's typed parameters to a string
+	// map for the in-process app contract.
+	App *WorkspaceApp `protobuf:"bytes,2,opt,name=app,proto3" json:"app,omitempty"`
+	// Compile the surface again even where the process compiled this app before: the
+	// Recompile gesture, asked for by somebody who knows the upstream changed.
+	Fresh         bool `protobuf:"varint,3,opt,name=fresh,proto3" json:"fresh,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -514,123 +472,18 @@ func (*CompileRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *CompileRequest) GetProtoDir() string {
-	if x != nil {
-		return x.ProtoDir
-	}
-	return ""
-}
-
-// OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
-// service (proto files come from a static directory or gRPC reflection), while every
-// other app generates its own proto surface. In all cases the app produces proto
-// files to feed into Compile and an invocation target. The server flattens the app's
-// typed parameters to a string map for the in-process app contract.
-type OpenAppRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	App           *WorkspaceApp          `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *OpenAppRequest) Reset() {
-	*x = OpenAppRequest{}
-	mi := &file_proto_api_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *OpenAppRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*OpenAppRequest) ProtoMessage() {}
-
-func (x *OpenAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OpenAppRequest.ProtoReflect.Descriptor instead.
-func (*OpenAppRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *OpenAppRequest) GetApp() *WorkspaceApp {
+func (x *CompileRequest) GetApp() *WorkspaceApp {
 	if x != nil {
 		return x.App
 	}
 	return nil
 }
 
-type OpenAppResponse struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Status OpenStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=OpenStatus" json:"status,omitempty"`
-	Logs   []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
-	// Directory containing the proto files to compile (only set on success). Either a
-	// temp directory (generated/reflected protos) or a workspace-relative path (static
-	// protos), which Compile resolves against the workspace.
-	ProtoDir      string `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *OpenAppResponse) Reset() {
-	*x = OpenAppResponse{}
-	mi := &file_proto_api_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *OpenAppResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*OpenAppResponse) ProtoMessage() {}
-
-func (x *OpenAppResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[2]
+func (x *CompileRequest) GetFresh() bool {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+		return x.Fresh
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OpenAppResponse.ProtoReflect.Descriptor instead.
-func (*OpenAppResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *OpenAppResponse) GetStatus() OpenStatus {
-	if x != nil {
-		return x.Status
-	}
-	return OpenStatus_OPEN_STATUS_UNKNOWN
-}
-
-func (x *OpenAppResponse) GetLogs() []*Log {
-	if x != nil {
-		return x.Logs
-	}
-	return nil
-}
-
-func (x *OpenAppResponse) GetProtoDir() string {
-	if x != nil {
-		return x.ProtoDir
-	}
-	return ""
+	return false
 }
 
 // RenameApp follows an app's rename into the open apps. An app is addressed by its
@@ -649,7 +502,7 @@ type RenameAppRequest struct {
 
 func (x *RenameAppRequest) Reset() {
 	*x = RenameAppRequest{}
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +514,7 @@ func (x *RenameAppRequest) String() string {
 func (*RenameAppRequest) ProtoMessage() {}
 
 func (x *RenameAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +527,7 @@ func (x *RenameAppRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameAppRequest.ProtoReflect.Descriptor instead.
 func (*RenameAppRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RenameAppRequest) GetOldName() string {
@@ -699,7 +552,7 @@ type RenameAppResponse struct {
 
 func (x *RenameAppResponse) Reset() {
 	*x = RenameAppResponse{}
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -711,7 +564,7 @@ func (x *RenameAppResponse) String() string {
 func (*RenameAppResponse) ProtoMessage() {}
 
 func (x *RenameAppResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -724,7 +577,7 @@ func (x *RenameAppResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameAppResponse.ProtoReflect.Descriptor instead.
 func (*RenameAppResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 // InspectGrpc reads the service surface a grpc app *would* be opened with -
@@ -741,7 +594,7 @@ type InspectGrpcRequest struct {
 
 func (x *InspectGrpcRequest) Reset() {
 	*x = InspectGrpcRequest{}
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +606,7 @@ func (x *InspectGrpcRequest) String() string {
 func (*InspectGrpcRequest) ProtoMessage() {}
 
 func (x *InspectGrpcRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,7 +619,7 @@ func (x *InspectGrpcRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectGrpcRequest.ProtoReflect.Descriptor instead.
 func (*InspectGrpcRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *InspectGrpcRequest) GetGrpc() *GrpcApp {
@@ -788,7 +641,7 @@ type InspectGrpcResponse struct {
 
 func (x *InspectGrpcResponse) Reset() {
 	*x = InspectGrpcResponse{}
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -800,7 +653,7 @@ func (x *InspectGrpcResponse) String() string {
 func (*InspectGrpcResponse) ProtoMessage() {}
 
 func (x *InspectGrpcResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -813,7 +666,7 @@ func (x *InspectGrpcResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectGrpcResponse.ProtoReflect.Descriptor instead.
 func (*InspectGrpcResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InspectGrpcResponse) GetServer() *GrpcServer {
@@ -861,7 +714,7 @@ type GrpcServer struct {
 
 func (x *GrpcServer) Reset() {
 	*x = GrpcServer{}
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -873,7 +726,7 @@ func (x *GrpcServer) String() string {
 func (*GrpcServer) ProtoMessage() {}
 
 func (x *GrpcServer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -886,7 +739,7 @@ func (x *GrpcServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcServer.ProtoReflect.Descriptor instead.
 func (*GrpcServer) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{7}
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GrpcServer) GetSource() string {
@@ -967,7 +820,7 @@ type GrpcService struct {
 
 func (x *GrpcService) Reset() {
 	*x = GrpcService{}
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -979,7 +832,7 @@ func (x *GrpcService) String() string {
 func (*GrpcService) ProtoMessage() {}
 
 func (x *GrpcService) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -992,7 +845,7 @@ func (x *GrpcService) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcService.ProtoReflect.Descriptor instead.
 func (*GrpcService) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{8}
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GrpcService) GetName() string {
@@ -1031,7 +884,7 @@ type GrpcProblem struct {
 
 func (x *GrpcProblem) Reset() {
 	*x = GrpcProblem{}
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1043,7 +896,7 @@ func (x *GrpcProblem) String() string {
 func (*GrpcProblem) ProtoMessage() {}
 
 func (x *GrpcProblem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1056,7 +909,7 @@ func (x *GrpcProblem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcProblem.ProtoReflect.Descriptor instead.
 func (*GrpcProblem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{9}
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GrpcProblem) GetKind() GrpcProblemKind {
@@ -1094,7 +947,7 @@ type InspectOpenApiRequest struct {
 
 func (x *InspectOpenApiRequest) Reset() {
 	*x = InspectOpenApiRequest{}
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1106,7 +959,7 @@ func (x *InspectOpenApiRequest) String() string {
 func (*InspectOpenApiRequest) ProtoMessage() {}
 
 func (x *InspectOpenApiRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1119,7 +972,7 @@ func (x *InspectOpenApiRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectOpenApiRequest.ProtoReflect.Descriptor instead.
 func (*InspectOpenApiRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{10}
+	return file_proto_api_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *InspectOpenApiRequest) GetOpenapi() *OpenApiApp {
@@ -1141,7 +994,7 @@ type InspectOpenApiResponse struct {
 
 func (x *InspectOpenApiResponse) Reset() {
 	*x = InspectOpenApiResponse{}
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1153,7 +1006,7 @@ func (x *InspectOpenApiResponse) String() string {
 func (*InspectOpenApiResponse) ProtoMessage() {}
 
 func (x *InspectOpenApiResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1166,7 +1019,7 @@ func (x *InspectOpenApiResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectOpenApiResponse.ProtoReflect.Descriptor instead.
 func (*InspectOpenApiResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{11}
+	return file_proto_api_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InspectOpenApiResponse) GetDocument() *OpenApiDocument {
@@ -1207,7 +1060,7 @@ type OpenApiDocument struct {
 
 func (x *OpenApiDocument) Reset() {
 	*x = OpenApiDocument{}
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1219,7 +1072,7 @@ func (x *OpenApiDocument) String() string {
 func (*OpenApiDocument) ProtoMessage() {}
 
 func (x *OpenApiDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1232,7 +1085,7 @@ func (x *OpenApiDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiDocument.ProtoReflect.Descriptor instead.
 func (*OpenApiDocument) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{12}
+	return file_proto_api_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OpenApiDocument) GetTitle() string {
@@ -1309,7 +1162,7 @@ type OpenApiServer struct {
 
 func (x *OpenApiServer) Reset() {
 	*x = OpenApiServer{}
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1321,7 +1174,7 @@ func (x *OpenApiServer) String() string {
 func (*OpenApiServer) ProtoMessage() {}
 
 func (x *OpenApiServer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1334,7 +1187,7 @@ func (x *OpenApiServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiServer.ProtoReflect.Descriptor instead.
 func (*OpenApiServer) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{13}
+	return file_proto_api_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OpenApiServer) GetUrl() string {
@@ -1373,7 +1226,7 @@ type OpenApiServerVariable struct {
 
 func (x *OpenApiServerVariable) Reset() {
 	*x = OpenApiServerVariable{}
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1385,7 +1238,7 @@ func (x *OpenApiServerVariable) String() string {
 func (*OpenApiServerVariable) ProtoMessage() {}
 
 func (x *OpenApiServerVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1398,7 +1251,7 @@ func (x *OpenApiServerVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiServerVariable.ProtoReflect.Descriptor instead.
 func (*OpenApiServerVariable) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{14}
+	return file_proto_api_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OpenApiServerVariable) GetName() string {
@@ -1456,7 +1309,7 @@ type OpenApiSecurityScheme struct {
 
 func (x *OpenApiSecurityScheme) Reset() {
 	*x = OpenApiSecurityScheme{}
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1468,7 +1321,7 @@ func (x *OpenApiSecurityScheme) String() string {
 func (*OpenApiSecurityScheme) ProtoMessage() {}
 
 func (x *OpenApiSecurityScheme) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1481,7 +1334,7 @@ func (x *OpenApiSecurityScheme) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiSecurityScheme.ProtoReflect.Descriptor instead.
 func (*OpenApiSecurityScheme) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{15}
+	return file_proto_api_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *OpenApiSecurityScheme) GetKey() string {
@@ -1569,7 +1422,7 @@ type OpenApiProblem struct {
 
 func (x *OpenApiProblem) Reset() {
 	*x = OpenApiProblem{}
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1581,7 +1434,7 @@ func (x *OpenApiProblem) String() string {
 func (*OpenApiProblem) ProtoMessage() {}
 
 func (x *OpenApiProblem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1594,7 +1447,7 @@ func (x *OpenApiProblem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiProblem.ProtoReflect.Descriptor instead.
 func (*OpenApiProblem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{16}
+	return file_proto_api_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *OpenApiProblem) GetKind() OpenApiProblemKind {
@@ -1633,7 +1486,7 @@ type InspectMcpRequest struct {
 
 func (x *InspectMcpRequest) Reset() {
 	*x = InspectMcpRequest{}
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1645,7 +1498,7 @@ func (x *InspectMcpRequest) String() string {
 func (*InspectMcpRequest) ProtoMessage() {}
 
 func (x *InspectMcpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1658,7 +1511,7 @@ func (x *InspectMcpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectMcpRequest.ProtoReflect.Descriptor instead.
 func (*InspectMcpRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{17}
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *InspectMcpRequest) GetMcp() *McpApp {
@@ -1680,7 +1533,7 @@ type InspectMcpResponse struct {
 
 func (x *InspectMcpResponse) Reset() {
 	*x = InspectMcpResponse{}
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1692,7 +1545,7 @@ func (x *InspectMcpResponse) String() string {
 func (*InspectMcpResponse) ProtoMessage() {}
 
 func (x *InspectMcpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1705,7 +1558,7 @@ func (x *InspectMcpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectMcpResponse.ProtoReflect.Descriptor instead.
 func (*InspectMcpResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{18}
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *InspectMcpResponse) GetServer() *McpServer {
@@ -1744,7 +1597,7 @@ type McpServer struct {
 
 func (x *McpServer) Reset() {
 	*x = McpServer{}
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1756,7 +1609,7 @@ func (x *McpServer) String() string {
 func (*McpServer) ProtoMessage() {}
 
 func (x *McpServer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1769,7 +1622,7 @@ func (x *McpServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpServer.ProtoReflect.Descriptor instead.
 func (*McpServer) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{19}
+	return file_proto_api_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *McpServer) GetName() string {
@@ -1850,7 +1703,7 @@ type McpProblem struct {
 
 func (x *McpProblem) Reset() {
 	*x = McpProblem{}
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +1715,7 @@ func (x *McpProblem) String() string {
 func (*McpProblem) ProtoMessage() {}
 
 func (x *McpProblem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1875,7 +1728,7 @@ func (x *McpProblem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpProblem.ProtoReflect.Descriptor instead.
 func (*McpProblem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{20}
+	return file_proto_api_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *McpProblem) GetKind() McpProblemKind {
@@ -1913,7 +1766,7 @@ type AuthorizeMcpRequest struct {
 
 func (x *AuthorizeMcpRequest) Reset() {
 	*x = AuthorizeMcpRequest{}
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +1778,7 @@ func (x *AuthorizeMcpRequest) String() string {
 func (*AuthorizeMcpRequest) ProtoMessage() {}
 
 func (x *AuthorizeMcpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +1791,7 @@ func (x *AuthorizeMcpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizeMcpRequest.ProtoReflect.Descriptor instead.
 func (*AuthorizeMcpRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{21}
+	return file_proto_api_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AuthorizeMcpRequest) GetMcp() *McpApp {
@@ -1969,7 +1822,7 @@ type AuthorizeMcpResponse struct {
 
 func (x *AuthorizeMcpResponse) Reset() {
 	*x = AuthorizeMcpResponse{}
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1981,7 +1834,7 @@ func (x *AuthorizeMcpResponse) String() string {
 func (*AuthorizeMcpResponse) ProtoMessage() {}
 
 func (x *AuthorizeMcpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1994,7 +1847,7 @@ func (x *AuthorizeMcpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizeMcpResponse.ProtoReflect.Descriptor instead.
 func (*AuthorizeMcpResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{22}
+	return file_proto_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AuthorizeMcpResponse) GetAuthorizationUrl() string {
@@ -2037,7 +1890,7 @@ type ForgetMcpAuthorizationRequest struct {
 
 func (x *ForgetMcpAuthorizationRequest) Reset() {
 	*x = ForgetMcpAuthorizationRequest{}
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +1902,7 @@ func (x *ForgetMcpAuthorizationRequest) String() string {
 func (*ForgetMcpAuthorizationRequest) ProtoMessage() {}
 
 func (x *ForgetMcpAuthorizationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +1915,7 @@ func (x *ForgetMcpAuthorizationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetMcpAuthorizationRequest.ProtoReflect.Descriptor instead.
 func (*ForgetMcpAuthorizationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{23}
+	return file_proto_api_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ForgetMcpAuthorizationRequest) GetMcp() *McpApp {
@@ -2080,7 +1933,7 @@ type ForgetMcpAuthorizationResponse struct {
 
 func (x *ForgetMcpAuthorizationResponse) Reset() {
 	*x = ForgetMcpAuthorizationResponse{}
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2092,7 +1945,7 @@ func (x *ForgetMcpAuthorizationResponse) String() string {
 func (*ForgetMcpAuthorizationResponse) ProtoMessage() {}
 
 func (x *ForgetMcpAuthorizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2105,7 +1958,7 @@ func (x *ForgetMcpAuthorizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetMcpAuthorizationResponse.ProtoReflect.Descriptor instead.
 func (*ForgetMcpAuthorizationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{24}
+	return file_proto_api_proto_rawDescGZIP(), []int{22}
 }
 
 // CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
@@ -2125,7 +1978,7 @@ type CompileResponse struct {
 
 func (x *CompileResponse) Reset() {
 	*x = CompileResponse{}
-	mi := &file_proto_api_proto_msgTypes[25]
+	mi := &file_proto_api_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2137,7 +1990,7 @@ func (x *CompileResponse) String() string {
 func (*CompileResponse) ProtoMessage() {}
 
 func (x *CompileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[25]
+	mi := &file_proto_api_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2150,7 +2003,7 @@ func (x *CompileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompileResponse.ProtoReflect.Descriptor instead.
 func (*CompileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{25}
+	return file_proto_api_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CompileResponse) GetStatus() CompileStatus {
@@ -2184,7 +2037,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_proto_api_proto_msgTypes[26]
+	mi := &file_proto_api_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2196,7 +2049,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[26]
+	mi := &file_proto_api_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2209,7 +2062,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{26}
+	return file_proto_api_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Log) GetLevel() LogLevel {
@@ -2234,7 +2087,7 @@ type GetWorkspaceRequest struct {
 
 func (x *GetWorkspaceRequest) Reset() {
 	*x = GetWorkspaceRequest{}
-	mi := &file_proto_api_proto_msgTypes[27]
+	mi := &file_proto_api_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2246,7 +2099,7 @@ func (x *GetWorkspaceRequest) String() string {
 func (*GetWorkspaceRequest) ProtoMessage() {}
 
 func (x *GetWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[27]
+	mi := &file_proto_api_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2259,7 +2112,7 @@ func (x *GetWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{27}
+	return file_proto_api_proto_rawDescGZIP(), []int{25}
 }
 
 type WatchWorkspaceRequest struct {
@@ -2270,7 +2123,7 @@ type WatchWorkspaceRequest struct {
 
 func (x *WatchWorkspaceRequest) Reset() {
 	*x = WatchWorkspaceRequest{}
-	mi := &file_proto_api_proto_msgTypes[28]
+	mi := &file_proto_api_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2282,7 +2135,7 @@ func (x *WatchWorkspaceRequest) String() string {
 func (*WatchWorkspaceRequest) ProtoMessage() {}
 
 func (x *WatchWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[28]
+	mi := &file_proto_api_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2295,7 +2148,7 @@ func (x *WatchWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*WatchWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{28}
+	return file_proto_api_proto_rawDescGZIP(), []int{26}
 }
 
 type GetWorkspaceResponse struct {
@@ -2307,13 +2160,18 @@ type GetWorkspaceResponse struct {
 	// the other.
 	VariableStatus []*VariableStatus `protobuf:"bytes,3,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
 	Runtime        *Runtime          `protobuf:"bytes,4,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// A fingerprint of the workspace and the variable statuses, equal when they are:
+	// what a watcher compares the message it was handed on opening against what it
+	// already holds, so a change made while it was away is applied and the same
+	// state said twice is not.
+	Generation    string `protobuf:"bytes,5,opt,name=generation,proto3" json:"generation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetWorkspaceResponse) Reset() {
 	*x = GetWorkspaceResponse{}
-	mi := &file_proto_api_proto_msgTypes[29]
+	mi := &file_proto_api_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2325,7 +2183,7 @@ func (x *GetWorkspaceResponse) String() string {
 func (*GetWorkspaceResponse) ProtoMessage() {}
 
 func (x *GetWorkspaceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[29]
+	mi := &file_proto_api_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2338,7 +2196,7 @@ func (x *GetWorkspaceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkspaceResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkspaceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{29}
+	return file_proto_api_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetWorkspaceResponse) GetWorkspace() *Workspace {
@@ -2367,6 +2225,13 @@ func (x *GetWorkspaceResponse) GetRuntime() *Runtime {
 		return x.Runtime
 	}
 	return nil
+}
+
+func (x *GetWorkspaceResponse) GetGeneration() string {
+	if x != nil {
+		return x.Generation
+	}
+	return ""
 }
 
 // Runtime is the kaja that is running, as opposed to the workspace it serves.
@@ -2398,7 +2263,7 @@ type Runtime struct {
 
 func (x *Runtime) Reset() {
 	*x = Runtime{}
-	mi := &file_proto_api_proto_msgTypes[30]
+	mi := &file_proto_api_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +2275,7 @@ func (x *Runtime) String() string {
 func (*Runtime) ProtoMessage() {}
 
 func (x *Runtime) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[30]
+	mi := &file_proto_api_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +2288,7 @@ func (x *Runtime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Runtime.ProtoReflect.Descriptor instead.
 func (*Runtime) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{30}
+	return file_proto_api_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Runtime) GetCanUpdateWorkspace() bool {
@@ -2478,7 +2343,7 @@ type VariableStatus struct {
 
 func (x *VariableStatus) Reset() {
 	*x = VariableStatus{}
-	mi := &file_proto_api_proto_msgTypes[31]
+	mi := &file_proto_api_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2490,7 +2355,7 @@ func (x *VariableStatus) String() string {
 func (*VariableStatus) ProtoMessage() {}
 
 func (x *VariableStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[31]
+	mi := &file_proto_api_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2503,7 +2368,7 @@ func (x *VariableStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VariableStatus.ProtoReflect.Descriptor instead.
 func (*VariableStatus) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{31}
+	return file_proto_api_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *VariableStatus) GetName() string {
@@ -2539,7 +2404,7 @@ type SetStoredValueRequest struct {
 
 func (x *SetStoredValueRequest) Reset() {
 	*x = SetStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[32]
+	mi := &file_proto_api_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2551,7 +2416,7 @@ func (x *SetStoredValueRequest) String() string {
 func (*SetStoredValueRequest) ProtoMessage() {}
 
 func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[32]
+	mi := &file_proto_api_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2564,7 +2429,7 @@ func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*SetStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{32}
+	return file_proto_api_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SetStoredValueRequest) GetName() string {
@@ -2590,7 +2455,7 @@ type ClearStoredValueRequest struct {
 
 func (x *ClearStoredValueRequest) Reset() {
 	*x = ClearStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[33]
+	mi := &file_proto_api_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2602,7 +2467,7 @@ func (x *ClearStoredValueRequest) String() string {
 func (*ClearStoredValueRequest) ProtoMessage() {}
 
 func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[33]
+	mi := &file_proto_api_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2615,7 +2480,7 @@ func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*ClearStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{33}
+	return file_proto_api_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ClearStoredValueRequest) GetName() string {
@@ -2634,7 +2499,7 @@ type StoredValueResponse struct {
 
 func (x *StoredValueResponse) Reset() {
 	*x = StoredValueResponse{}
-	mi := &file_proto_api_proto_msgTypes[34]
+	mi := &file_proto_api_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2646,7 +2511,7 @@ func (x *StoredValueResponse) String() string {
 func (*StoredValueResponse) ProtoMessage() {}
 
 func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[34]
+	mi := &file_proto_api_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2659,7 +2524,7 @@ func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredValueResponse.ProtoReflect.Descriptor instead.
 func (*StoredValueResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{34}
+	return file_proto_api_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
@@ -2693,7 +2558,7 @@ type Script struct {
 
 func (x *Script) Reset() {
 	*x = Script{}
-	mi := &file_proto_api_proto_msgTypes[35]
+	mi := &file_proto_api_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2705,7 +2570,7 @@ func (x *Script) String() string {
 func (*Script) ProtoMessage() {}
 
 func (x *Script) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[35]
+	mi := &file_proto_api_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2718,7 +2583,7 @@ func (x *Script) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Script.ProtoReflect.Descriptor instead.
 func (*Script) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{35}
+	return file_proto_api_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Script) GetPath() string {
@@ -2757,7 +2622,7 @@ type ListScriptsRequest struct {
 
 func (x *ListScriptsRequest) Reset() {
 	*x = ListScriptsRequest{}
-	mi := &file_proto_api_proto_msgTypes[36]
+	mi := &file_proto_api_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2769,7 +2634,7 @@ func (x *ListScriptsRequest) String() string {
 func (*ListScriptsRequest) ProtoMessage() {}
 
 func (x *ListScriptsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[36]
+	mi := &file_proto_api_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2782,7 +2647,7 @@ func (x *ListScriptsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScriptsRequest.ProtoReflect.Descriptor instead.
 func (*ListScriptsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{36}
+	return file_proto_api_proto_rawDescGZIP(), []int{34}
 }
 
 type ListScriptsResponse struct {
@@ -2794,7 +2659,7 @@ type ListScriptsResponse struct {
 
 func (x *ListScriptsResponse) Reset() {
 	*x = ListScriptsResponse{}
-	mi := &file_proto_api_proto_msgTypes[37]
+	mi := &file_proto_api_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2806,7 +2671,7 @@ func (x *ListScriptsResponse) String() string {
 func (*ListScriptsResponse) ProtoMessage() {}
 
 func (x *ListScriptsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[37]
+	mi := &file_proto_api_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2819,7 +2684,7 @@ func (x *ListScriptsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScriptsResponse.ProtoReflect.Descriptor instead.
 func (*ListScriptsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{37}
+	return file_proto_api_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListScriptsResponse) GetScripts() []*Script {
@@ -2843,7 +2708,7 @@ type ReadScriptRequest struct {
 
 func (x *ReadScriptRequest) Reset() {
 	*x = ReadScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[38]
+	mi := &file_proto_api_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2855,7 +2720,7 @@ func (x *ReadScriptRequest) String() string {
 func (*ReadScriptRequest) ProtoMessage() {}
 
 func (x *ReadScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[38]
+	mi := &file_proto_api_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2868,7 +2733,7 @@ func (x *ReadScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadScriptRequest.ProtoReflect.Descriptor instead.
 func (*ReadScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{38}
+	return file_proto_api_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReadScriptRequest) GetName() string {
@@ -2887,7 +2752,7 @@ type ReadScriptResponse struct {
 
 func (x *ReadScriptResponse) Reset() {
 	*x = ReadScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[39]
+	mi := &file_proto_api_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2899,7 +2764,7 @@ func (x *ReadScriptResponse) String() string {
 func (*ReadScriptResponse) ProtoMessage() {}
 
 func (x *ReadScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[39]
+	mi := &file_proto_api_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2912,7 +2777,7 @@ func (x *ReadScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadScriptResponse.ProtoReflect.Descriptor instead.
 func (*ReadScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{39}
+	return file_proto_api_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ReadScriptResponse) GetScript() *Script {
@@ -2934,7 +2799,7 @@ type WriteScriptRequest struct {
 
 func (x *WriteScriptRequest) Reset() {
 	*x = WriteScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[40]
+	mi := &file_proto_api_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2946,7 +2811,7 @@ func (x *WriteScriptRequest) String() string {
 func (*WriteScriptRequest) ProtoMessage() {}
 
 func (x *WriteScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[40]
+	mi := &file_proto_api_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2959,7 +2824,7 @@ func (x *WriteScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteScriptRequest.ProtoReflect.Descriptor instead.
 func (*WriteScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{40}
+	return file_proto_api_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *WriteScriptRequest) GetName() string {
@@ -2985,7 +2850,7 @@ type WriteScriptResponse struct {
 
 func (x *WriteScriptResponse) Reset() {
 	*x = WriteScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[41]
+	mi := &file_proto_api_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2997,7 +2862,7 @@ func (x *WriteScriptResponse) String() string {
 func (*WriteScriptResponse) ProtoMessage() {}
 
 func (x *WriteScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[41]
+	mi := &file_proto_api_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3010,7 +2875,7 @@ func (x *WriteScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteScriptResponse.ProtoReflect.Descriptor instead.
 func (*WriteScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{41}
+	return file_proto_api_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *WriteScriptResponse) GetScript() *Script {
@@ -3033,7 +2898,7 @@ type CreateScriptRequest struct {
 
 func (x *CreateScriptRequest) Reset() {
 	*x = CreateScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[42]
+	mi := &file_proto_api_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3045,7 +2910,7 @@ func (x *CreateScriptRequest) String() string {
 func (*CreateScriptRequest) ProtoMessage() {}
 
 func (x *CreateScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[42]
+	mi := &file_proto_api_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3058,7 +2923,7 @@ func (x *CreateScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateScriptRequest.ProtoReflect.Descriptor instead.
 func (*CreateScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{42}
+	return file_proto_api_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CreateScriptRequest) GetName() string {
@@ -3084,7 +2949,7 @@ type CreateScriptResponse struct {
 
 func (x *CreateScriptResponse) Reset() {
 	*x = CreateScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[43]
+	mi := &file_proto_api_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3096,7 +2961,7 @@ func (x *CreateScriptResponse) String() string {
 func (*CreateScriptResponse) ProtoMessage() {}
 
 func (x *CreateScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[43]
+	mi := &file_proto_api_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3109,7 +2974,7 @@ func (x *CreateScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateScriptResponse.ProtoReflect.Descriptor instead.
 func (*CreateScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{43}
+	return file_proto_api_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CreateScriptResponse) GetScript() *Script {
@@ -3132,7 +2997,7 @@ type RenameScriptRequest struct {
 
 func (x *RenameScriptRequest) Reset() {
 	*x = RenameScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[44]
+	mi := &file_proto_api_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3144,7 +3009,7 @@ func (x *RenameScriptRequest) String() string {
 func (*RenameScriptRequest) ProtoMessage() {}
 
 func (x *RenameScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[44]
+	mi := &file_proto_api_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3157,7 +3022,7 @@ func (x *RenameScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameScriptRequest.ProtoReflect.Descriptor instead.
 func (*RenameScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{44}
+	return file_proto_api_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RenameScriptRequest) GetName() string {
@@ -3183,7 +3048,7 @@ type RenameScriptResponse struct {
 
 func (x *RenameScriptResponse) Reset() {
 	*x = RenameScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[45]
+	mi := &file_proto_api_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3195,7 +3060,7 @@ func (x *RenameScriptResponse) String() string {
 func (*RenameScriptResponse) ProtoMessage() {}
 
 func (x *RenameScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[45]
+	mi := &file_proto_api_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3208,7 +3073,7 @@ func (x *RenameScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameScriptResponse.ProtoReflect.Descriptor instead.
 func (*RenameScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{45}
+	return file_proto_api_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *RenameScriptResponse) GetScript() *Script {
@@ -3227,7 +3092,7 @@ type DeleteScriptRequest struct {
 
 func (x *DeleteScriptRequest) Reset() {
 	*x = DeleteScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[46]
+	mi := &file_proto_api_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3239,7 +3104,7 @@ func (x *DeleteScriptRequest) String() string {
 func (*DeleteScriptRequest) ProtoMessage() {}
 
 func (x *DeleteScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[46]
+	mi := &file_proto_api_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3252,7 +3117,7 @@ func (x *DeleteScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteScriptRequest.ProtoReflect.Descriptor instead.
 func (*DeleteScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{46}
+	return file_proto_api_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *DeleteScriptRequest) GetName() string {
@@ -3270,7 +3135,7 @@ type DeleteScriptResponse struct {
 
 func (x *DeleteScriptResponse) Reset() {
 	*x = DeleteScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[47]
+	mi := &file_proto_api_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3282,7 +3147,7 @@ func (x *DeleteScriptResponse) String() string {
 func (*DeleteScriptResponse) ProtoMessage() {}
 
 func (x *DeleteScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[47]
+	mi := &file_proto_api_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3295,7 +3160,7 @@ func (x *DeleteScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteScriptResponse.ProtoReflect.Descriptor instead.
 func (*DeleteScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{47}
+	return file_proto_api_proto_rawDescGZIP(), []int{45}
 }
 
 // CopyScript writes a second file under a new name, which may carry a folder. The
@@ -3310,7 +3175,7 @@ type CopyScriptRequest struct {
 
 func (x *CopyScriptRequest) Reset() {
 	*x = CopyScriptRequest{}
-	mi := &file_proto_api_proto_msgTypes[48]
+	mi := &file_proto_api_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3322,7 +3187,7 @@ func (x *CopyScriptRequest) String() string {
 func (*CopyScriptRequest) ProtoMessage() {}
 
 func (x *CopyScriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[48]
+	mi := &file_proto_api_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3335,7 +3200,7 @@ func (x *CopyScriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyScriptRequest.ProtoReflect.Descriptor instead.
 func (*CopyScriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{48}
+	return file_proto_api_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *CopyScriptRequest) GetName() string {
@@ -3361,7 +3226,7 @@ type CopyScriptResponse struct {
 
 func (x *CopyScriptResponse) Reset() {
 	*x = CopyScriptResponse{}
-	mi := &file_proto_api_proto_msgTypes[49]
+	mi := &file_proto_api_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3373,7 +3238,7 @@ func (x *CopyScriptResponse) String() string {
 func (*CopyScriptResponse) ProtoMessage() {}
 
 func (x *CopyScriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[49]
+	mi := &file_proto_api_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3386,7 +3251,7 @@ func (x *CopyScriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyScriptResponse.ProtoReflect.Descriptor instead.
 func (*CopyScriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{49}
+	return file_proto_api_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *CopyScriptResponse) GetScript() *Script {
@@ -3407,7 +3272,7 @@ type ListScriptFoldersRequest struct {
 
 func (x *ListScriptFoldersRequest) Reset() {
 	*x = ListScriptFoldersRequest{}
-	mi := &file_proto_api_proto_msgTypes[50]
+	mi := &file_proto_api_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3419,7 +3284,7 @@ func (x *ListScriptFoldersRequest) String() string {
 func (*ListScriptFoldersRequest) ProtoMessage() {}
 
 func (x *ListScriptFoldersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[50]
+	mi := &file_proto_api_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3432,7 +3297,7 @@ func (x *ListScriptFoldersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScriptFoldersRequest.ProtoReflect.Descriptor instead.
 func (*ListScriptFoldersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{50}
+	return file_proto_api_proto_rawDescGZIP(), []int{48}
 }
 
 type ListScriptFoldersResponse struct {
@@ -3444,7 +3309,7 @@ type ListScriptFoldersResponse struct {
 
 func (x *ListScriptFoldersResponse) Reset() {
 	*x = ListScriptFoldersResponse{}
-	mi := &file_proto_api_proto_msgTypes[51]
+	mi := &file_proto_api_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3456,7 +3321,7 @@ func (x *ListScriptFoldersResponse) String() string {
 func (*ListScriptFoldersResponse) ProtoMessage() {}
 
 func (x *ListScriptFoldersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[51]
+	mi := &file_proto_api_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3469,7 +3334,7 @@ func (x *ListScriptFoldersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScriptFoldersResponse.ProtoReflect.Descriptor instead.
 func (*ListScriptFoldersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{51}
+	return file_proto_api_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ListScriptFoldersResponse) GetFolders() []string {
@@ -3488,7 +3353,7 @@ type CreateScriptFolderRequest struct {
 
 func (x *CreateScriptFolderRequest) Reset() {
 	*x = CreateScriptFolderRequest{}
-	mi := &file_proto_api_proto_msgTypes[52]
+	mi := &file_proto_api_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3500,7 +3365,7 @@ func (x *CreateScriptFolderRequest) String() string {
 func (*CreateScriptFolderRequest) ProtoMessage() {}
 
 func (x *CreateScriptFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[52]
+	mi := &file_proto_api_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3513,7 +3378,7 @@ func (x *CreateScriptFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateScriptFolderRequest.ProtoReflect.Descriptor instead.
 func (*CreateScriptFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{52}
+	return file_proto_api_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *CreateScriptFolderRequest) GetName() string {
@@ -3532,7 +3397,7 @@ type CreateScriptFolderResponse struct {
 
 func (x *CreateScriptFolderResponse) Reset() {
 	*x = CreateScriptFolderResponse{}
-	mi := &file_proto_api_proto_msgTypes[53]
+	mi := &file_proto_api_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3544,7 +3409,7 @@ func (x *CreateScriptFolderResponse) String() string {
 func (*CreateScriptFolderResponse) ProtoMessage() {}
 
 func (x *CreateScriptFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[53]
+	mi := &file_proto_api_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3557,7 +3422,7 @@ func (x *CreateScriptFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateScriptFolderResponse.ProtoReflect.Descriptor instead.
 func (*CreateScriptFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{53}
+	return file_proto_api_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *CreateScriptFolderResponse) GetFolder() string {
@@ -3579,7 +3444,7 @@ type RenameScriptFolderRequest struct {
 
 func (x *RenameScriptFolderRequest) Reset() {
 	*x = RenameScriptFolderRequest{}
-	mi := &file_proto_api_proto_msgTypes[54]
+	mi := &file_proto_api_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3591,7 +3456,7 @@ func (x *RenameScriptFolderRequest) String() string {
 func (*RenameScriptFolderRequest) ProtoMessage() {}
 
 func (x *RenameScriptFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[54]
+	mi := &file_proto_api_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3604,7 +3469,7 @@ func (x *RenameScriptFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameScriptFolderRequest.ProtoReflect.Descriptor instead.
 func (*RenameScriptFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{54}
+	return file_proto_api_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *RenameScriptFolderRequest) GetName() string {
@@ -3630,7 +3495,7 @@ type RenameScriptFolderResponse struct {
 
 func (x *RenameScriptFolderResponse) Reset() {
 	*x = RenameScriptFolderResponse{}
-	mi := &file_proto_api_proto_msgTypes[55]
+	mi := &file_proto_api_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3642,7 +3507,7 @@ func (x *RenameScriptFolderResponse) String() string {
 func (*RenameScriptFolderResponse) ProtoMessage() {}
 
 func (x *RenameScriptFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[55]
+	mi := &file_proto_api_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3655,7 +3520,7 @@ func (x *RenameScriptFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameScriptFolderResponse.ProtoReflect.Descriptor instead.
 func (*RenameScriptFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{55}
+	return file_proto_api_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *RenameScriptFolderResponse) GetFolder() string {
@@ -3677,7 +3542,7 @@ type DeleteScriptFolderRequest struct {
 
 func (x *DeleteScriptFolderRequest) Reset() {
 	*x = DeleteScriptFolderRequest{}
-	mi := &file_proto_api_proto_msgTypes[56]
+	mi := &file_proto_api_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3689,7 +3554,7 @@ func (x *DeleteScriptFolderRequest) String() string {
 func (*DeleteScriptFolderRequest) ProtoMessage() {}
 
 func (x *DeleteScriptFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[56]
+	mi := &file_proto_api_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3702,7 +3567,7 @@ func (x *DeleteScriptFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteScriptFolderRequest.ProtoReflect.Descriptor instead.
 func (*DeleteScriptFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{56}
+	return file_proto_api_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *DeleteScriptFolderRequest) GetName() string {
@@ -3720,7 +3585,7 @@ type DeleteScriptFolderResponse struct {
 
 func (x *DeleteScriptFolderResponse) Reset() {
 	*x = DeleteScriptFolderResponse{}
-	mi := &file_proto_api_proto_msgTypes[57]
+	mi := &file_proto_api_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3732,7 +3597,7 @@ func (x *DeleteScriptFolderResponse) String() string {
 func (*DeleteScriptFolderResponse) ProtoMessage() {}
 
 func (x *DeleteScriptFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[57]
+	mi := &file_proto_api_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3745,7 +3610,7 @@ func (x *DeleteScriptFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteScriptFolderResponse.ProtoReflect.Descriptor instead.
 func (*DeleteScriptFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{57}
+	return file_proto_api_proto_rawDescGZIP(), []int{55}
 }
 
 // CopyScriptFolder copies a folder and everything filed there to a new path, which has
@@ -3760,7 +3625,7 @@ type CopyScriptFolderRequest struct {
 
 func (x *CopyScriptFolderRequest) Reset() {
 	*x = CopyScriptFolderRequest{}
-	mi := &file_proto_api_proto_msgTypes[58]
+	mi := &file_proto_api_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3772,7 +3637,7 @@ func (x *CopyScriptFolderRequest) String() string {
 func (*CopyScriptFolderRequest) ProtoMessage() {}
 
 func (x *CopyScriptFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[58]
+	mi := &file_proto_api_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3785,7 +3650,7 @@ func (x *CopyScriptFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyScriptFolderRequest.ProtoReflect.Descriptor instead.
 func (*CopyScriptFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{58}
+	return file_proto_api_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CopyScriptFolderRequest) GetName() string {
@@ -3811,7 +3676,7 @@ type CopyScriptFolderResponse struct {
 
 func (x *CopyScriptFolderResponse) Reset() {
 	*x = CopyScriptFolderResponse{}
-	mi := &file_proto_api_proto_msgTypes[59]
+	mi := &file_proto_api_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3823,7 +3688,7 @@ func (x *CopyScriptFolderResponse) String() string {
 func (*CopyScriptFolderResponse) ProtoMessage() {}
 
 func (x *CopyScriptFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[59]
+	mi := &file_proto_api_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3836,7 +3701,7 @@ func (x *CopyScriptFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyScriptFolderResponse.ProtoReflect.Descriptor instead.
 func (*CopyScriptFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{59}
+	return file_proto_api_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CopyScriptFolderResponse) GetFolder() string {
@@ -3864,7 +3729,7 @@ type ScanScriptVariablesRequest struct {
 
 func (x *ScanScriptVariablesRequest) Reset() {
 	*x = ScanScriptVariablesRequest{}
-	mi := &file_proto_api_proto_msgTypes[60]
+	mi := &file_proto_api_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3876,7 +3741,7 @@ func (x *ScanScriptVariablesRequest) String() string {
 func (*ScanScriptVariablesRequest) ProtoMessage() {}
 
 func (x *ScanScriptVariablesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[60]
+	mi := &file_proto_api_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3889,7 +3754,7 @@ func (x *ScanScriptVariablesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanScriptVariablesRequest.ProtoReflect.Descriptor instead.
 func (*ScanScriptVariablesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{60}
+	return file_proto_api_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ScanScriptVariablesRequest) GetNames() []string {
@@ -3911,7 +3776,7 @@ type ScriptReference struct {
 
 func (x *ScriptReference) Reset() {
 	*x = ScriptReference{}
-	mi := &file_proto_api_proto_msgTypes[61]
+	mi := &file_proto_api_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3923,7 +3788,7 @@ func (x *ScriptReference) String() string {
 func (*ScriptReference) ProtoMessage() {}
 
 func (x *ScriptReference) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[61]
+	mi := &file_proto_api_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3936,7 +3801,7 @@ func (x *ScriptReference) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScriptReference.ProtoReflect.Descriptor instead.
 func (*ScriptReference) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{61}
+	return file_proto_api_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ScriptReference) GetPath() string {
@@ -3963,7 +3828,7 @@ type VariableReferences struct {
 
 func (x *VariableReferences) Reset() {
 	*x = VariableReferences{}
-	mi := &file_proto_api_proto_msgTypes[62]
+	mi := &file_proto_api_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3975,7 +3840,7 @@ func (x *VariableReferences) String() string {
 func (*VariableReferences) ProtoMessage() {}
 
 func (x *VariableReferences) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[62]
+	mi := &file_proto_api_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3988,7 +3853,7 @@ func (x *VariableReferences) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VariableReferences.ProtoReflect.Descriptor instead.
 func (*VariableReferences) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{62}
+	return file_proto_api_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *VariableReferences) GetName() string {
@@ -4018,7 +3883,7 @@ type ScanScriptVariablesResponse struct {
 
 func (x *ScanScriptVariablesResponse) Reset() {
 	*x = ScanScriptVariablesResponse{}
-	mi := &file_proto_api_proto_msgTypes[63]
+	mi := &file_proto_api_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4030,7 +3895,7 @@ func (x *ScanScriptVariablesResponse) String() string {
 func (*ScanScriptVariablesResponse) ProtoMessage() {}
 
 func (x *ScanScriptVariablesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[63]
+	mi := &file_proto_api_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4043,7 +3908,7 @@ func (x *ScanScriptVariablesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanScriptVariablesResponse.ProtoReflect.Descriptor instead.
 func (*ScanScriptVariablesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{63}
+	return file_proto_api_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ScanScriptVariablesResponse) GetVariables() []*VariableReferences {
@@ -4097,7 +3962,7 @@ type Workspace struct {
 
 func (x *Workspace) Reset() {
 	*x = Workspace{}
-	mi := &file_proto_api_proto_msgTypes[64]
+	mi := &file_proto_api_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4109,7 +3974,7 @@ func (x *Workspace) String() string {
 func (*Workspace) ProtoMessage() {}
 
 func (x *Workspace) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[64]
+	mi := &file_proto_api_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4122,7 +3987,7 @@ func (x *Workspace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Workspace.ProtoReflect.Descriptor instead.
 func (*Workspace) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{64}
+	return file_proto_api_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *Workspace) GetPathPrefix() string {
@@ -4171,7 +4036,7 @@ type WorkspaceMcp struct {
 
 func (x *WorkspaceMcp) Reset() {
 	*x = WorkspaceMcp{}
-	mi := &file_proto_api_proto_msgTypes[65]
+	mi := &file_proto_api_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4183,7 +4048,7 @@ func (x *WorkspaceMcp) String() string {
 func (*WorkspaceMcp) ProtoMessage() {}
 
 func (x *WorkspaceMcp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[65]
+	mi := &file_proto_api_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4196,7 +4061,7 @@ func (x *WorkspaceMcp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceMcp.ProtoReflect.Descriptor instead.
 func (*WorkspaceMcp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{65}
+	return file_proto_api_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *WorkspaceMcp) GetEnabled() bool {
@@ -4228,7 +4093,7 @@ type WorkspaceApp struct {
 
 func (x *WorkspaceApp) Reset() {
 	*x = WorkspaceApp{}
-	mi := &file_proto_api_proto_msgTypes[66]
+	mi := &file_proto_api_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4240,7 +4105,7 @@ func (x *WorkspaceApp) String() string {
 func (*WorkspaceApp) ProtoMessage() {}
 
 func (x *WorkspaceApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[66]
+	mi := &file_proto_api_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4253,7 +4118,7 @@ func (x *WorkspaceApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceApp.ProtoReflect.Descriptor instead.
 func (*WorkspaceApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{66}
+	return file_proto_api_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *WorkspaceApp) GetName() string {
@@ -4407,7 +4272,7 @@ type GrpcApp struct {
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[67]
+	mi := &file_proto_api_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4419,7 +4284,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[67]
+	mi := &file_proto_api_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4432,7 +4297,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{67}
+	return file_proto_api_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -4545,7 +4410,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[68]
+	mi := &file_proto_api_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4557,7 +4422,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[68]
+	mi := &file_proto_api_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4570,7 +4435,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{68}
+	return file_proto_api_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -4622,7 +4487,7 @@ type OpenApiApp struct {
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[69]
+	mi := &file_proto_api_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4634,7 +4499,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[69]
+	mi := &file_proto_api_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4647,7 +4512,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{69}
+	return file_proto_api_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -4747,7 +4612,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[70]
+	mi := &file_proto_api_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4759,7 +4624,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[70]
+	mi := &file_proto_api_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4772,7 +4637,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{70}
+	return file_proto_api_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -4828,7 +4693,7 @@ type FolderApp struct {
 
 func (x *FolderApp) Reset() {
 	*x = FolderApp{}
-	mi := &file_proto_api_proto_msgTypes[71]
+	mi := &file_proto_api_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4840,7 +4705,7 @@ func (x *FolderApp) String() string {
 func (*FolderApp) ProtoMessage() {}
 
 func (x *FolderApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[71]
+	mi := &file_proto_api_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4853,7 +4718,7 @@ func (x *FolderApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FolderApp.ProtoReflect.Descriptor instead.
 func (*FolderApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{71}
+	return file_proto_api_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *FolderApp) GetPath() string {
@@ -4899,7 +4764,7 @@ type McpApp struct {
 
 func (x *McpApp) Reset() {
 	*x = McpApp{}
-	mi := &file_proto_api_proto_msgTypes[72]
+	mi := &file_proto_api_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4911,7 +4776,7 @@ func (x *McpApp) String() string {
 func (*McpApp) ProtoMessage() {}
 
 func (x *McpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[72]
+	mi := &file_proto_api_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4924,7 +4789,7 @@ func (x *McpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpApp.ProtoReflect.Descriptor instead.
 func (*McpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{72}
+	return file_proto_api_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *McpApp) GetUrl() string {
@@ -4985,7 +4850,7 @@ type UpdateWorkspaceRequest struct {
 
 func (x *UpdateWorkspaceRequest) Reset() {
 	*x = UpdateWorkspaceRequest{}
-	mi := &file_proto_api_proto_msgTypes[73]
+	mi := &file_proto_api_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4997,7 +4862,7 @@ func (x *UpdateWorkspaceRequest) String() string {
 func (*UpdateWorkspaceRequest) ProtoMessage() {}
 
 func (x *UpdateWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[73]
+	mi := &file_proto_api_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5010,7 +4875,7 @@ func (x *UpdateWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*UpdateWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{73}
+	return file_proto_api_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *UpdateWorkspaceRequest) GetWorkspace() *Workspace {
@@ -5031,7 +4896,7 @@ type UpdateWorkspaceResponse struct {
 
 func (x *UpdateWorkspaceResponse) Reset() {
 	*x = UpdateWorkspaceResponse{}
-	mi := &file_proto_api_proto_msgTypes[74]
+	mi := &file_proto_api_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5043,7 +4908,7 @@ func (x *UpdateWorkspaceResponse) String() string {
 func (*UpdateWorkspaceResponse) ProtoMessage() {}
 
 func (x *UpdateWorkspaceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[74]
+	mi := &file_proto_api_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5056,7 +4921,7 @@ func (x *UpdateWorkspaceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorkspaceResponse.ProtoReflect.Descriptor instead.
 func (*UpdateWorkspaceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{74}
+	return file_proto_api_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *UpdateWorkspaceResponse) GetWorkspace() *Workspace {
@@ -5077,15 +4942,10 @@ var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/api.proto\"-\n" +
-	"\x0eCompileRequest\x12\x1b\n" +
-	"\tproto_dir\x18\x01 \x01(\tR\bprotoDir\"1\n" +
-	"\x0eOpenAppRequest\x12\x1f\n" +
-	"\x03app\x18\x01 \x01(\v2\r.WorkspaceAppR\x03app\"m\n" +
-	"\x0fOpenAppResponse\x12#\n" +
-	"\x06status\x18\x01 \x01(\x0e2\v.OpenStatusR\x06status\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"H\n" +
+	"\x0fproto/api.proto\"X\n" +
+	"\x0eCompileRequest\x12\x1f\n" +
+	"\x03app\x18\x02 \x01(\v2\r.WorkspaceAppR\x03app\x12\x14\n" +
+	"\x05fresh\x18\x03 \x01(\bR\x05freshJ\x04\b\x01\x10\x02R\tproto_dir\"H\n" +
 	"\x10RenameAppRequest\x12\x19\n" +
 	"\bold_name\x18\x01 \x01(\tR\aoldName\x12\x19\n" +
 	"\bnew_name\x18\x02 \x01(\tR\anewName\"\x13\n" +
@@ -5198,13 +5058,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x05level\x18\x01 \x01(\x0e2\t.LogLevelR\x05level\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\x15\n" +
 	"\x13GetWorkspaceRequest\"\x17\n" +
-	"\x15WatchWorkspaceRequest\"\xb8\x01\n" +
+	"\x15WatchWorkspaceRequest\"\xd8\x01\n" +
 	"\x14GetWorkspaceResponse\x12(\n" +
 	"\tworkspace\x18\x01 \x01(\v2\n" +
 	".WorkspaceR\tworkspace\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
 	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
-	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xd6\x01\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x05 \x01(\tR\n" +
+	"generation\"\xd6\x01\n" +
 	"\aRuntime\x120\n" +
 	"\x14can_update_workspace\x18\x01 \x01(\bR\x12canUpdateWorkspace\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
@@ -5391,12 +5254,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x17UpdateWorkspaceResponse\x12(\n" +
 	"\tworkspace\x18\x01 \x01(\v2\n" +
 	".WorkspaceR\tworkspace\x128\n" +
-	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus*P\n" +
-	"\n" +
-	"OpenStatus\x12\x17\n" +
-	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
-	"\x0eOPEN_STATUS_OK\x10\x01\x12\x15\n" +
-	"\x11OPEN_STATUS_ERROR\x10\x02*\xd7\x02\n" +
+	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus*\xd7\x02\n" +
 	"\x0fGrpcProblemKind\x12\x18\n" +
 	"\x14GRPC_PROBLEM_UNKNOWN\x10\x00\x12\x1c\n" +
 	"\x18GRPC_PROBLEM_UNREACHABLE\x10\x01\x12\x14\n" +
@@ -5450,10 +5308,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\x9c\r\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xee\f\n" +
 	"\x03Api\x12.\n" +
-	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x12,\n" +
-	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x122\n" +
+	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x122\n" +
 	"\tRenameApp\x12\x11.RenameAppRequest\x1a\x12.RenameAppResponse\x12A\n" +
 	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x128\n" +
 	"\vInspectGrpc\x12\x13.InspectGrpcRequest\x1a\x14.InspectGrpcResponse\x125\n" +
@@ -5494,214 +5351,207 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 82)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
 var file_proto_api_proto_goTypes = []any{
-	(OpenStatus)(0),                        // 0: OpenStatus
-	(GrpcProblemKind)(0),                   // 1: GrpcProblemKind
-	(OpenApiProblemKind)(0),                // 2: OpenApiProblemKind
-	(McpProblemKind)(0),                    // 3: McpProblemKind
-	(CompileStatus)(0),                     // 4: CompileStatus
-	(LogLevel)(0),                          // 5: LogLevel
-	(VariableSource)(0),                    // 6: VariableSource
-	(*CompileRequest)(nil),                 // 7: CompileRequest
-	(*OpenAppRequest)(nil),                 // 8: OpenAppRequest
-	(*OpenAppResponse)(nil),                // 9: OpenAppResponse
-	(*RenameAppRequest)(nil),               // 10: RenameAppRequest
-	(*RenameAppResponse)(nil),              // 11: RenameAppResponse
-	(*InspectGrpcRequest)(nil),             // 12: InspectGrpcRequest
-	(*InspectGrpcResponse)(nil),            // 13: InspectGrpcResponse
-	(*GrpcServer)(nil),                     // 14: GrpcServer
-	(*GrpcService)(nil),                    // 15: GrpcService
-	(*GrpcProblem)(nil),                    // 16: GrpcProblem
-	(*InspectOpenApiRequest)(nil),          // 17: InspectOpenApiRequest
-	(*InspectOpenApiResponse)(nil),         // 18: InspectOpenApiResponse
-	(*OpenApiDocument)(nil),                // 19: OpenApiDocument
-	(*OpenApiServer)(nil),                  // 20: OpenApiServer
-	(*OpenApiServerVariable)(nil),          // 21: OpenApiServerVariable
-	(*OpenApiSecurityScheme)(nil),          // 22: OpenApiSecurityScheme
-	(*OpenApiProblem)(nil),                 // 23: OpenApiProblem
-	(*InspectMcpRequest)(nil),              // 24: InspectMcpRequest
-	(*InspectMcpResponse)(nil),             // 25: InspectMcpResponse
-	(*McpServer)(nil),                      // 26: McpServer
-	(*McpProblem)(nil),                     // 27: McpProblem
-	(*AuthorizeMcpRequest)(nil),            // 28: AuthorizeMcpRequest
-	(*AuthorizeMcpResponse)(nil),           // 29: AuthorizeMcpResponse
-	(*ForgetMcpAuthorizationRequest)(nil),  // 30: ForgetMcpAuthorizationRequest
-	(*ForgetMcpAuthorizationResponse)(nil), // 31: ForgetMcpAuthorizationResponse
-	(*CompileResponse)(nil),                // 32: CompileResponse
-	(*Log)(nil),                            // 33: Log
-	(*GetWorkspaceRequest)(nil),            // 34: GetWorkspaceRequest
-	(*WatchWorkspaceRequest)(nil),          // 35: WatchWorkspaceRequest
-	(*GetWorkspaceResponse)(nil),           // 36: GetWorkspaceResponse
-	(*Runtime)(nil),                        // 37: Runtime
-	(*VariableStatus)(nil),                 // 38: VariableStatus
-	(*SetStoredValueRequest)(nil),          // 39: SetStoredValueRequest
-	(*ClearStoredValueRequest)(nil),        // 40: ClearStoredValueRequest
-	(*StoredValueResponse)(nil),            // 41: StoredValueResponse
-	(*Script)(nil),                         // 42: Script
-	(*ListScriptsRequest)(nil),             // 43: ListScriptsRequest
-	(*ListScriptsResponse)(nil),            // 44: ListScriptsResponse
-	(*ReadScriptRequest)(nil),              // 45: ReadScriptRequest
-	(*ReadScriptResponse)(nil),             // 46: ReadScriptResponse
-	(*WriteScriptRequest)(nil),             // 47: WriteScriptRequest
-	(*WriteScriptResponse)(nil),            // 48: WriteScriptResponse
-	(*CreateScriptRequest)(nil),            // 49: CreateScriptRequest
-	(*CreateScriptResponse)(nil),           // 50: CreateScriptResponse
-	(*RenameScriptRequest)(nil),            // 51: RenameScriptRequest
-	(*RenameScriptResponse)(nil),           // 52: RenameScriptResponse
-	(*DeleteScriptRequest)(nil),            // 53: DeleteScriptRequest
-	(*DeleteScriptResponse)(nil),           // 54: DeleteScriptResponse
-	(*CopyScriptRequest)(nil),              // 55: CopyScriptRequest
-	(*CopyScriptResponse)(nil),             // 56: CopyScriptResponse
-	(*ListScriptFoldersRequest)(nil),       // 57: ListScriptFoldersRequest
-	(*ListScriptFoldersResponse)(nil),      // 58: ListScriptFoldersResponse
-	(*CreateScriptFolderRequest)(nil),      // 59: CreateScriptFolderRequest
-	(*CreateScriptFolderResponse)(nil),     // 60: CreateScriptFolderResponse
-	(*RenameScriptFolderRequest)(nil),      // 61: RenameScriptFolderRequest
-	(*RenameScriptFolderResponse)(nil),     // 62: RenameScriptFolderResponse
-	(*DeleteScriptFolderRequest)(nil),      // 63: DeleteScriptFolderRequest
-	(*DeleteScriptFolderResponse)(nil),     // 64: DeleteScriptFolderResponse
-	(*CopyScriptFolderRequest)(nil),        // 65: CopyScriptFolderRequest
-	(*CopyScriptFolderResponse)(nil),       // 66: CopyScriptFolderResponse
-	(*ScanScriptVariablesRequest)(nil),     // 67: ScanScriptVariablesRequest
-	(*ScriptReference)(nil),                // 68: ScriptReference
-	(*VariableReferences)(nil),             // 69: VariableReferences
-	(*ScanScriptVariablesResponse)(nil),    // 70: ScanScriptVariablesResponse
-	(*Workspace)(nil),                      // 71: Workspace
-	(*WorkspaceMcp)(nil),                   // 72: WorkspaceMcp
-	(*WorkspaceApp)(nil),                   // 73: WorkspaceApp
-	(*GrpcApp)(nil),                        // 74: GrpcApp
-	(*TwirpApp)(nil),                       // 75: TwirpApp
-	(*OpenApiApp)(nil),                     // 76: OpenApiApp
-	(*OpenAiApp)(nil),                      // 77: OpenAiApp
-	(*FolderApp)(nil),                      // 78: FolderApp
-	(*McpApp)(nil),                         // 79: McpApp
-	(*UpdateWorkspaceRequest)(nil),         // 80: UpdateWorkspaceRequest
-	(*UpdateWorkspaceResponse)(nil),        // 81: UpdateWorkspaceResponse
-	nil,                                    // 82: Workspace.VariablesEntry
-	nil,                                    // 83: Workspace.ShortcutsEntry
-	nil,                                    // 84: GrpcApp.HeadersEntry
-	nil,                                    // 85: TwirpApp.HeadersEntry
-	nil,                                    // 86: OpenApiApp.HeadersEntry
-	nil,                                    // 87: OpenAiApp.HeadersEntry
-	nil,                                    // 88: McpApp.HeadersEntry
+	(GrpcProblemKind)(0),                   // 0: GrpcProblemKind
+	(OpenApiProblemKind)(0),                // 1: OpenApiProblemKind
+	(McpProblemKind)(0),                    // 2: McpProblemKind
+	(CompileStatus)(0),                     // 3: CompileStatus
+	(LogLevel)(0),                          // 4: LogLevel
+	(VariableSource)(0),                    // 5: VariableSource
+	(*CompileRequest)(nil),                 // 6: CompileRequest
+	(*RenameAppRequest)(nil),               // 7: RenameAppRequest
+	(*RenameAppResponse)(nil),              // 8: RenameAppResponse
+	(*InspectGrpcRequest)(nil),             // 9: InspectGrpcRequest
+	(*InspectGrpcResponse)(nil),            // 10: InspectGrpcResponse
+	(*GrpcServer)(nil),                     // 11: GrpcServer
+	(*GrpcService)(nil),                    // 12: GrpcService
+	(*GrpcProblem)(nil),                    // 13: GrpcProblem
+	(*InspectOpenApiRequest)(nil),          // 14: InspectOpenApiRequest
+	(*InspectOpenApiResponse)(nil),         // 15: InspectOpenApiResponse
+	(*OpenApiDocument)(nil),                // 16: OpenApiDocument
+	(*OpenApiServer)(nil),                  // 17: OpenApiServer
+	(*OpenApiServerVariable)(nil),          // 18: OpenApiServerVariable
+	(*OpenApiSecurityScheme)(nil),          // 19: OpenApiSecurityScheme
+	(*OpenApiProblem)(nil),                 // 20: OpenApiProblem
+	(*InspectMcpRequest)(nil),              // 21: InspectMcpRequest
+	(*InspectMcpResponse)(nil),             // 22: InspectMcpResponse
+	(*McpServer)(nil),                      // 23: McpServer
+	(*McpProblem)(nil),                     // 24: McpProblem
+	(*AuthorizeMcpRequest)(nil),            // 25: AuthorizeMcpRequest
+	(*AuthorizeMcpResponse)(nil),           // 26: AuthorizeMcpResponse
+	(*ForgetMcpAuthorizationRequest)(nil),  // 27: ForgetMcpAuthorizationRequest
+	(*ForgetMcpAuthorizationResponse)(nil), // 28: ForgetMcpAuthorizationResponse
+	(*CompileResponse)(nil),                // 29: CompileResponse
+	(*Log)(nil),                            // 30: Log
+	(*GetWorkspaceRequest)(nil),            // 31: GetWorkspaceRequest
+	(*WatchWorkspaceRequest)(nil),          // 32: WatchWorkspaceRequest
+	(*GetWorkspaceResponse)(nil),           // 33: GetWorkspaceResponse
+	(*Runtime)(nil),                        // 34: Runtime
+	(*VariableStatus)(nil),                 // 35: VariableStatus
+	(*SetStoredValueRequest)(nil),          // 36: SetStoredValueRequest
+	(*ClearStoredValueRequest)(nil),        // 37: ClearStoredValueRequest
+	(*StoredValueResponse)(nil),            // 38: StoredValueResponse
+	(*Script)(nil),                         // 39: Script
+	(*ListScriptsRequest)(nil),             // 40: ListScriptsRequest
+	(*ListScriptsResponse)(nil),            // 41: ListScriptsResponse
+	(*ReadScriptRequest)(nil),              // 42: ReadScriptRequest
+	(*ReadScriptResponse)(nil),             // 43: ReadScriptResponse
+	(*WriteScriptRequest)(nil),             // 44: WriteScriptRequest
+	(*WriteScriptResponse)(nil),            // 45: WriteScriptResponse
+	(*CreateScriptRequest)(nil),            // 46: CreateScriptRequest
+	(*CreateScriptResponse)(nil),           // 47: CreateScriptResponse
+	(*RenameScriptRequest)(nil),            // 48: RenameScriptRequest
+	(*RenameScriptResponse)(nil),           // 49: RenameScriptResponse
+	(*DeleteScriptRequest)(nil),            // 50: DeleteScriptRequest
+	(*DeleteScriptResponse)(nil),           // 51: DeleteScriptResponse
+	(*CopyScriptRequest)(nil),              // 52: CopyScriptRequest
+	(*CopyScriptResponse)(nil),             // 53: CopyScriptResponse
+	(*ListScriptFoldersRequest)(nil),       // 54: ListScriptFoldersRequest
+	(*ListScriptFoldersResponse)(nil),      // 55: ListScriptFoldersResponse
+	(*CreateScriptFolderRequest)(nil),      // 56: CreateScriptFolderRequest
+	(*CreateScriptFolderResponse)(nil),     // 57: CreateScriptFolderResponse
+	(*RenameScriptFolderRequest)(nil),      // 58: RenameScriptFolderRequest
+	(*RenameScriptFolderResponse)(nil),     // 59: RenameScriptFolderResponse
+	(*DeleteScriptFolderRequest)(nil),      // 60: DeleteScriptFolderRequest
+	(*DeleteScriptFolderResponse)(nil),     // 61: DeleteScriptFolderResponse
+	(*CopyScriptFolderRequest)(nil),        // 62: CopyScriptFolderRequest
+	(*CopyScriptFolderResponse)(nil),       // 63: CopyScriptFolderResponse
+	(*ScanScriptVariablesRequest)(nil),     // 64: ScanScriptVariablesRequest
+	(*ScriptReference)(nil),                // 65: ScriptReference
+	(*VariableReferences)(nil),             // 66: VariableReferences
+	(*ScanScriptVariablesResponse)(nil),    // 67: ScanScriptVariablesResponse
+	(*Workspace)(nil),                      // 68: Workspace
+	(*WorkspaceMcp)(nil),                   // 69: WorkspaceMcp
+	(*WorkspaceApp)(nil),                   // 70: WorkspaceApp
+	(*GrpcApp)(nil),                        // 71: GrpcApp
+	(*TwirpApp)(nil),                       // 72: TwirpApp
+	(*OpenApiApp)(nil),                     // 73: OpenApiApp
+	(*OpenAiApp)(nil),                      // 74: OpenAiApp
+	(*FolderApp)(nil),                      // 75: FolderApp
+	(*McpApp)(nil),                         // 76: McpApp
+	(*UpdateWorkspaceRequest)(nil),         // 77: UpdateWorkspaceRequest
+	(*UpdateWorkspaceResponse)(nil),        // 78: UpdateWorkspaceResponse
+	nil,                                    // 79: Workspace.VariablesEntry
+	nil,                                    // 80: Workspace.ShortcutsEntry
+	nil,                                    // 81: GrpcApp.HeadersEntry
+	nil,                                    // 82: TwirpApp.HeadersEntry
+	nil,                                    // 83: OpenApiApp.HeadersEntry
+	nil,                                    // 84: OpenAiApp.HeadersEntry
+	nil,                                    // 85: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	73, // 0: OpenAppRequest.app:type_name -> WorkspaceApp
-	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
-	33, // 2: OpenAppResponse.logs:type_name -> Log
-	74, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
-	14, // 4: InspectGrpcResponse.server:type_name -> GrpcServer
-	16, // 5: InspectGrpcResponse.problem:type_name -> GrpcProblem
-	15, // 6: GrpcServer.services:type_name -> GrpcService
-	1,  // 7: GrpcProblem.kind:type_name -> GrpcProblemKind
-	76, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
-	19, // 9: InspectOpenApiResponse.document:type_name -> OpenApiDocument
-	23, // 10: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
-	20, // 11: OpenApiDocument.servers:type_name -> OpenApiServer
-	22, // 12: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
-	21, // 13: OpenApiServer.variables:type_name -> OpenApiServerVariable
-	2,  // 14: OpenApiProblem.kind:type_name -> OpenApiProblemKind
-	79, // 15: InspectMcpRequest.mcp:type_name -> McpApp
-	26, // 16: InspectMcpResponse.server:type_name -> McpServer
-	27, // 17: InspectMcpResponse.problem:type_name -> McpProblem
-	3,  // 18: McpProblem.kind:type_name -> McpProblemKind
-	79, // 19: AuthorizeMcpRequest.mcp:type_name -> McpApp
-	27, // 20: AuthorizeMcpResponse.problem:type_name -> McpProblem
-	79, // 21: ForgetMcpAuthorizationRequest.mcp:type_name -> McpApp
-	4,  // 22: CompileResponse.status:type_name -> CompileStatus
-	33, // 23: CompileResponse.logs:type_name -> Log
-	5,  // 24: Log.level:type_name -> LogLevel
-	71, // 25: GetWorkspaceResponse.workspace:type_name -> Workspace
-	33, // 26: GetWorkspaceResponse.logs:type_name -> Log
-	38, // 27: GetWorkspaceResponse.variable_status:type_name -> VariableStatus
-	37, // 28: GetWorkspaceResponse.runtime:type_name -> Runtime
-	6,  // 29: VariableStatus.source:type_name -> VariableSource
-	38, // 30: StoredValueResponse.variable_status:type_name -> VariableStatus
-	42, // 31: ListScriptsResponse.scripts:type_name -> Script
-	42, // 32: ReadScriptResponse.script:type_name -> Script
-	42, // 33: WriteScriptResponse.script:type_name -> Script
-	42, // 34: CreateScriptResponse.script:type_name -> Script
-	42, // 35: RenameScriptResponse.script:type_name -> Script
-	42, // 36: CopyScriptResponse.script:type_name -> Script
-	68, // 37: VariableReferences.scripts:type_name -> ScriptReference
-	69, // 38: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
-	73, // 39: Workspace.apps:type_name -> WorkspaceApp
-	82, // 40: Workspace.variables:type_name -> Workspace.VariablesEntry
-	83, // 41: Workspace.shortcuts:type_name -> Workspace.ShortcutsEntry
-	72, // 42: Workspace.mcp:type_name -> WorkspaceMcp
-	74, // 43: WorkspaceApp.grpc:type_name -> GrpcApp
-	75, // 44: WorkspaceApp.twirp:type_name -> TwirpApp
-	76, // 45: WorkspaceApp.openapi:type_name -> OpenApiApp
-	77, // 46: WorkspaceApp.openai:type_name -> OpenAiApp
-	78, // 47: WorkspaceApp.folder:type_name -> FolderApp
-	79, // 48: WorkspaceApp.mcp:type_name -> McpApp
-	84, // 49: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	85, // 50: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	86, // 51: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	87, // 52: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	88, // 53: McpApp.headers:type_name -> McpApp.HeadersEntry
-	71, // 54: UpdateWorkspaceRequest.workspace:type_name -> Workspace
-	71, // 55: UpdateWorkspaceResponse.workspace:type_name -> Workspace
-	38, // 56: UpdateWorkspaceResponse.variable_status:type_name -> VariableStatus
-	7,  // 57: Api.Compile:input_type -> CompileRequest
-	8,  // 58: Api.OpenApp:input_type -> OpenAppRequest
-	10, // 59: Api.RenameApp:input_type -> RenameAppRequest
-	17, // 60: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	12, // 61: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	24, // 62: Api.InspectMcp:input_type -> InspectMcpRequest
-	28, // 63: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
-	30, // 64: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
-	34, // 65: Api.GetWorkspace:input_type -> GetWorkspaceRequest
-	35, // 66: Api.WatchWorkspace:input_type -> WatchWorkspaceRequest
-	80, // 67: Api.UpdateWorkspace:input_type -> UpdateWorkspaceRequest
-	39, // 68: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	40, // 69: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	43, // 70: Api.ListScripts:input_type -> ListScriptsRequest
-	45, // 71: Api.ReadScript:input_type -> ReadScriptRequest
-	47, // 72: Api.WriteScript:input_type -> WriteScriptRequest
-	49, // 73: Api.CreateScript:input_type -> CreateScriptRequest
-	51, // 74: Api.RenameScript:input_type -> RenameScriptRequest
-	53, // 75: Api.DeleteScript:input_type -> DeleteScriptRequest
-	55, // 76: Api.CopyScript:input_type -> CopyScriptRequest
-	57, // 77: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
-	59, // 78: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
-	61, // 79: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
-	63, // 80: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
-	65, // 81: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
-	67, // 82: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
-	32, // 83: Api.Compile:output_type -> CompileResponse
-	9,  // 84: Api.OpenApp:output_type -> OpenAppResponse
-	11, // 85: Api.RenameApp:output_type -> RenameAppResponse
-	18, // 86: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	13, // 87: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	25, // 88: Api.InspectMcp:output_type -> InspectMcpResponse
-	29, // 89: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
-	31, // 90: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
-	36, // 91: Api.GetWorkspace:output_type -> GetWorkspaceResponse
-	36, // 92: Api.WatchWorkspace:output_type -> GetWorkspaceResponse
-	81, // 93: Api.UpdateWorkspace:output_type -> UpdateWorkspaceResponse
-	41, // 94: Api.SetStoredValue:output_type -> StoredValueResponse
-	41, // 95: Api.ClearStoredValue:output_type -> StoredValueResponse
-	44, // 96: Api.ListScripts:output_type -> ListScriptsResponse
-	46, // 97: Api.ReadScript:output_type -> ReadScriptResponse
-	48, // 98: Api.WriteScript:output_type -> WriteScriptResponse
-	50, // 99: Api.CreateScript:output_type -> CreateScriptResponse
-	52, // 100: Api.RenameScript:output_type -> RenameScriptResponse
-	54, // 101: Api.DeleteScript:output_type -> DeleteScriptResponse
-	56, // 102: Api.CopyScript:output_type -> CopyScriptResponse
-	58, // 103: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
-	60, // 104: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
-	62, // 105: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
-	64, // 106: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
-	66, // 107: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
-	70, // 108: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
-	83, // [83:109] is the sub-list for method output_type
-	57, // [57:83] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	70, // 0: CompileRequest.app:type_name -> WorkspaceApp
+	71, // 1: InspectGrpcRequest.grpc:type_name -> GrpcApp
+	11, // 2: InspectGrpcResponse.server:type_name -> GrpcServer
+	13, // 3: InspectGrpcResponse.problem:type_name -> GrpcProblem
+	12, // 4: GrpcServer.services:type_name -> GrpcService
+	0,  // 5: GrpcProblem.kind:type_name -> GrpcProblemKind
+	73, // 6: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	16, // 7: InspectOpenApiResponse.document:type_name -> OpenApiDocument
+	20, // 8: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
+	17, // 9: OpenApiDocument.servers:type_name -> OpenApiServer
+	19, // 10: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
+	18, // 11: OpenApiServer.variables:type_name -> OpenApiServerVariable
+	1,  // 12: OpenApiProblem.kind:type_name -> OpenApiProblemKind
+	76, // 13: InspectMcpRequest.mcp:type_name -> McpApp
+	23, // 14: InspectMcpResponse.server:type_name -> McpServer
+	24, // 15: InspectMcpResponse.problem:type_name -> McpProblem
+	2,  // 16: McpProblem.kind:type_name -> McpProblemKind
+	76, // 17: AuthorizeMcpRequest.mcp:type_name -> McpApp
+	24, // 18: AuthorizeMcpResponse.problem:type_name -> McpProblem
+	76, // 19: ForgetMcpAuthorizationRequest.mcp:type_name -> McpApp
+	3,  // 20: CompileResponse.status:type_name -> CompileStatus
+	30, // 21: CompileResponse.logs:type_name -> Log
+	4,  // 22: Log.level:type_name -> LogLevel
+	68, // 23: GetWorkspaceResponse.workspace:type_name -> Workspace
+	30, // 24: GetWorkspaceResponse.logs:type_name -> Log
+	35, // 25: GetWorkspaceResponse.variable_status:type_name -> VariableStatus
+	34, // 26: GetWorkspaceResponse.runtime:type_name -> Runtime
+	5,  // 27: VariableStatus.source:type_name -> VariableSource
+	35, // 28: StoredValueResponse.variable_status:type_name -> VariableStatus
+	39, // 29: ListScriptsResponse.scripts:type_name -> Script
+	39, // 30: ReadScriptResponse.script:type_name -> Script
+	39, // 31: WriteScriptResponse.script:type_name -> Script
+	39, // 32: CreateScriptResponse.script:type_name -> Script
+	39, // 33: RenameScriptResponse.script:type_name -> Script
+	39, // 34: CopyScriptResponse.script:type_name -> Script
+	65, // 35: VariableReferences.scripts:type_name -> ScriptReference
+	66, // 36: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
+	70, // 37: Workspace.apps:type_name -> WorkspaceApp
+	79, // 38: Workspace.variables:type_name -> Workspace.VariablesEntry
+	80, // 39: Workspace.shortcuts:type_name -> Workspace.ShortcutsEntry
+	69, // 40: Workspace.mcp:type_name -> WorkspaceMcp
+	71, // 41: WorkspaceApp.grpc:type_name -> GrpcApp
+	72, // 42: WorkspaceApp.twirp:type_name -> TwirpApp
+	73, // 43: WorkspaceApp.openapi:type_name -> OpenApiApp
+	74, // 44: WorkspaceApp.openai:type_name -> OpenAiApp
+	75, // 45: WorkspaceApp.folder:type_name -> FolderApp
+	76, // 46: WorkspaceApp.mcp:type_name -> McpApp
+	81, // 47: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	82, // 48: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	83, // 49: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	84, // 50: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	85, // 51: McpApp.headers:type_name -> McpApp.HeadersEntry
+	68, // 52: UpdateWorkspaceRequest.workspace:type_name -> Workspace
+	68, // 53: UpdateWorkspaceResponse.workspace:type_name -> Workspace
+	35, // 54: UpdateWorkspaceResponse.variable_status:type_name -> VariableStatus
+	6,  // 55: Api.Compile:input_type -> CompileRequest
+	7,  // 56: Api.RenameApp:input_type -> RenameAppRequest
+	14, // 57: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	9,  // 58: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	21, // 59: Api.InspectMcp:input_type -> InspectMcpRequest
+	25, // 60: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
+	27, // 61: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
+	31, // 62: Api.GetWorkspace:input_type -> GetWorkspaceRequest
+	32, // 63: Api.WatchWorkspace:input_type -> WatchWorkspaceRequest
+	77, // 64: Api.UpdateWorkspace:input_type -> UpdateWorkspaceRequest
+	36, // 65: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	37, // 66: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	40, // 67: Api.ListScripts:input_type -> ListScriptsRequest
+	42, // 68: Api.ReadScript:input_type -> ReadScriptRequest
+	44, // 69: Api.WriteScript:input_type -> WriteScriptRequest
+	46, // 70: Api.CreateScript:input_type -> CreateScriptRequest
+	48, // 71: Api.RenameScript:input_type -> RenameScriptRequest
+	50, // 72: Api.DeleteScript:input_type -> DeleteScriptRequest
+	52, // 73: Api.CopyScript:input_type -> CopyScriptRequest
+	54, // 74: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	56, // 75: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	58, // 76: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	60, // 77: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	62, // 78: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
+	64, // 79: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
+	29, // 80: Api.Compile:output_type -> CompileResponse
+	8,  // 81: Api.RenameApp:output_type -> RenameAppResponse
+	15, // 82: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	10, // 83: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	22, // 84: Api.InspectMcp:output_type -> InspectMcpResponse
+	26, // 85: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
+	28, // 86: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
+	33, // 87: Api.GetWorkspace:output_type -> GetWorkspaceResponse
+	33, // 88: Api.WatchWorkspace:output_type -> GetWorkspaceResponse
+	78, // 89: Api.UpdateWorkspace:output_type -> UpdateWorkspaceResponse
+	38, // 90: Api.SetStoredValue:output_type -> StoredValueResponse
+	38, // 91: Api.ClearStoredValue:output_type -> StoredValueResponse
+	41, // 92: Api.ListScripts:output_type -> ListScriptsResponse
+	43, // 93: Api.ReadScript:output_type -> ReadScriptResponse
+	45, // 94: Api.WriteScript:output_type -> WriteScriptResponse
+	47, // 95: Api.CreateScript:output_type -> CreateScriptResponse
+	49, // 96: Api.RenameScript:output_type -> RenameScriptResponse
+	51, // 97: Api.DeleteScript:output_type -> DeleteScriptResponse
+	53, // 98: Api.CopyScript:output_type -> CopyScriptResponse
+	55, // 99: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	57, // 100: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	59, // 101: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	61, // 102: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	63, // 103: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
+	67, // 104: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
+	80, // [80:105] is the sub-list for method output_type
+	55, // [55:80] is the sub-list for method input_type
+	55, // [55:55] is the sub-list for extension type_name
+	55, // [55:55] is the sub-list for extension extendee
+	0,  // [0:55] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -5709,7 +5559,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[66].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[64].OneofWrappers = []any{
 		(*WorkspaceApp_Grpc)(nil),
 		(*WorkspaceApp_Twirp)(nil),
 		(*WorkspaceApp_Openapi)(nil),
@@ -5722,8 +5572,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      7,
-			NumMessages:   82,
+			NumEnums:      6,
+			NumMessages:   80,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

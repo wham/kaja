@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -65,9 +66,10 @@ func MergeMetadata(headers map[string]string, metadata map[string]string) map[st
 
 // App is the contract every app type satisfies. An App is a factory: Open turns
 // creation parameters into an Opened result, describing the proto surface to
-// compile and the instance its methods are invoked on.
+// compile and the instance its methods are invoked on. ctx is the compile that asked
+// for it: an app reading its surface off the network stops when the compile does.
 type App interface {
-	Open(parameters map[string]string, protoDir string, log func(string)) (*Opened, error)
+	Open(ctx context.Context, parameters map[string]string, protoDir string, log func(string)) (*Opened, error)
 }
 
 // Opened is the result of opening an app: where its proto surface lives and what
@@ -96,6 +98,13 @@ type Call struct {
 	// certificate take effect on the next call; an app that answers in this process
 	// makes no such connection and ignores it.
 	TLS grpc.TLSOptions
+	// Parameters are the app's parameters as they stand when the call is made,
+	// expanded and with their paths resolved: the same map Open was handed, read again
+	// from kaja.json. An app that derives a credential from them derives it per call,
+	// so a replaced token takes effect on the next call rather than the next compile.
+	// nil means the parameters the instance was opened with, which is what an
+	// instance opened outside the door is invoked with. Read-only.
+	Parameters map[string]string
 }
 
 // Instance is a live, opened app that can invoke its generated methods.
@@ -104,6 +113,23 @@ type Instance interface {
 	// unary method is a stream of one — the frames on the wire are the same either
 	// way — which is what lets one lane carry every app and every kind of method.
 	Invoke(ctx context.Context, call *Call) (Stream, error)
+}
+
+// Closer is what an instance holding something between calls - an idle connection, a
+// session a server tracks - also satisfies. Close releases it; the instance stays
+// usable, opening what it needs again on the next call, so an instance both a cache
+// and a registry point at can be closed by either without the other noticing.
+type Closer interface {
+	Close() error
+}
+
+// CloseInstance releases what an instance holds, where it holds anything.
+func CloseInstance(instance Instance) {
+	if closer, ok := instance.(Closer); ok {
+		if err := closer.Close(); err != nil {
+			slog.Debug("Closing an app instance", "error", err)
+		}
+	}
 }
 
 // Stream is a call in progress: the response messages, then what the exchange had to
@@ -197,27 +223,48 @@ func NewManager(types map[string]App) *Manager {
 // Open instantiates an app of the given type and registers it under name, replacing
 // whatever was open under that name before. Generated protos are written into
 // protoDir; the directory the surface actually lives in is what comes back.
-func (m *Manager) Open(name string, appType string, parameters map[string]string, protoDir string, log func(string)) (string, error) {
-	m.mu.Lock()
-	app, ok := m.types[appType]
-	m.mu.Unlock()
-	if !ok {
-		return "", fmt.Errorf("unknown app type %q", appType)
-	}
-
-	opened, err := app.Open(parameters, protoDir, log)
+func (m *Manager) Open(ctx context.Context, name string, appType string, parameters map[string]string, protoDir string, log func(string)) (string, error) {
+	opened, err := m.Instantiate(ctx, appType, parameters, protoDir, log)
 	if err != nil {
 		return "", err
 	}
-
-	m.mu.Lock()
-	m.instances[name] = opened.Instance
-	m.mu.Unlock()
-
+	m.Register(name, opened.Instance)
 	if opened.ProtoDir != "" {
 		return opened.ProtoDir, nil
 	}
 	return protoDir, nil
+}
+
+// Instantiate opens an app of the given type without registering it, which is what
+// a caller holding opened apps of its own - a compile cache - does before deciding
+// what name the instance answers under.
+func (m *Manager) Instantiate(ctx context.Context, appType string, parameters map[string]string, protoDir string, log func(string)) (*Opened, error) {
+	m.mu.Lock()
+	app, ok := m.types[appType]
+	m.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("unknown app type %q", appType)
+	}
+	opened, err := app.Open(ctx, parameters, protoDir, log)
+	if err != nil {
+		return nil, err
+	}
+	if opened.Instance == nil {
+		return nil, fmt.Errorf("the %s app opened without an instance", appType)
+	}
+	return opened, nil
+}
+
+// Register makes instance the one answering under name, closing whatever answered
+// there before unless it is the same instance registered again.
+func (m *Manager) Register(name string, instance Instance) {
+	m.mu.Lock()
+	previous := m.instances[name]
+	m.instances[name] = instance
+	m.mu.Unlock()
+	if previous != nil && previous != instance {
+		CloseInstance(previous)
+	}
 }
 
 // Rename moves the instance open under oldName to newName, which is what following
@@ -237,10 +284,15 @@ func (m *Manager) Rename(oldName string, newName string) {
 	m.instances[newName] = instance
 }
 
+// Clear forgets every open instance, closing what each held.
 func (m *Manager) Clear() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	instances := m.instances
 	m.instances = map[string]Instance{}
+	m.mu.Unlock()
+	for _, instance := range instances {
+		CloseInstance(instance)
+	}
 }
 
 // Invoke routes a call to the app registered under name.

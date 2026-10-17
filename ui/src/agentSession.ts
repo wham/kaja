@@ -34,6 +34,11 @@ const ACTIVITY_LINGER_MS = 2500;
 // reconnected without saying anything, backing off to this.
 const RECONNECT_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
+// The server pings the stream every twenty seconds. A stream that has carried nothing
+// for this long is one a proxy let go of without saying so, and is opened again.
+const STREAM_IDLE_MS = 45000;
+// The catalog follows every change to the apps, and a compile lands several in a row.
+const CATALOG_DEBOUNCE_MS = 250;
 // How often a run says what it has done so far, where the agent asked to hear it. It is
 // a beat rather than a report per call: a perf test makes thousands, and what the agent
 // is reading is that the wait is a run rather than a stall.
@@ -125,7 +130,12 @@ class AgentSession {
   private runner?: (run: AgentRun) => Promise<unknown>;
   private onActivity?: (active: boolean) => void;
   private onScripts?: (change: AgentScriptChange) => void;
-  private catalog?: string;
+  // Built when it is pushed rather than when it changes, so a burst of changes is one
+  // serialization and the newest one.
+  private catalog?: () => string;
+  private catalogTimer?: number;
+  private catalogInFlight = false;
+  private catalogStale = false;
   // The desktop's token, handed over by the process that persists it. Where there is
   // one it is the session, and this browser's own storage is not consulted.
   private hostToken?: string;
@@ -237,10 +247,33 @@ class AgentSession {
     this.detach();
   }
 
-  /** Hands the server what this window says is callable. */
-  setCatalog(catalog: string): void {
+  /**
+   * Hands the server what this window says is callable. Debounced, and pushed again
+   * on attach and on taking duty, since the server takes a catalog from the window on
+   * duty alone.
+   */
+  setCatalog(catalog: () => string): void {
     this.catalog = catalog;
-    void this.post("/agent-session/catalog", catalog);
+    window.clearTimeout(this.catalogTimer);
+    this.catalogTimer = window.setTimeout(() => void this.pushCatalog(), CATALOG_DEBOUNCE_MS);
+  }
+
+  // One push in flight at a time; a catalog that changed meanwhile goes out after it.
+  private async pushCatalog(): Promise<void> {
+    if (!this.catalog || !this.state.onDuty) return;
+    if (this.catalogInFlight) {
+      this.catalogStale = true;
+      return;
+    }
+    this.catalogInFlight = true;
+    try {
+      do {
+        this.catalogStale = false;
+        await this.post("/agent-session/catalog", this.catalog(), true, { "X-Kaja-Stream": this.streamId ?? "" });
+      } while (this.catalogStale);
+    } finally {
+      this.catalogInFlight = false;
+    }
   }
 
   /**
@@ -327,7 +360,6 @@ class AgentSession {
         }
         this.reconnect = RECONNECT_MS;
         this.update({ attached: true, error: undefined });
-        if (this.catalog) void this.post("/agent-session/catalog", this.catalog);
         await this.read(response.body);
       } catch (err) {
         if (abort.signal.aborted) return;
@@ -336,7 +368,8 @@ class AgentSession {
       if (abort.signal.aborted) return;
       this.update({ attached: false, onDuty: false });
       this.streamId = undefined;
-      await this.sleep(this.reconnect);
+      // Jittered, so every window that lost one server does not come back on one beat.
+      await this.sleep(this.reconnect * (0.5 + Math.random()));
       this.reconnect = Math.min(this.reconnect * 2, RECONNECT_MAX_MS);
     }
   }
@@ -346,7 +379,7 @@ class AgentSession {
     const decoder = new TextDecoder();
     let buffer = "";
     for (;;) {
-      const { value, done } = await reader.read();
+      const { value, done } = await this.readWithin(reader, STREAM_IDLE_MS);
       if (done) return;
       buffer += decoder.decode(value, { stream: true });
       let newline = buffer.indexOf("\n");
@@ -365,15 +398,43 @@ class AgentSession {
     }
   }
 
+  // A read that outlasts the server's own pings is a stream nothing is on the other
+  // end of, cancelled so the loop above opens another.
+  private readWithin(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    ms: number,
+  ): Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>> {
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        void reader.cancel().catch(() => {});
+        reject(new Error("the session stream went quiet"));
+      }, ms);
+      reader.read().then(
+        (result) => {
+          window.clearTimeout(timer);
+          resolve(result);
+        },
+        (err) => {
+          window.clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  }
+
   private handle(message: Message): void {
     switch (message.type) {
       case "hello":
         this.streamId = message.streamId;
         this.reportFocus();
         break;
-      case "duty":
-        this.update({ onDuty: message.onDuty === true });
+      case "duty": {
+        const onDuty = message.onDuty === true;
+        const taking = onDuty && !this.state.onDuty;
+        this.update({ onDuty });
+        if (taking) void this.pushCatalog();
         break;
+      }
       case "activity":
         this.markActive((message.inFlight ?? 0) > 0);
         break;
@@ -465,13 +526,13 @@ class AgentSession {
    * dropped stream is work for nothing; a run's result is not — it is the answer to
    * something that already happened.
    */
-  private async post(path: string, body: string, whileAttached = true): Promise<void> {
+  private async post(path: string, body: string, whileAttached = true, headers: Record<string, string> = {}): Promise<void> {
     const token = this.currentToken();
     if (!token || (whileAttached && !this.state.attached)) return;
     try {
       await fetch(path, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...headers },
         body,
       });
     } catch {

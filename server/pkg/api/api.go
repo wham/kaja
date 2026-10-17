@@ -20,6 +20,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps/twirp"
 	pkggrpc "github.com/wham/kaja/v2/pkg/grpc"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 type ApiService struct {
@@ -35,11 +36,23 @@ type ApiService struct {
 	// is nowhere to keep one, and the verbs that use it are then absent.
 	mcpAuthorizer *mcp.Authorizer
 	apps          *apps.Manager
+	// compiled is every surface this process has compiled, so an app whose
+	// parameters have not moved is reopened without reading its upstream again.
+	compiled *compileCache
 
-	// The workspace file's watcher, started by the first call that watches it.
-	// Guarded by watcherMu.
+	// current is the workspace as last read, nil until something asks. Guarded by
+	// snapshotMu.
+	snapshotMu sync.Mutex
+	current    *workspaceSnapshot
+
+	// The workspace file's watcher, started with the first snapshot so an edit made
+	// outside kaja drops it. Guarded by watcherMu.
 	watcherMu sync.Mutex
 	watcher   *WorkspaceWatcher
+
+	// writeMu serializes the writes to kaja.json, so two read-modify-write edits
+	// cannot each save a file missing the other's change.
+	writeMu sync.Mutex
 }
 
 // NewApiService builds the service. variableStore is where a "${secret}"
@@ -67,6 +80,7 @@ func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string,
 		buildNumber:        buildNumber,
 		variableStore:      variableStore,
 		mcpAuthorizer:      authorizer,
+		compiled:           newCompileCache(),
 		apps: apps.NewManager(map[string]apps.App{
 			"grpc":    rpc.New(),
 			"twirp":   twirp.New(),
@@ -100,8 +114,9 @@ func (s *ApiService) WorkspaceDir() string {
 	return workspaceDir(s.workspaceFilePath())
 }
 
-// SetWorkspace is enough on its own because the file is read per call; the watcher and
-// the open instances are the only things derived from the old path.
+// SetWorkspace points the service at another file. Everything derived from the old
+// one goes with it: the snapshot, the open instances, and the watcher - whose streams
+// end, so a window still watching opens a new one on the new file.
 func (s *ApiService) SetWorkspace(workspaceFile string, variableStore VariableStore) {
 	if err := s.Close(); err != nil {
 		slog.Warn("Failed to stop watching the workspace", "error", err)
@@ -112,6 +127,7 @@ func (s *ApiService) SetWorkspace(workspaceFile string, variableStore VariableSt
 	s.variableStore = variableStore
 	s.workspaceMu.Unlock()
 
+	s.invalidateSnapshot()
 	s.apps.Clear()
 	slog.Info("Opened workspace", "path", workspaceFile)
 }
@@ -121,8 +137,7 @@ func (s *ApiService) SetWorkspace(workspaceFile string, variableStore VariableSt
 // client sends, and to mask resolved values back out of what an app reports
 // exchanging with its upstream.
 func (s *ApiService) Variables() *Resolver {
-	workspace := loadWorkspaceFile(s.workspaceFilePath(), NewLogger())
-	return NewResolver(workspace.Variables, s.valueStore())
+	return s.snapshot().resolver
 }
 
 // variableStoreAvailable reports whether this machine can store a variable's
@@ -136,9 +151,9 @@ func (s *ApiService) variableStoreAvailable() bool {
 // The reserved header names the app the call belongs to and goes no further. The
 // ${NAME} references the client left in the rest are expanded here — the client sends
 // them unexpanded, because a variable's value may be one it is not allowed to know —
-// and the app's own credential and transport security are read from kaja.json now
-// rather than held from Open, so replacing a token takes effect on the next call
-// instead of the next compile.
+// and the app's own parameters, credential and transport security are read from the
+// workspace as it stands now rather than held from Open, so replacing a token takes
+// effect on the next call instead of the next compile, whatever the app's type.
 //
 // Coming back, every resolved value is masked out of the headers the app reports
 // exchanging upstream, so no value kaja.json doesn't carry can reach the client, and
@@ -147,16 +162,18 @@ func (s *ApiService) variableStoreAvailable() bool {
 // fills one in itself.
 func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byte, headers map[string]string) (apps.Stream, error) {
 	name := apps.TakeAppName(headers)
-	resolver := s.Variables()
-	connection := s.appConnection(name)
+	snapshot := s.snapshot()
+	resolver := snapshot.resolver
+	connection := snapshot.connection(name)
 	expanded := resolver.ExpandAll(headers)
 	entry := callLog{method: method, app: name, expanded: expandedNames(headers, expanded)}
 
 	call := &apps.Call{
-		Method:  method,
-		Request: message,
-		Headers: apps.MergeMetadata(expanded, connection.Metadata),
-		TLS:     connection.TLS,
+		Method:     method,
+		Request:    message,
+		Headers:    apps.MergeMetadata(expanded, connection.Metadata),
+		TLS:        connection.TLS,
+		Parameters: connection.Parameters,
 	}
 
 	started := time.Now()
@@ -260,42 +277,42 @@ func (s *timedStream) Report() *apps.Report {
 	return report
 }
 
-// Compile compiles the proto surface an app was opened with and streams the result:
+// Compile opens an app and compiles its surface in one call, streaming the result:
 // every log line as it is written, then one last message carrying the terminal status
-// and, on a success, the manifest.
+// and, on a success, the manifest. Opening registers the instance under the app's
+// name, which is the address every call carries.
+//
+// A surface this process has compiled before is reused rather than read again: the
+// key is everything the surface was compiled from, and a reused instance is handed the
+// call's own parameters on every call, so nothing about the app that may have changed
+// since is held by it. Recompile asks with fresh, which reads the upstream again.
 func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingServer[CompileResponse]) error {
+	ctx := stream.Context()
 	var sendErr error
 	send := func(response *CompileResponse) {
 		if sendErr == nil {
 			sendErr = stream.Send(response)
 		}
 	}
-
-	compiler := NewCompiler(NewStreamingLogger(func(log *Log) {
+	logger := NewStreamingLogger(func(log *Log) {
 		send(&CompileResponse{Status: CompileStatus_STATUS_RUNNING, Logs: []*Log{log}})
-	}))
-
-	manifest, err := compiler.run(resolveWorkspacePath(s.WorkspaceDir(), req.ProtoDir))
-	if err != nil {
-		// The failure was logged as it happened, so the last message is the verdict
-		// and nothing else.
+	})
+	// The failure was logged as it happened, so the last message is the verdict and
+	// nothing else.
+	fail := func() error {
 		send(&CompileResponse{Status: CompileStatus_STATUS_ERROR})
-	} else {
-		send(&CompileResponse{Status: CompileStatus_STATUS_READY, Manifest: manifest})
+		return sendErr
 	}
 
-	return sendErr
-}
-
-func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenAppResponse, error) {
-	// The app's typed parameters are flattened to a string map for the in-process
-	// app contract; the set oneof field is the app type.
+	if req.App == nil {
+		logger.error("No app to compile", nil)
+		return fail()
+	}
 	appType, parameters := flattenApp(req.App)
 	if appType == "" {
-		return nil, fmt.Errorf("app type is required")
+		logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, folder, mcp.", req.App.Name), nil)
+		return fail()
 	}
-
-	logger := NewLogger()
 	logger.info("Opening app: " + appType)
 
 	// Expand ${NAME} variable references in the creation parameters (URLs,
@@ -303,27 +320,48 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	expandAppParameters(parameters, s.Variables(), logger)
 	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
-	protoDir, err := tempdir.NewSourcesDir()
-	if err != nil {
-		logger.error("Failed to create temp directory", err)
-		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
+	key := compileKey(appType, parameters)
+	if !req.Fresh {
+		if compiled, ok := s.compiled.get(key); ok {
+			s.apps.Register(req.App.Name, compiled.opened.Instance)
+			logger.info("Reused the surface compiled earlier for this app; recompile to read it again")
+			send(&CompileResponse{Status: CompileStatus_STATUS_READY, Manifest: compiled.manifest})
+			return sendErr
+		}
 	}
 
-	// The app is registered under its own name, which is the address every call
-	// already carries: nothing about where it lives is handed to the client.
-	openedDir, err := s.apps.Open(req.App.Name, appType, parameters, protoDir, func(message string) {
+	protoDir := ""
+	if needsSourcesDir(appType, parameters) {
+		dir, err := tempdir.NewSourcesDir()
+		if err != nil {
+			logger.error("Failed to create temp directory", err)
+			return fail()
+		}
+		protoDir = dir
+	}
+
+	opened, err := s.apps.Instantiate(ctx, appType, parameters, protoDir, func(message string) {
 		logger.info(message)
 	})
 	if err != nil {
 		logger.error("Failed to open app", err)
-		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
+		return fail()
+	}
+	dir := opened.ProtoDir
+	if dir == "" {
+		dir = protoDir
 	}
 
-	return &OpenAppResponse{
-		Status:   OpenStatus_OPEN_STATUS_OK,
-		Logs:     logger.logs,
-		ProtoDir: openedDir,
-	}, nil
+	manifest, err := NewCompiler(logger).run(resolveWorkspacePath(s.WorkspaceDir(), dir))
+	if err != nil {
+		apps.CloseInstance(opened.Instance)
+		return fail()
+	}
+
+	s.compiled.put(key, &compiledApp{opened: opened, manifest: manifest})
+	s.apps.Register(req.App.Name, opened.Instance)
+	send(&CompileResponse{Status: CompileStatus_STATUS_READY, Manifest: manifest})
+	return sendErr
 }
 
 // RenameApp follows an app's rename into the open apps, so the instance keeps
@@ -341,37 +379,30 @@ func (s *ApiService) RenameApp(ctx context.Context, req *RenameAppRequest) (*Ren
 	return &RenameAppResponse{}, nil
 }
 
-// AppConnection is how a grpc app reaches its upstream: the credential it sends
-// with every call, and the transport security it uses. Both are read from
-// kaja.json when the call is made rather than held from Open, so replacing a
-// token takes effect on the next call instead of the next compile.
+// AppConnection is how an app reaches its upstream as the workspace stands when the
+// call is made: its parameters, expanded and path-resolved, and for a grpc app the
+// credential it sends with every call and the transport security it uses. Read from
+// the workspace rather than held from Open, so replacing a token takes effect on the
+// next call instead of the next compile.
 type AppConnection struct {
-	Metadata map[string]string
-	TLS      pkggrpc.TLSOptions
+	Parameters map[string]string
+	Metadata   map[string]string
+	TLS        pkggrpc.TLSOptions
 }
 
 // appConnection resolves how the named app connects. The name arrives on the
-// reserved header the client sends with every call; an app that isn't there, or
-// isn't a grpc app, connects the way it always has.
+// reserved header the client sends with every call; an app that isn't there
+// connects the way it was opened.
 func (s *ApiService) appConnection(name string) AppConnection {
-	if name == "" {
+	return s.snapshot().connection(name)
+}
+
+func (snapshot *workspaceSnapshot) connection(name string) AppConnection {
+	entry, ok := snapshot.apps[name]
+	if !ok {
 		return AppConnection{}
 	}
-
-	workspace := loadWorkspaceFile(s.workspaceFilePath(), NewLogger())
-	for _, app := range workspace.Apps {
-		if app.Name != name {
-			continue
-		}
-		appType, parameters := flattenApp(app)
-		if appType != "grpc" {
-			return AppConnection{}
-		}
-		expandAppParameters(parameters, NewResolver(workspace.Variables, s.valueStore()), NewLogger())
-		resolveWorkspacePaths(parameters, s.WorkspaceDir())
-		return AppConnection{Metadata: rpc.Metadata(parameters), TLS: rpc.TLS(parameters)}
-	}
-	return AppConnection{}
+	return AppConnection{Parameters: entry.parameters, Metadata: entry.metadata, TLS: entry.tls}
 }
 
 // InspectGrpc reads the surface a grpc app would be opened with - reflecting the
@@ -446,7 +477,7 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Mcp{Mcp: req.Mcp}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
-	surface, problem := mcp.Inspect(parameters, s.mcpAuthorizer)
+	surface, problem := mcp.Inspect(ctx, parameters, s.mcpAuthorizer)
 	if problem != nil {
 		return &InspectMcpResponse{Problem: &McpProblem{
 			Kind:    mcpProblemKind(problem.Kind),
@@ -580,7 +611,7 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: req.Openapi}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
-	document, problem := openapi.Inspect(parameters, func(message string) { slog.Info(message) })
+	document, problem := openapi.Inspect(ctx, parameters, func(message string) { slog.Info(message) })
 	if problem != nil {
 		return &InspectOpenApiResponse{Problem: &OpenApiProblem{
 			Kind:    problemKind(problem.Kind),
@@ -654,23 +685,22 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 }
 
 func (s *ApiService) GetWorkspace(ctx context.Context, req *GetWorkspaceRequest) (*GetWorkspaceResponse, error) {
-	slog.Info("Getting workspace")
+	slog.Debug("Getting workspace")
 
 	return s.workspaceResponse(), nil
 }
 
-// WatchWorkspace streams the workspace file as it is edited, one message per
-// change carrying the whole of what GetWorkspace answers with. The file is read
-// where the change is noticed, so a client is never told that something changed and
-// left to ask what.
-//
-// The current workspace is not sent when the stream opens: whoever is watching has
-// just loaded it, and a second reading of the same file would be a change nothing made.
+// WatchWorkspace streams the workspace as it stands, one message per change carrying
+// the whole of what GetWorkspace answers with. The first message is the current state,
+// so a stream opened after a change the window was away for carries it; the generation
+// on every message is what lets the window tell that from a state it already holds.
+// The stream ends when the watcher does - another workspace was opened - and a window
+// opens a new one.
 func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.ServerStreamingServer[GetWorkspaceResponse]) error {
 	// Buffered by one and dropped when full: a burst of writes is one change to report,
 	// and the report is the file as it stands by the time it is read.
 	changed := make(chan struct{}, 1)
-	unsubscribe := s.watchWorkspaceFile(func() {
+	unsubscribe, closed := s.watchWorkspaceFile(func() {
 		select {
 		case changed <- struct{}{}:
 		default:
@@ -678,9 +708,15 @@ func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.Serv
 	})
 	defer unsubscribe()
 
+	if err := stream.Send(s.workspaceResponse()); err != nil {
+		return err
+	}
+
 	for {
 		select {
 		case <-stream.Context().Done():
+			return nil
+		case <-closed:
 			return nil
 		case <-changed:
 			if err := stream.Send(s.workspaceResponse()); err != nil {
@@ -691,9 +727,11 @@ func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.Serv
 }
 
 // workspaceResponse is the file plus the runtime it is being served by, which is
-// what both doors to the workspace answer with.
+// what both doors to the workspace answer with. The variables travel as kaja.json
+// writes them - a literal value, or the source that holds it ("${secret}", "${env:X}").
+// A value this machine resolved from a source is never part of the response.
 func (s *ApiService) workspaceResponse() *GetWorkspaceResponse {
-	response := LoadGetWorkspaceResponse(s.workspaceFilePath())
+	response := s.snapshot().response()
 
 	response.Runtime = &Runtime{
 		CanUpdateWorkspace:     s.canUpdateWorkspace,
@@ -703,18 +741,13 @@ func (s *ApiService) workspaceResponse() *GetWorkspaceResponse {
 		WorkspaceDir:           s.WorkspaceDir(),
 	}
 
-	// The variables travel as kaja.json writes them - a literal value, or the
-	// source that holds it ("${secret}", "${env:X}"). A value this machine
-	// resolved from a source is never part of the response.
-	response.VariableStatus = NewResolver(response.Workspace.Variables, s.valueStore()).Statuses()
-
 	return response
 }
 
-// watchWorkspaceFile subscribes to the workspace file and hands back the way to
-// stop. The watcher is started by the first subscriber rather than by the process, so a
-// kaja nobody is watching polls nothing.
-func (s *ApiService) watchWorkspaceFile(onChange func()) func() {
+// ensureWatcher starts the file watcher for the current workspace file, with the
+// snapshot's invalidation as its first subscriber. Called with snapshotMu held, which
+// is the one order the two locks are ever taken in.
+func (s *ApiService) ensureWatcher() *WorkspaceWatcher {
 	s.watcherMu.Lock()
 	defer s.watcherMu.Unlock()
 
@@ -723,12 +756,34 @@ func (s *ApiService) watchWorkspaceFile(onChange func()) func() {
 		watcher, err := NewWorkspaceWatcher(path)
 		if err != nil {
 			slog.Warn("Failed to start workspace watcher", "path", path, "error", err)
-			return func() {}
+			return nil
 		}
+		watcher.Subscribe(s.invalidateSnapshot)
 		s.watcher = watcher
 	}
+	return s.watcher
+}
 
-	return s.watcher.Subscribe(onChange)
+// watchWorkspaceFile subscribes to the workspace file and hands back the way to stop
+// and the channel that closes when the watcher itself does.
+func (s *ApiService) watchWorkspaceFile(onChange func()) (func(), <-chan struct{}) {
+	s.watcherMu.Lock()
+	watcher := s.watcher
+	s.watcherMu.Unlock()
+	if watcher == nil {
+		// Reading the snapshot starts the watcher, since a snapshot is what the
+		// watcher exists to invalidate.
+		s.snapshot()
+		s.watcherMu.Lock()
+		watcher = s.watcher
+		s.watcherMu.Unlock()
+	}
+	if watcher == nil {
+		closed := make(chan struct{})
+		close(closed)
+		return func() {}, closed
+	}
+	return watcher.Subscribe(onChange), watcher.Done()
 }
 
 // Close stops watching the workspace file.
@@ -749,24 +804,46 @@ func (s *ApiService) UpdateWorkspace(ctx context.Context, req *UpdateWorkspaceRe
 		return nil, fmt.Errorf("workspace is required")
 	}
 
-	if !s.canUpdateWorkspace {
-		return nil, fmt.Errorf("updating workspace is not allowed")
-	}
-
-	if err := validateVariables(req.Workspace.Variables); err != nil {
+	if err := s.MutateWorkspace(func(workspace *Workspace) error {
+		proto.Reset(workspace)
+		proto.Merge(workspace, req.Workspace)
+		return nil
+	}); err != nil {
 		return nil, err
-	}
-
-	slog.Info("Updating workspace")
-
-	if err := SaveWorkspace(s.workspaceFilePath(), req.Workspace); err != nil {
-		return nil, fmt.Errorf("failed to save workspace: %w", err)
 	}
 
 	return &UpdateWorkspaceResponse{
 		Workspace:      req.Workspace,
-		VariableStatus: NewResolver(req.Workspace.Variables, s.valueStore()).Statuses(),
+		VariableStatus: s.Variables().Statuses(),
 	}, nil
+}
+
+// MutateWorkspace applies one edit to kaja.json under the write lock: the file is
+// read, edited, validated and written as one step, so two edits made at once - an
+// agent adding an app while the window saves a variable - each see the other's work.
+// The snapshot is dropped on the way out, so the next call reads what was written.
+func (s *ApiService) MutateWorkspace(edit func(workspace *Workspace) error) error {
+	if !s.canUpdateWorkspace {
+		return fmt.Errorf("updating workspace is not allowed")
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	workspace := proto.Clone(s.snapshot().workspace).(*Workspace)
+	if err := edit(workspace); err != nil {
+		return err
+	}
+	if err := validateVariables(workspace.Variables); err != nil {
+		return err
+	}
+
+	slog.Info("Updating workspace")
+	if err := SaveWorkspace(s.workspaceFilePath(), workspace); err != nil {
+		return fmt.Errorf("failed to save workspace: %w", err)
+	}
+	s.invalidateSnapshot()
+	return nil
 }
 
 // SetStoredValue writes a variable's value to this machine's store, so kaja.json
@@ -787,6 +864,7 @@ func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequ
 	if err := s.valueStore().Set(req.Name, req.Value); err != nil {
 		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
 	}
+	s.invalidateSnapshot()
 
 	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
 }
@@ -804,6 +882,7 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 		if err := s.valueStore().Delete(req.Name); err != nil {
 			return nil, fmt.Errorf("failed to clear the value for %q: %w", req.Name, err)
 		}
+		s.invalidateSnapshot()
 	}
 
 	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil

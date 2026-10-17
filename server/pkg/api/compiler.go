@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/wham/kaja/v2/pkg/grpc"
@@ -42,7 +43,8 @@ func (c *Compiler) run(protoDir string) (string, error) {
 // compilerFor reads what a proto directory holds and says how to compile it. A
 // surface kaja was pointed at is .proto files; one that came from reflection is the
 // descriptors the server sent, compiled as they are rather than printed back out as
-// text something else has to parse again.
+// text something else has to parse again, and an app that generates its own surface
+// leaves the descriptors it compiled for itself the same way.
 func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, error) {
 	set := filepath.Join(protoDir, grpc.DescriptorSetName)
 	if _, err := os.Stat(set); err == nil {
@@ -50,7 +52,10 @@ func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, err
 		if err != nil {
 			return nil, nil, fmt.Errorf("reading descriptors: %v", err)
 		}
-		c.logger.debug(fmt.Sprintf("Found %d reflected file(s)", len(files)))
+		// In the order the .proto files would have been found in, so the manifest reads
+		// the same whichever way the surface arrived.
+		sort.Strings(files)
+		c.logger.debug(fmt.Sprintf("Found %d compiled file(s)", len(files)))
 		return protoc.New(protoc.WithDescriptorSetIn(set)), files, nil
 	}
 

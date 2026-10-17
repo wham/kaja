@@ -3,6 +3,7 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
@@ -82,17 +84,44 @@ type Exchange struct {
 // the name portion of the `Mcp-Param-{Name}` header each travels under. The
 // transport decides whether they are sent, since the era decides whether the
 // server expects them at all.
-func (c *Client) Call(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
-	if err := c.ensureEra(); err != nil {
+func (c *Client) Call(ctx context.Context, method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
+	if err := c.ensureEra(ctx); err != nil {
 		return nil, nil, err
 	}
-	return c.send(method, params, extra, mirrored)
+	return c.send(ctx, method, params, extra, mirrored)
+}
+
+// Close releases what the client holds between calls: the session a legacy server
+// is tracking, told so the way the transport asks, and the idle connections. The
+// client stays usable, settling its era again on the next call.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	legacy, session := c.legacy, c.session
+	c.session, c.handshook = "", false
+	c.mu.Unlock()
+	if legacy && session != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if request, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.endpoint, nil); err == nil {
+			if headers, err := c.credential(); err == nil {
+				for name, value := range headers {
+					request.Header.Set(name, value)
+				}
+			}
+			request.Header.Set("Mcp-Session-Id", session)
+			if response, err := c.http.Do(request); err == nil {
+				response.Body.Close()
+			}
+		}
+	}
+	c.http.CloseIdleConnections()
+	return nil
 }
 
 // send issues one request in the era already settled on, re-running a legacy
 // handshake once if the server has forgotten the session.
-func (c *Client) send(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
-	result, exchange, err := c.attempt(method, params, extra, mirrored)
+func (c *Client) send(ctx context.Context, method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
+	result, exchange, err := c.attempt(ctx, method, params, extra, mirrored)
 	if err == nil {
 		return result, exchange, nil
 	}
@@ -106,10 +135,10 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 		c.mu.Lock()
 		c.session, c.handshook = "", false
 		c.mu.Unlock()
-		if err := c.handshake(); err != nil {
+		if err := c.handshake(ctx); err != nil {
 			return nil, nil, err
 		}
-		return c.attempt(method, params, extra, mirrored)
+		return c.attempt(ctx, method, params, extra, mirrored)
 	}
 
 	// A server that rejects the version names the ones it has; retry on the best
@@ -120,10 +149,10 @@ func (c *Client) send(method string, params map[string]any, extra map[string]str
 			c.mu.Lock()
 			c.version, c.legacy, c.handshook, c.session = version, version != ProtocolVersion, false, ""
 			c.mu.Unlock()
-			if err := c.ensureEra(); err != nil {
+			if err := c.ensureEra(ctx); err != nil {
 				return nil, nil, err
 			}
-			return c.attempt(method, params, extra, mirrored)
+			return c.attempt(ctx, method, params, extra, mirrored)
 		}
 	}
 	return nil, exchange, err
@@ -162,7 +191,7 @@ func (c *Client) currentVersion() string {
 // ensureEra settles which era the server speaks, once. The modern era needs no
 // opening request, so the probe doubles as the discovery call; a server that
 // answers anything but a modern error is served the legacy handshake instead.
-func (c *Client) ensureEra() error {
+func (c *Client) ensureEra(ctx context.Context) error {
 	c.mu.Lock()
 	settled := c.handshook
 	legacy := c.legacy
@@ -171,10 +200,10 @@ func (c *Client) ensureEra() error {
 		return nil
 	}
 	if legacy {
-		return c.handshake()
+		return c.handshake(ctx)
 	}
 
-	result, _, err := c.attempt("server/discover", nil, nil, nil)
+	result, _, err := c.attempt(ctx, "server/discover", nil, nil, nil)
 	if err == nil {
 		c.mu.Lock()
 		c.handshook, c.greeting = true, result
@@ -201,7 +230,7 @@ func (c *Client) ensureEra() error {
 			c.mu.Unlock()
 			return nil
 		}
-		return c.handshake()
+		return c.handshake(ctx)
 	}
 	// A server that never answered has said nothing about its era, and the
 	// handshake would be the same wait a second time: a server that hangs cost
@@ -210,7 +239,7 @@ func (c *Client) ensureEra() error {
 	if errors.As(err, &transport) {
 		return err
 	}
-	return c.toLegacy()
+	return c.toLegacy(ctx)
 }
 
 // notMCP is an answer that is not a JSON-RPC message. Whatever is at the
@@ -220,16 +249,16 @@ type notMCP struct{ reason string }
 
 func (e *notMCP) Error() string { return e.reason }
 
-func (c *Client) toLegacy() error {
+func (c *Client) toLegacy(ctx context.Context) error {
 	c.mu.Lock()
 	c.legacy, c.version = true, LegacyProtocolVersion
 	c.mu.Unlock()
-	return c.handshake()
+	return c.handshake(ctx)
 }
 
 // handshake runs the legacy `initialize` exchange and records the session the
 // server pins, if any.
-func (c *Client) handshake() error {
+func (c *Client) handshake(ctx context.Context) error {
 	c.mu.Lock()
 	if c.handshook {
 		c.mu.Unlock()
@@ -238,7 +267,7 @@ func (c *Client) handshake() error {
 	version := c.version
 	c.mu.Unlock()
 
-	result, exchange, err := c.attempt("initialize", map[string]any{
+	result, exchange, err := c.attempt(ctx, "initialize", map[string]any{
 		"protocolVersion": version,
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": clientName, "version": "2"},
@@ -269,13 +298,13 @@ func (c *Client) handshake() error {
 	// The handshake is only complete once the server has been told so. It is a
 	// notification, so nothing is expected back and a server that refuses it is
 	// not worth failing the whole app over.
-	_, _, _ = c.attempt("notifications/initialized", nil, nil, nil)
+	_, _, _ = c.attempt(ctx, "notifications/initialized", nil, nil, nil)
 	return nil
 }
 
 // attempt performs one HTTP POST carrying one JSON-RPC message. A notification
 // (a method with no id) returns no result.
-func (c *Client) attempt(method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
+func (c *Client) attempt(ctx context.Context, method string, params map[string]any, extra map[string]string, mirrored map[string]string) (json.RawMessage, *Exchange, error) {
 	notification := strings.HasPrefix(method, "notifications/")
 
 	c.mu.Lock()
@@ -317,7 +346,7 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 		return nil, nil, fmt.Errorf("encoding %s request: %w", method, err)
 	}
 
-	request, err := http.NewRequest(http.MethodPost, c.endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, fmt.Errorf("building %s request: %w", method, err)
 	}

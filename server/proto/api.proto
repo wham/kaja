@@ -3,11 +3,11 @@ syntax = "proto3";
 option go_package = "pkg/api";
 
 service Api {
-  // Compile streams the compilation of an app's proto surface: each log line as it
-  // is written, then one last message carrying the terminal status and, on success,
-  // the manifest the app compiled to.
+  // Compile opens an app and compiles its proto surface in one call: each log line as
+  // it is written, then one last message carrying the terminal status and, on
+  // success, the manifest the app compiled to. Opening registers the app's instance
+  // under its name, which is the address every call carries.
   rpc Compile(CompileRequest) returns (stream CompileResponse);
-  rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc RenameApp(RenameAppRequest) returns (RenameAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
@@ -41,31 +41,17 @@ service Api {
 }
 
 message CompileRequest {
-  string proto_dir = 1;
-}
-
-enum OpenStatus {
-  OPEN_STATUS_UNKNOWN = 0;
-  OPEN_STATUS_OK = 1;
-  OPEN_STATUS_ERROR = 2;
-}
-
-// OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
-// service (proto files come from a static directory or gRPC reflection), while every
-// other app generates its own proto surface. In all cases the app produces proto
-// files to feed into Compile and an invocation target. The server flattens the app's
-// typed parameters to a string map for the in-process app contract.
-message OpenAppRequest {
-  WorkspaceApp app = 1;
-}
-
-message OpenAppResponse {
-  OpenStatus status = 1;
-  repeated Log logs = 2;
-  // Directory containing the proto files to compile (only set on success). Either a
-  // temp directory (generated/reflected protos) or a workspace-relative path (static
-  // protos), which Compile resolves against the workspace.
-  string proto_dir = 3;
+  // The proto directory, before opening and compiling were one call.
+  reserved 1;
+  reserved "proto_dir";
+  // The app to open and compile. A "grpc" app describes a gRPC service (proto files
+  // come from a static directory or gRPC reflection), while every other app generates
+  // its own proto surface. The server flattens the app's typed parameters to a string
+  // map for the in-process app contract.
+  WorkspaceApp app = 2;
+  // Compile the surface again even where the process compiled this app before: the
+  // Recompile gesture, asked for by somebody who knows the upstream changed.
+  bool fresh = 3;
 }
 
 // RenameApp follows an app's rename into the open apps. An app is addressed by its
@@ -422,6 +408,11 @@ message GetWorkspaceResponse {
   // the other.
   repeated VariableStatus variable_status = 3;
   Runtime runtime = 4;
+  // A fingerprint of the workspace and the variable statuses, equal when they are:
+  // what a watcher compares the message it was handed on opening against what it
+  // already holds, so a change made while it was away is applied and the same
+  // state said twice is not.
+  string generation = 5;
 }
 
 // Runtime is the kaja that is running, as opposed to the workspace it serves.

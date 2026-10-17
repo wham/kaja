@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -22,7 +22,7 @@ import {
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
-import { appWarnings, firstErrorMessage } from "./compileSummary";
+import { firstErrorMessage, warningCount } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
@@ -130,7 +130,7 @@ interface SidebarProps {
   onDeleteApp: (appName: string) => void;
 }
 
-export function Sidebar({
+export const Sidebar = memo(function Sidebar({
   apps,
   tab,
   onTabChange,
@@ -477,7 +477,7 @@ export function Sidebar({
       </DropdownMenu>
     </div>
   );
-}
+});
 
 /**
  * The panel's band: 40px, the global tools, and whatever the platform puts in the
@@ -659,7 +659,7 @@ function MethodName({ name, unsupported, deprecated }: { name: string; unsupport
 
 function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appName: string) => void }) {
   const failed = app.compilation.status === "error";
-  const warned = appWarnings(app).length;
+  const warned = warningCount(app);
   if (!failed && warned === 0) return null;
 
   const label = failed ? (firstErrorMessage(app) ?? "Compilation failed") : `${warned} warning${warned === 1 ? "" : "s"}`;

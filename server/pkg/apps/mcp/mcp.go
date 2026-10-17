@@ -15,6 +15,7 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -50,7 +52,7 @@ func (a *App) WithAuthorizer(authorizer *Authorizer) *App {
 	return a
 }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	endpoint := strings.TrimSpace(parameters["url"])
 	if endpoint == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "url")
@@ -60,14 +62,19 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("MCP endpoint: " + endpoint)
 
-	credential, err := credentialSource(parameters, a.authorizer)
+	credential, oauth, err := credentialSource(parameters, a.authorizer)
 	if err != nil {
 		return nil, err
 	}
 	client := NewClient(endpoint, credential, &http.Client{Timeout: callTimeout})
-	surface, err := client.ReadSurface(log)
+	surface, err := client.ReadSurface(ctx, log)
 	if err != nil {
 		return nil, err
+	}
+	if !oauth {
+		// Read with the credential the app was opened with; called with the one it
+		// has when the call is made, which the instance applies itself.
+		client.credential = noCredential
 	}
 
 	gen, err := generateProto(surface)
@@ -84,23 +91,26 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, err
 	}
 
-	return &apps.Opened{Instance: &instance{client: client, methods: methods}}, nil
+	return &apps.Opened{Instance: &instance{client: client, methods: methods, oauth: oauth, opened: Credential(parameters)}}, nil
 }
 
-// credentialSource is what the app sends with every request. Everything but
-// OAuth is settled once, here; an OAuth token is read from the store as each
-// call is made, because a token that renewed itself between two calls has to
-// reach the second one.
-func credentialSource(parameters map[string]string, authorizer *Authorizer) (func() (map[string]string, error), error) {
+// credentialSource is what the app sends while its surface is read, and whether
+// that is a sign-in of kaja's own. An OAuth token is read from the store as each
+// call is made, because a token that renewed itself between two calls has to reach
+// the second one; every other credential is read off the call's parameters the
+// same way, by the instance.
+func credentialSource(parameters map[string]string, authorizer *Authorizer) (func() (map[string]string, error), bool, error) {
 	if strings.TrimSpace(parameters["auth"]) == AuthOAuth {
 		if authorizer == nil {
-			return nil, fmt.Errorf("this kaja cannot sign in to an MCP server")
+			return nil, true, fmt.Errorf("this kaja cannot sign in to an MCP server")
 		}
-		return authorizer.oauthCredential(strings.TrimSpace(parameters["url"])), nil
+		return authorizer.oauthCredential(strings.TrimSpace(parameters["url"])), true, nil
 	}
 	headers := Credential(parameters)
-	return func() (map[string]string, error) { return headers, nil }, nil
+	return func() (map[string]string, error) { return headers, nil }, false, nil
 }
+
+func noCredential() (map[string]string, error) { return nil, nil }
 
 // AuthOAuth is the `auth` an app is configured with when its credential is one
 // kaja obtained by signing in, rather than one anybody typed.
@@ -141,9 +151,14 @@ type boundMethod struct {
 // compileMethods compiles the generated proto and resolves each method's request
 // and response descriptors, keyed by the gRPC method path.
 func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports()).Compile("mcp.proto")
+	// With comments, and written beside the source: the manifest is compiled off this
+	// set rather than off the .proto a second time.
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("mcp.proto")
 	if err != nil {
 		return nil, fmt.Errorf("compiling generated proto: %w", err)
+	}
+	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
+		return nil, err
 	}
 	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
 	if err != nil {

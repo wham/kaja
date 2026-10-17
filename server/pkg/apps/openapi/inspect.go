@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"net/url"
 	"path"
 	"sort"
@@ -66,7 +67,7 @@ type Problem struct {
 // Inspect reads the document an openapi app would be opened with and reports what
 // it declares, without creating the app. It takes the same flattened parameters
 // as Open.
-func Inspect(parameters map[string]string, log func(string)) (*Document, *Problem) {
+func Inspect(ctx context.Context, parameters map[string]string, log func(string)) (*Document, *Problem) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
 	specContent := strings.TrimSpace(parameters["spec_content"])
 
@@ -81,7 +82,7 @@ func Inspect(parameters map[string]string, log func(string)) (*Document, *Proble
 			return nil, &Problem{Kind: string(problemUnreachable), Message: "That isn't a URL kaja can fetch", Detail: err.Error()}
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, p = loadSpec(specURL, specFetchCredentials(parameters), log)
+		s, p = loadSpec(ctx, specURL, specFetchCredentials(parameters), log)
 	default:
 		return nil, &Problem{Kind: string(problemNotADocument), Message: "No document yet", Detail: "Give a URL, or upload a file."}
 	}

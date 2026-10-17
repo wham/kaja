@@ -67,10 +67,7 @@ export function loadApp(manifest: Manifest, configuration: WorkspaceApp): App {
   const appRef = createAppRef(configuration);
 
   return {
-    compilation: {
-      status: "pending",
-      logs: [],
-    },
+    compilation: { status: "pending", warnings: 0 },
     configuration,
     appRef,
     services,

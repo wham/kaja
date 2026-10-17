@@ -141,18 +141,27 @@ func escapeTrailerValue(s string) string {
 // serves streams from the client, so the frame after this one, if a client sent one, is
 // nobody's to read.
 //
-// The payload is copied rather than allocated up front, because the length is the
-// client's to write and nothing has to make it good: a header claiming four gigabytes
-// would otherwise be four gigabytes asked of this process before a byte of it arrives.
+// The length is the client's to write and nothing has to make it good, so it is
+// checked against MaxRequestMessage before a byte of the payload is read: a header
+// claiming four gigabytes would otherwise be four gigabytes asked of this process.
 func readGRPCWebMessage(r io.Reader) ([]byte, error) {
 	header := make([]byte, 5)
 	if _, err := io.ReadFull(r, header); err != nil {
 		return nil, fmt.Errorf("reading frame header: %w", err)
 	}
 
+	length := int64(binary.BigEndian.Uint32(header[1:5]))
+	if length > MaxRequestMessage {
+		return nil, fmt.Errorf("the request message is %d bytes, more than the %d kaja accepts", length, MaxRequestMessage)
+	}
 	var message bytes.Buffer
-	if _, err := io.CopyN(&message, r, int64(binary.BigEndian.Uint32(header[1:5]))); err != nil {
+	if _, err := io.CopyN(&message, r, length); err != nil {
 		return nil, fmt.Errorf("reading frame payload: %w", err)
 	}
 	return message.Bytes(), nil
 }
+
+// MaxRequestMessage is the most a client may send in one gRPC-Web frame. A request
+// is what a script wrote, and no script writes a message this big; a response is the
+// API's business and has its own limit on the way back.
+const MaxRequestMessage = 64 << 20

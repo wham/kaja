@@ -1,6 +1,6 @@
 import { generateMethodEditorCode } from "./appLoader";
 import { moduleSpecifier } from "./appImports";
-import { App, Method, Service } from "./apps";
+import { App, isReady, Method, Service } from "./apps";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
 import { kajaModuleDeclaration } from "./kajaModule";
@@ -69,7 +69,7 @@ export function buildMcpCatalog(apps: App[], variableNames: string[] = []): McpC
   const catalog: McpCatalog = { apps: [], runtime: kajaModuleDeclaration(variableNames) };
 
   for (const app of apps) {
-    if (app.compilation.status !== "success" || app.services.length === 0) continue;
+    if (!isReady(app.compilation.status) || app.services.length === 0) continue;
 
     const declarations: { [name: string]: Declaration } = {};
     for (const source of app.sources) {

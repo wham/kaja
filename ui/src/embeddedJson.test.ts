@@ -66,9 +66,9 @@ test("reads the document a generated message carries", () => {
     { no: 1, name: "type", kind: "scalar", T: ScalarType.STRING },
     { no: 2, name: "text", kind: "scalar", T: ScalarType.STRING },
   ]);
-  const result = new MessageType<{ content: unknown[] }>("CallToolResult", [
-    { no: 1, name: "content", kind: "message", repeat: 1, T: () => content },
-  ]).create({ content: [content.create({ type: "text", text: '{"tag_name":"0.15.0"}' })] });
+  const result = new MessageType<{ content: unknown[] }>("CallToolResult", [{ no: 1, name: "content", kind: "message", repeat: 1, T: () => content }]).create({
+    content: [content.create({ type: "text", text: '{"tag_name":"0.15.0"}' })],
+  });
 
   const read = spliceEmbedded(result);
 

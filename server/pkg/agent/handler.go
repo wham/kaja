@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -54,7 +55,11 @@ func (r *Registry) ServeAttach(w http.ResponseWriter, req *http.Request) {
 	}
 	stream, err := r.Attach(BearerToken(req.Header.Get("Authorization")))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrTooManySessions) {
+			status = http.StatusServiceUnavailable
+		}
+		http.Error(w, err.Error(), status)
 		return
 	}
 	defer stream.Detach()
@@ -136,8 +141,13 @@ func (r *Registry) ServeAppForm(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// StreamHeader names the window a catalog push comes from. A push carrying it is
+// taken only from the window on duty; one without it is taken as it always was.
+const StreamHeader = "X-Kaja-Stream"
+
 // ServeCatalog takes the services picture from the window. The body is the
-// catalog itself.
+// catalog itself. A push from a window not on duty is answered with 409, so the
+// window knows the picture it holds is not the one the agent reads.
 func (r *Registry) ServeCatalog(w http.ResponseWriter, req *http.Request) {
 	session, ok := r.authorize(w, req)
 	if !ok {
@@ -147,7 +157,14 @@ func (r *Registry) ServeCatalog(w http.ResponseWriter, req *http.Request) {
 	if !decode(w, req, maxCatalog, &catalog) {
 		return
 	}
-	session.SetCatalog(catalog)
+	if streamID := req.Header.Get(StreamHeader); streamID != "" {
+		if !session.SetCatalogFrom(streamID, catalog) {
+			http.Error(w, "this window is not the one on duty", http.StatusConflict)
+			return
+		}
+	} else {
+		session.SetCatalog(catalog)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

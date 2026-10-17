@@ -72,7 +72,7 @@ func upstream(t *testing.T, handle func(request []byte, stream googlegrpc.Server
 // one: forwarding is how it answers a call, so the lane under test is the whole of it.
 func call(t *testing.T, url string, request []byte) io.ReadCloser {
 	t.Helper()
-	opened, err := rpc.New().Open(map[string]string{"url": url, "proto_dir": "unused"}, "", func(string) {})
+	opened, err := rpc.New().Open(context.Background(), map[string]string{"url": url, "proto_dir": "unused"}, "", func(string) {})
 	if err != nil {
 		t.Fatalf("open grpc app: %v", err)
 	}

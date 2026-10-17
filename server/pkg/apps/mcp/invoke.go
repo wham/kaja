@@ -18,7 +18,14 @@ import (
 type instance struct {
 	client  *Client
 	methods map[string]*boundMethod
+	// oauth is a credential kaja signed in for, which the client reads from the
+	// store itself; opened is the one the app was opened with otherwise, sent by a
+	// call that carries no parameters of its own.
+	oauth  bool
+	opened map[string]string
 }
+
+func (in *instance) Close() error { return in.client.Close() }
 
 func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
 	method := in.lookup(call.Method)
@@ -36,7 +43,7 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		return nil, err
 	}
 
-	result, exchange, err := in.client.Call(method.binding.method, params, call.Headers, mirroredValues(method.binding.headerParams, arguments))
+	result, exchange, err := in.client.Call(ctx, method.binding.method, params, in.headers(call), mirroredValues(method.binding.headerParams, arguments))
 	if err != nil {
 		return nil, withExchange(refusal(in.client.endpoint, err), exchange)
 	}
@@ -55,6 +62,24 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		report.Notices = exchange.Notices
 	}
 	return apps.OneMessage(body, report), nil
+}
+
+// headers is what the call sends beside the JSON-RPC body: the app's own headers,
+// with the credential its parameters describe now under them, a header written out
+// by hand outranking the credential kaja derived.
+func (in *instance) headers(call *apps.Call) map[string]string {
+	if in.oauth {
+		return call.Headers
+	}
+	credential := in.opened
+	if call.Parameters != nil {
+		credential = Credential(call.Parameters)
+	}
+	headers := make(map[string]string, len(call.Headers)+len(credential))
+	for name, value := range call.Headers {
+		headers[name] = value
+	}
+	return apps.MergeMetadata(headers, credential)
 }
 
 // lookup finds a method by its exact gRPC path, falling back to its name alone,

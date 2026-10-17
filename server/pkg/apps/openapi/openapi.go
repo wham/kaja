@@ -4,6 +4,7 @@
 package openapi
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -54,7 +56,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
 	specContent := strings.TrimSpace(parameters["spec_content"])
 
@@ -70,7 +72,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 			return nil, err
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, p = loadSpec(specURL, specFetchCredentials(parameters), log)
+		s, p = loadSpec(ctx, specURL, specFetchCredentials(parameters), log)
 	default:
 		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
 	}
@@ -106,12 +108,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Upstream base URL: " + baseURL)
 
-	authentication := resolveAuth(s,
-		strings.TrimSpace(parameters["security_scheme"]),
-		strings.TrimSpace(parameters["token"]),
-		strings.TrimSpace(parameters["username"]),
-		strings.TrimSpace(parameters["password"]),
-	)
+	authentication := authFor(s, parameters)
 	if summary := authentication.describe(); summary != "" {
 		log("Authentication: " + summary)
 	}
@@ -120,8 +117,21 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		baseURL: baseURL,
 		methods: methods,
 		client:  &http.Client{Timeout: 30 * time.Second},
+		spec:    s,
 		auth:    authentication,
 	}}, nil
+}
+
+// authFor is the credential the app's parameters describe, resolved against the
+// schemes the document declares. It is read again on every call, so a token replaced
+// in kaja.json reaches the next call rather than the next compile.
+func authFor(s *spec, parameters map[string]string) *auth {
+	return resolveAuth(s,
+		strings.TrimSpace(parameters["security_scheme"]),
+		strings.TrimSpace(parameters["token"]),
+		strings.TrimSpace(parameters["username"]),
+		strings.TrimSpace(parameters["password"]),
+	)
 }
 
 // compileMethods compiles the generated proto and resolves each method's input
@@ -129,10 +139,15 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
 	// WithIncludeImports keeps imported descriptors (google/protobuf/struct.proto,
 	// pulled in when a field maps to google.protobuf.Value) in the set so
-	// protodesc.NewFiles can resolve them.
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports()).Compile("service.proto")
+	// protodesc.NewFiles can resolve them. The comments are kept and the set written
+	// beside the source, because the manifest is compiled off it rather than off the
+	// .proto a second time.
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("service.proto")
 	if err != nil {
 		return nil, fmt.Errorf("compiling generated proto: %w", err)
+	}
+	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
+		return nil, err
 	}
 	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
 	if err != nil {

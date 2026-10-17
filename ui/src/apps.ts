@@ -2,7 +2,7 @@ import { Call, CallOptions, Kaja } from "./kaja";
 import { APP_OF } from "./rateLimit";
 import { emptyReflection, Reflection } from "./protoReflection";
 import { Sources } from "./sources";
-import { WorkspaceApp, Log } from "./server/api";
+import { WorkspaceApp } from "./server/api";
 
 // Mutable reference clients read at request time, so an app's name and headers are
 // picked up without rebuilding the client. There is no transport beside it and no
@@ -55,7 +55,7 @@ export function createPendingApp(configuration: WorkspaceApp): App {
   return {
     configuration,
     appRef: createAppRef(configuration),
-    compilation: { status: "pending", logs: [] },
+    compilation: { status: "pending", warnings: 0 },
     services: [],
     clients: {},
     sources: [],
@@ -63,13 +63,22 @@ export function createPendingApp(configuration: WorkspaceApp): App {
   };
 }
 
-export type CompilationStatus = "pending" | "running" | "success" | "error";
+// "cached" is a surface read back from the last session and not yet checked against
+// the server, which reads as ready everywhere but the compile log.
+export type CompilationStatus = "pending" | "running" | "cached" | "success" | "error";
 
 export interface Compilation {
   status: CompilationStatus;
-  logs: Log[];
   duration?: string;
-  startTime?: number;
+  // What the surface keeps of the compile log: how many warnings it ended with, and
+  // the line a failure is stated by. The lines themselves are the store's
+  // (appStore.ts), so a line arriving never moves the surface.
+  warnings: number;
+  error?: string;
+}
+
+export function isReady(status: CompilationStatus): boolean {
+  return status === "success" || status === "cached";
 }
 
 export interface Service {

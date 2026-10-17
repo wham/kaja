@@ -34,7 +34,15 @@ type instance struct {
 	baseURL string
 	methods map[string]*boundMethod
 	client  *http.Client
-	auth    *auth
+	// spec is what the credential is resolved against on every call; auth is the one
+	// the app was opened with, sent by a call that carries no parameters of its own.
+	spec *spec
+	auth *auth
+}
+
+func (in *instance) Close() error {
+	in.client.CloseIdleConnections()
+	return nil
 }
 
 func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, error) {
@@ -56,7 +64,12 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 		return nil, fmt.Errorf("encoding request to JSON: %w", err)
 	}
 
-	ex, err := in.transcode(method.binding, reqJSON, call.Headers)
+	authentication := in.auth
+	if call.Parameters != nil && in.spec != nil {
+		authentication = authFor(in.spec, call.Parameters)
+	}
+
+	ex, err := in.transcode(ctx, method.binding, reqJSON, call.Headers, authentication)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +127,7 @@ type exchange struct {
 // transcode runs the upstream REST call for a method given the proto3-JSON
 // request, returning the exchange it made: the call, its status, the body verbatim
 // and that body shaped into the proto3-JSON the method's response is read from.
-func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) (*exchange, error) {
+func (in *instance) transcode(ctx context.Context, binding *methodBinding, request []byte, headers map[string]string, authentication *auth) (*exchange, error) {
 	req := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(request)) > 0 {
 		if err := json.Unmarshal(request, &req); err != nil {
@@ -160,7 +173,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 			}
 		}
 	}
-	in.auth.applyQuery(query)
+	authentication.applyQuery(query)
 
 	fullURL := in.baseURL + path
 	if len(query) > 0 {
@@ -183,14 +196,14 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 		}
 	}
 
-	httpReq, err := http.NewRequest(binding.verb, fullURL, body)
+	httpReq, err := http.NewRequestWithContext(ctx, binding.verb, fullURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
 	// Least specific first: the spec's auth, then the app's configured headers,
 	// then the header parameters typed into this one call - so the more precise
 	// statement of what to send always wins.
-	in.auth.applyRequest(httpReq)
+	authentication.applyRequest(httpReq)
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}

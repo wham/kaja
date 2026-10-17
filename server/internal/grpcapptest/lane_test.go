@@ -52,7 +52,7 @@ func openKaja(t *testing.T, name string, parameters map[string]string, variables
 	}
 
 	service := api.NewApiService(path, false, "", "", nil)
-	if _, err := service.Apps().Open(name, "grpc", parameters, t.TempDir(), func(string) {}); err != nil {
+	if _, err := service.Apps().Open(context.Background(), name, "grpc", parameters, t.TempDir(), func(string) {}); err != nil {
 		t.Fatalf("open app: %v", err)
 	}
 

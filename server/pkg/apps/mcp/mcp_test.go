@@ -172,7 +172,7 @@ func openApp(t *testing.T, endpoint string, parameters map[string]string) (*inst
 	}
 	parameters["url"] = endpoint
 	logs := &fakeApp{}
-	opened, err := New().Open(parameters, t.TempDir(), logs.log)
+	opened, err := New().Open(context.Background(), parameters, t.TempDir(), logs.log)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemUnauthorized {
+		if _, problem := Inspect(context.Background(), map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemUnauthorized {
 			t.Fatalf("problem = %v, want unauthorized", problem)
 		}
 	})
@@ -430,7 +430,7 @@ func TestInspectClassifiesFailures(t *testing.T) {
 			fmt.Fprint(w, "<html><body>hello</body></html>")
 		}))
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL}, nil); problem == nil || problem.Kind != ProblemNotMCP {
+		if _, problem := Inspect(context.Background(), map[string]string{"url": server.URL}, nil); problem == nil || problem.Kind != ProblemNotMCP {
 			t.Fatalf("problem = %v, want notMcp", problem)
 		}
 	})
@@ -442,13 +442,13 @@ func TestInspectClassifiesFailures(t *testing.T) {
 		}}
 		server := httptest.NewServer(fake.handler())
 		defer server.Close()
-		if _, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemEmpty {
+		if _, problem := Inspect(context.Background(), map[string]string{"url": server.URL + "/mcp"}, nil); problem == nil || problem.Kind != ProblemEmpty {
 			t.Fatalf("problem = %v, want empty", problem)
 		}
 	})
 
 	t.Run("no endpoint", func(t *testing.T) {
-		if _, problem := Inspect(map[string]string{"url": "  "}, nil); problem == nil || problem.Kind != ProblemTarget {
+		if _, problem := Inspect(context.Background(), map[string]string{"url": "  "}, nil); problem == nil || problem.Kind != ProblemTarget {
 			t.Fatalf("problem = %v, want target", problem)
 		}
 	})
@@ -463,7 +463,7 @@ func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
 	defer server.Close()
 
 	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth}
-	_, problem := Inspect(parameters, testAuthorizer(t))
+	_, problem := Inspect(context.Background(), parameters, testAuthorizer(t))
 	if problem == nil || problem.Kind != ProblemSignIn {
 		t.Fatalf("problem = %v, want signIn", problem)
 	}
@@ -477,7 +477,7 @@ func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
 
 func TestInspectReadsTheSurface(t *testing.T) {
 	_, endpoint := modernServer(t, nil)
-	surface, problem := Inspect(map[string]string{"url": endpoint}, nil)
+	surface, problem := Inspect(context.Background(), map[string]string{"url": endpoint}, nil)
 	if problem != nil {
 		t.Fatalf("Inspect: %v", problem)
 	}
@@ -891,7 +891,7 @@ func TestRefusalIsTheServersOwn(t *testing.T) {
 // A variable this kaja doesn't define leaves the endpoint unreadable here, which
 // is not the server's fault and not a reason to refuse the app.
 func TestInspectNamesAnUnresolvedVariable(t *testing.T) {
-	_, problem := Inspect(map[string]string{"url": "${MCP_URL}/mcp"}, nil)
+	_, problem := Inspect(context.Background(), map[string]string{"url": "${MCP_URL}/mcp"}, nil)
 	if problem == nil || problem.Kind != ProblemUnresolved || !strings.Contains(problem.Message, "MCP_URL") {
 		t.Fatalf("problem = %+v", problem)
 	}
@@ -915,7 +915,7 @@ func TestInspectRecognisesTheLegacyTransport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, problem := Inspect(map[string]string{"url": server.URL + "/sse"}, nil)
+	_, problem := Inspect(context.Background(), map[string]string{"url": server.URL + "/sse"}, nil)
 	if problem == nil || problem.Kind != ProblemLegacySSE {
 		t.Fatalf("problem = %+v", problem)
 	}
@@ -973,7 +973,7 @@ func TestAServerThatNeverAnsweredIsAskedOnce(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, problem := Inspect(map[string]string{"url": server.URL + "/mcp"}, nil)
+	_, problem := Inspect(context.Background(), map[string]string{"url": server.URL + "/mcp"}, nil)
 	if problem == nil || problem.Kind != ProblemUnreachable {
 		t.Fatalf("problem = %#v, want unreachable", problem)
 	}
@@ -991,11 +991,45 @@ func TestJSONThatIsNotJSONRPCIsNotMCP(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, problem := Inspect(map[string]string{"url": server.URL + "/post"}, nil)
+	_, problem := Inspect(context.Background(), map[string]string{"url": server.URL + "/post"}, nil)
 	if problem == nil || problem.Kind != ProblemNotMCP {
 		t.Fatalf("problem = %#v, want not MCP", problem)
 	}
 	if !strings.Contains(problem.Detail, "neither a result nor an error") || !strings.Contains(problem.Detail, "example.com/post") {
 		t.Errorf("detail = %q, want the answer named", problem.Detail)
+	}
+}
+
+// The credential is read off the call rather than held from Open, so a token replaced
+// in kaja.json reaches the next call without the app being compiled again. A header
+// the app configures under the same name still outranks it.
+func TestCredentialIsReadOffTheCall(t *testing.T) {
+	fake, endpoint := modernServer(t, nil)
+	in, _ := openApp(t, endpoint, map[string]string{"token": "opened-with"})
+	bound := in.methods["mcp.Tools/GetWeather"]
+	request := encodeRequest(t, bound, `{"location":"Seattle"}`)
+
+	replaced := map[string]string{"url": endpoint, "token": "replaced"}
+	if _, err := in.Invoke(context.Background(), &apps.Call{Method: "mcp.Tools/GetWeather", Request: request, Parameters: replaced}); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if got := fake.asked("tools/call").Headers.Get("Authorization"); got != "Bearer replaced" {
+		t.Errorf("Authorization = %q, want the token the call carried", got)
+	}
+
+	fake.requests = nil
+	if _, err := invoke(in, "mcp.Tools/GetWeather", request, nil); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if got := fake.asked("tools/call").Headers.Get("Authorization"); got != "Bearer opened-with" {
+		t.Errorf("Authorization = %q, want the token the app was opened with", got)
+	}
+
+	fake.requests = nil
+	if _, err := in.Invoke(context.Background(), &apps.Call{Method: "mcp.Tools/GetWeather", Request: request, Parameters: replaced, Headers: map[string]string{"authorization": "Bearer by-hand"}}); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if got := fake.asked("tools/call").Headers.Get("Authorization"); got != "Bearer by-hand" {
+		t.Errorf("Authorization = %q, want the configured header kept", got)
 	}
 }

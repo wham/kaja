@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 import { Check, CircleDot, ExternalLink, FolderOpen, GitBranch, Keyboard, Moon, Sun } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -58,7 +58,7 @@ function handleExternalLinkClick(e: React.MouseEvent<HTMLAnchorElement>) {
   }
 }
 
-export function StatusBar({
+export const StatusBar = memo(function StatusBar({
   colorMode,
   onToggleColorMode,
   zoom,
@@ -172,7 +172,7 @@ export function StatusBar({
       </div>
     </div>
   );
-}
+});
 
 function WorkspaceMenu({ control }: { control: WorkspaceControl }) {
   return (

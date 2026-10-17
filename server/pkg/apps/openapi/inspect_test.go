@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,7 +56,7 @@ components:
 
 func inspectDocument(t *testing.T, parameters map[string]string) *Document {
 	t.Helper()
-	document, problem := Inspect(parameters, func(string) {})
+	document, problem := Inspect(context.Background(), parameters, func(string) {})
 	if problem != nil {
 		t.Fatalf("Inspect: %v (%s)", problem.Message, problem.Kind)
 	}
@@ -263,7 +264,7 @@ func TestInspectClassifiesProblems(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			document, problem := Inspect(tc.parameters, func(string) {})
+			document, problem := Inspect(context.Background(), tc.parameters, func(string) {})
 			if document != nil {
 				t.Fatalf("want a problem, got document %+v", document)
 			}
@@ -290,7 +291,7 @@ func TestInspectSendsSpecHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, problem := Inspect(map[string]string{"spec_url": srv.URL}, func(string) {}); problem == nil || problem.Kind != string(problemUnauthorized) {
+	if _, problem := Inspect(context.Background(), map[string]string{"spec_url": srv.URL}, func(string) {}); problem == nil || problem.Kind != string(problemUnauthorized) {
 		t.Fatalf("problem = %v, want %q", problem, problemUnauthorized)
 	}
 

@@ -24,7 +24,8 @@ export function useWorkspaceChanges(onWorkspaceChanged: (response: GetWorkspaceR
           onWorkspaceChanged(response);
         }
       } catch {
-        // A watch that ended lost nothing: the next one reports the file as it stands.
+        // A watch that ended lost nothing: the next one opens on the file as it stands,
+        // and the window applies that only where its generation is news.
       }
       if (!abort.signal.aborted) {
         reconnect = window.setTimeout(watch, RECONNECT_MS);

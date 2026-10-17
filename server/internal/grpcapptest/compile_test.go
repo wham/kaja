@@ -1,6 +1,7 @@
 package grpcapptest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,26 +23,19 @@ type module struct {
 	} `json:"services"`
 }
 
-// openAndCompile is what the window does when an app appears: open it, then compile
-// the proto directory it was handed into the modules a script is written against.
-func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, []module, []*api.Log) {
+// openAndCompile is what the window does when an app appears: one Compile call that
+// opens it and compiles its proto surface into the modules a script is written against.
+func openAndCompile(t *testing.T, app *api.WorkspaceApp) ([]module, []*api.Log) {
 	t.Helper()
 	path := t.TempDir() + "/kaja.json"
 	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
 		t.Fatalf("write workspace: %v", err)
 	}
 	service := api.NewApiService(path, false, "", "", nil)
+	t.Cleanup(func() { service.Close() })
 
-	opened, err := service.OpenApp(t.Context(), &api.OpenAppRequest{App: app})
-	if err != nil {
-		t.Fatalf("OpenApp: %v", err)
-	}
-	if opened.GetStatus() != api.OpenStatus_OPEN_STATUS_OK {
-		t.Fatalf("open failed:\n%s", logText(opened.GetLogs()))
-	}
-
-	collected := &compileCollector{}
-	if err := service.Compile(&api.CompileRequest{ProtoDir: opened.GetProtoDir()}, collected); err != nil {
+	collected := &compileCollector{ctx: t.Context()}
+	if err := service.Compile(&api.CompileRequest{App: app}, collected); err != nil {
 		t.Fatalf("Compile: %v", err)
 	}
 	if collected.status != api.CompileStatus_STATUS_READY {
@@ -53,7 +47,7 @@ func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, 
 	if err := json.Unmarshal([]byte(collected.manifest), &manifest); err != nil {
 		t.Fatalf("manifest: %v", err)
 	}
-	return opened, manifest.Modules, collected.logs
+	return manifest.Modules, collected.logs
 }
 
 // TestCompileReflectedSurface reflects a server, writes its protos and generates the
@@ -61,7 +55,7 @@ func openAndCompile(t *testing.T, app *api.WorkspaceApp) (*api.OpenAppResponse, 
 func TestCompileReflectedSurface(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"routeguide", "health"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
+	sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "guide",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
@@ -81,7 +75,7 @@ func TestCompileReflectedSurface(t *testing.T) {
 func TestCompileInteropSurface(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"interop"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
+	sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "interop",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
@@ -98,7 +92,7 @@ func TestCompileInteropSurface(t *testing.T) {
 // TestCompileGoogleApis is the same for a spec kaja was pointed at rather than told:
 // the real pubsub protos, imports and all.
 func TestCompileGoogleApis(t *testing.T) {
-	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
+	sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "pubsub",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: pubsub, ProtoDir: absolute(t, "testdata/googleapis")}},
 	})
@@ -117,15 +111,25 @@ func TestCompileGoogleApis(t *testing.T) {
 func TestCompileReflectedProtoFiles(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"routeguide"}, Reflection: true})
 
-	opened, _, _ := openAndCompile(t, &api.WorkspaceApp{
+	_, logs := openAndCompile(t, &api.WorkspaceApp{
 		Name: "guide",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 
+	// The one place the directory is named is the log that says it was written.
+	protoDir := ""
+	for _, log := range logs {
+		if dir, ok := strings.CutPrefix(log.GetMessage(), "Descriptors written to "); ok {
+			protoDir = dir
+		}
+	}
+	if protoDir == "" {
+		t.Fatalf("the log never said where reflection wrote:\n%s", logText(logs))
+	}
 	var written []string
-	filepath.Walk(opened.GetProtoDir(), func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(protoDir, func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
-			written = append(written, strings.TrimPrefix(path, opened.GetProtoDir()))
+			written = append(written, strings.TrimPrefix(path, protoDir))
 		}
 		return nil
 	})
@@ -137,9 +141,17 @@ func TestCompileReflectedProtoFiles(t *testing.T) {
 
 type compileCollector struct {
 	api.Api_CompileServer
+	ctx      context.Context
 	status   api.CompileStatus
 	manifest string
 	logs     []*api.Log
+}
+
+func (c *compileCollector) Context() context.Context {
+	if c.ctx == nil {
+		return context.Background()
+	}
+	return c.ctx
 }
 
 func (c *compileCollector) Send(response *api.CompileResponse) error {

@@ -4,8 +4,14 @@ const TYPE_MEMORY_STORE = "type-memory";
 // The one store nothing is read out of at startup: a call's payload once it has left
 // the heap, fetched back only when a row is selected. See payloadArchive.ts.
 const PAYLOAD_STORE = "call-payloads";
-const DB_VERSION = 3;
+// The other store read per entry rather than whole: the manifest an app last compiled
+// to, wanted once per app when the window opens. See manifestCache.ts.
+const MANIFEST_STORE = "app-manifests";
+const DB_VERSION = 4;
 const WRITE_DEBOUNCE_MS = 500;
+// A write is held back while writes keep arriving, but never longer than this: a
+// keystroke a second would otherwise keep a draft off the disk for as long as it lasts.
+const WRITE_MAX_WAIT_MS = 5000;
 
 // A database per workspace; the default keeps the one there was. The window's own
 // keys stay in the shared one whichever workspace is open.
@@ -36,6 +42,7 @@ let typeMemoryCache = new Map<string, any>();
 let db: IDBDatabase | null = null;
 let windowDb: IDBDatabase | null = null;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let writesHeldSince = 0;
 let typeMemoryWriteTimer: ReturnType<typeof setTimeout> | null = null;
 const pendingWrites = new Map<string, any>();
 const pendingTypeMemoryWrites = new Map<string, any>();
@@ -56,6 +63,9 @@ function openDatabase(name: string): Promise<IDBDatabase> {
         // Keyed by an ordinal the archive hands out, so letting the oldest go is one
         // range delete; the index is what takes a run's payloads with the run.
         database.createObjectStore(PAYLOAD_STORE).createIndex("runId", "runId");
+      }
+      if (!database.objectStoreNames.contains(MANIFEST_STORE)) {
+        database.createObjectStore(MANIFEST_STORE);
       }
     };
     request.onsuccess = () => {
@@ -90,17 +100,24 @@ function readAllFromStore(database: IDBDatabase, storeName: string): Promise<Map
   });
 }
 
+// A write that was refused is work that is gone, so it is an error and lands in the
+// footer. Nothing else in the app would ever say so - and a quota refusal arrives on
+// the transaction rather than from the call that opened it.
+function reportRefused(transaction: IDBTransaction, what: string): void {
+  transaction.onerror = () => console.error(`Failed to write to ${what}:`, transaction.error);
+  transaction.onabort = () => console.error(`Failed to write to ${what}:`, transaction.error ?? "the transaction was aborted");
+}
+
 function writeUiState(database: IDBDatabase | null, writes: Map<string, any>): void {
   if (!database || writes.size === 0) return;
   try {
     const transaction = database.transaction(UI_STATE_STORE, "readwrite");
+    reportRefused(transaction, "storage");
     const store = transaction.objectStore(UI_STATE_STORE);
     for (const [key, value] of writes) {
       store.put(value, key);
     }
   } catch (error) {
-    // A write that was refused is work that is gone, so it is an error and lands in
-    // the footer. Nothing else in the app would ever say so.
     console.error("Failed to write to storage:", error);
   }
 }
@@ -109,7 +126,9 @@ function flushWrites(): void {
   if (pendingWrites.size === 0) return;
   const writes = new Map(pendingWrites);
   pendingWrites.clear();
+  if (writeTimer !== null) clearTimeout(writeTimer);
   writeTimer = null;
+  writesHeldSince = 0;
   if (windowDb === db) {
     writeUiState(db, writes);
     return;
@@ -132,6 +151,7 @@ function flushTypeMemoryWrites(): void {
   typeMemoryWriteTimer = null;
   try {
     const transaction = db.transaction(TYPE_MEMORY_STORE, "readwrite");
+    reportRefused(transaction, "type memory storage");
     const store = transaction.objectStore(TYPE_MEMORY_STORE);
     for (const [key, value] of writes) {
       store.put(value, key);
@@ -175,9 +195,19 @@ export function payloadStoreAvailable(): boolean {
  * the archive simply has nowhere to write and the row says so.
  */
 export function payloadStore(mode: IDBTransactionMode): IDBObjectStore | null {
+  return openStore(PAYLOAD_STORE, mode);
+}
+
+export function manifestStore(mode: IDBTransactionMode): IDBObjectStore | null {
+  return openStore(MANIFEST_STORE, mode);
+}
+
+function openStore(name: string, mode: IDBTransactionMode): IDBObjectStore | null {
   if (!db) return null;
   try {
-    return db.transaction(PAYLOAD_STORE, mode).objectStore(PAYLOAD_STORE);
+    const transaction = db.transaction(name, mode);
+    if (mode === "readwrite") reportRefused(transaction, name);
+    return transaction.objectStore(name);
   } catch {
     return null;
   }
@@ -187,15 +217,21 @@ export function getPersistedValue<T>(key: string): T | undefined {
   return cache.get(key) as T | undefined;
 }
 
+// Everything held back, on its way out: a window closing, above all.
 export function flushPersistedWrites(): void {
   flushWrites();
+  flushTypeMemoryWrites();
 }
 
 export function setPersistedValue(key: string, value: any): void {
   cache.set(key, value);
   pendingWrites.set(key, value);
-  if (writeTimer !== null) {
-    clearTimeout(writeTimer);
+  const now = Date.now();
+  if (writeTimer === null) writesHeldSince = now;
+  else clearTimeout(writeTimer);
+  if (now - writesHeldSince >= WRITE_MAX_WAIT_MS) {
+    flushWrites();
+    return;
   }
   writeTimer = setTimeout(flushWrites, WRITE_DEBOUNCE_MS);
 }

@@ -27,10 +27,20 @@ import (
 // connections caches one gRPC client connection per (target, TLS) pair. A
 // grpc.ClientConn is safe for concurrent use and manages its own reconnection and idle
 // handling, so one long-lived connection is reused instead of dialing per request.
+//
+// A connection is filed under the way of connecting - target and options - and keyed
+// by that plus the certificate files as they stood when it was dialed, so a rotated
+// certificate at the same path dials a new connection and the one dialed before it is
+// closed rather than kept beside it.
 var (
 	connectionsMu sync.Mutex
-	connections   = map[string]*grpc.ClientConn{}
+	connections   = map[string]*connection{}
 )
+
+type connection struct {
+	fingerprint string
+	conn        *grpc.ClientConn
+}
 
 // MaxMessageSize is how big a message kaja will read. grpc-go's own default is four
 // megabytes, which is a server's guard against what it is sent rather than a client's
@@ -45,16 +55,19 @@ var MaxMessageSize = grpc.MaxCallRecvMsgSize(math.MaxInt32)
 // pointing at one host with different certificates are two connections, so the options
 // are part of the key.
 func sharedConnection(target string, useTLS bool, options TLSOptions) (*grpc.ClientConn, error) {
-	key := target
+	key, fingerprint := target, ""
 	if useTLS {
 		key = "tls\x00" + options.key() + "\x00" + target
+		// Stat'd before the lock: the files are nobody else's to wait on.
+		fingerprint = options.fingerprint()
 	}
 
 	connectionsMu.Lock()
 	defer connectionsMu.Unlock()
 
-	if conn, ok := connections[key]; ok {
-		return conn, nil
+	existing, ok := connections[key]
+	if ok && existing.fingerprint == fingerprint {
+		return existing.conn, nil
 	}
 
 	creds, err := options.credentials(useTLS)
@@ -67,7 +80,10 @@ func sharedConnection(target string, useTLS bool, options TLSOptions) (*grpc.Cli
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
-	connections[key] = conn
+	if ok {
+		_ = existing.conn.Close()
+	}
+	connections[key] = &connection{fingerprint: fingerprint, conn: conn}
 	return conn, nil
 }
 

@@ -3,8 +3,9 @@ import { cn } from "./cn";
 import { ActionList } from "./components/action-list";
 import { Spinner } from "./components/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CompilationStatus, App } from "./apps";
+import { appStore } from "./appStore";
 import { appType, appTypeLabel } from "./appTypes";
 import { appAddress } from "./compileSummary";
 
@@ -24,6 +25,9 @@ const CHECK_ICON_SIZE = 12;
 export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgentClick, canUpdateWorkspace, expandApp }: CompileLogProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // The log lines are the store's, read here and nowhere above: a line arriving
+  // repaints this page and nothing else.
+  useSyncExternalStore(appStore.subscribeProgress, appStore.progressVersion);
 
   useEffect(() => {
     if (!expandApp) return;
@@ -53,11 +57,11 @@ export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgen
     </div>
   );
 
-  const getStatusIcon = (status: CompilationStatus) => {
-    if (status === "running") return renderSpinner();
+  const getStatusIcon = (status: CompilationStatus, running: boolean) => {
+    if (status === "running" || running) return renderSpinner();
     if (status === "pending") return null;
 
-    const isSuccess = status === "success";
+    const isSuccess = status !== "error";
     const Icon = isSuccess ? Check : X;
 
     return (
@@ -92,6 +96,7 @@ export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgen
       <div className="min-h-0 flex-1 overflow-y-auto">
         {apps.map((app, index) => {
           const isExpanded = expandedApps.has(app.configuration.name);
+          const progress = appStore.progressOf(app.configuration.name);
           return (
             <div
               key={`app-${index}-${app.configuration.name}`}
@@ -115,7 +120,7 @@ export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgen
                           size={CHEVRON_SIZE}
                           className={cn("text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")}
                         />
-                        {getStatusIcon(app.compilation.status)}
+                        {getStatusIcon(app.compilation.status, progress.running)}
                       </div>
                     </ActionList.LeadingVisual>
                     {app.configuration.name}
@@ -134,13 +139,13 @@ export function CompileLog({ apps, workspaceLoaded, onNewAppClick, onConnectAgen
               {isExpanded && (
                 <div data-testid="compiler-logs" className="bg-background">
                   <div className="px-4 py-3 font-mono text-xs">
-                    {app.compilation.logs.map((log, logIndex) => (
+                    {progress.logs.map((log, logIndex) => (
                       <div key={logIndex} className="mb-px flex leading-5">
                         <span className="mr-4 min-w-10 select-none text-right text-muted-foreground">{logIndex + 1}</span>
                         <span className={cn("whitespace-pre-wrap", logClass(log.level))}>{log.message}</span>
                       </div>
                     ))}
-                    {app.compilation.status === "running" && (
+                    {progress.running && (
                       <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                         {renderSpinner()}
                         Compiling...

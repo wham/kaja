@@ -14,11 +14,11 @@ import (
 func TestReflectionMatchesProtoDir(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"fidelity"}, Reflection: true, SourceInfo: true})
 
-	_, reflected, _ := openAndCompile(t, &api.WorkspaceApp{
+	reflected, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
-	_, direct, _ := openAndCompile(t, &api.WorkspaceApp{
+	direct, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "direct",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/fidelity")}},
 	})
@@ -42,7 +42,7 @@ func TestReflectionMatchesProtoDir(t *testing.T) {
 func TestReflectionKeepsWhatAMethodDeclares(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"fidelity"}, Reflection: true})
 
-	_, sources, _ := openAndCompile(t, &api.WorkspaceApp{
+	sources, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
@@ -102,11 +102,11 @@ func diffLines(want, got string) []string {
 func TestReflectionOfProto2(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"legacy"}, Reflection: true})
 
-	_, reflected, _ := openAndCompile(t, &api.WorkspaceApp{
+	reflected, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "reflected",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
-	_, direct, _ := openAndCompile(t, &api.WorkspaceApp{
+	direct, _ := openAndCompile(t, &api.WorkspaceApp{
 		Name: "direct",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, ProtoDir: absolute(t, "testdata/legacy")}},
 	})

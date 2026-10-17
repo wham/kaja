@@ -4,29 +4,18 @@ import { ServiceType, stackIntercept } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions, RpcTransport, UnaryCall, ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 
 export interface CompileRequest {
-    protoDir: string;
-}
-
-/**
- * OpenApp opens an app from its configuration. A "grpc" app describes a gRPC
- * service (proto files come from a static directory or gRPC reflection), while every
- * other app generates its own proto surface. In all cases the app produces proto
- * files to feed into Compile and an invocation target. The server flattens the app's
- * typed parameters to a string map for the in-process app contract.
- */
-export interface OpenAppRequest {
-    app?: WorkspaceApp;
-}
-
-export interface OpenAppResponse {
-    status: OpenStatus;
-    logs: Log[];
     /**
-     * Directory containing the proto files to compile (only set on success). Either a
-     * temp directory (generated/reflected protos) or a workspace-relative path (static
-     * protos), which Compile resolves against the workspace.
+     * The app to open and compile. A "grpc" app describes a gRPC service (proto files
+     * come from a static directory or gRPC reflection), while every other app generates
+     * its own proto surface. The server flattens the app's typed parameters to a string
+     * map for the in-process app contract.
      */
-    protoDir: string;
+    app?: WorkspaceApp;
+    /**
+     * Compile the surface again even where the process compiled this app before: the
+     * Recompile gesture, asked for by somebody who knows the upstream changed.
+     */
+    fresh: boolean;
 }
 
 /**
@@ -400,6 +389,13 @@ export interface GetWorkspaceResponse {
      */
     variableStatus: VariableStatus[];
     runtime?: Runtime;
+    /**
+     * A fingerprint of the workspace and the variable statuses, equal when they are:
+     * what a watcher compares the message it was handed on opening against what it
+     * already holds, so a change made while it was away is applied and the same
+     * state said twice is not.
+     */
+    generation: string;
 }
 
 /**
@@ -946,12 +942,6 @@ export interface UpdateWorkspaceResponse {
     variableStatus: VariableStatus[];
 }
 
-export enum OpenStatus {
-    UNKNOWN = 0,
-    OK = 1,
-    ERROR = 2,
-}
-
 export enum GrpcProblemKind {
     GRPC_PROBLEM_UNKNOWN = 0,
     /**
@@ -1112,17 +1102,8 @@ export enum VariableSource {
 }
 
 export const CompileRequest: MessageType<CompileRequest> = new MessageType<CompileRequest>("CompileRequest", [
-    { no: 1, name: "proto_dir", kind: "scalar", T: 9 }
-]);
-
-export const OpenAppRequest: MessageType<OpenAppRequest> = new MessageType<OpenAppRequest>("OpenAppRequest", [
-    { no: 1, name: "app", kind: "message", T: () => WorkspaceApp }
-]);
-
-export const OpenAppResponse: MessageType<OpenAppResponse> = new MessageType<OpenAppResponse>("OpenAppResponse", [
-    { no: 1, name: "status", kind: "enum", T: () => ["OpenStatus", OpenStatus, "OPEN_STATUS_"] },
-    { no: 2, name: "logs", kind: "message", repeat: 2, T: () => Log },
-    { no: 3, name: "proto_dir", kind: "scalar", T: 9 }
+    { no: 2, name: "app", kind: "message", T: () => WorkspaceApp },
+    { no: 3, name: "fresh", kind: "scalar", T: 8 }
 ]);
 
 export const RenameAppRequest: MessageType<RenameAppRequest> = new MessageType<RenameAppRequest>("RenameAppRequest", [
@@ -1281,7 +1262,8 @@ export const GetWorkspaceResponse: MessageType<GetWorkspaceResponse> = new Messa
     { no: 1, name: "workspace", kind: "message", T: () => Workspace },
     { no: 2, name: "logs", kind: "message", repeat: 2, T: () => Log },
     { no: 3, name: "variable_status", kind: "message", repeat: 2, T: () => VariableStatus },
-    { no: 4, name: "runtime", kind: "message", T: () => Runtime }
+    { no: 4, name: "runtime", kind: "message", T: () => Runtime },
+    { no: 5, name: "generation", kind: "scalar", T: 9 }
 ]);
 
 export const Runtime: MessageType<Runtime> = new MessageType<Runtime>("Runtime", [
@@ -1523,7 +1505,6 @@ export const UpdateWorkspaceResponse: MessageType<UpdateWorkspaceResponse> = new
 
 export const Api = new ServiceType("Api", [
     { name: "Compile", serverStreaming: true, options: {}, I: CompileRequest, O: CompileResponse },
-    { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "RenameApp", options: {}, I: RenameAppRequest, O: RenameAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
@@ -1558,32 +1539,29 @@ export class ApiClient {
     }
 
     /**
-     * Compile streams the compilation of an app's proto surface: each log line as it
-     * is written, then one last message carrying the terminal status and, on success,
-     * the manifest the app compiled to.
+     * Compile opens an app and compiles its proto surface in one call: each log line as
+     * it is written, then one last message carrying the terminal status and, on
+     * success, the manifest the app compiled to. Opening registers the app's instance
+     * under its name, which is the address every call carries.
      */
     compile(input: CompileRequest, options?: RpcOptions): ServerStreamingCall<CompileRequest, CompileResponse> {
         return stackIntercept<CompileRequest, CompileResponse>("serverStreaming", this.#transport, Api.methods[0], this.#transport.mergeOptions(options), input);
     }
 
-    openApp(input: OpenAppRequest, options?: RpcOptions): UnaryCall<OpenAppRequest, OpenAppResponse> {
-        return stackIntercept<OpenAppRequest, OpenAppResponse>("unary", this.#transport, Api.methods[1], this.#transport.mergeOptions(options), input);
-    }
-
     renameApp(input: RenameAppRequest, options?: RpcOptions): UnaryCall<RenameAppRequest, RenameAppResponse> {
-        return stackIntercept<RenameAppRequest, RenameAppResponse>("unary", this.#transport, Api.methods[2], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameAppRequest, RenameAppResponse>("unary", this.#transport, Api.methods[1], this.#transport.mergeOptions(options), input);
     }
 
     inspectOpenApi(input: InspectOpenApiRequest, options?: RpcOptions): UnaryCall<InspectOpenApiRequest, InspectOpenApiResponse> {
-        return stackIntercept<InspectOpenApiRequest, InspectOpenApiResponse>("unary", this.#transport, Api.methods[3], this.#transport.mergeOptions(options), input);
+        return stackIntercept<InspectOpenApiRequest, InspectOpenApiResponse>("unary", this.#transport, Api.methods[2], this.#transport.mergeOptions(options), input);
     }
 
     inspectGrpc(input: InspectGrpcRequest, options?: RpcOptions): UnaryCall<InspectGrpcRequest, InspectGrpcResponse> {
-        return stackIntercept<InspectGrpcRequest, InspectGrpcResponse>("unary", this.#transport, Api.methods[4], this.#transport.mergeOptions(options), input);
+        return stackIntercept<InspectGrpcRequest, InspectGrpcResponse>("unary", this.#transport, Api.methods[3], this.#transport.mergeOptions(options), input);
     }
 
     inspectMcp(input: InspectMcpRequest, options?: RpcOptions): UnaryCall<InspectMcpRequest, InspectMcpResponse> {
-        return stackIntercept<InspectMcpRequest, InspectMcpResponse>("unary", this.#transport, Api.methods[5], this.#transport.mergeOptions(options), input);
+        return stackIntercept<InspectMcpRequest, InspectMcpResponse>("unary", this.#transport, Api.methods[4], this.#transport.mergeOptions(options), input);
     }
 
     /**
@@ -1592,15 +1570,15 @@ export class ApiClient {
      * and the last one says how it went once the server has sent the person back.
      */
     authorizeMcp(input: AuthorizeMcpRequest, options?: RpcOptions): ServerStreamingCall<AuthorizeMcpRequest, AuthorizeMcpResponse> {
-        return stackIntercept<AuthorizeMcpRequest, AuthorizeMcpResponse>("serverStreaming", this.#transport, Api.methods[6], this.#transport.mergeOptions(options), input);
+        return stackIntercept<AuthorizeMcpRequest, AuthorizeMcpResponse>("serverStreaming", this.#transport, Api.methods[5], this.#transport.mergeOptions(options), input);
     }
 
     forgetMcpAuthorization(input: ForgetMcpAuthorizationRequest, options?: RpcOptions): UnaryCall<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse> {
-        return stackIntercept<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse>("unary", this.#transport, Api.methods[7], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse>("unary", this.#transport, Api.methods[6], this.#transport.mergeOptions(options), input);
     }
 
     getWorkspace(input: GetWorkspaceRequest, options?: RpcOptions): UnaryCall<GetWorkspaceRequest, GetWorkspaceResponse> {
-        return stackIntercept<GetWorkspaceRequest, GetWorkspaceResponse>("unary", this.#transport, Api.methods[8], this.#transport.mergeOptions(options), input);
+        return stackIntercept<GetWorkspaceRequest, GetWorkspaceResponse>("unary", this.#transport, Api.methods[7], this.#transport.mergeOptions(options), input);
     }
 
     /**
@@ -1609,70 +1587,70 @@ export class ApiClient {
      * afterwards, because the message is the new workspace.
      */
     watchWorkspace(input: WatchWorkspaceRequest, options?: RpcOptions): ServerStreamingCall<WatchWorkspaceRequest, GetWorkspaceResponse> {
-        return stackIntercept<WatchWorkspaceRequest, GetWorkspaceResponse>("serverStreaming", this.#transport, Api.methods[9], this.#transport.mergeOptions(options), input);
+        return stackIntercept<WatchWorkspaceRequest, GetWorkspaceResponse>("serverStreaming", this.#transport, Api.methods[8], this.#transport.mergeOptions(options), input);
     }
 
     updateWorkspace(input: UpdateWorkspaceRequest, options?: RpcOptions): UnaryCall<UpdateWorkspaceRequest, UpdateWorkspaceResponse> {
-        return stackIntercept<UpdateWorkspaceRequest, UpdateWorkspaceResponse>("unary", this.#transport, Api.methods[10], this.#transport.mergeOptions(options), input);
+        return stackIntercept<UpdateWorkspaceRequest, UpdateWorkspaceResponse>("unary", this.#transport, Api.methods[9], this.#transport.mergeOptions(options), input);
     }
 
     setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse> {
-        return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[11], this.#transport.mergeOptions(options), input);
+        return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[10], this.#transport.mergeOptions(options), input);
     }
 
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
-        return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[12], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[11], this.#transport.mergeOptions(options), input);
     }
 
     listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse> {
-        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[13], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[12], this.#transport.mergeOptions(options), input);
     }
 
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
-        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[13], this.#transport.mergeOptions(options), input);
     }
 
     writeScript(input: WriteScriptRequest, options?: RpcOptions): UnaryCall<WriteScriptRequest, WriteScriptResponse> {
-        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
+        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
     }
 
     createScript(input: CreateScriptRequest, options?: RpcOptions): UnaryCall<CreateScriptRequest, CreateScriptResponse> {
-        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
     }
 
     renameScript(input: RenameScriptRequest, options?: RpcOptions): UnaryCall<RenameScriptRequest, RenameScriptResponse> {
-        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
     }
 
     deleteScript(input: DeleteScriptRequest, options?: RpcOptions): UnaryCall<DeleteScriptRequest, DeleteScriptResponse> {
-        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
     }
 
     copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse> {
-        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
     }
 
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse> {
-        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
     }
 
     createScriptFolder(input: CreateScriptFolderRequest, options?: RpcOptions): UnaryCall<CreateScriptFolderRequest, CreateScriptFolderResponse> {
-        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
     }
 
     renameScriptFolder(input: RenameScriptFolderRequest, options?: RpcOptions): UnaryCall<RenameScriptFolderRequest, RenameScriptFolderResponse> {
-        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
     }
 
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
-        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
     }
 
     copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse> {
-        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
     }
 
     scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
-        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[25], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
     }
 }

@@ -9,6 +9,7 @@
 package openai
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -88,7 +90,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
+func (a *App) Open(_ context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	format, err := wireFor(parameters["api"])
 	if err != nil {
 		return nil, err
@@ -103,23 +105,17 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Endpoint: " + endpoint + " (" + format.name() + " API)")
 
-	auth, err := authFor(parameters["auth"], format)
+	opened, err := credentialFor(parameters, format)
 	if err != nil {
 		return nil, err
 	}
-	keyName := strings.TrimSpace(parameters["api_key_name"])
-	if keyName == "" {
-		keyName = defaultAPIKeyName
-	}
-
-	token := strings.TrimSpace(parameters["token"])
 	switch {
-	case auth == authNone:
+	case opened.auth == authNone:
 		log("Sending no credentials")
-	case token == "":
+	case opened.token == "":
 		log("No token configured; requests will be sent without a credential")
-	case auth == authAPIKey:
-		log("Sending the API key as " + keyName)
+	case opened.auth == authAPIKey:
+		log("Sending the API key as " + opened.keyName)
 	default:
 		log("Sending the token as Authorization: Bearer")
 	}
@@ -135,15 +131,36 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	log("Generated service " + serviceTypeName + " with method ChatCompletion")
 
 	return &apps.Opened{Instance: &instance{
-		endpoint: endpoint,
-		wire:     format,
-		auth:     auth,
-		token:    token,
-		keyName:  keyName,
-		input:    input,
-		output:   output,
-		client:   &http.Client{Timeout: 120 * time.Second},
+		endpoint:   endpoint,
+		wire:       format,
+		credential: opened,
+		input:      input,
+		output:     output,
+		client:     &http.Client{Timeout: 120 * time.Second},
 	}}, nil
+}
+
+// credential is how a call proves itself: the scheme, the token and the header an
+// API key travels under.
+type credential struct {
+	auth    string
+	token   string
+	keyName string
+}
+
+// credentialFor reads the credential off the app's parameters. It is read again on
+// every call, so a token replaced in kaja.json reaches the next call rather than the
+// next compile.
+func credentialFor(parameters map[string]string, format wire) (credential, error) {
+	auth, err := authFor(parameters["auth"], format)
+	if err != nil {
+		return credential{}, err
+	}
+	keyName := strings.TrimSpace(parameters["api_key_name"])
+	if keyName == "" {
+		keyName = defaultAPIKeyName
+	}
+	return credential{auth: auth, token: strings.TrimSpace(parameters["token"]), keyName: keyName}, nil
 }
 
 // An empty auth is whichever credential the chosen API's own dashboard hands you.
@@ -165,9 +182,14 @@ func authFor(value string, format wire) (string, error) {
 // compile compiles the static proto and resolves ChatCompletion's request and
 // response descriptors, used to decode the request and encode the response.
 func compile(protoDir string) (protoreflect.MessageDescriptor, protoreflect.MessageDescriptor, error) {
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir)).Compile("openai.proto")
+	// With comments, and written beside the source: the manifest is compiled off this
+	// set rather than off the .proto a second time.
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("openai.proto")
 	if err != nil {
 		return nil, nil, fmt.Errorf("compiling generated proto: %w", err)
+	}
+	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
+		return nil, nil, err
 	}
 	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
 	if err != nil {

@@ -17,7 +17,7 @@ import { CommandRow } from "./CommandRow";
 import { Console, RunPresentation } from "./Console";
 import { newRunId, Run } from "./runs";
 import { consoles } from "./consoles";
-import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
+import { dropStoredFile, flushDeferredSaves, loadRuns, renameStoredFile, saveRunsLater } from "./runStore";
 import { RecentFile } from "./NoFileBlankslate";
 import { CompileLog } from "./CompileLog";
 import { Definition } from "./Definition";
@@ -29,7 +29,9 @@ import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appHeaders, appType, buildApp, getAppType, parameterKey } from "./appTypes";
-import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
+import { createPendingApp, isReady, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
+import { appStore } from "./appStore";
+import { forgetManifests, moveManifest, readStoredManifests } from "./manifestCache";
 import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
 import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
@@ -54,7 +56,7 @@ import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps 
 import { formatTypeScript } from "./formatter";
 import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
-import { remapEditorCode, remapSourcesToNewName } from "./sources";
+import { remapEditorCode, remapSourcesToNewName, Sources } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { deviceConsole, logScriptLine } from "./uiLog";
 import { Workspace, WorkspaceApp, GetWorkspaceResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
@@ -84,8 +86,8 @@ import { effectiveShortcuts, saveMcpEnabled, saveShortcuts, useSettings } from "
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
 import { mcpDotClass, mcpStatusOf, type McpControl } from "./mcpState";
-import { useCompilation } from "./useCompilation";
 import { useWorkspaceChanges } from "./useWorkspaceChanges";
+import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
 import { setVariables } from "./variableExpansion";
 import { appVariableUses } from "./variableUsage";
@@ -227,6 +229,8 @@ export function App() {
   const saveAsFileLabel = useShortcutLabel("saveAsFile");
   const editAsJsonLabel = useShortcutLabel("editAsJson");
   const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
+  const runtimeRef = useRef(runtime);
+  runtimeRef.current = runtime;
   // Whether the workspace on the other end of the Api service may be written, which
   // is what the verbs that write a file are offered on.
   const canWriteFiles = canWriteScripts(runtime);
@@ -234,7 +238,13 @@ export function App() {
   workspaceRef.current = workspace;
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
   const variableWriteChainRef = useRef<Promise<void>>(Promise.resolve());
-  const [apps, setApps] = useState<AppModel[]>([]);
+  // The apps are a store rather than state (appStore.ts): a compile is a stream of log
+  // lines, and the surface this reads moves only when one of them lands.
+  const apps = useSyncExternalStore(appStore.subscribe, appStore.getSnapshot);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  // The generation of the workspace this window holds, so the watch stream's opening
+  // message is applied only where it says something the window has not heard.
+  const generationRef = useRef<string>(undefined);
   const [drafts, setDrafts] = useState<Draft[]>(() => persistedDrafts());
   const [views, setViews] = useState<View[]>(() => restoreViews(getPersistedValue<PersistedViewState>("views"), persistedDrafts()));
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 240);
@@ -665,6 +675,10 @@ export function App() {
     }
   }, []);
 
+  // A table's source is held for as long as a row can page it, and a run trimmed,
+  // cleared or dropped has no rows left to.
+  useEffect(() => consoles.subscribeTablesDropped((blockIds) => host.tables.drop(blockIds)), [host]);
+
   const onClearConsole = useCallback((fileId: string) => {
     consoles.clearFile(fileId, Date.now());
     dropStoredFile(fileId);
@@ -696,7 +710,8 @@ export function App() {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
-  const featurePreviews: FeaturePreview[] = [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }];
+  const featurePreviews = useMemo<FeaturePreview[]>(() => [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }], [previewApps]);
+  const onResetZoom = useCallback(() => setZoom(DEFAULT_ZOOM), []);
 
   const onToggleFeaturePreview = useCallback((key: string) => {
     if (key === "previewApps") {
@@ -719,10 +734,13 @@ export function App() {
     });
   }, []);
 
-  const createMonacoModelsForApp = useCallback((app: AppModel) => {
-    app.sources.forEach((source) => writeSourceModel(source.path, source.text));
+  const createMonacoModelsForApp = useCallback((app: AppModel): boolean => {
+    let moved = false;
+    app.sources.forEach((source) => {
+      moved = writeSourceModel(source.path, source.text) || moved;
+    });
     const module = barrel(app);
-    writeSourceModel(module.path, module.content);
+    return writeSourceModel(module.path, module.content) || moved;
   }, []);
 
   const refreshOpenDraftEditors = useCallback(() => {
@@ -753,7 +771,11 @@ export function App() {
   }, []);
 
   const syncAppsFromWorkspace = useCallback(
-    (newWorkspace: Workspace, prevApps: AppModel[], previousVariables: { [key: string]: string }): { updatedApps: AppModel[]; removedNames: Set<string> } => {
+    (
+      newWorkspace: Workspace,
+      prevApps: AppModel[],
+      previousVariables: { [key: string]: string },
+    ): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
       const updatedApps: AppModel[] = [];
       const newVariables = newWorkspace.variables ?? {};
       const newApps = newWorkspace.apps || [];
@@ -810,7 +832,8 @@ export function App() {
         disposeMonacoModelsForApp(orphan.configuration.name);
       }
 
-      return { updatedApps, removedNames };
+      const renames = new Map([...renameMap].map(([newName, oldApp]) => [oldApp.configuration.name, newName]));
+      return { updatedApps, removedNames, renames };
     },
     [disposeMonacoModelsForApp, createMonacoModelsForApp],
   );
@@ -901,11 +924,15 @@ export function App() {
           .response.catch((err) => console.error(`Failed to rename the open app ${oldName} to ${newName}: ${rpcErrorMessage(err)}`));
       }
 
-      setApps((prevApps) => syncAppsFromWorkspace(newWorkspace, prevApps, previousVariables).updatedApps);
+      const synced = syncAppsFromWorkspace(newWorkspace, appStore.getSnapshot(), previousVariables);
+      // A renamed app keeps its stored manifest under its new name; a removed one has no
+      // next session to open in.
+      for (const [oldName, newName] of synced.renames) moveManifest(oldName, newName);
+      forgetManifests([...synced.removedNames]);
+      appStore.replace(synced.updatedApps, synced.renames);
 
-      // Handed to an effect rather than done here: the renamed app's own models are
-      // written by the updater above, which React runs at the next render, so a buffer
-      // rewritten now would name a module that does not exist yet.
+      // Handed to an effect rather than done here: following a rename writes files, and
+      // this runs inside the watch stream's callback.
       if (renames.size > 0 || modulesMoved) {
         setAppsMoved({ renames, modulesMoved });
       }
@@ -973,8 +1000,8 @@ export function App() {
     (name: string) => {
       readResolvedVariables(workspaceRef.current?.variables ?? {});
       const names = new Set([name]);
-      setApps((prevApps) =>
-        prevApps.map((app) => (appReferencesVariable(app.configuration, names) ? { ...app, compilation: { status: "pending" as const, logs: [] } } : app)),
+      appStore.update((apps) =>
+        apps.map((app) => (appReferencesVariable(app.configuration, names) ? { ...app, compilation: { status: "pending" as const, warnings: 0 } } : app)),
       );
     },
     [readResolvedVariables],
@@ -982,6 +1009,10 @@ export function App() {
 
   const handleWorkspaceFileChange = useCallback(
     (response: GetWorkspaceResponse) => {
+      // The stream says where it stands when it opens, which is usually where this
+      // window already is.
+      if (!isNewGeneration(generationRef.current, response.generation)) return;
+      generationRef.current = response.generation;
       setVariableStatus(response.variableStatus);
       if (response.workspace) {
         applyWorkspace(response.workspace);
@@ -1129,60 +1160,64 @@ export function App() {
       }
       scriptSaveTimers.current.clear();
       persistViews();
+      flushDeferredSaves();
       flushPersistedWrites();
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [persistViews]);
 
-  const onCompilationUpdate = (updatedApps: AppModel[] | ((prev: AppModel[]) => AppModel[])) => {
-    if (typeof updatedApps === "function") {
-      setApps((prevApps) => {
-        const newApps = updatedApps(prevApps);
-        handlePostCompilationLogic(newApps);
-        return newApps;
-      });
-    } else {
-      setApps(updatedApps);
-      handlePostCompilationLogic(updatedApps);
-    }
-  };
+  // What the window has loaded, once: the workspace, then the apps - each on the
+  // surface its stored manifest describes where that still fits, so scripts resolve
+  // before the server has answered, and pending otherwise.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const response = await loadWorkspace();
+      if (cancelled) return;
+      if (response.workspace) setWorkspace(response.workspace);
+      setVariableStatus(response.variableStatus);
+      if (response.runtime) setRuntime(response.runtime);
+      generationRef.current = response.generation;
+      setWorkspaceLoaded(true);
+      const configured = response.workspace?.apps ?? [];
+      if (configured.length === 0) return;
+      const stored = await readStoredManifests(configured.map((app) => app.name));
+      if (cancelled) return;
+      appStore.open(configured, stored);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const handlePostCompilationLogic = (updatedApps: AppModel[]) => {
-    // Registered per app that has compiled, not once all of them have: a single slow or
-    // failing app used to keep scripts from resolving the ones that were ready.
-    let sourceModelsChanged = false;
-    updatedApps.forEach((app) => {
-      if (!app.sources) return;
-      app.sources.forEach((source) => {
-        sourceModelsChanged = writeSourceModel(source.path, source.text) || sourceModelsChanged;
-      });
-      const module = barrel(app);
-      sourceModelsChanged = writeSourceModel(module.path, module.content) || sourceModelsChanged;
-    });
+  // The Monaco models behind an app's modules, written once per surface it lands on:
+  // keyed on the sources' identity, so a compile that ended on the manifest the window
+  // already holds moves nothing here, and a log line never reaches it.
+  const writtenSourcesRef = useRef(new Map<string, Sources>());
+  useEffect(() => {
+    let moved = false;
+    const seen = new Set<string>();
+    for (const app of apps) {
+      const name = app.configuration.name;
+      seen.add(name);
+      if (writtenSourcesRef.current.get(name) === app.sources) continue;
+      writtenSourcesRef.current.set(name, app.sources);
+      if (app.sources.length > 0) moved = createMonacoModelsForApp(app) || moved;
+    }
+    for (const name of [...writtenSourcesRef.current.keys()]) {
+      if (!seen.has(name)) writtenSourcesRef.current.delete(name);
+    }
 
     // A source model appearing after a script's own model does not retroactively clear
     // its stale "cannot find module" error, so poke the open editors.
-    if (sourceModelsChanged) {
-      revalidateOpenEditors();
-    }
+    if (moved) revalidateOpenEditors();
 
-    const allCompiled = updatedApps.every((p) => p.compilation.status === "success");
-    if (allCompiled && viewsRestoredRef.current) {
+    if (apps.length > 0 && apps.every((app) => isReady(app.compilation.status)) && viewsRestoredRef.current) {
       viewsRestoredRef.current = false;
       refreshOpenDraftEditors();
     }
-  };
-
-  const { workspaceLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
-    if (response.workspace) {
-      setWorkspace(response.workspace);
-    }
-    setVariableStatus(response.variableStatus);
-    if (response.runtime) {
-      setRuntime(response.runtime);
-    }
-  });
+  }, [apps, createMonacoModelsForApp, revalidateOpenEditors, refreshOpenDraftEditors]);
 
   const onMethodSelect = useCallback(
     async (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
@@ -1641,7 +1676,7 @@ export function App() {
   // deleting an app, above all the last one — must still be reflected.
   useEffect(() => {
     const variableNames = Object.keys(workspace?.variables ?? {});
-    agentSession.setCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames)));
+    agentSession.setCatalog(() => JSON.stringify(buildMcpCatalog(apps, variableNames)));
   }, [apps, workspace?.variables]);
 
   // The source always arrives with the run: whichever process holds the disk reads the
@@ -2190,8 +2225,9 @@ export function App() {
     for (const { run } of over) {
       if (!run.fileId) continue;
       if (!consoles.settleRun(run.fileId, run.id, now - run.startedAt, now)) continue;
-      const settled = consoles.file(run.fileId);
-      saveRuns(run.fileId, settled.runs, settled.allItems(), now);
+      // Walking every item the file holds is work for the idle time after a run, not
+      // for the frame it ends on.
+      saveRunsLater(run.fileId);
     }
     const ids = new Set(over.map((live) => live.run.id));
     setActiveRuns((runs) => runs.filter((live) => !ids.has(live.run.id)));
@@ -2343,21 +2379,12 @@ export function App() {
     [applyViews],
   );
 
-  // An app already compiling is left to finish.
-  const onRecompile = (appName?: string) => {
-    setApps((prevApps) =>
-      prevApps.map((app) => {
-        if (appName !== undefined && app.configuration.name !== appName) return app;
-        if (app.compilation.status === "running" || app.compilation.status === "pending") return app;
-        return { ...app, compilation: { status: "pending" as const, logs: [] } };
-      }),
-    );
-  };
+  const onRecompile = useCallback((appName?: string) => appStore.recompile(appName), []);
 
-  const onNewAppClick = () => {
-    if (!runtime.canUpdateWorkspace) return;
+  const onNewAppClick = useCallback(() => {
+    if (!runtimeRef.current.canUpdateWorkspace) return;
     setNewAppOpen(true);
-  };
+  }, []);
   const onNewAppClickRef = useRef(onNewAppClick);
   onNewAppClickRef.current = onNewAppClick;
 
@@ -2366,12 +2393,15 @@ export function App() {
     applyViews((views) => showAppForm(views, "create", buildApp("", type, {}, {})));
   };
 
-  const onEditApp = (appName: string) => {
-    const app = apps.find((p) => p.configuration.name === appName);
-    if (app) {
-      applyViews((views) => showAppForm(views, "edit", app.configuration));
-    }
-  };
+  const onEditApp = useCallback(
+    (appName: string) => {
+      const app = appStore.app(appName);
+      if (app) {
+        applyViews((views) => showAppForm(views, "edit", app.configuration));
+      }
+    },
+    [applyViews],
+  );
 
   // Drops the form and answers with who was waiting on it, if an agent was.
   const dropAppForm = (): string | undefined => {
@@ -2465,22 +2495,26 @@ export function App() {
     applyStoredValue(name);
   };
 
-  const onDeleteApp = async (appName: string) => {
-    if (!workspace) {
-      return;
-    }
+  const onDeleteApp = useCallback(
+    async (appName: string) => {
+      const workspace = workspaceRef.current;
+      if (!workspace) {
+        return;
+      }
 
-    const updatedWorkspace: Workspace = {
-      ...workspace,
-      apps: (workspace.apps || []).filter((a) => a.name !== appName),
-    };
+      const updatedWorkspace: Workspace = {
+        ...workspace,
+        apps: (workspace.apps || []).filter((a) => a.name !== appName),
+      };
 
-    const client = getApiClient();
-    const { response } = await client.updateWorkspace({ workspace: updatedWorkspace });
-    if (response.workspace) {
-      applyWorkspace(response.workspace);
-    }
-  };
+      const client = getApiClient();
+      const { response } = await client.updateWorkspace({ workspace: updatedWorkspace });
+      if (response.workspace) {
+        applyWorkspace(response.workspace);
+      }
+    },
+    [applyWorkspace],
+  );
 
   const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
 
@@ -2859,6 +2893,66 @@ export function App() {
         }
       : undefined;
 
+  // Built once per change to what it shows, so the sidebar's memo holds across a run's
+  // calls and a compile's lines.
+  const scriptsRegion = useMemo(
+    () => (
+      <ScriptsRegion
+        scripts={scripts ?? []}
+        folders={scriptFolders}
+        drafts={drafts}
+        currentDraftId={currentView?.type === "draft" ? currentView.draftId : undefined}
+        currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
+        runningFileIds={runningFiles}
+        agentFileIds={agentFiles}
+        waitingFileIds={waitingFiles}
+        canWrite={canWriteFiles}
+        onDraftSelect={onDraftSelect}
+        onSaveDraftAsFile={onSaveDraftAsFile}
+        onDiscardDraft={onDiscardDraft}
+        onDiscardAllDrafts={onDiscardAllDrafts}
+        onScriptSelect={onScriptSelect}
+        onRenameScript={canWriteFiles ? onRenameScript : undefined}
+        onMoveScript={canWriteFiles ? onMoveScript : undefined}
+        onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
+        onCopyScriptLink={onCopyScriptLink}
+        onCreateScript={canWriteFiles ? onCreateScript : undefined}
+        onCopyScript={canWriteFiles ? onCopyScript : undefined}
+        onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
+        onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
+        onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
+        onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
+        onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+      />
+    ),
+    [
+      scripts,
+      scriptFolders,
+      drafts,
+      currentView,
+      runningFiles,
+      agentFiles,
+      waitingFiles,
+      canWriteFiles,
+      onDraftSelect,
+      onSaveDraftAsFile,
+      onDiscardDraft,
+      onDiscardAllDrafts,
+      onScriptSelect,
+      onRenameScript,
+      onMoveScript,
+      onDeleteScript,
+      onCopyScriptLink,
+      onCreateScript,
+      onCopyScript,
+      onCreateFolder,
+      onRenameFolder,
+      onDeleteFolder,
+      onCopyFolder,
+      onRevealScripts,
+    ],
+  );
+
   return (
     <>
       {isPhone ? (
@@ -2940,35 +3034,7 @@ export function App() {
                   reserveTrafficLights={isDesktopMac}
                   onEditApp={onEditApp}
                   onDeleteApp={onDeleteApp}
-                  scriptsRegion={
-                    <ScriptsRegion
-                      scripts={scripts ?? []}
-                      folders={scriptFolders}
-                      drafts={drafts}
-                      currentDraftId={currentView?.type === "draft" ? currentView.draftId : undefined}
-                      currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
-                      runningFileIds={runningFiles}
-                      agentFileIds={agentFiles}
-                      waitingFileIds={waitingFiles}
-                      canWrite={canWriteFiles}
-                      onDraftSelect={onDraftSelect}
-                      onSaveDraftAsFile={onSaveDraftAsFile}
-                      onDiscardDraft={onDiscardDraft}
-                      onDiscardAllDrafts={onDiscardAllDrafts}
-                      onScriptSelect={onScriptSelect}
-                      onRenameScript={canWriteFiles ? onRenameScript : undefined}
-                      onMoveScript={canWriteFiles ? (script, folder) => void onMoveScript(script, folder) : undefined}
-                      onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
-                      onCopyScriptLink={(script) => void onCopyScriptLink(script)}
-                      onCreateScript={canWriteFiles ? onCreateScript : undefined}
-                      onCopyScript={canWriteFiles ? onCopyScript : undefined}
-                      onCreateFolder={canWriteFiles ? onCreateFolder : undefined}
-                      onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
-                      onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
-                      onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
-                      onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
-                    />
-                  }
+                  scriptsRegion={scriptsRegion}
                 />
               </div>
             )}
@@ -3052,7 +3118,7 @@ export function App() {
             colorMode={colorMode}
             onToggleColorMode={onToggleColorMode}
             zoom={zoom}
-            onResetZoom={() => setZoom(DEFAULT_ZOOM)}
+            onResetZoom={onResetZoom}
             gitRef={runtime.gitRef}
             buildNumber={runtime.buildNumber}
             featurePreviews={featurePreviews}

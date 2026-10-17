@@ -65,6 +65,9 @@ export interface ConsoleItem {
   // Where it went: the ref the payload archive answers with, absent where there was
   // nowhere to shelve it. A row that has one is a row the pane can still fill in.
   archivedPayload?: number;
+  // The verdict as it stood when the payload was shelved: the status is otherwise read
+  // off a response that has left the heap, and a settled call read as pending.
+  status?: RunStatus;
 }
 
 export type RunStatus = "pending" | "streaming" | "success" | "error";
@@ -129,6 +132,8 @@ export interface RunGroup {
   heldCalls: number;
   // Decides the view it opens in.
   drew: boolean;
+  // The script itself threw, which the tail bar states for the whole run.
+  scriptFailed: boolean;
   // Stated rather than silent: the log is the audit record, so where it stops being
   // complete it has to say so.
   dropped: number;
@@ -215,7 +220,7 @@ export function blockStatus(block: Block): RunStatus {
 }
 
 export function itemStatus(item: ConsoleItem): RunStatus {
-  if (item.call) return callStatus(item.call);
+  if (item.call) return item.status ?? callStatus(item.call);
   if (item.block) return blockStatus(item.block);
   // A printed line says something about the script's own reckoning, not about whether
   // the run succeeded.
@@ -264,7 +269,7 @@ export class ItemStats {
 
     // A block the run is parked on is not on its way to a call, but the run is not over
     // either.
-    const inFlight = item.call !== undefined ? isCallInFlight(item.call) : item.block !== undefined && isAwaitingUser(item.block);
+    const inFlight = item.call !== undefined ? item.status === undefined && isCallInFlight(item.call) : item.block !== undefined && isAwaitingUser(item.block);
     const status = itemStatus(item);
     this.#counts[status]++;
     if (inFlight) this.#inFlight++;

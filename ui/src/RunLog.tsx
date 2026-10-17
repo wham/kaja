@@ -1,5 +1,5 @@
 import { ArrowDown, Braces, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
@@ -52,6 +52,9 @@ interface RunLogProps {
   logFloor: LogFloor;
   printed: { lines: number; errors: number };
   now: number;
+  // The console's version, so the memo on this component holds exactly until the run
+  // it draws has moved: the group and its rows are buffers mutated in place.
+  version: number;
   tailing: boolean;
   // The same answer, readable without a render — see the note where it is made.
   tailingRef: React.MutableRefObject<boolean>;
@@ -70,7 +73,7 @@ interface RunLogProps {
  * Only the rows on screen are drawn; the rest are two spacers, because a fixed row
  * height makes the log's length a number rather than a measurement.
  */
-export function RunLog({
+export const RunLog = memo(function RunLog({
   group,
   rows,
   selectedItemId,
@@ -81,6 +84,7 @@ export function RunLog({
   logFloor,
   printed,
   now,
+  version,
   tailing,
   tailingRef,
   onTailingChange,
@@ -90,6 +94,7 @@ export function RunLog({
   onShowLogs,
   onGoToCanvas,
 }: RunLogProps) {
+  void version;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [window, setWindow] = useState({ top: 0, height: 0 });
   const onTailingRef = useRef(onTailingChange);
@@ -98,7 +103,7 @@ export function RunLog({
   const total = rows.length;
   const slowest = group.stats.slowest;
   const failures = group.failures;
-  const scriptFailed = group.items.some((item) => !item.printed && item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
+  const scriptFailed = group.scriptFailed;
   // With the floor off that is everything the script printed, which is exactly when
   // the tail bar has something to offer.
   const shown = rows.length - group.calls.length;
@@ -153,23 +158,23 @@ export function RunLog({
             <div style={{ transform: `translateY(${first * CALL_ROW_HEIGHT}px)` }}>
               {visible.map((item) =>
                 item.call ? (
-                  <RunLog.CallRow
+                  <CallRow
                     key={item.id}
                     id={item.id}
                     name={callLabel(item.call)}
                     timestamp={item.timestamp}
                     loopKey={item.key}
                     status={itemStatus(item)}
+                    now={isSettled(itemStatus(item)) ? 0 : now}
                     durationMs={callDurationMs(item.call)}
                     errorCode={callErrorCode(item.call)}
                     fraction={barFraction(callDurationMs(item.call), slowest)}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
                     onSelect={onSelectRow}
-                    now={now}
                   />
                 ) : (
-                  <RunLog.LogRow
+                  <LogRow
                     key={item.id}
                     id={item.id}
                     timestamp={item.timestamp}
@@ -186,7 +191,7 @@ export function RunLog({
         )}
       </div>
 
-      <RunLog.TailBar
+      <TailBar
         waiting={waiting}
         scriptFailed={scriptFailed}
         running={group.running && !waiting}
@@ -209,9 +214,9 @@ export function RunLog({
           rather than in the header. */}
       <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
         {group.run.payloadsExpired ? (
-          <RunLog.NoPayload>Response no longer kept. Run to see it live</RunLog.NoPayload>
+          <NoPayload>Response no longer kept. Run to see it live</NoPayload>
         ) : selectedItem?.payloadsDropped && selectedItem.call ? (
-          <RunLog.ShelvedPayloadPane
+          <ShelvedPayloadPane
             key={selectedItem.id}
             item={selectedItem}
             activeTab={activeTab}
@@ -220,15 +225,9 @@ export function RunLog({
             onEmbeddedChange={onEmbeddedChange}
           />
         ) : selectedItem?.call ? (
-          <RunLog.PayloadPane
-            methodCall={selectedItem.call}
-            activeTab={activeTab}
-            embedded={embedded}
-            onTabChange={onTabChange}
-            onEmbeddedChange={onEmbeddedChange}
-          />
+          <PayloadPane methodCall={selectedItem.call} activeTab={activeTab} embedded={embedded} onTabChange={onTabChange} onEmbeddedChange={onEmbeddedChange} />
         ) : selectedItem?.printed ? (
-          <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
+          <PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
             {/* With logs mixed in, a row is not necessarily a call — and this
@@ -239,6 +238,10 @@ export function RunLog({
       </div>
     </div>
   );
+});
+
+function isSettled(status: RunStatus): boolean {
+  return status === "success" || status === "error";
 }
 
 /**
@@ -246,7 +249,7 @@ export function RunLog({
  * asks for it back and draws the same pane it would have drawn — the reach of the log
  * is what the disk holds, and only the working set is what React does.
  */
-RunLog.ShelvedPayloadPane = function ({ item, ...pane }: { item: ConsoleItem } & Omit<PayloadPaneProps, "methodCall">) {
+const ShelvedPayloadPane = function ({ item, ...pane }: { item: ConsoleItem } & Omit<PayloadPaneProps, "methodCall">) {
   // Null once the shelf has answered with nothing, which is a payload old enough to
   // have been let go of there too.
   const [payload, setPayload] = useState<ArchivedPayload | null | undefined>(undefined);
@@ -267,16 +270,16 @@ RunLog.ShelvedPayloadPane = function ({ item, ...pane }: { item: ConsoleItem } &
     };
   }, [ref]);
 
-  if (payload === null) return <RunLog.NoPayload>Payload no longer kept. Run to see it live</RunLog.NoPayload>;
+  if (payload === null) return <NoPayload>Payload no longer kept. Run to see it live</NoPayload>;
   // A read off the shelf lands within a frame or two, so the wait says nothing rather
   // than flashing a state nobody has time to read.
   if (payload === undefined) return <div className="min-h-0 flex-1" />;
-  return <RunLog.PayloadPane methodCall={{ ...item.call!, ...payload }} {...pane} />;
+  return <PayloadPane methodCall={{ ...item.call!, ...payload }} {...pane} />;
 };
 
 // A payload that is not there any more, and why. Expiry is only bearable when it is
 // a stated state rather than a silent hole.
-RunLog.NoPayload = function ({ children }: { children: React.ReactNode }) {
+const NoPayload = function ({ children }: { children: React.ReactNode }) {
   const runLabel = useShortcutLabel("run");
   return (
     <div className="flex items-center gap-2 px-4 py-3">
@@ -302,7 +305,7 @@ interface LogRowProps {
  * arithmetic only because every row is that height. The full line is one click away
  * in the pane below.
  */
-RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
+const LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
   return (
     <div
       data-testid="console-log-row"
@@ -323,7 +326,7 @@ RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, 
 });
 
 // The full text of a printed line, which is why the row above it may truncate.
-RunLog.PrintedPane = function ({ message, level }: { message: string; level: LogLevel }) {
+const PrintedPane = function ({ message, level }: { message: string; level: LogLevel }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[30px] shrink-0 items-center gap-2 border-b border-border px-3">
@@ -387,7 +390,7 @@ interface TailBarProps {
  * What the log can't say inside a row. A run parked on a question, or one whose script
  * threw, is a fact about the whole run, and the log stays readable while it waits.
  */
-RunLog.TailBar = function ({
+const TailBar = function ({
   waiting,
   scriptFailed,
   running,
@@ -505,20 +508,7 @@ interface CallRowProps {
  * settled row is handed the same twelve values on every repaint and doesn't render
  * again. `now` is the exception and is passed as zero unless the row is counting up.
  */
-RunLog.CallRow = memo(function CallRow({
-  id,
-  name,
-  timestamp,
-  loopKey,
-  status,
-  durationMs,
-  errorCode,
-  fraction,
-  selected,
-  stale,
-  onSelect,
-  now,
-}: CallRowProps) {
+const CallRow = memo(function CallRow({ id, name, timestamp, loopKey, status, durationMs, errorCode, fraction, selected, stale, onSelect, now }: CallRowProps) {
   const pending = status === "pending" || status === "streaming";
 
   return (
@@ -600,7 +590,7 @@ function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload
   return readPayload(unwrapEnvelope(methodCall.outputType, methodCall.output), embedded);
 }
 
-RunLog.PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
+const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const isStreaming = methodCall.streamOutputs !== undefined;
@@ -627,7 +617,13 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answered]);
 
-  const { content, rawText, embeddable, bytes } = activeTab === "request" ? readPayload(methodCall.input, embedded) : responsePayload(methodCall, embedded);
+  // The call is mutated in place as it settles, so what it is read against is the
+  // fields that move with it rather than the object alone.
+  const { content, rawText, embeddable, bytes } = useMemo(
+    () => (activeTab === "request" ? readPayload(methodCall.input, embedded) : responsePayload(methodCall, embedded)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [methodCall, methodCall.input, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete, activeTab, embedded],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -635,8 +631,8 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, o
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
       <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
-        <RunLog.PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
-        {activeTab !== "headers" && <RunLog.ResponseSummary methodCall={methodCall} bytes={bytes} sizeOnly={activeTab === "request"} />}
+        <PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
+        {activeTab !== "headers" && <ResponseSummary methodCall={methodCall} bytes={bytes} sizeOnly={activeTab === "request"} />}
         {showsJson && (
           <div className="flex shrink-0 items-center gap-1">
             {/* First in the cluster, because it decides what the other three act
@@ -673,7 +669,7 @@ RunLog.PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, o
         )}
       </div>
       {activeTab === "headers" ? (
-        <RunLog.HeadersContent methodCall={methodCall} />
+        <HeadersContent methodCall={methodCall} />
       ) : activeTab === "response" && !answered ? (
         <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
       ) : (
@@ -694,7 +690,7 @@ interface PayloadTabsProps {
   onTabChange: (tab: ConsoleTab) => void;
 }
 
-RunLog.PayloadTabs = function ({ methodCall, activeTab, onTabChange }: PayloadTabsProps) {
+const PayloadTabs = function ({ methodCall, activeTab, onTabChange }: PayloadTabsProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
 
@@ -723,7 +719,7 @@ interface ResponseSummaryProps {
 }
 
 // Status colour appears here and in the call's dot, and nowhere else.
-RunLog.ResponseSummary = function ({ methodCall, bytes, sizeOnly }: ResponseSummaryProps) {
+const ResponseSummary = function ({ methodCall, bytes, sizeOnly }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
   const duration = formatDuration(callDurationMs(methodCall));
@@ -766,7 +762,7 @@ interface HeadersContentProps {
 // spaces after it, which is what a wrapped request line hangs to.
 const HANGING_INDENT = 30;
 
-RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
+const HeadersContent = function ({ methodCall }: HeadersContentProps) {
   // One panel, and it is always the API's own headers: where Kaja carried the call it
   // reports what it exchanged upstream, and where the browser called the API directly
   // the transport headers are that exchange. The hop between the browser and Kaja is
@@ -785,7 +781,11 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     (requestLine !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0);
   const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
-  const { bytes } = responsePayload(methodCall, false);
+  const { bytes } = useMemo(
+    () => responsePayload(methodCall, false),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [methodCall, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete],
+  );
   const answered = hasResponse(methodCall);
   // What the server said while it was working, which reached us between the request
   // and the response and is stated where it happened.
@@ -794,12 +794,12 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
       <div className="grid" style={{ gridTemplateColumns: "max-content minmax(0,1fr)", columnGap: 28, rowGap: 3 }}>
-        <RunLog.HeaderGroupBar label="Request" headers={requestHeaders} size={payloadBytes(methodCall.input)} />
-        {requestLine && <RunLog.RequestLine line={requestLine} />}
-        <RunLog.HeaderRows headers={requestHeaders} />
+        <HeaderGroupBar label="Request" headers={requestHeaders} size={payloadBytes(methodCall.input)} />
+        {requestLine && <RequestLine line={requestLine} />}
+        <HeaderRows headers={requestHeaders} />
         {notices.length > 0 && (
           <>
-            <RunLog.HeaderGroupBar label="Notices" headers={{}} className="mt-4" />
+            <HeaderGroupBar label="Notices" headers={{}} className="mt-4" />
             {notices.map((notice, index) => (
               <span key={index} className="whitespace-pre-wrap break-all text-foreground" style={{ gridColumn: "1/-1" }}>
                 {notice}
@@ -807,7 +807,7 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
             ))}
           </>
         )}
-        <RunLog.HeaderGroupBar
+        <HeaderGroupBar
           label="Response"
           headers={responseHeaders}
           status={exchangeStatus(methodCall)}
@@ -818,7 +818,7 @@ RunLog.HeadersContent = function ({ methodCall }: HeadersContentProps) {
         />
         {/* A call with no response yet keeps its bar and nothing under it: the half
             exists, and a placeholder would be stating something nobody sent. */}
-        {answered && <RunLog.HeaderRows headers={responseHeaders} />}
+        {answered && <HeaderRows headers={responseHeaders} />}
       </div>
     </div>
   );
@@ -845,7 +845,7 @@ interface HeaderGroupBarProps {
  * nothing the call row above already states: the status the response came with, the
  * time it took, the bytes each way, and the copy that takes this half alone.
  */
-RunLog.HeaderGroupBar = function ({ label, headers, status, durationMs, size, pending, className }: HeaderGroupBarProps) {
+const HeaderGroupBar = function ({ label, headers, status, durationMs, size, pending, className }: HeaderGroupBarProps) {
   const [copied, setCopied] = useState(false);
   const names = Object.keys(headers);
 
@@ -887,7 +887,7 @@ RunLog.HeaderGroupBar = function ({ label, headers, status, durationMs, size, pe
  * what identify it; the rest is context, and dimming it is what lets the path be found
  * in a line that wraps over three of them.
  */
-RunLog.RequestLine = function ({ line }: { line: string }) {
+const RequestLine = function ({ line }: { line: string }) {
   const { method, origin, path, query } = splitRequestLine(line);
 
   return (
@@ -905,17 +905,17 @@ RunLog.RequestLine = function ({ line }: { line: string }) {
  * the log's job is to be complete, and reordering is editorialising. Both halves are
  * cells of the one grid, so a value starts at the same x wherever it is read.
  */
-RunLog.HeaderRows = function ({ headers }: { headers: { [key: string]: string } }) {
+const HeaderRows = function ({ headers }: { headers: { [key: string]: string } }) {
   return (
     <>
       {Object.keys(headers).map((name) => (
-        <RunLog.HeaderRow key={name} name={name} value={headers[name]} />
+        <HeaderRow key={name} name={name} value={headers[name]} />
       ))}
     </>
   );
 };
 
-RunLog.HeaderRow = function ({ name, value }: { name: string; value: string }) {
+const HeaderRow = function ({ name, value }: { name: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

@@ -11,7 +11,7 @@ import { startSettings } from "./settings";
 import { getPersistedValue, initializeStorage, WorkspaceStorage } from "./storage";
 import { pruneTypeMemory } from "./typeMemory";
 import { installUiLog } from "./uiLog";
-import { preloadWorkspace } from "./useCompilation";
+import { preloadWorkspace } from "./workspaceLoad";
 import { desktop, isWailsEnvironment } from "./wails";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 

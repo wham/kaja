@@ -1,5 +1,5 @@
 import { appParameters } from "./appTypes";
-import { App } from "./apps";
+import { App, isReady } from "./apps";
 import { Log, LogLevel } from "./server/api";
 
 // The compile state of the whole workspace, rolled up for the status bar. A
@@ -22,17 +22,24 @@ export function isCompiling(app: App): boolean {
   return app.compilation.status === "pending" || app.compilation.status === "running";
 }
 
-export function appWarnings(app: App): Log[] {
-  if (app.compilation.status !== "success") return [];
-  return app.compilation.logs.filter((log) => log.level === LogLevel.LEVEL_WARN);
+// Warnings are read off a compile that succeeded; a failed one has its error to show.
+export function warningCount(app: App): number {
+  return isReady(app.compilation.status) ? app.compilation.warnings : 0;
+}
+
+export function countWarnings(logs: Log[]): number {
+  return logs.filter((log) => log.level === LogLevel.LEVEL_WARN).length;
 }
 
 // The line to show for a failed app: its first error, falling back to the last
 // thing it logged before giving up.
-export function firstErrorMessage(app: App): string | undefined {
-  const logs = app.compilation.logs;
+export function firstErrorLine(logs: Log[]): string | undefined {
   const error = logs.find((log) => log.level === LogLevel.LEVEL_ERROR);
   return (error ?? logs[logs.length - 1])?.message;
+}
+
+export function firstErrorMessage(app: App): string | undefined {
+  return app.compilation.error;
 }
 
 // Where the app's calls go, when the app names somewhere for them to go. Read off the
@@ -54,8 +61,8 @@ function plural(count: number, noun: string): string {
 export function summarizeCompilation(apps: App[], workspaceLoaded: boolean): CompileSummary {
   const compiling = apps.filter(isCompiling);
   const failed = apps.filter((app) => app.compilation.status === "error");
-  const warned = apps.filter((app) => appWarnings(app).length > 0);
-  const ready = apps.filter((app) => app.compilation.status === "success");
+  const warned = apps.filter((app) => warningCount(app) > 0);
+  const ready = apps.filter((app) => isReady(app.compilation.status));
 
   const summary: Omit<CompileSummary, "state" | "label"> = {
     total: apps.length,

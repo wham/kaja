@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -817,5 +818,95 @@ func TestAwaitAppReadsTheCatalog(t *testing.T) {
 	session.SetCatalog(mcp.Catalog{Apps: []mcp.CatalogApp{{Name: "Petstore", Services: []mcp.CatalogService{{Name: "Pets"}}}}})
 	if !session.AwaitApp(context.Background(), "Petstore") {
 		t.Error("a compiled app was not reported callable")
+	}
+}
+
+// A catalog push naming the window it came from is believed only from the window on
+// duty: a tab that has just loaded and compiled half its apps must not overwrite the
+// picture the window being looked at pushed.
+func TestOnlyTheWindowOnDutyPushesTheCatalog(t *testing.T) {
+	registry := newRegistry()
+	first, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	second, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	session, _ := registry.Session(token)
+	session.Focus(first.ID, "")
+
+	push := func(streamID string, name string) int {
+		request := httptest.NewRequest(http.MethodPost, "/agent-session/catalog", strings.NewReader(`{"apps":[{"name":"`+name+`"}]}`))
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set(StreamHeader, streamID)
+		recorder := httptest.NewRecorder()
+		registry.ServeCatalog(recorder, request)
+		return recorder.Code
+	}
+	if code := push(first.ID, "full"); code != http.StatusNoContent {
+		t.Fatalf("the window on duty was refused: %d", code)
+	}
+	if code := push(second.ID, "partial"); code != http.StatusConflict {
+		t.Fatalf("a window not on duty was taken: %d", code)
+	}
+	if catalog := session.Handler(); catalog == nil {
+		t.Fatal("no handler")
+	}
+	session.mu.Lock()
+	name := session.catalog.Apps[0].Name
+	session.mu.Unlock()
+	if name != "full" {
+		t.Errorf("catalog names %q, want the one the window on duty pushed", name)
+	}
+
+	// Duty moving is what lets the other window's push through.
+	session.Focus(second.ID, "")
+	if code := push(second.ID, "partial"); code != http.StatusNoContent {
+		t.Fatalf("the window that gained duty was refused: %d", code)
+	}
+}
+
+// Sessions are bounded whether or not a window is attached, and a browser offering
+// itself past the bound is told so rather than taken.
+func TestSessionsAreCapped(t *testing.T) {
+	registry := newRegistry()
+	for i := 0; i < maxSessions; i++ {
+		if _, err := registry.Attach(strings.Repeat("a", 24) + strings.Repeat("b", 8-len(strconv.Itoa(i))) + strconv.Itoa(i)); err != nil {
+			t.Fatalf("attach %d: %v", i, err)
+		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/agent-session/attach", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	registry.ServeAttach(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("attach past the cap answered %d, want 503", recorder.Code)
+	}
+}
+
+// An abort waits for the window rather than being dropped on a full buffer: a run
+// nobody is coming for is a script left going otherwise.
+func TestAnAbortWaitsForTheWindow(t *testing.T) {
+	registry := newRegistry()
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	// Fill the window's buffer with chatter it has not read.
+	for i := 0; i < streamBuffer; i++ {
+		stream.send(Message{Type: "activity"})
+	}
+	done := make(chan bool, 1)
+	go func() { done <- stream.sendWithin(Message{Type: "abort", RunID: "r"}, 2*time.Second) }()
+	time.Sleep(50 * time.Millisecond)
+	// The window catches up, and the abort lands behind what it had.
+	var got Message
+	for got.Type != "abort" {
+		got = next(t, stream)
+	}
+	if !<-done {
+		t.Error("the abort was dropped although the window read its messages in time")
 	}
 }

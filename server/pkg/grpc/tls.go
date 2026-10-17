@@ -94,3 +94,22 @@ func (o TLSOptions) credentials(useTLS bool) (credentials.TransportCredentials, 
 func (o TLSOptions) key() string {
 	return strings.Join([]string{fmt.Sprint(o.SkipVerify), o.CAFile, o.CertFile, o.KeyFile}, "\x00")
 }
+
+// fingerprint is the key with the certificate files as they stand on disk: a
+// connection reads its PEM files once, when it is dialed, so a certificate rotated at
+// the same path has to be told apart from the one the connection was dialed with.
+func (o TLSOptions) fingerprint() string {
+	parts := []string{o.key()}
+	for _, path := range []string{o.CAFile, o.CertFile, o.KeyFile} {
+		if path == "" {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			parts = append(parts, err.Error())
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d:%d", info.ModTime().UnixNano(), info.Size()))
+	}
+	return strings.Join(parts, "\x00")
+}
