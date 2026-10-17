@@ -175,8 +175,13 @@ describe("what TypeScript makes of the declaration", () => {
       writeFileSync(join(dir, "script.ts"), `import { kaja } from "./kaja";\n${body}\n`);
       const options = ["--noEmit", "--pretty", "false", "--strict", "--skipLibCheck", "--target", "esnext", "--module", "esnext"];
       options.push("--moduleResolution", "bundler", "--moduleDetection", "force");
-      const tsc = Bun.spawnSync([TSC, ...options, "kaja.ts", "kaja-scripts.d.ts", "script.ts"], { cwd: dir });
-      return diagnostics(tsc.stdout.toString(), "script.ts");
+      // Through bun, because the binary is a `#!/usr/bin/env node` script and CI's image has no node.
+      const tsc = Bun.spawnSync([process.execPath, TSC, ...options, "kaja.ts", "kaja-scripts.d.ts", "script.ts"], { cwd: dir });
+      const output = tsc.stdout.toString();
+      // A failure that reports no diagnostic is a check that never ran, which would
+      // otherwise read as a script with nothing wrong in it.
+      if (tsc.exitCode !== 0 && !/error TS\d+/.test(output)) throw new Error(`tsc exited ${tsc.exitCode}: ${output}${tsc.stderr.toString()}`);
+      return diagnostics(output, "script.ts");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
