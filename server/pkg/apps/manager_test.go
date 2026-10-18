@@ -40,9 +40,11 @@ func openedUnder(t *testing.T, manager *Manager, name string) string {
 // for a surface that has not changed.
 func TestManagerRenameMovesTheOpenApp(t *testing.T) {
 	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
-	if _, err := manager.Open(context.Background(), "theatre", "grpc", nil, "", func(string) {}); err != nil {
+	opened, err := manager.Instantiate(context.Background(), "grpc", nil, "", func(string) {})
+	if err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
+	manager.Register("theatre", opened.Instance)
 
 	manager.Rename("theatre", "playhouse")
 
@@ -59,9 +61,11 @@ func TestManagerRenameMovesTheOpenApp(t *testing.T) {
 // all, which is every app a compilation never got to.
 func TestManagerRenameLeavesAnUnopenedAppAlone(t *testing.T) {
 	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
-	if _, err := manager.Open(context.Background(), "theatre", "grpc", nil, "", func(string) {}); err != nil {
+	opened, err := manager.Instantiate(context.Background(), "grpc", nil, "", func(string) {})
+	if err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
+	manager.Register("theatre", opened.Instance)
 
 	manager.Rename("seating", "stalls")
 	manager.Rename("theatre", "theatre")

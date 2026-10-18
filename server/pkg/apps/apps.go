@@ -220,21 +220,6 @@ func NewManager(types map[string]App) *Manager {
 	}
 }
 
-// Open instantiates an app of the given type and registers it under name, replacing
-// whatever was open under that name before. Generated protos are written into
-// protoDir; the directory the surface actually lives in is what comes back.
-func (m *Manager) Open(ctx context.Context, name string, appType string, parameters map[string]string, protoDir string, log func(string)) (string, error) {
-	opened, err := m.Instantiate(ctx, appType, parameters, protoDir, log)
-	if err != nil {
-		return "", err
-	}
-	m.Register(name, opened.Instance)
-	if opened.ProtoDir != "" {
-		return opened.ProtoDir, nil
-	}
-	return protoDir, nil
-}
-
 // Instantiate opens an app of the given type without registering it, which is what
 // a caller holding opened apps of its own - a compile cache - does before deciding
 // what name the instance answers under.
