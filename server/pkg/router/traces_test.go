@@ -73,9 +73,11 @@ func workspaceWith(t *testing.T, entry string, name string, appType string, para
 	service := api.NewApiService(path, false, "", "", nil)
 	// What Compile does once it has flattened the app's typed parameters. Compiling
 	// the proto surface is the other half of that RPC and no part of a call.
-	if _, err := service.Apps().Open(context.Background(), name, appType, parameters, t.TempDir(), func(string) {}); err != nil {
+	opened, err := service.Apps().Instantiate(context.Background(), appType, parameters, t.TempDir(), func(string) {})
+	if err != nil {
 		t.Fatalf("open app: %v", err)
 	}
+	service.Apps().Register(name, opened.Instance)
 
 	mux := http.NewServeMux()
 	Mount(mux, service)
@@ -291,9 +293,11 @@ func TestForwardedServerCannotWriteIntoKajasChannel(t *testing.T) {
 		t.Fatalf("write workspace: %v", err)
 	}
 	service := api.NewApiService(path, false, "", "", nil)
-	if _, err := service.Apps().Open(context.Background(), appName, "grpc", map[string]string{"url": address, "proto_dir": "unused"}, t.TempDir(), func(string) {}); err != nil {
+	opened, err := service.Apps().Instantiate(context.Background(), "grpc", map[string]string{"url": address, "proto_dir": "unused"}, t.TempDir(), func(string) {})
+	if err != nil {
 		t.Fatalf("open app: %v", err)
 	}
+	service.Apps().Register(appName, opened.Instance)
 	mux := http.NewServeMux()
 	Mount(mux, service)
 

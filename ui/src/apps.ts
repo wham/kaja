@@ -135,12 +135,3 @@ export function serviceId(service: Service): string {
 export function methodId(service: Service, method: Method): string {
   return `${service.name}.${method.name}`;
 }
-
-export function getDefaultMethod(services: Service[]): { method: Method; service: Service } | undefined {
-  for (const service of services) {
-    for (const method of service.methods) {
-      return { method, service };
-    }
-  }
-  return undefined;
-}

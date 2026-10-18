@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -191,47 +190,6 @@ func NewClientFromString(target string, options TLSOptions) (*Client, error) {
 // UseTLS returns whether TLS is enabled for this client.
 func (c *Client) UseTLS() bool {
 	return c.useTLS
-}
-
-// Invoke calls a gRPC method, named "/package.Service/Method". Request and response
-// are raw protobuf bytes; headers are passed as gRPC metadata.
-//
-// The metadata the server answered with comes back beside the response, on a failed
-// call as well as a successful one: a refusal is exactly where a server has something
-// to say about why, and a rate limit says it in headers the caller is meant to obey.
-func (c *Client) Invoke(ctx context.Context, method string, request []byte, headers map[string]string) ([]byte, map[string]string, error) {
-	if !strings.HasPrefix(method, "/") {
-		method = "/" + method
-	}
-
-	conn, err := sharedConnection(c.target, c.useTLS, c.options)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(headers) > 0 {
-		md := metadata.New(headers)
-		ctx = metadata.NewOutgoingContext(ctx, md)
-	}
-
-	// Both, because which one a value arrives in is not the server's choice: a call
-	// answered with a status and no message sends its metadata as trailers alone.
-	var header, trailer metadata.MD
-	var response []byte
-	err = conn.Invoke(ctx, method, request, &response, grpc.Header(&header), grpc.Trailer(&trailer))
-	responseMetadata := ResponseMetadata(header, trailer)
-	if err != nil {
-		return nil, responseMetadata, fmt.Errorf("gRPC invocation failed: %w", err)
-	}
-
-	return response, responseMetadata, nil
-}
-
-// InvokeWithTimeout calls a gRPC method with a default timeout.
-func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration, headers map[string]string) ([]byte, map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return c.Invoke(ctx, method, request, headers)
 }
 
 // StatusDetails is the one -bin trailer that isn't arbitrary bytes: the protocol

@@ -21,7 +21,6 @@ func LoadGetWorkspaceResponse(workspaceFile string) *GetWorkspaceResponse {
 	logger.info(fmt.Sprintf("Workspace file %s", workspaceFile))
 	workspace := loadWorkspaceFile(workspaceFile, logger)
 
-	applyEnvironmentVariables(workspace, logger)
 	normalize(workspace, logger)
 	validateApps(workspace, logger)
 
@@ -257,10 +256,6 @@ func boolField(m map[string]any, keys ...string) bool {
 		}
 	}
 	return false
-}
-
-func applyEnvironmentVariables(workspace *Workspace, logger *Logger) {
-	// Reserved for future environment variable overrides
 }
 
 func normalize(workspace *Workspace, logger *Logger) {

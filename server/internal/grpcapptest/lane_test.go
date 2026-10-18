@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	internalgrpc "github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/router"
 	"google.golang.org/protobuf/proto"
@@ -52,9 +51,11 @@ func openKaja(t *testing.T, name string, parameters map[string]string, variables
 	}
 
 	service := api.NewApiService(path, false, "", "", nil)
-	if _, err := service.Apps().Open(context.Background(), name, "grpc", parameters, t.TempDir(), func(string) {}); err != nil {
+	opened, err := service.Apps().Instantiate(context.Background(), "grpc", parameters, t.TempDir(), func(string) {})
+	if err != nil {
 		t.Fatalf("open app: %v", err)
 	}
+	service.Apps().Register(name, opened.Instance)
 
 	mux := http.NewServeMux()
 	router.Mount(mux, service)
@@ -139,20 +140,6 @@ func (e exchange) trailer(name string) string {
 		return decoded
 	}
 	return ""
-}
-
-// upstreamReport is what kaja's own out-of-band trailer carried, if anything.
-func (e exchange) upstreamReport(t *testing.T) map[string]any {
-	t.Helper()
-	raw := e.trailer(internalgrpc.UpstreamTrailer)
-	if raw == "" {
-		return nil
-	}
-	report := map[string]any{}
-	if err := json.Unmarshal([]byte(raw), &report); err != nil {
-		t.Fatalf("upstream trailer is not JSON: %v\n%q", err, raw)
-	}
-	return report
 }
 
 // decode reads a response message back as the type the method answers with.

@@ -61,7 +61,6 @@ func buildSnapshot(workspaceFile string, store VariableStore) *workspaceSnapshot
 	logger := NewLogger()
 	logger.debug("Workspace file " + workspaceFile)
 	raw, workspace := readWorkspaceFile(workspaceFile, logger)
-	applyEnvironmentVariables(workspace, logger)
 	normalize(workspace, logger)
 	validateApps(workspace, logger)
 

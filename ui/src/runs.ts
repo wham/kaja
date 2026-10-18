@@ -1,4 +1,4 @@
-import { Block, blockLabel, isAwaitingUser } from "./blocks";
+import { Block, isAwaitingUser } from "./blocks";
 import { callDurationMs, callLabel, isCallInFlight, MethodCall } from "./kaja";
 // Type only: the strip is maintained in runStrip, which reads its items from here.
 // Importing the value would close the circle.
@@ -234,13 +234,6 @@ export function printedLevel(item: ConsoleItem): LogLevel {
   return (item.logs ?? []).reduce<LogLevel>((worst, log) => (log.level > worst ? log.level : worst), LogLevel.LEVEL_DEBUG);
 }
 
-export function itemName(item: ConsoleItem): string {
-  if (item.call) return callLabel(item.call);
-  if (item.block) return blockLabel(item.block);
-  const logs = item.logs ?? [];
-  return logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`;
-}
-
 /**
  * What a set of items says about itself, accumulated as they arrive rather than
  * re-derived: both a run and a folded canvas row read these on every repaint while
@@ -320,10 +313,6 @@ export function worstStatus(items: ConsoleItem[]): RunStatus {
   if (statuses.includes("pending")) return "pending";
   if (statuses.includes("streaming")) return "streaming";
   return "success";
-}
-
-export function callCount(group: RunGroup): number {
-  return group.calls.length;
 }
 
 /**
