@@ -409,8 +409,3 @@ export function useShortcutLabel(action: ShortcutAction): string {
   useSyncExternalStore(subscribe, snapshot, snapshot);
   return shortcutLabel(action);
 }
-
-export function useShortcutBindings(): Map<ShortcutAction, string[]> {
-  useSyncExternalStore(subscribe, snapshot, snapshot);
-  return bindings;
-}

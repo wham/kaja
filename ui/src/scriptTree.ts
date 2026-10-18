@@ -70,20 +70,6 @@ export function buildScriptTree(scripts: Script[], folders: string[] = []): Tree
   return build("", 0);
 }
 
-/** Every folder in the tree, deepest path and all, sorted — what a folder picker offers. */
-export function folderPaths(nodes: TreeNode[]): string[] {
-  const paths: string[] = [];
-  const walk = (list: TreeNode[]) => {
-    for (const node of list) {
-      if (node.kind !== "folder") continue;
-      paths.push(node.path);
-      walk(node.children);
-    }
-  };
-  walk(nodes);
-  return paths;
-}
-
 /**
  * The rows to draw, in order: a folder's children only while it is open. Folds
  * are the caller's, keyed by folder path.

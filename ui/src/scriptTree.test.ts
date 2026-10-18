@@ -4,7 +4,6 @@ import {
   buildScriptTree,
   copyName,
   folderNameError,
-  folderPaths,
   isWithinFolder,
   resolveScriptRename,
   scriptNameParts,
@@ -37,7 +36,6 @@ describe("buildScriptTree", () => {
     expect(tree).toHaveLength(1);
     const reports = tree[0];
     expect(reports).toMatchObject({ kind: "folder", path: "reports", depth: 0 });
-    expect(folderPaths(tree)).toEqual(["reports", "reports/weekly"]);
     if (reports.kind !== "folder") throw new Error("expected a folder");
     expect(reports.children[0]).toMatchObject({ kind: "folder", path: "reports/weekly", depth: 1 });
   });
