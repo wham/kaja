@@ -1,25 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, authNote, count, deriveAppName, eraLabel, isReadableEndpoint, uniqueAppName } from "./mcpServer";
-
-describe("isReadableEndpoint", () => {
-  test("takes an absolute HTTP endpoint", () => {
-    expect(isReadableEndpoint("https://mcp.example.com/mcp")).toBe(true);
-    expect(isReadableEndpoint("http://localhost:3000/mcp")).toBe(true);
-  });
-
-  test("refuses anything that isn't one", () => {
-    expect(isReadableEndpoint("")).toBe(false);
-    expect(isReadableEndpoint("mcp.example.com/mcp")).toBe(false);
-    expect(isReadableEndpoint("file:///tmp/server")).toBe(false);
-  });
-
-  test("takes a value that reads a variable on trust", () => {
-    // The browser is never handed what a variable expands to, so the server is
-    // the one that finds out whether it is a URL.
-    expect(isReadableEndpoint("${MCP_URL}")).toBe(true);
-    expect(isReadableEndpoint("https://${HOST}/mcp")).toBe(true);
-  });
-});
+import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, authNote, deriveAppName, eraLabel } from "./mcpServer";
 
 describe("deriveAppName", () => {
   test("keeps a server name that is already a handle", () => {
@@ -62,14 +42,6 @@ describe("deriveAppName", () => {
   });
 });
 
-describe("uniqueAppName", () => {
-  test("numbers a name that is taken", () => {
-    expect(uniqueAppName("GitHub", [])).toBe("GitHub");
-    expect(uniqueAppName("GitHub", ["GitHub"])).toBe("GitHub2");
-    expect(uniqueAppName("GitHub", ["GitHub", "GitHub2"])).toBe("GitHub3");
-  });
-});
-
 describe("authNote", () => {
   test("states the header the credential becomes", () => {
     expect(authNote(AUTH_BEARER, "")).toEqual({ text: "Authorization: Bearer ‹token›", mono: true });
@@ -83,12 +55,5 @@ describe("eraLabel", () => {
   test("tells the two shapes of the protocol apart", () => {
     expect(eraLabel("2026-07-28", false)).toBe("MCP 2026-07-28");
     expect(eraLabel("2025-06-18", true)).toBe("MCP 2025-06-18 · handshake");
-  });
-});
-
-describe("count", () => {
-  test("pluralizes", () => {
-    expect(count(1, "tool")).toBe("1 tool");
-    expect(count(0, "tool")).toBe("0 tools");
   });
 });

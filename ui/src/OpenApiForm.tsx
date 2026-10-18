@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Server as ServerIcon,
   Shield,
-  Sparkles,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -22,11 +21,11 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Spinner } from "./components/spinner";
 import { AppNameField } from "./AppNameField";
+import { DemoLink, ReadingRow } from "./InspectStatus";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { AppSurface, buildApp, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps, getAppType } from "./appTypes";
 import { cn } from "./cn";
 import {
   NO_CREDENTIALS,
@@ -35,16 +34,15 @@ import {
   defaultSecurityScheme,
   defaultVariableValues,
   deriveAppName,
-  holdsVariableReference,
-  isAbsoluteHttpUrl,
   isBasicScheme,
   isUsableBaseUrl,
   matchServerUrl,
   resolveServerUrl,
   schemeIdentity,
   schemeLabel,
-  uniqueAppName,
 } from "./openApiDocument";
+import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
+import { pluralCount } from "./plural";
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -60,17 +58,9 @@ type ReadState =
 const READ_DEBOUNCE_MS = 600;
 const PASTE_DEBOUNCE_MS = 400;
 
-// A document URL that reads a variable is sent to the server as it is written — only
-// the server knows what ${NAME} holds — so it is read rather than rejected for not
-// looking like a URL.
-function isReadableSourceUrl(value: string): boolean {
-  return isAbsoluteHttpUrl(value) || holdsVariableReference(value);
-}
-
 // Documents already read, so flipping between apps doesn't fetch and parse what
 // hasn't changed. Only successful reads are remembered.
 const inspected = new Map<string, { document: OpenApiDocument; readAt: number }>();
-const INSPECTED_LIMIT = 20;
 
 // inspectionKey includes the credentials, since a document behind a login can differ
 // per token.
@@ -82,38 +72,11 @@ function inspectionKey(parameters: Record<string, string>): string {
 const reading = new Map<string, Promise<InspectOpenApiResponse>>();
 
 function inspect(key: string, openapi: OpenApiApp | undefined): Promise<InspectOpenApiResponse> {
-  const pending = reading.get(key);
-  if (pending) return pending;
-  const started = getApiClient()
-    .inspectOpenApi({ openapi })
-    .then(({ response }) => response)
-    .finally(() => reading.delete(key));
-  reading.set(key, started);
-  return started;
-}
-
-function remember(key: string, document: OpenApiDocument, readAt: number) {
-  inspected.delete(key);
-  inspected.set(key, { document, readAt });
-  for (const oldest of inspected.keys()) {
-    if (inspected.size <= INSPECTED_LIMIT) break;
-    inspected.delete(oldest);
-  }
-}
-
-interface OpenApiFormProps {
-  name: string;
-  onNameChange: (name: string) => void;
-  duplicateName: boolean;
-  // So a derived name doesn't land on a collision the user has to resolve by hand.
-  takenNames: string[];
-  parameters: Record<string, string>;
-  onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
-  variables: { [key: string]: string };
-  readOnly: boolean;
-  // What the form last read, for the receipt in the footer.
-  onSurfaceChange: (surface: AppSurface | undefined) => void;
-  onReadyChange: (ready: boolean) => void;
+  return joinReading(reading, key, () =>
+    getApiClient()
+      .inspectOpenApi({ openapi })
+      .then(({ response }) => response),
+  );
 }
 
 // OpenApiForm is the New/Edit form for an OpenAPI app. It asks for one thing -
@@ -130,7 +93,7 @@ export function OpenApiForm({
   readOnly,
   onSurfaceChange,
   onReadyChange,
-}: OpenApiFormProps) {
+}: CustomFormProps) {
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => ((parameters.specContent ?? "").trim() ? "paste" : "url"));
   const [state, setState] = useState<ReadState>({ status: "idle" });
   const [uploadName, setUploadName] = useState("");
@@ -175,7 +138,7 @@ export function OpenApiForm({
       if (readId !== readIdRef.current) return;
       if (response.document) {
         const readAt = Date.now();
-        remember(key, response.document, readAt);
+        remember(inspected, key, { document: response.document, readAt });
         setState({ status: "read", document: response.document, readAt });
       } else {
         setState({
@@ -202,7 +165,7 @@ export function OpenApiForm({
     const typed = typedRef.current;
     typedRef.current = false;
 
-    if (!source.trim() || (sourceMode === "url" && !isReadableSourceUrl(source))) {
+    if (!source.trim() || (sourceMode === "url" && !isReadableUrl(source))) {
       readIdRef.current++;
       setState({ status: "idle" });
       return;
@@ -341,7 +304,7 @@ export function OpenApiForm({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                if (isReadableSourceUrl(specUrl)) read();
+                if (isReadableUrl(specUrl)) read();
               }
             }}
           />
@@ -493,31 +456,15 @@ function SourceStatus({
 }: SourceStatusProps) {
   if (state.status === "idle") {
     return (
-      <div className="flex items-center gap-1.5">
-        <p className="text-xs text-muted-foreground">Kaja reads it and fills in the rest.</p>
-        {demoLabel && onDemo && !readOnly && (
-          <>
-            <span className="text-xs text-muted-foreground">·</span>
-            <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <Sparkles size={11} />
-              {demoLabel}
-            </button>
-          </>
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Kaja reads it and fills in the rest.
+        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
+      </p>
     );
   }
 
   if (state.status === "reading") {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-        <Spinner size="sm" />
-        <span className="text-sm text-muted-foreground">Reading the document…</span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    );
+    return <ReadingRow label="Reading the document…" onCancel={onCancel} />;
   }
 
   if (state.status === "read") {
@@ -556,9 +503,9 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
             </span>
           </p>
           <p className="text-xs text-muted-foreground">
-            {count(document.operationCount, "operation")} · {count(document.tagCount, "tag")} ·{" "}
-            {document.servers.length ? count(document.servers.length, "server") : "no servers"} ·{" "}
-            {document.securitySchemes.length ? count(document.securitySchemes.length, "security scheme") : "no security schemes"}
+            {pluralCount(document.operationCount, "operation")} · {pluralCount(document.tagCount, "tag")} ·{" "}
+            {document.servers.length ? pluralCount(document.servers.length, "server") : "no servers"} ·{" "}
+            {document.securitySchemes.length ? pluralCount(document.securitySchemes.length, "security scheme") : "no security schemes"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-muted-foreground">
@@ -968,10 +915,6 @@ function RelativeTime({ at }: { at: number }) {
   const seconds = Math.floor((Date.now() - at) / 1000);
   const label = seconds < 1 ? "just now" : seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
   return <span className="text-xs">{label}</span>;
-}
-
-function count(value: number, noun: string): string {
-  return `${value} ${noun}${value === 1 ? "" : "s"}`;
 }
 
 function schemeIcon(scheme: OpenApiSecurityScheme): LucideIcon {

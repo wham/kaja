@@ -6,8 +6,8 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { AppSurface, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { useState, useRef, useEffect, useCallback, useMemo, type ComponentType } from "react";
+import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
 import { AppNameField } from "./AppNameField";
 import { GrpcForm } from "./GrpcForm";
 import { McpForm } from "./McpForm";
@@ -20,7 +20,10 @@ import { formatJson } from "./formatter";
 import { codeFontSize } from "./monacoTheme";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
 import { getVariables } from "./variableExpansion";
+import { pluralCount } from "./plural";
 import { desktop, isWailsEnvironment } from "./wails";
+
+const CUSTOM_FORMS: Record<string, ComponentType<CustomFormProps>> = { grpc: GrpcForm, openai: OpenAiForm, mcp: McpForm, openapi: OpenApiForm };
 
 type EditMode = "form" | "json";
 
@@ -123,10 +126,6 @@ function missingRequiredParameter(type: string, parameters: Record<string, strin
     }
   }
   return undefined;
-}
-
-function surfaceCount(surface: AppSurface, noun: string): string {
-  return `${surface.count} ${noun}${surface.count === 1 ? "" : "s"}`;
 }
 
 interface AdvancedSectionProps {
@@ -412,6 +411,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   const definition = getAppType(type);
   const customForm = Boolean(definition?.customForm);
+  const CustomForm = CUSTOM_FORMS[type] ?? OpenApiForm;
 
   const isValid =
     editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady)) : !jsonError;
@@ -438,63 +438,19 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 // Keyed by the app being edited: switching apps in the sidebar starts the form over
                 // rather than reading the next server behind the previous one's transport and
                 // credentials.
-                type === "grpc" ? (
-                  <GrpcForm
-                    key={initialData?.name || "__new__"}
-                    name={name}
-                    onNameChange={setName}
-                    duplicateName={duplicateName}
-                    takenNames={takenNames}
-                    parameters={parameters}
-                    onParametersChange={setParameters}
-                    variables={variables}
-                    readOnly={readOnly}
-                    onSurfaceChange={setSurface}
-                    onReadyChange={setCustomReady}
-                  />
-                ) : type === "openai" ? (
-                  <OpenAiForm
-                    key={initialData?.name || "__new__"}
-                    name={name}
-                    onNameChange={setName}
-                    duplicateName={duplicateName}
-                    takenNames={takenNames}
-                    parameters={parameters}
-                    onParametersChange={setParameters}
-                    variables={variables}
-                    readOnly={readOnly}
-                    onSurfaceChange={setSurface}
-                    onReadyChange={setCustomReady}
-                  />
-                ) : type === "mcp" ? (
-                  <McpForm
-                    key={initialData?.name || "__new__"}
-                    name={name}
-                    onNameChange={setName}
-                    duplicateName={duplicateName}
-                    takenNames={takenNames}
-                    parameters={parameters}
-                    onParametersChange={setParameters}
-                    variables={variables}
-                    readOnly={readOnly}
-                    onSurfaceChange={setSurface}
-                    onReadyChange={setCustomReady}
-                  />
-                ) : (
-                  <OpenApiForm
-                    key={initialData?.name || "__new__"}
-                    name={name}
-                    onNameChange={setName}
-                    duplicateName={duplicateName}
-                    takenNames={takenNames}
-                    parameters={parameters}
-                    onParametersChange={setParameters}
-                    variables={variables}
-                    readOnly={readOnly}
-                    onSurfaceChange={setSurface}
-                    onReadyChange={setCustomReady}
-                  />
-                )
+                <CustomForm
+                  key={initialData?.name || "__new__"}
+                  name={name}
+                  onNameChange={setName}
+                  duplicateName={duplicateName}
+                  takenNames={takenNames}
+                  parameters={parameters}
+                  onParametersChange={setParameters}
+                  variables={variables}
+                  readOnly={readOnly}
+                  onSurfaceChange={setSurface}
+                  onReadyChange={setCustomReady}
+                />
               ) : (
                 <>
                   <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
@@ -606,8 +562,8 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         <p className="text-xs text-muted-foreground">
           {surface && name.trim() && editMode === "form"
             ? mode === "edit"
-              ? `${name.trim()} exposes ${surfaceCount(surface, definition?.surfaceNoun ?? "method")}.`
-              : `Adds ${surfaceCount(surface, definition?.surfaceNoun ?? "method")} under ${name.trim()} in the sidebar.`
+              ? `${name.trim()} exposes ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")}.`
+              : `Adds ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")} under ${name.trim()} in the sidebar.`
             : ""}
         </p>
         <div className="flex shrink-0 gap-2">

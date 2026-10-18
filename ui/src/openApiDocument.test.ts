@@ -11,7 +11,6 @@ import {
   resolveServerUrl,
   schemeIdentity,
   schemeLabel,
-  uniqueAppName,
 } from "./openApiDocument";
 
 function server(url: string, variables: Partial<OpenApiServer["variables"][number]>[] = []): OpenApiServer {
@@ -209,20 +208,5 @@ describe("deriveAppName", () => {
   // A character that would break the import path can't survive into the name.
   test("drops what an import path can't carry", () => {
     expect(deriveAppName('Acme "Orders"/v2 API')).toBe("AcmeOrders");
-  });
-});
-
-describe("uniqueAppName", () => {
-  test("leaves a free name alone", () => {
-    expect(uniqueAppName("Petstore", ["theatre"])).toBe("Petstore");
-  });
-
-  test("numbers a taken one without introducing a space", () => {
-    expect(uniqueAppName("Petstore", ["Petstore"])).toBe("Petstore2");
-    expect(uniqueAppName("Petstore", ["Petstore", "Petstore2"])).toBe("Petstore3");
-  });
-
-  test("has nothing to do when there is no name yet", () => {
-    expect(uniqueAppName("", ["Petstore"])).toBe("");
   });
 });

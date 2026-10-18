@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { readRunReferences, remapRunReferences, runNameAt, unresolvedRuns } from "./scriptRuns";
+import { readRunReferences, remapRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
+
+const unresolvedRuns = (code: string, scripts: string[]) => unresolvedIn(readRunReferences(code) ?? [], scripts);
 
 const IMPORT = 'import { kaja } from "kaja";\n';
 
@@ -62,7 +64,7 @@ describe("runNameAt", () => {
   });
 });
 
-describe("unresolvedRuns", () => {
+describe("unresolvedIn", () => {
   const scripts = ["reports/churn.ts", "ingest.ts"];
 
   it("says nothing about a name that reaches a script", () => {

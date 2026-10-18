@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
+	"github.com/wham/kaja/v2/pkg/apps/rpc"
 	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
@@ -59,7 +59,7 @@ func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, err
 		return protoc.New(protoc.WithDescriptorSetIn(set)), files, nil
 	}
 
-	protoFiles, err := findProtoFiles(protoDir)
+	protoFiles, err := rpc.ProtoFiles(protoDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("finding proto files: %v", err)
 	}
@@ -95,22 +95,4 @@ func (c *Compiler) compile(protoDir string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("protoc-gen-kaja wrote no %s", kaja.ManifestName)
-}
-
-func findProtoFiles(dir string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.EqualFold(filepath.Ext(path), ".proto") {
-			rel, err := filepath.Rel(dir, path)
-			if err != nil {
-				return err
-			}
-			files = append(files, rel)
-		}
-		return nil
-	})
-	return files, err
 }

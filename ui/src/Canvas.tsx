@@ -260,55 +260,14 @@ Canvas.Notice = function ({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-0 flex-1 items-center justify-center p-3 text-center text-xs text-muted-foreground">{children}</div>;
 };
 
-interface EntryProps {
+interface EntryProps extends Omit<BlockProps, "id" | "block"> {
   item: ConsoleItem;
-  fullScreen?: boolean;
-  onAnswer: (blockId: string, answer: string) => void;
-  onCancelAsk: (blockId: string) => void;
-  onDecide: (blockId: string, gesture: ApproveGesture) => void;
-  onFullScreen?: () => void;
-  // The perf block's way to the page its charts are on.
-  onOpenStats?: () => void;
-  tableViews: { [blockId: string]: TableView };
-  onTableView: (blockId: string, view: TableView) => void;
-  onTablePull: (blockId: string, search: string, want: number) => void;
-  onTableCells: (blockId: string, cells: CellRef[]) => void;
-  onRunScript: (run: CellRun) => void;
 }
 
-Canvas.Entry = function ({
-  item,
-  fullScreen,
-  onAnswer,
-  onCancelAsk,
-  onDecide,
-  onFullScreen,
-  onOpenStats,
-  tableViews,
-  onTableView,
-  onTablePull,
-  onTableCells,
-  onRunScript,
-}: EntryProps) {
+Canvas.Entry = function ({ item, ...handlers }: EntryProps) {
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
-  return (
-    <Canvas.Block
-      id={item.id}
-      block={item.block}
-      fullScreen={fullScreen}
-      onAnswer={onAnswer}
-      onCancelAsk={onCancelAsk}
-      onDecide={onDecide}
-      onFullScreen={onFullScreen}
-      onOpenStats={onOpenStats}
-      tableViews={tableViews}
-      onTableView={onTableView}
-      onTablePull={onTablePull}
-      onTableCells={onTableCells}
-      onRunScript={onRunScript}
-    />
-  );
+  return <Canvas.Block id={item.id} block={item.block} {...handlers} />;
 };
 
 interface BlockProps {
@@ -363,7 +322,7 @@ Canvas.Block = function ({
     case "ask":
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
     case "approve":
-      return <Canvas.Approve id={id} block={block} fullScreen={fullScreen} onDecide={onDecide} onFullScreen={onFullScreen} />;
+      return <Canvas.Approve id={id} block={block} onDecide={onDecide} onFullScreen={onFullScreen} />;
     case "perf":
       return <Canvas.Perf block={block} onOpenStats={onOpenStats} />;
     case "limit":
@@ -938,7 +897,6 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
 interface ApproveProps {
   id: string;
   block: ApproveBlock;
-  fullScreen?: boolean;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
 }
@@ -953,7 +911,7 @@ interface ApproveProps {
  * No button takes focus. ⏎ approves this call only, Esc stops the script: a key
  * pressed at the wrong moment must not send the request this block exists to hold.
  */
-Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: ApproveProps) {
+Canvas.Approve = function ({ id, block, onDecide, onFullScreen }: ApproveProps) {
   const waiting = block.decision === undefined;
   const [expanded, setExpanded] = useState(false);
   // A settled block is a record: the payload collapses to its size, and View is the

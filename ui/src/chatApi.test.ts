@@ -13,9 +13,7 @@ import {
   authNote,
   deriveAppName,
   getApiChoice,
-  isUsableEndpoint,
   matchApiChoice,
-  uniqueAppName,
 } from "./chatApi";
 
 describe("the API a chat app speaks", () => {
@@ -58,21 +56,6 @@ describe("the credential", () => {
   });
 });
 
-describe("the endpoint", () => {
-  it("asks only for an absolute HTTP URL", () => {
-    expect(isUsableEndpoint("https://api.openai.com/v1/chat/completions")).toBe(true);
-    expect(isUsableEndpoint("http://localhost:11434/v1/chat/completions")).toBe(true);
-    expect(isUsableEndpoint("")).toBe(false);
-    expect(isUsableEndpoint("api.openai.com")).toBe(false);
-    expect(isUsableEndpoint("file:///etc/passwd")).toBe(false);
-  });
-
-  it("takes a URL a variable stands in for on trust", () => {
-    expect(isUsableEndpoint("${LLM_ENDPOINT}")).toBe(true);
-    expect(isUsableEndpoint("https://${HOST}/v1/chat/completions")).toBe(true);
-  });
-});
-
 describe("the derived name", () => {
   it("is the API's own where it has one", () => {
     expect(deriveAppName(CHOICE_OPENAI, "https://api.openai.com/v1/chat/completions")).toBe("OpenAI");
@@ -89,11 +72,5 @@ describe("the derived name", () => {
     expect(deriveAppName(CHOICE_COMPATIBLE, "http://localhost:11434/v1/chat/completions")).toBe("");
     expect(deriveAppName(CHOICE_COMPATIBLE, "http://10.0.0.4:8000/v1/chat/completions")).toBe("");
     expect(deriveAppName(CHOICE_COMPATIBLE, "not a url")).toBe("");
-  });
-
-  it("numbers a collision rather than landing on one", () => {
-    expect(uniqueAppName("Claude", [])).toBe("Claude");
-    expect(uniqueAppName("Claude", ["Claude"])).toBe("Claude2");
-    expect(uniqueAppName("Claude", ["Claude", "Claude2"])).toBe("Claude3");
   });
 });

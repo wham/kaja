@@ -25,6 +25,16 @@ import (
 	"github.com/wham/protoc-go/protoc"
 )
 
+// parseSpec reads a document whose content type is unknown, as an error rather
+// than a classified problem.
+func parseSpec(body []byte) (*spec, error) {
+	s, p := readSpec(body, "")
+	if p != nil {
+		return nil, p
+	}
+	return s, nil
+}
+
 // encodeRequest builds the protobuf request bytes for a method from a JSON object.
 func encodeRequest(t *testing.T, inst *instance, method, requestJSON string) []byte {
 	t.Helper()

@@ -187,11 +187,6 @@ func NewClientFromString(target string, options TLSOptions) (*Client, error) {
 	return NewClient(parsed, options), nil
 }
 
-// UseTLS returns whether TLS is enabled for this client.
-func (c *Client) UseTLS() bool {
-	return c.useTLS
-}
-
 // StatusDetails is the one -bin trailer that isn't arbitrary bytes: the protocol
 // defines it as a google.rpc.Status, and it is where a gRPC API says what was wrong
 // with a request beyond the code and the one sentence beside it - which field, which

@@ -1,5 +1,5 @@
 import { GrpcServer } from "./server/api";
-import { variableReferences } from "./variableExpansion";
+import { holdsVariableReference, nameFromHost, sanitizeName } from "./appForms";
 
 // The credential a gRPC app sends with every call. One per app, because one is what a
 // service asks for; anything an API wants alongside it is a header.
@@ -54,12 +54,6 @@ export function authNote(auth: string, name: string): { text: string; mono: bool
   }
 }
 
-// The browser is never handed what a ${NAME} expands to, so a value that reads one is
-// taken on trust here and settled by the server.
-export function holdsVariableReference(value: string): boolean {
-  return variableReferences(value).length > 0;
-}
-
 // Deliberately loose — gRPC targets are written half a dozen ways, and the server is
 // the one that finds out — so it only asks for a host.
 export function isDialableTarget(value: string): boolean {
@@ -90,14 +84,6 @@ export function targetHost(value: string): string {
 // Labels that name where a service is deployed rather than what it is.
 const HOST_NOISE = new Set(["api", "apis", "grpc", "grpcs", "rpc", "www", "svc", "service", "services", "dev", "staging", "stage", "prod", "test", "sandbox"]);
 
-// Hosts that name the machine rather than the API. A name derived from one says
-// nothing, so the services say it instead.
-function namesTheMachine(host: string): boolean {
-  if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
-  // An IPv4 or IPv6 literal.
-  return /^[\d.]+$/.test(host) || host.includes(":");
-}
-
 // deriveAppName turns what was typed into a name that reads as one word in an import
 // path: "dns:seating.kaja.tools:443" → "seating", "grpcb.in:9000" stays, and
 // "localhost:50051" falls back to what the server said it serves.
@@ -108,20 +94,7 @@ export function deriveAppName(url: string, services: string[]): string {
 // The half of deriveAppName the address can answer, which is also how the caption
 // under the field knows which of the two it is looking at.
 export function nameFromAddress(url: string): string {
-  return nameFromHost(targetHost(url));
-}
-
-function nameFromHost(host: string): string {
-  if (namesTheMachine(host)) return "";
-  const labels = host
-    .replace(/^www\./i, "")
-    .split(".")
-    .filter(Boolean);
-  if (labels.length < 3) return sanitizeName(labels.join("."));
-  // "seating.kaja.tools" is named by its first label; "api.example.com" by the one that
-  // follows it, since the first says only that it is an API.
-  const first = labels.findIndex((label) => !HOST_NOISE.has(label.toLowerCase()));
-  return sanitizeName(labels[first === -1 ? 0 : first]);
+  return nameFromHost(targetHost(url), HOST_NOISE);
 }
 
 function nameFromServices(services: string[]): string {
@@ -132,20 +105,6 @@ function nameFromServices(services: string[]): string {
   // there is when it has none.
   const name = parts.length > 1 ? parts[parts.length - 2] : parts[0];
   return sanitizeName(name);
-}
-
-function sanitizeName(value: string): string {
-  return value.replace(/[^\p{L}\p{N}._-]+/gu, "").replace(/^[._-]+|[._-]+$/g, "");
-}
-
-// uniqueAppName keeps a derived name a starting point rather than a collision.
-export function uniqueAppName(name: string, taken: string[]): string {
-  if (!name || !taken.includes(name)) return name;
-  for (let suffix = 2; suffix < 1000; suffix++) {
-    const candidate = `${name}${suffix}`;
-    if (!taken.includes(candidate)) return candidate;
-  }
-  return name;
 }
 
 // tlsFromServer is the transport the app should record after an inspection. A server
@@ -160,8 +119,4 @@ export function tlsFromServer(server: GrpcServer): string {
 // from the client is carried on neither.
 export function clientStreamingMethods(server: GrpcServer): number {
   return server.services.reduce((total, service) => total + service.clientStreamingMethodCount, 0);
-}
-
-export function count(value: number, noun: string): string {
-  return `${value} ${noun}${value === 1 ? "" : "s"}`;
 }

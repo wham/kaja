@@ -28,6 +28,22 @@ export interface AppSurface {
   count: number;
 }
 
+// CustomFormProps is what AppForm hands every type marked customForm.
+export interface CustomFormProps {
+  name: string;
+  onNameChange: (name: string) => void;
+  duplicateName: boolean;
+  // So a derived name doesn't land on a collision the user has to resolve by hand.
+  takenNames: string[];
+  parameters: Record<string, string>;
+  onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
+  variables: { [key: string]: string };
+  readOnly: boolean;
+  // What the form last read, for the receipt in the footer.
+  onSurfaceChange: (surface: AppSurface | undefined) => void;
+  onReadyChange: (ready: boolean) => void;
+}
+
 export interface AppTypeDefinition {
   type: string;
   label: string;

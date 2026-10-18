@@ -3,7 +3,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Script } from "./apps";
 import { copyText } from "./clipboard";
 import { cn } from "./cn";
-import { Alert } from "./components/alert";
 import { Blankslate } from "./components/blankslate";
 import { Button } from "./components/button";
 import { Checkbox } from "./components/checkbox";
@@ -20,7 +19,8 @@ import { rpcErrorMessage } from "./rpcMessage";
 import { VariableSource, VariableStatus } from "./server/api";
 import { useVariableScan, VariableScan } from "./useVariableScan";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
-import { orderReferences, pluralCount, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
+import { orderReferences, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
+import { pluralCount } from "./plural";
 
 interface VariableRow {
   key: string;
@@ -322,7 +322,11 @@ export function Variables({
         {undefinedReferences.length > 0 && (
           <div className="flex shrink-0 flex-col gap-2 pb-3">
             {undefinedReferences.map((name) => (
-              <Alert key={name} variant="warning" className="flex items-center justify-between gap-4">
+              <div
+                key={name}
+                role="alert"
+                className="flex items-center justify-between gap-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 shadow-sm dark:text-amber-300"
+              >
                 <span>
                   <code>{"${" + name + "}"}</code> is used by {[...new Set(uses.get(name)?.map((use) => use.app))].join(", ")} but isn't defined.
                 </span>
@@ -338,7 +342,7 @@ export function Variables({
                     Define it
                   </Button>
                 )}
-              </Alert>
+              </div>
             ))}
           </div>
         )}

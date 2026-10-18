@@ -474,13 +474,3 @@ func isHTML(contentType string, body []byte) bool {
 	head := strings.ToLower(strings.TrimSpace(string(body)))
 	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
 }
-
-// parseSpec reads a document whose content type is unknown, as an error rather
-// than a classified problem.
-func parseSpec(body []byte) (*spec, error) {
-	s, p := readSpec(body, "")
-	if p != nil {
-		return nil, p
-	}
-	return s, nil
-}

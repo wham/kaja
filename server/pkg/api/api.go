@@ -390,13 +390,6 @@ type AppConnection struct {
 	TLS        pkggrpc.TLSOptions
 }
 
-// appConnection resolves how the named app connects. The name arrives on the
-// reserved header the client sends with every call; an app that isn't there
-// connects the way it was opened.
-func (s *ApiService) appConnection(name string) AppConnection {
-	return s.snapshot().connection(name)
-}
-
 func (snapshot *workspaceSnapshot) connection(name string) AppConnection {
 	entry, ok := snapshot.apps[name]
 	if !ok {

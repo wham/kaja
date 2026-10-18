@@ -3,6 +3,7 @@ import { CircleAlert, Copy, Check } from "lucide-react";
 import { AppError, clearAppErrors, getAppErrors, subscribeAppErrors } from "./appErrors";
 import { formatClockTime } from "./callTime";
 import { copyText } from "./clipboard";
+import { pluralCount } from "./plural";
 import { Button } from "./components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 
@@ -80,7 +81,7 @@ export function ErrorStatus() {
   // What the footer counts is reports, not rows, so a repeat that collapsed into one
   // row still says how much went wrong.
   const total = errors.reduce((sum, error) => sum + error.count, 0);
-  const label = `${total} error${total === 1 ? "" : "s"}`;
+  const label = pluralCount(total, "error");
 
   const copyAll = async () => {
     const text = errors.map((error) => `${formatClockTime(error.at)}${error.count > 1 ? ` (×${error.count})` : ""} ${error.message}`).join("\n\n");

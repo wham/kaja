@@ -11,9 +11,7 @@ import {
   Lock,
   LockOpen,
   RefreshCw,
-  Server as ServerIcon,
   ShieldCheck,
-  Sparkles,
   TriangleAlert,
   Unplug,
   Waypoints,
@@ -24,11 +22,11 @@ import { Button } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
-import { Spinner } from "./components/spinner";
 import { AppNameField } from "./AppNameField";
+import { DemoLink, ReadingRow } from "./InspectStatus";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { AppSurface, buildApp, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps, getAppType } from "./appTypes";
 import { cn } from "./cn";
 import {
   AUTH_APIKEY,
@@ -44,13 +42,13 @@ import {
   authNote,
   authSchemes,
   clientStreamingMethods,
-  count,
   deriveAppName,
   isDialableTarget,
   nameFromAddress,
   tlsFromServer,
-  uniqueAppName,
 } from "./grpcServer";
+import { joinReading, remember, uniqueAppName } from "./appForms";
+import { pluralCount } from "./plural";
 import { GrpcApp, GrpcProblem, GrpcProblemKind, GrpcServer, InspectGrpcResponse } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { desktop, isWailsEnvironment } from "./wails";
@@ -67,7 +65,6 @@ const READ_DEBOUNCE_MS = 600;
 // server that hasn't changed. Only successful reads are remembered — a server that was
 // down should be tried again.
 const inspected = new Map<string, GrpcServer>();
-const INSPECTED_LIMIT = 20;
 
 // inspectionKey is what the surface depends on: the address, where the definitions
 // come from, and how the connection is made. Credentials are sent with the read but
@@ -83,38 +80,11 @@ function inspectionKey(parameters: Record<string, string>): string {
 const reading = new Map<string, Promise<InspectGrpcResponse>>();
 
 function inspect(key: string, grpc: GrpcApp | undefined): Promise<InspectGrpcResponse> {
-  const pending = reading.get(key);
-  if (pending) return pending;
-  const started = getApiClient()
-    .inspectGrpc({ grpc })
-    .then(({ response }) => response)
-    .finally(() => reading.delete(key));
-  reading.set(key, started);
-  return started;
-}
-
-function remember(key: string, server: GrpcServer) {
-  inspected.delete(key);
-  inspected.set(key, server);
-  for (const oldest of inspected.keys()) {
-    if (inspected.size <= INSPECTED_LIMIT) break;
-    inspected.delete(oldest);
-  }
-}
-
-interface GrpcFormProps {
-  name: string;
-  onNameChange: (name: string) => void;
-  duplicateName: boolean;
-  // So a derived name doesn't land on a collision the user has to resolve by hand.
-  takenNames: string[];
-  parameters: Record<string, string>;
-  onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
-  variables: { [key: string]: string };
-  readOnly: boolean;
-  // What the form last read, for the receipt in the footer.
-  onSurfaceChange: (surface: AppSurface | undefined) => void;
-  onReadyChange: (ready: boolean) => void;
+  return joinReading(reading, key, () =>
+    getApiClient()
+      .inspectGrpc({ grpc })
+      .then(({ response }) => response),
+  );
 }
 
 // GrpcForm is the New/Edit form for a gRPC app. It asks for one thing - where
@@ -131,7 +101,7 @@ export function GrpcForm({
   readOnly,
   onSurfaceChange,
   onReadyChange,
-}: GrpcFormProps) {
+}: CustomFormProps) {
   const [surfaceMode, setSurfaceMode] = useState<SurfaceMode>(() =>
     parameters.reflection === "true" || !(parameters.protoDir ?? "").trim() ? "reflection" : "protoDir",
   );
@@ -174,7 +144,7 @@ export function GrpcForm({
       const response = await inspect(key, grpc);
       if (readId !== readIdRef.current) return;
       if (response.server) {
-        remember(key, response.server);
+        remember(inspected, key, response.server);
         setState({ status: "read", server: response.server });
       } else {
         setState({
@@ -420,35 +390,13 @@ function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRe
         {mode === "reflection"
           ? "Kaja asks the server what it serves and fills in the rest."
           : "Kaja reads every .proto file in the folder and fills in the rest."}
-        {demoLabel && onDemo && !readOnly && (
-          <>
-            {" "}
-            {/* The separator rides with the link, so a wrap never leaves it dangling. */}
-            <span className="whitespace-nowrap">
-              ·{" "}
-              <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 align-middle hover:text-foreground">
-                <Sparkles size={11} />
-                {demoLabel}
-              </button>
-            </span>
-          </>
-        )}
+        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
       </p>
     );
   }
 
   if (state.status === "reading") {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-        <Spinner size="sm" />
-        <span className="text-sm text-muted-foreground">
-          {mode === "reflection" ? "Reaching the server…" : "Reading the proto files, and checking the server…"}
-        </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    );
+    return <ReadingRow label={mode === "reflection" ? "Reaching the server…" : "Reading the proto files, and checking the server…"} onCancel={onCancel} />;
   }
 
   if (state.status === "read") {
@@ -469,9 +417,9 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
           <p className="text-sm text-foreground">
-            {count(server.services.length, "service")} · {count(server.methodCount, "method")}{" "}
+            {pluralCount(server.services.length, "service")} · {pluralCount(server.methodCount, "method")}{" "}
             <span className="text-muted-foreground">
-              {server.source === SOURCE_REFLECTION ? `from reflection ${server.reflectionVersion}` : `from ${count(server.fileCount, "proto file")}`}
+              {server.source === SOURCE_REFLECTION ? `from reflection ${server.reflectionVersion}` : `from ${pluralCount(server.fileCount, "proto file")}`}
             </span>
           </p>
           <p className="truncate text-xs text-muted-foreground">{server.services.map((service) => service.name).join(" · ")}</p>

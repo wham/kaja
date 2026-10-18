@@ -3,11 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { AppNameField } from "./AppNameField";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { AppSurface } from "./appTypes";
+import { AppSurface, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
 import {
   AUTH_APIKEY,
-  AUTH_BEARER,
   AUTH_NONE,
   CHOICE_ANTHROPIC,
   CHOICE_COMPATIBLE,
@@ -18,10 +17,9 @@ import {
   authSchemes,
   deriveAppName,
   getApiChoice,
-  isUsableEndpoint,
   matchApiChoice,
-  uniqueAppName,
 } from "./chatApi";
+import { isReadableUrl, uniqueAppName } from "./appForms";
 
 // The app adds exactly one method, whichever API it speaks, so the footer's receipt
 // is a constant rather than something read off a server.
@@ -32,20 +30,6 @@ const CHOICE_ICONS: Record<string, LucideIcon> = {
   [CHOICE_ANTHROPIC]: Bot,
   [CHOICE_COMPATIBLE]: Globe,
 };
-
-interface OpenAiFormProps {
-  name: string;
-  onNameChange: (name: string) => void;
-  duplicateName: boolean;
-  // So a derived name doesn't land on a collision the user has to resolve by hand.
-  takenNames: string[];
-  parameters: Record<string, string>;
-  onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
-  variables: { [key: string]: string };
-  readOnly?: boolean;
-  onSurfaceChange: (surface: AppSurface | undefined) => void;
-  onReadyChange: (ready: boolean) => void;
-}
 
 // OpenAiForm asks for one thing - which API, and where it is - and everything after
 // it is a choice between things that answer already declares. There is nothing to
@@ -59,10 +43,10 @@ export function OpenAiForm({
   parameters,
   onParametersChange,
   variables,
-  readOnly = false,
+  readOnly,
   onSurfaceChange,
   onReadyChange,
-}: OpenAiFormProps) {
+}: CustomFormProps) {
   const [choice, setChoice] = useState(() => matchApiChoice(parameters.api ?? "", parameters.endpoint ?? ""));
   const [nameTouched, setNameTouched] = useState(() => Boolean(name.trim()));
   const takenRef = useRef(takenNames);
@@ -70,7 +54,7 @@ export function OpenAiForm({
 
   const endpoint = parameters.endpoint ?? "";
   const auth = parameters.auth || getApiChoice(choice).auth;
-  const ready = isUsableEndpoint(endpoint);
+  const ready = isReadableUrl(endpoint);
 
   useEffect(() => {
     onReadyChange(ready);

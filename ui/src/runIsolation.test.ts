@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Block } from "./blocks";
-import { Call, Kaja, KajaHost } from "./kaja";
+import { Call, KajaHost } from "./kaja";
 import { LogLevel } from "./server/api";
 
 /**

@@ -2,6 +2,7 @@ import { Script } from "./apps";
 import { appHeaders, appParameters } from "./appTypes";
 import { ScriptReference } from "./scriptFiles";
 import { WorkspaceApp } from "./server/api";
+import { pluralCount } from "./plural";
 import { variableReferences } from "./variableExpansion";
 
 // Where a variable is used, which the Variables screen answers in two halves. An
@@ -42,10 +43,6 @@ export function appVariableUses(apps: WorkspaceApp[]): Map<string, VariableUse[]
     }
   }
   return uses;
-}
-
-export function pluralCount(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /**

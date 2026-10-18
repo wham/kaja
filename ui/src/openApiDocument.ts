@@ -1,24 +1,9 @@
 import { OpenApiDocument, OpenApiSecurityScheme, OpenApiServer } from "./server/api";
-import { variableReferences } from "./variableExpansion";
+import { holdsVariableReference, isAbsoluteHttpUrl } from "./appForms";
 
 // Sending no credentials is a choice like any other scheme, so it is a row in the same
 // list. Stored in security_scheme, which the server understands.
 export const NO_CREDENTIALS = "none";
-
-export function isAbsoluteHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value.trim());
-    return (url.protocol === "http:" || url.protocol === "https:") && url.host !== "";
-  } catch {
-    return false;
-  }
-}
-
-// The browser is never handed what a ${NAME} expands to, so a value that reads one is
-// taken on trust here and settled by the server.
-export function holdsVariableReference(value: string): boolean {
-  return variableReferences(value).length > 0;
-}
 
 // Also rejects a URL with a {placeholder} left in it, which would otherwise be sent
 // as part of the host.
@@ -63,16 +48,6 @@ export function deriveAppName(title: string): string {
   const words = titleWords(head);
   const kept = words.filter((word) => !TITLE_NOISE.has(word.toLowerCase()) && !isVersionWord(word));
   return joinWords(kept.length > 0 ? kept : words) || joinWords(titleWords(title));
-}
-
-// uniqueAppName keeps a derived name a starting point rather than a collision.
-export function uniqueAppName(name: string, taken: string[]): string {
-  if (!name || !taken.includes(name)) return name;
-  for (let suffix = 2; suffix < 1000; suffix++) {
-    const candidate = `${name}${suffix}`;
-    if (!taken.includes(candidate)) return candidate;
-  }
-  return name;
 }
 
 // Everything that isn't a letter, a digit or an interior dot is a separator, so a

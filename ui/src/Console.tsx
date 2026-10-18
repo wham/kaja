@@ -15,19 +15,7 @@ import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
-import {
-  callRows,
-  ConsoleItem,
-  ConsoleTab,
-  ConsoleView,
-  defaultView,
-  followSelection,
-  LogFloor,
-  presentRun,
-  printedCounts,
-  RunGroup,
-  RunSelection,
-} from "./runs";
+import { callRows, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
