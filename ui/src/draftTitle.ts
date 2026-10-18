@@ -198,17 +198,6 @@ export function proposeFileName(title: string, taken: Iterable<string> = []): st
   }
 }
 
-// Each disambiguated against what is on disk and against the ones named before it, so
-// the list the confirm shows is the list that gets written.
-export function proposeFileNames(titles: string[], taken: Iterable<string> = []): string[] {
-  const used = [...taken];
-  return titles.map((title) => {
-    const name = proposeFileName(title, used);
-    used.push(name);
-    return name;
-  });
-}
-
 /**
  * What a draft is called, read from the code it holds. Undefined when it calls
  * nothing yet — the caller falls back to a plain "Draft".

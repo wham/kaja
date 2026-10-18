@@ -16,7 +16,6 @@ import {
   clientStreamingMethods,
   targetHost,
   tlsFromServer,
-  uniqueAppName,
 } from "./grpcServer";
 
 function server(fields: Partial<GrpcServer> = {}): GrpcServer {
@@ -102,17 +101,6 @@ describe("nameFromAddress", () => {
   test("says nothing about an address that names the machine, or none at all", () => {
     expect(nameFromAddress("localhost:50051")).toBe("");
     expect(nameFromAddress("")).toBe("");
-  });
-});
-
-describe("uniqueAppName", () => {
-  test("numbers a name that is taken", () => {
-    expect(uniqueAppName("seating", ["seating"])).toBe("seating2");
-    expect(uniqueAppName("seating", ["seating", "seating2"])).toBe("seating3");
-  });
-
-  test("leaves a free name alone", () => {
-    expect(uniqueAppName("seating", ["quirks"])).toBe("seating");
   });
 });
 

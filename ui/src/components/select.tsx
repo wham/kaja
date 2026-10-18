@@ -5,7 +5,6 @@ import * as React from "react";
 import { cnState } from "../cn";
 
 const Select = BaseSelect.Root;
-const SelectGroup = BaseSelect.Group;
 
 function SelectValue(props: React.ComponentProps<typeof BaseSelect.Value>) {
   return <BaseSelect.Value {...props} />;
@@ -48,10 +47,6 @@ function SelectContent({ className, children, ...props }: React.ComponentPropsWi
   );
 }
 
-function SelectLabel({ className, ...props }: React.ComponentPropsWithoutRef<typeof BaseSelect.GroupLabel>) {
-  return <BaseSelect.GroupLabel className={cnState("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />;
-}
-
 interface SelectItemProps extends React.ComponentPropsWithoutRef<typeof BaseSelect.Item> {
   value: string;
 }
@@ -75,4 +70,4 @@ function SelectItem({ className, children, ...props }: SelectItemProps) {
   );
 }
 
-export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectLabel, SelectItem };
+export { Select, SelectValue, SelectTrigger, SelectContent, SelectItem };

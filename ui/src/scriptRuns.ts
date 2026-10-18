@@ -58,11 +58,6 @@ export function runNameAt(code: string, offset: number): RunReference | undefine
  * A blank one is left out: it is a script that named no script, which is what the run
  * itself refuses by name.
  */
-export function unresolvedRuns(code: string, scriptNames: string[]): RunReference[] {
-  return unresolvedIn(readRunReferences(code) ?? [], scriptNames);
-}
-
-/** The same, over references already read, so one pass answers everything asked of it. */
 export function unresolvedIn(references: RunReference[], scriptNames: string[]): RunReference[] {
   return references.filter((reference) => reference.name !== "" && !scriptNames.some((script) => isLinkedScript(script, reference.name)));
 }

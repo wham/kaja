@@ -4,7 +4,6 @@ import * as React from "react";
 import { cn, cnState } from "../cn";
 
 const DropdownMenu = Menu.Root;
-const DropdownMenuGroup = Menu.Group;
 
 function DropdownMenuTrigger({ asChild, children, ...props }: { asChild?: boolean; children: React.ReactNode } & Record<string, unknown>) {
   if (asChild && React.isValidElement(children)) {
@@ -65,8 +64,4 @@ function DropdownMenuSeparator({ className }: { className?: string }) {
   return <Menu.Separator className={cnState("-mx-1 my-1 h-px bg-border", className)} />;
 }
 
-function DropdownMenuLabel({ className, ...props }: React.ComponentPropsWithoutRef<typeof Menu.GroupLabel>) {
-  return <Menu.GroupLabel className={cnState("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />;
-}
-
-export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuGroup };
+export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator };

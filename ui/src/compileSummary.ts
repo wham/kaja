@@ -1,6 +1,7 @@
 import { appParameters } from "./appTypes";
 import { App, isReady } from "./apps";
 import { Log, LogLevel } from "./server/api";
+import { pluralCount } from "./plural";
 
 // The compile state of the whole workspace, rolled up for the status bar. A
 // failure outranks a warning outranks progress, so the indicator never has to
@@ -54,10 +55,6 @@ export function countMethods(app: App): number {
   return app.services.reduce((total, service) => total + service.methods.length, 0);
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
 export function summarizeCompilation(apps: App[], workspaceLoaded: boolean): CompileSummary {
   const compiling = apps.filter(isCompiling);
   const failed = apps.filter((app) => app.compilation.status === "error");
@@ -81,26 +78,26 @@ export function summarizeCompilation(apps: App[], workspaceLoaded: boolean): Com
       return { ...summary, state: "failed", label: `${failed[0].configuration.name} failed` };
     }
     if (failed.length === apps.length) {
-      return { ...summary, state: "failed", label: `All ${plural(apps.length, "app")} failed` };
+      return { ...summary, state: "failed", label: `All ${pluralCount(apps.length, "app")} failed` };
     }
     return { ...summary, state: "failed", label: `${failed.length} of ${apps.length} apps failed` };
   }
 
   if (compiling.length > 0) {
-    const label = compiling.length === 1 ? `Compiling ${compiling[0].configuration.name}…` : `Compiling ${plural(compiling.length, "app")}…`;
+    const label = compiling.length === 1 ? `Compiling ${compiling[0].configuration.name}…` : `Compiling ${pluralCount(compiling.length, "app")}…`;
     return { ...summary, state: "compiling", label };
   }
 
   if (warned.length > 0) {
-    return { ...summary, state: "warning", label: `${plural(apps.length, "app")} · ${plural(warned.length, "warning")}` };
+    return { ...summary, state: "warning", label: `${pluralCount(apps.length, "app")} · ${pluralCount(warned.length, "warning")}` };
   }
 
-  return { ...summary, state: "ready", label: plural(apps.length, "app") };
+  return { ...summary, state: "ready", label: pluralCount(apps.length, "app") };
 }
 
 // The receipt shown for a few seconds after a batch settles green.
 export function settledLabel(apps: App[], milliseconds: number): string {
   const seconds = Math.max(milliseconds, 100) / 1000;
   const duration = seconds >= 10 ? `${Math.round(seconds)}s` : `${seconds.toFixed(1)}s`;
-  return `${plural(apps.length, "app")} ready · ${duration}`;
+  return `${pluralCount(apps.length, "app")} ready · ${duration}`;
 }

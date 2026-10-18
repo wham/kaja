@@ -51,7 +51,7 @@ func TestSnapshotIsDroppedByWhatChangesIt(t *testing.T) {
 	if len(written.Workspace.Apps) != 1 || written.Generation == stored.Generation {
 		t.Errorf("after a write the service answers %d apps at generation %s, want the written file", len(written.Workspace.Apps), written.Generation)
 	}
-	if connection := service.appConnection("quirks"); connection.Parameters["url"] != "http://localhost:8080" {
+	if connection := service.snapshot().connection("quirks"); connection.Parameters["url"] != "http://localhost:8080" {
 		t.Errorf("the door reads %v for the app just written", connection.Parameters)
 	}
 

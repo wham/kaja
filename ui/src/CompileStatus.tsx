@@ -8,6 +8,7 @@ import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
 import { countMethods, firstErrorMessage, isCompiling, settledLabel, summarizeCompilation, appAddress, CompileState, warningCount } from "./compileSummary";
+import { pluralCount } from "./plural";
 
 // How long the green receipt stays up after a batch settles, before the
 // indicator falls back to its resting label.
@@ -61,7 +62,7 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
     if (isCompiling(app)) {
       return <span>{status === "pending" ? "Waiting…" : "Compiling…"}</span>;
     }
-    const counts = `${app.services.length} service${app.services.length === 1 ? "" : "s"}, ${countMethods(app)} method${countMethods(app) === 1 ? "" : "s"}`;
+    const counts = `${pluralCount(app.services.length, "service")}, ${pluralCount(countMethods(app), "method")}`;
     const address = appAddress(app);
     return <span>{address ? `${address} · ${counts}` : counts}</span>;
   };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
 import { WorkspaceApp } from "./server/api";
-import { appVariableUses, orderReferences, pluralCount, scannedAgo, scriptReferenceLabel } from "./variableUsage";
+import { appVariableUses, orderReferences, scannedAgo, scriptReferenceLabel } from "./variableUsage";
 
 function grpcApp(name: string, url: string, headers: { [key: string]: string } = {}): WorkspaceApp {
   return { name, app: { oneofKind: "grpc", grpc: { url, protoDir: "", headers, reflection: "", auth: "" } } } as unknown as WorkspaceApp;
@@ -61,12 +61,6 @@ describe("orderReferences", () => {
     );
     expect(ordered.map((reference) => reference.path)).toEqual(["/w/scripts/c.ts", "/w/scripts/a.ts", "/w/scripts/b.ts"]);
   });
-});
-
-describe("pluralCount", () => {
-  it("counts one", () => expect(pluralCount(1, "app")).toBe("1 app"));
-  it("counts more", () => expect(pluralCount(3, "app")).toBe("3 apps"));
-  it("counts none", () => expect(pluralCount(0, "file")).toBe("0 files"));
 });
 
 describe("scannedAgo", () => {

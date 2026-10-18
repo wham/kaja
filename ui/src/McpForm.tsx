@@ -1,28 +1,18 @@
-import { Blocks, CircleAlert, CircleCheck, CircleX, Copy, Key, RefreshCw, ShieldCheck, Sparkles, TriangleAlert, Variable, type LucideIcon } from "lucide-react";
+import { Blocks, CircleAlert, CircleCheck, CircleX, Copy, Key, RefreshCw, ShieldCheck, TriangleAlert, Variable, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { AppNameField } from "./AppNameField";
+import { DemoLink, ReadingRow } from "./InspectStatus";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { AppSurface, buildApp, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps, getAppType } from "./appTypes";
 import { copyText } from "./clipboard";
 import { cn } from "./cn";
-import {
-  AUTH_APIKEY,
-  AUTH_BEARER,
-  AUTH_NONE,
-  AUTH_OAUTH,
-  DEFAULT_API_KEY_NAME,
-  authNote,
-  authSchemes,
-  count,
-  deriveAppName,
-  eraLabel,
-  isReadableEndpoint,
-  uniqueAppName,
-} from "./mcpServer";
+import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, authNote, authSchemes, deriveAppName, eraLabel } from "./mcpServer";
+import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
+import { pluralCount } from "./plural";
 import { KnownServer, endpointLabel, knownServerFor, matchingServers } from "./knownServers";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -50,7 +40,6 @@ const READ_DEBOUNCE_MS = 600;
 // Servers already read, so flipping between apps doesn't reach a server that hasn't
 // changed. Only successful reads are remembered.
 const inspected = new Map<string, McpServer>();
-const INSPECTED_LIMIT = 20;
 
 // inspectionKey is the endpoint and nothing else. Credentials are sent with the read
 // but are not part of the key — a token is typed a character at a time.
@@ -85,23 +74,11 @@ export function withEndpoint(previous: Record<string, string>, url: string): Rec
 const reading = new Map<string, Promise<InspectMcpResponse>>();
 
 function inspect(key: string, mcp: McpApp | undefined): Promise<InspectMcpResponse> {
-  const pending = reading.get(key);
-  if (pending) return pending;
-  const started = getApiClient()
-    .inspectMcp({ mcp })
-    .then(({ response }) => response)
-    .finally(() => reading.delete(key));
-  reading.set(key, started);
-  return started;
-}
-
-function remember(key: string, server: McpServer) {
-  inspected.delete(key);
-  inspected.set(key, server);
-  for (const oldest of inspected.keys()) {
-    if (inspected.size <= INSPECTED_LIMIT) break;
-    inspected.delete(oldest);
-  }
+  return joinReading(reading, key, () =>
+    getApiClient()
+      .inspectMcp({ mcp })
+      .then(({ response }) => response),
+  );
 }
 
 // surfaceCount is everything the app would add: a method per tool, a method per
@@ -110,21 +87,6 @@ function surfaceCount(server: McpServer): number {
   const resourceMethods = server.resourceCount > 0 || server.resourceTemplateCount > 0 ? 3 : 0;
   const promptMethods = server.promptCount > 0 ? server.promptCount + 1 : 0;
   return server.toolCount + promptMethods + resourceMethods;
-}
-
-interface McpFormProps {
-  name: string;
-  onNameChange: (name: string) => void;
-  duplicateName: boolean;
-  // So a derived name doesn't land on a collision the user has to resolve by hand.
-  takenNames: string[];
-  parameters: Record<string, string>;
-  onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
-  variables: { [key: string]: string };
-  readOnly: boolean;
-  // What the form last read, for the receipt in the footer.
-  onSurfaceChange: (surface: AppSurface | undefined) => void;
-  onReadyChange: (ready: boolean) => void;
 }
 
 // McpForm is the New/Edit form for an MCP app. It asks for one thing - where the
@@ -140,7 +102,7 @@ export function McpForm({
   readOnly,
   onSurfaceChange,
   onReadyChange,
-}: McpFormProps) {
+}: CustomFormProps) {
   const [state, setState] = useState<ReadState>({ status: "idle" });
   const [signIn, setSignIn] = useState<SignInState>({ status: "idle" });
   const parametersRef = useRef(parameters);
@@ -184,7 +146,7 @@ export function McpForm({
       const response = await inspect(key, mcpApp(parameters));
       if (readId !== readIdRef.current) return;
       if (response.server && !response.problem) {
-        remember(key, response.server);
+        remember(inspected, key, response.server);
         setState({ status: "read", server: response.server });
       } else {
         setState({
@@ -253,7 +215,7 @@ export function McpForm({
     const typed = typedRef.current;
     typedRef.current = false;
 
-    if (!isReadableEndpoint(parametersRef.current.url ?? "")) {
+    if (!isReadableUrl(parametersRef.current.url ?? "")) {
       readIdRef.current++;
       setState({ status: "idle" });
       return;
@@ -296,7 +258,7 @@ export function McpForm({
   }, [problem, readOnly, onParametersChange]);
 
   useEffect(() => {
-    onReadyChange((Boolean(server) || unresolved) && isReadableEndpoint(parametersRef.current.url ?? ""));
+    onReadyChange((Boolean(server) || unresolved) && isReadableUrl(parametersRef.current.url ?? ""));
   }, [server, unresolved, url, onReadyChange]);
 
   const setParameter = (key: string, value: string) => onParametersChange((previous) => ({ ...previous, [key]: value }));
@@ -454,7 +416,7 @@ function KnownServerList({ servers, query, highlight, onHighlight, onPick }: Kno
         </button>
       ))}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {!typed || isReadableEndpoint(query) ? (
+        {!typed || isReadableUrl(query) ? (
           <>
             Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
           </>
@@ -493,33 +455,13 @@ function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry 
     return (
       <p className="text-xs text-muted-foreground">
         Kaja asks the server what it exposes and fills in the rest.
-        {demoLabel && onDemo && !readOnly && (
-          <>
-            {" "}
-            {/* The separator rides with the link, so a wrap never leaves it dangling. */}
-            <span className="whitespace-nowrap">
-              ·{" "}
-              <button type="button" onClick={onDemo} className="inline-flex items-center gap-1 align-middle hover:text-foreground">
-                <Sparkles size={11} />
-                {demoLabel}
-              </button>
-            </span>
-          </>
-        )}
+        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
       </p>
     );
   }
 
   if (state.status === "reading") {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-        <Spinner size="sm" />
-        <span className="text-sm text-muted-foreground">Reaching the server…</span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    );
+    return <ReadingRow label="Reaching the server…" onCancel={onCancel} />;
   }
 
   if (state.status === "read") {
@@ -530,10 +472,10 @@ function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry 
 }
 
 function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: () => void }) {
-  const parts = [count(server.toolCount, "tool")];
-  if (server.resourceCount > 0) parts.push(count(server.resourceCount, "resource"));
-  if (server.resourceTemplateCount > 0) parts.push(count(server.resourceTemplateCount, "resource template"));
-  if (server.promptCount > 0) parts.push(count(server.promptCount, "prompt"));
+  const parts = [pluralCount(server.toolCount, "tool")];
+  if (server.resourceCount > 0) parts.push(pluralCount(server.resourceCount, "resource"));
+  if (server.resourceTemplateCount > 0) parts.push(pluralCount(server.resourceTemplateCount, "resource template"));
+  if (server.promptCount > 0) parts.push(pluralCount(server.promptCount, "prompt"));
 
   return (
     <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">

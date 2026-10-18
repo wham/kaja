@@ -41,7 +41,7 @@ func TestAppConnection(t *testing.T) {
 
 	service := NewApiService(path, false, "", "", nil)
 
-	connection := service.appConnection("seating")
+	connection := service.snapshot().connection("seating")
 	if got := connection.Metadata["authorization"]; got != "Basic YWRhOmxvdmVsYWNl" {
 		t.Errorf("authorization = %q, want the variable resolved and base64 encoded", got)
 	}
@@ -51,13 +51,13 @@ func TestAppConnection(t *testing.T) {
 
 	// A twirp app has no credential of its own to apply, and neither has an app
 	// that isn't there.
-	if connection := service.appConnection("quirks"); len(connection.Metadata) != 0 || connection.TLS.Mode != "" {
-		t.Errorf("appConnection(\"quirks\") = %+v, want nothing", connection)
+	if connection := service.snapshot().connection("quirks"); len(connection.Metadata) != 0 || connection.TLS.Mode != "" {
+		t.Errorf("connection(\"quirks\") = %+v, want nothing", connection)
 	}
-	if connection := service.appConnection("nope"); len(connection.Metadata) != 0 {
-		t.Errorf("appConnection(\"nope\") = %+v, want nothing", connection)
+	if connection := service.snapshot().connection("nope"); len(connection.Metadata) != 0 {
+		t.Errorf("connection(\"nope\") = %+v, want nothing", connection)
 	}
-	if connection := service.appConnection(""); len(connection.Metadata) != 0 {
-		t.Errorf("appConnection(\"\") = %+v, want nothing", connection)
+	if connection := service.snapshot().connection(""); len(connection.Metadata) != 0 {
+		t.Errorf("connection(\"\") = %+v, want nothing", connection)
 	}
 }

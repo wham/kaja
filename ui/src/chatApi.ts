@@ -1,4 +1,4 @@
-import { variableReferences } from "./variableExpansion";
+import { nameFromHost, urlHost } from "./appForms";
 
 // The endpoint alone cannot settle which of these is meant: a gateway serves either
 // at any path it likes.
@@ -103,26 +103,6 @@ export function authNote(auth: string, name: string): { text: string; mono: bool
   }
 }
 
-// The browser is never handed what a ${NAME} expands to, so a value that reads one is
-// taken on trust here and settled by the server.
-export function holdsVariableReference(value: string): boolean {
-  return variableReferences(value).length > 0;
-}
-
-// It only asks for an absolute HTTP URL: what is serving there is the server's to
-// find out, and this app never reads it before the first call.
-export function isUsableEndpoint(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  if (holdsVariableReference(trimmed)) return true;
-  try {
-    const url = new URL(trimmed);
-    return (url.protocol === "https:" || url.protocol === "http:") && url.hostname !== "";
-  } catch {
-    return false;
-  }
-}
-
 // Labels that name where an API is deployed rather than what it is.
 const HOST_NOISE = new Set(["api", "apis", "www", "app", "chat", "openai", "v1", "gateway", "dev", "staging", "stage", "prod", "test"]);
 
@@ -134,38 +114,6 @@ export function deriveAppName(choice: string, endpoint: string): string {
 }
 
 function nameFromEndpoint(endpoint: string): string {
-  let host = "";
-  try {
-    host = new URL(endpoint.trim()).hostname;
-  } catch {
-    return "";
-  }
-  if (!host || host === "localhost" || /^[\d.]+$/.test(host)) return "";
-  const labels = host.split(".").filter(Boolean);
-  if (labels.length < 3) return sanitize(labels.join("."));
-  const first = labels.findIndex((label) => !HOST_NOISE.has(label.toLowerCase()));
-  return sanitize(labels[first === -1 ? 0 : first]);
-}
-
-const SEPARATORS = "._-";
-
-// sanitize keeps only what an import path can carry, capitalized the way a name is.
-function sanitize(value: string): string {
-  const kept = value.replace(/[^\p{L}\p{N}._-]+/gu, "");
-  let start = 0;
-  let end = kept.length;
-  while (start < end && SEPARATORS.includes(kept[start])) start++;
-  while (end > start && SEPARATORS.includes(kept[end - 1])) end--;
-  const trimmed = kept.slice(start, end);
-  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "";
-}
-
-// uniqueAppName keeps a derived name a starting point rather than a collision.
-export function uniqueAppName(name: string, taken: string[]): string {
-  if (!name || !taken.includes(name)) return name;
-  for (let suffix = 2; suffix < 1000; suffix++) {
-    const candidate = `${name}${suffix}`;
-    if (!taken.includes(candidate)) return candidate;
-  }
-  return name;
+  const name = nameFromHost(urlHost(endpoint), HOST_NOISE);
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }

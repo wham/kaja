@@ -15,7 +15,7 @@ import { readRunReferences, RunReference, unresolvedIn } from "./scriptRuns";
  *
  * A `kaja.run` naming no script is the one complaint the worker cannot make, a
  * destination being a name rather than an import. It is read from the same
- * `unresolvedRuns` the editor marks with, for that same reason. What a destination
+ * `unresolvedIn` the editor marks with, for that same reason. What a destination
  * *takes* the worker does make, against a declaration read off the folder as it is
  * asked for — so this waits for the destinations it names rather than reporting on
  * whichever of them the window happened to have read.

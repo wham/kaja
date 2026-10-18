@@ -71,14 +71,6 @@ static const char* resolveBookmark(const void* data, int dataLen, int* isStale) 
     }
 }
 
-// stopAccessing stops accessing a security-scoped resource.
-static void stopAccessing(const char* path) {
-    @autoreleasepool {
-        NSString *nsPath = [NSString stringWithUTF8String:path];
-        NSURL *url = [NSURL fileURLWithPath:nsPath];
-        [url stopAccessingSecurityScopedResource];
-    }
-}
 */
 import "C"
 import (
@@ -107,7 +99,7 @@ func CreateBookmark(path string) ([]byte, error) {
 }
 
 // ResolveBookmark resolves a security-scoped bookmark and starts accessing
-// the security-scoped resource. Call StopAccessing when done.
+// the security-scoped resource, held for the life of the process.
 // Returns the resolved path and whether the bookmark is stale.
 func ResolveBookmark(bookmarkData []byte) (path string, isStale bool, err error) {
 	if len(bookmarkData) == 0 {
@@ -122,13 +114,6 @@ func ResolveBookmark(bookmarkData []byte) (path string, isStale bool, err error)
 	defer C.free(unsafe.Pointer(cPath))
 
 	return C.GoString(cPath), stale != 0, nil
-}
-
-// StopAccessing stops accessing a security-scoped resource.
-func StopAccessing(path string) {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-	C.stopAccessing(cPath)
 }
 
 // BookmarkStore persists security-scoped bookmarks to disk so directory
@@ -176,7 +161,7 @@ func (s *BookmarkStore) Save(key string, dirPath string) error {
 }
 
 // Restore resolves the bookmark for the given key and starts accessing it.
-// Returns the resolved path. The caller should call StopAccessing when done.
+// Returns the resolved path.
 func (s *BookmarkStore) Restore(key string) (string, error) {
 	entries, err := s.loadEntries()
 	if err != nil {

@@ -1,5 +1,5 @@
 import { ArrowDown, Braces, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
@@ -593,7 +593,6 @@ function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload
 const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
-  const isStreaming = methodCall.streamOutputs !== undefined;
   const answered = hasResponse(methodCall);
   const hasError = methodCall.error !== undefined;
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it

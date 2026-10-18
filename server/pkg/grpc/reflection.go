@@ -58,12 +58,6 @@ func NewReflectionClientFromString(target string, options TLSOptions, metadata m
 	return NewReflectionClient(parsed, options, metadata), nil
 }
 
-// Target is the gRPC target the client dials, e.g. "dns:seating.kaja.tools:443".
-func (c *ReflectionClient) Target() string { return c.target }
-
-// UseTLS reports whether the client dials over TLS.
-func (c *ReflectionClient) UseTLS() bool { return c.useTLS }
-
 // reflectionStream abstracts over v1 and v1alpha reflection streams.
 type reflectionStream interface {
 	sendListServices() error
@@ -274,43 +268,7 @@ func (c *ReflectionClient) getFileDescriptorsForSymbol(
 	if err := stream.sendFileContainingSymbol(symbol); err != nil {
 		return fmt.Errorf("failed to send file containing symbol request: %w", err)
 	}
-
-	resp, err := stream.recv()
-	if err != nil {
-		return fmt.Errorf("failed to receive file descriptor response: %w", err)
-	}
-
-	fdResp := resp.GetFileDescriptorResponse()
-	if fdResp == nil {
-		if errResp := resp.GetErrorResponse(); errResp != nil {
-			return fmt.Errorf("reflection error: %s", errResp.GetErrorMessage())
-		}
-		return fmt.Errorf("unexpected response type")
-	}
-
-	for _, fdBytes := range fdResp.GetFileDescriptorProto() {
-		fd := &descriptorpb.FileDescriptorProto{}
-		if err := proto.Unmarshal(fdBytes, fd); err != nil {
-			return fmt.Errorf("failed to unmarshal file descriptor: %w", err)
-		}
-
-		fileName := fd.GetName()
-		if _, exists := collected[fileName]; !exists {
-			collected[fileName] = fd
-
-			for _, dep := range fd.GetDependency() {
-				if _, exists := collected[dep]; !exists {
-					err = c.getFileDescriptorByName(stream, dep, collected)
-					if err != nil {
-						// Some well-known types may not be available; a missing dependency is not fatal.
-						continue
-					}
-				}
-			}
-		}
-	}
-
-	return nil
+	return c.collectFileDescriptors(stream, collected)
 }
 
 // getFileDescriptorByName retrieves a file descriptor by its filename.
@@ -322,7 +280,15 @@ func (c *ReflectionClient) getFileDescriptorByName(
 	if err := stream.sendFileByFilename(fileName); err != nil {
 		return fmt.Errorf("failed to send file by filename request: %w", err)
 	}
+	return c.collectFileDescriptors(stream, collected)
+}
 
+// collectFileDescriptors reads the answer to the request just sent, then asks for
+// every dependency not collected yet.
+func (c *ReflectionClient) collectFileDescriptors(
+	stream reflectionStream,
+	collected map[string]*descriptorpb.FileDescriptorProto,
+) error {
 	resp, err := stream.recv()
 	if err != nil {
 		return fmt.Errorf("failed to receive file descriptor response: %w", err)
@@ -342,17 +308,15 @@ func (c *ReflectionClient) getFileDescriptorByName(
 			return fmt.Errorf("failed to unmarshal file descriptor: %w", err)
 		}
 
-		name := fd.GetName()
-		if _, exists := collected[name]; !exists {
-			collected[name] = fd
+		if _, exists := collected[fd.GetName()]; exists {
+			continue
+		}
+		collected[fd.GetName()] = fd
 
-			for _, dep := range fd.GetDependency() {
-				if _, exists := collected[dep]; !exists {
-					err = c.getFileDescriptorByName(stream, dep, collected)
-					if err != nil {
-						continue
-					}
-				}
+		for _, dep := range fd.GetDependency() {
+			if _, exists := collected[dep]; !exists {
+				// Some well-known types may not be available; a missing dependency is not fatal.
+				_ = c.getFileDescriptorByName(stream, dep, collected)
 			}
 		}
 	}

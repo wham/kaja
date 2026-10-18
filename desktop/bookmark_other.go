@@ -12,8 +12,6 @@ func ResolveBookmark(bookmarkData []byte) (path string, isStale bool, err error)
 	return "", false, fmt.Errorf("bookmarks not supported on this platform")
 }
 
-func StopAccessing(path string) {}
-
 type BookmarkStore struct{}
 
 type bookmarkEntry struct {

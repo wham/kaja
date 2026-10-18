@@ -137,7 +137,7 @@ func inspectProtoDir(parameters map[string]string, log func(string)) (*Server, *
 		}
 	}
 
-	files, err := protoFiles(dir)
+	files, err := ProtoFiles(dir)
 	if err != nil || len(files) == 0 {
 		detail := fmt.Sprintf("Looked in %s", dir)
 		if err != nil {
@@ -399,7 +399,8 @@ func describe(server *Server, files []*descriptorpb.FileDescriptorProto, only []
 	sort.Slice(server.Services, func(i, j int) bool { return server.Services[i].Name < server.Services[j].Name })
 }
 
-func protoFiles(dir string) ([]string, error) {
+// ProtoFiles lists the .proto files under dir, relative to it and sorted.
+func ProtoFiles(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

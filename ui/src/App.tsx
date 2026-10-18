@@ -28,12 +28,12 @@ import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, Cel
 import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
-import { appHeaders, appType, buildApp, getAppType, parameterKey } from "./appTypes";
+import { appType, buildApp, getAppType, parameterKey } from "./appTypes";
 import { createPendingApp, isReady, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import { appStore } from "./appStore";
 import { forgetManifests, moveManifest, readStoredManifests } from "./manifestCache";
 import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
-import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames } from "./draftTitle";
+import { deriveDraftTitle, draftTitleText, proposeFileName } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
@@ -838,6 +838,45 @@ export function App() {
     [disposeMonacoModelsForApp, createMonacoModelsForApp],
   );
 
+  // rewriteScripts runs every open buffer and every file on disk through remap, which is
+  // how a rename is followed into scripts nobody has open.
+  const rewriteScripts = useCallback(
+    async (remap: (code: string) => string, filedAs: (script: Script) => Script = (script) => script) => {
+      const openScripts = new Set<string>();
+      for (const view of viewsRef.current) {
+        if (view.type !== "draft" && view.type !== "script") continue;
+        if (view.type === "script") openScripts.add(view.script.path);
+        const value = view.model.getValue();
+        const next = remap(value);
+        if (next === value) continue;
+        // An edit rather than setValue, so undo history survives, and the disk write is
+        // made here rather than left to the debounce a poke is supposed to skip.
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        suppressScriptSave.current.delete(view.id);
+        if (view.type === "script" && canWriteFiles) {
+          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
+        }
+      }
+
+      if (!canWriteFiles) return;
+      for (const script of scriptsRef.current ?? []) {
+        if (openScripts.has(script.path)) continue;
+        const filed = filedAs(script);
+        try {
+          const file = await readScriptFile(filed);
+          if (!file) continue;
+          const next = remap(file.content);
+          if (next === file.content) continue;
+          await writeScriptFile(filed, next);
+        } catch (err) {
+          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
+        }
+      }
+    },
+    [canWriteFiles, showFileError],
+  );
+
   /**
    * Follow an app's rename into the scripts. An app is addressed by its name, so a
    * rename leaves every import of it naming nothing — the whole of what a script had to
@@ -867,38 +906,9 @@ export function App() {
         }),
       );
 
-      const openScripts = new Set<string>();
-      for (const view of viewsRef.current) {
-        if (view.type !== "draft" && view.type !== "script") continue;
-        if (view.type === "script") openScripts.add(view.script.path);
-        const value = view.model.getValue();
-        const next = remap(value);
-        if (next === value) continue;
-        // An edit rather than setValue, so undo history survives, and the disk write is
-        // made here rather than left to the debounce a poke is supposed to skip.
-        suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
-        suppressScriptSave.current.delete(view.id);
-        if (view.type === "script" && canWriteFiles) {
-          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
-        }
-      }
-
-      if (!canWriteFiles) return;
-      for (const script of scriptsRef.current ?? []) {
-        if (openScripts.has(script.path)) continue;
-        try {
-          const file = await readScriptFile(script);
-          if (!file) continue;
-          const next = remap(file.content);
-          if (next === file.content) continue;
-          await writeScriptFile(script, next);
-        } catch (err) {
-          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
-        }
-      }
+      await rewriteScripts(remap);
     },
-    [applyDrafts, canWriteFiles, showFileError],
+    [applyDrafts, rewriteScripts],
   );
 
   const applyWorkspace = useCallback(
@@ -1763,43 +1773,15 @@ export function App() {
         }),
       );
 
-      const openScripts = new Set<string>();
-      for (const view of viewsRef.current) {
-        if (view.type !== "draft" && view.type !== "script") continue;
-        if (view.type === "script") openScripts.add(view.script.path);
-        const value = view.model.getValue();
-        const next = remap(value);
-        if (next === value) continue;
-        // An edit rather than setValue, so undo history survives, and the disk write is
-        // made here rather than left to the debounce a poke is supposed to skip.
-        suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
-        suppressScriptSave.current.delete(view.id);
-        if (view.type === "script" && canWriteFiles) {
-          await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
-        }
-      }
-
-      if (!canWriteFiles) return;
       // The listing has not caught up with the rename being followed — a state write is
-      // not a read — so the names are moved here as well, and every file is opened under
-      // the name it is filed as now rather than the one it was.
-      for (const script of scriptsRef.current ?? []) {
-        if (openScripts.has(script.path)) continue;
+      // not a read — so every file is opened under the name it is filed as now rather
+      // than the one it was.
+      await rewriteScripts(remap, (script) => {
         const moved = renames.get(scriptName(script));
-        const filed = moved === undefined ? script : { ...script, ...scriptNameParts(moved) };
-        try {
-          const file = await readScriptFile(filed);
-          if (!file) continue;
-          const next = remap(file.content);
-          if (next === file.content) continue;
-          await writeScriptFile(filed, next);
-        } catch (err) {
-          showFileError(`Save failed: ${rpcErrorMessage(err)}`);
-        }
-      }
+        return moved === undefined ? script : { ...script, ...scriptNameParts(moved) };
+      });
     },
-    [applyDrafts, canWriteFiles, showFileError],
+    [applyDrafts, rewriteScripts],
   );
 
   const applyScriptRename = useCallback(

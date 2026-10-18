@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { deriveDraftTitle, draftTitleText, proposeFileName, proposeFileNames, readCalls, titleParts } from "./draftTitle";
+import { deriveDraftTitle, draftTitleText, proposeFileName, readCalls, titleParts } from "./draftTitle";
 
 const generated = (body: string, names = "TheKajaTheatre") => `import { ${names} } from "theatre/service";\n\n${body}\n`;
 
@@ -149,16 +149,6 @@ describe("proposeFileName", () => {
     expect(proposeFileName("GetShow", ["getShow.ts"])).toBe("getShow2");
     expect(proposeFileName("GetShow", ["getShow.ts", "getShow2.ts"])).toBe("getShow3");
     expect(proposeFileName("GetShow", ["GETSHOW.ts"])).toBe("getShow2");
-  });
-});
-
-describe("proposeFileNames", () => {
-  it("names a whole pile without collisions, so the confirm lists what gets written", () => {
-    expect(proposeFileNames(["GetShow · a", "GetShow · b", "ListShows"])).toEqual(["getShow", "getShow2", "listShows"]);
-  });
-
-  it("counts what is already on disk too", () => {
-    expect(proposeFileNames(["GetShow", "GetShow"], ["getShow.ts"])).toEqual(["getShow2", "getShow3"]);
   });
 });
 

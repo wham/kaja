@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/apps/rpc"
 )
 
 // compileCacheSize bounds how many compiled surfaces the process keeps. A workspace
@@ -128,12 +129,11 @@ func needsSourcesDir(appType string, parameters map[string]string) bool {
 }
 
 func hashProtoFiles(digest io.Writer, dir string) {
-	files, err := findProtoFiles(dir)
+	files, err := rpc.ProtoFiles(dir)
 	if err != nil {
 		io.WriteString(digest, err.Error())
 		return
 	}
-	sort.Strings(files)
 	for _, file := range files {
 		io.WriteString(digest, file)
 		digest.Write([]byte{0})

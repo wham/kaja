@@ -24,6 +24,7 @@ import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
 import { firstErrorMessage, warningCount } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
+import { pluralCount } from "./plural";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
@@ -78,9 +79,9 @@ const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1
 // on the row instead of behind a menu. Every one of them sits in an 18px box 8px in
 // from the panel's right edge — one column, from the band's tools down to the last
 // method in the tree.
-const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
+export const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 
-function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void }) {
+export function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void }) {
   return (
     <IconButton
       size="xs"
@@ -662,7 +663,7 @@ function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLo
   const warned = warningCount(app);
   if (!failed && warned === 0) return null;
 
-  const label = failed ? (firstErrorMessage(app) ?? "Compilation failed") : `${warned} warning${warned === 1 ? "" : "s"}`;
+  const label = failed ? (firstErrorMessage(app) ?? "Compilation failed") : pluralCount(warned, "warning");
 
   return (
     <button
