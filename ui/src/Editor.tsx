@@ -661,5 +661,7 @@ export function Editor({
     editorRef.current?.updateOptions(gutterOptions(phone));
   }, [phone]);
 
-  return <div ref={containerRef} className="h-full w-full bg-background" />;
+  // The context menu's shadow root is mounted in this element, outside .monaco-editor,
+  // and the theme declares its colors on .monaco-component; without it the menu has no background.
+  return <div ref={containerRef} className="monaco-component h-full w-full bg-background" />;
 }
