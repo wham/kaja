@@ -34,11 +34,10 @@ under that key, every value a string, so what you write is what the file says.
 `add_app` probes first. When the address answers with its surface and nothing is
 missing, the app is written at once and its services are listed back, so the
 next call is a method call. When something is missing — a credential, a proto
-folder, which of several servers a document names — the user is asked to finish
-it in **Kaja's own New app form**, opened prefilled with what you gave: your
-client is asked to open a link, and the call answers once the form is saved or
-closed. A client that cannot open links is told what is missing and handed the
-same link to relay.
+folder, which of several servers a document names — Kaja opens **its own New
+app form** in front of the user, prefilled with what you gave, and the call
+waits until they save or close it. Tell the user to look at Kaja before you
+call, since the call says nothing until they are done.
 
 **Never ask the user for a token or a password yourself**, and never write one
 into a parameter you were not given. Where the user keeps one as a variable,

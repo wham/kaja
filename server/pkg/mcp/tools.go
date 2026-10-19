@@ -239,8 +239,8 @@ func allToolDefinitions() []map[string]interface{} {
 			"annotations": writes(false, false),
 			"description": "Add an API to the workspace as an app, so its methods become callable from a script. " +
 				"The address is probed first: when everything the app needs is there it is added at once and its services are listed back; " +
-				"when something is missing - a credential, a proto folder, which of several servers - the user is asked to finish it in Kaja's own New app form, " +
-				"opened prefilled with what you gave, and the call answers once they save or close it. " +
+				"when something is missing - a credential, a proto folder, which of several servers - Kaja opens its own New app form " +
+				"in front of the user, prefilled with what you gave, and the call waits until they save or close it - tell the user to look at Kaja before you call. " +
 				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
 				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
 			"inputSchema": obj(map[string]interface{}{
@@ -416,7 +416,7 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 	case "inspect_api":
 		return s.inspectApi(ctx, appDraft(arguments)), nil
 	case "add_app":
-		return s.addApp(ctx, appDraft(arguments), params), nil
+		return s.addApp(ctx, appDraft(arguments), progressToken(params)), nil
 	case "run_script":
 		return s.runScript(ctx, args["path"], args["code"], caller, progressToken(params)), nil
 	default:

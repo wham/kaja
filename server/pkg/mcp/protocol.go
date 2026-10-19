@@ -3,7 +3,6 @@ package mcp
 import (
 	_ "embed"
 	"encoding/base64"
-	"encoding/json"
 	"time"
 )
 
@@ -132,62 +131,4 @@ func introduction(version string) map[string]interface{} {
 	info := implementation(version)
 	info["icons"] = []interface{}{icon}
 	return info
-}
-
-// inputRequired is the modern era's way of asking the client for something: the call
-// ends with the requests it needs answered and an opaque state, and the client asks
-// the same call again carrying both. The key names the request so the answer can be
-// found under it on the retry.
-func inputRequired(key string, request map[string]interface{}, state string) map[string]interface{} {
-	return map[string]interface{}{
-		"resultType":    "input_required",
-		"inputRequests": map[string]interface{}{key: request},
-		"requestState":  state,
-	}
-}
-
-// urlElicitation is the one request this server makes of a client: open a page. Form
-// mode is deliberately not asked for - the page is Kaja's own form, which already
-// knows every choice an app needs, and a token typed into it never passes through
-// the agent.
-func urlElicitation(url string, message string) map[string]interface{} {
-	return map[string]interface{}{
-		"method": "elicitation/create",
-		"params": map[string]interface{}{"mode": "url", "url": url, "message": message},
-	}
-}
-
-// clientOpensURLs is whether the request came from a client that can be asked to
-// open a page. Only the modern era declares capabilities per request, so a handshake
-// client answers false and is told what is missing in text instead. An empty
-// `elicitation` means form mode alone, so the `url` key has to be there.
-func clientOpensURLs(params json.RawMessage) bool {
-	var capabilities struct {
-		Elicitation map[string]json.RawMessage `json:"elicitation"`
-	}
-	if json.Unmarshal(metaFields(params)[metaClientCapabilities], &capabilities) != nil {
-		return false
-	}
-	_, ok := capabilities.Elicitation["url"]
-	return ok
-}
-
-// retry is what a client carries when it asks a call again after an input_required
-// answer: the state the server handed it, and what the client got for each request.
-type retry struct {
-	State     string
-	Responses map[string]inputResponse
-}
-
-type inputResponse struct {
-	Action string `json:"action"`
-}
-
-func readRetry(params json.RawMessage) retry {
-	var fields struct {
-		RequestState   string                   `json:"requestState"`
-		InputResponses map[string]inputResponse `json:"inputResponses"`
-	}
-	_ = json.Unmarshal(params, &fields)
-	return retry{State: fields.RequestState, Responses: fields.InputResponses}
 }

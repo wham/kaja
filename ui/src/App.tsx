@@ -1407,13 +1407,22 @@ export function App() {
    */
   const openAddAppLink = useCallback(
     (link: AddAppLink) => {
+      const refuse = (error: string) => {
+        showFileError(error);
+        if (link.request) agentSession.reportAppForm(link.request, { saved: false });
+      };
       if (!runtime.canUpdateWorkspace) {
-        showFileError("This workspace is read-only, so an app can't be added here.");
+        refuse("This workspace is read-only, so an app can't be added here.");
         return;
       }
       if (!getAppType(link.type)) {
-        showFileError(`Kaja has no "${link.type}" app type.`);
+        refuse(`Kaja has no "${link.type}" app type.`);
         return;
+      }
+      // The form this one replaces had an agent of its own waiting on it.
+      const replaced = viewsRef.current.find((view) => view.type === "appForm" && view.mode === "create" && view.editingAppName === link.name);
+      if (replaced?.type === "appForm" && replaced.agentRequest && replaced.agentRequest !== link.request) {
+        agentSession.reportAppForm(replaced.agentRequest, { saved: false });
       }
       const parameters = Object.fromEntries(Object.entries(link.parameters).map(([key, value]) => [parameterKey(key), value]));
       applyViews((views) => showAppForm(views, "create", buildApp(link.name, link.type, parameters, link.headers), link.request));
@@ -1743,6 +1752,11 @@ export function App() {
         setMcpActive(active);
       },
       (change) => onAgentScriptsRef.current(change),
+      (link) => {
+        // The agent's user is looking at their terminal, not at Kaja.
+        if (isWailsEnvironment()) emitWailsEvent("window:front");
+        openLinkRef.current(link);
+      },
     );
     return () => window.clearTimeout(timer);
   }, []);

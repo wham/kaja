@@ -23,7 +23,6 @@
  * difference: one window attached on the mux the webview already fetches its calls on.
  */
 
-import { linkRoot } from "./scriptLink";
 import { getSettings, saveMcpToken, subscribeSettings } from "./settings";
 import { isWailsEnvironment } from "./wails";
 
@@ -108,6 +107,7 @@ interface Message {
   onDuty?: boolean;
   change?: AgentScriptChange;
   progress?: boolean;
+  link?: string;
 }
 
 // What an earlier build or a hand edit left behind is not an address the server accepts.
@@ -130,6 +130,7 @@ class AgentSession {
   private runner?: (run: AgentRun) => Promise<unknown>;
   private onActivity?: (active: boolean) => void;
   private onScripts?: (change: AgentScriptChange) => void;
+  private onForm?: (link: string) => void;
   // Built when it is pushed rather than when it changes, so a burst of changes is one
   // serialization and the newest one.
   private catalog?: () => string;
@@ -164,10 +165,16 @@ class AgentSession {
    * Wires the session to the window and, if this browser is already connected,
    * attaches. Safe to call more than once.
    */
-  start(runner: (run: AgentRun) => Promise<unknown>, onActivity: (active: boolean) => void, onScripts: (change: AgentScriptChange) => void): void {
+  start(
+    runner: (run: AgentRun) => Promise<unknown>,
+    onActivity: (active: boolean) => void,
+    onScripts: (change: AgentScriptChange) => void,
+    onForm: (link: string) => void,
+  ): void {
     this.runner = runner;
     this.onActivity = onActivity;
     this.onScripts = onScripts;
+    this.onForm = onForm;
     if (this.started) return;
     this.started = true;
 
@@ -447,6 +454,9 @@ class AgentSession {
       case "scripts":
         if (message.change) this.onScripts?.(message.change);
         break;
+      case "form":
+        if (message.link) this.onForm?.(message.link);
+        break;
     }
   }
 
@@ -495,9 +505,7 @@ class AgentSession {
     // the page look stuck on a server that is answering.
     if (!this.state.attached) this.retryNow();
     if (!this.streamId) return;
-    // Where a link to this window starts rides along, because a form an agent opens is
-    // sent where a run is: to the window being looked at.
-    void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId, linkRoot: linkRoot() }));
+    void this.post("/agent-session/focus", JSON.stringify({ streamId: this.streamId }));
   };
 
   // A reconnection that is waiting is one that can be asked for now.

@@ -21,10 +21,6 @@ const appParametersNote = "grpc: url (dns:host:443), reflection (\"true\" to rea
 	"token, username, password, spec_header_name and spec_header_value (for a document behind a login). " +
 	"openai: endpoint, api (openai or anthropic), auth, token, api_key_name. mcp: url, auth (bearer, apikey, oauth, none), token, api_key_name, client_id, scope. folder: path."
 
-// appFormKey is what the one request add_app makes is filed under in the result, and
-// what the client's answer comes back under on the retry.
-const appFormKey = "app"
-
 func appDraft(arguments toolArguments) AppDraft {
 	return AppDraft{
 		Name:       strings.TrimSpace(arguments.strings["name"]),
@@ -48,22 +44,18 @@ func (s *Server) inspectApi(ctx context.Context, draft AppDraft) map[string]inte
 	text.WriteString(inspection.Summary)
 	if len(inspection.Missing) > 0 {
 		text.WriteString("\n\nAdding it needs:\n" + bullets(inspection.Missing))
-		text.WriteString("\nadd_app asks the user for these in Kaja's own form.")
+		text.WriteString("\nadd_app opens Kaja's own New app form for the user to fill these in.")
 	} else {
 		text.WriteString("\n\nNothing is missing: add_app adds it as it is.")
 	}
 	return textToolResult(text.String())
 }
 
-// addApp is the one tool that asks something of the person, and it does so by handing
-// the client a page rather than a question: Kaja's own form, prefilled. A client that
-// can open one is answered with input_required and asked to call again once it has;
-// the retry waits for the form to be saved. A client that cannot is told what is
-// missing and where the form is, and the agent relays it.
-func (s *Server) addApp(ctx context.Context, draft AppDraft, params json.RawMessage) map[string]interface{} {
-	if back := readRetry(params); back.State != "" {
-		return s.finishAppForm(ctx, back)
-	}
+// addApp is the one tool that asks something of the person, and it does so in Kaja
+// itself: the window on duty opens the New app form prefilled with the draft, and the
+// call waits for the person to save or close it. A token typed there never passes
+// through the agent, and no client has to support anything for it.
+func (s *Server) addApp(ctx context.Context, draft AppDraft, token json.RawMessage) map[string]interface{} {
 	if draft.Name == "" {
 		return errorToolResult(errors.New("provide name: it is what a script imports the app as"))
 	}
@@ -81,34 +73,19 @@ func (s *Server) addApp(ctx context.Context, draft AppDraft, params json.RawMess
 		return s.appAdded(ctx, draft.Name, inspection.Summary)
 	}
 
-	prompt, err := s.bridge.OpenAppForm(inspection.Settled)
+	if notify := notifierFrom(ctx); notify != nil && token != nil {
+		notify("notifications/progress", map[string]interface{}{
+			"progressToken": token,
+			"progress":      0,
+			"message":       fmt.Sprintf("Waiting for the user to finish adding %s in Kaja", draft.Name),
+		})
+	}
+	outcome, err := s.bridge.AskAppForm(ctx, inspection.Settled)
 	if err != nil {
-		return errorToolResult(err)
-	}
-	message := fmt.Sprintf("Kaja needs more to add %s:\n%sOpen Kaja to finish adding it.", draft.Name, bullets(inspection.Missing))
-	if clientOpensURLs(params) {
-		return inputRequired(appFormKey, urlElicitation(prompt.URL, message), prompt.RequestID)
-	}
-	// Nothing waits on this prompt, so it is let go rather than left for the sweep.
-	s.bridge.DropAppForm(prompt.RequestID)
-	return textToolResult(fmt.Sprintf("%s was not added yet. It still needs:\n%s\nAsk the user to finish it in Kaja's New app form - this link opens it prefilled: %s\n"+
-		"Once they have saved it, call list_services to see what it exposes.", draft.Name, bullets(inspection.Missing), prompt.URL))
-}
-
-// finishAppForm is the retry: the client has asked the person to open the form, and
-// says whether they agreed. Agreeing is not finishing, so the call then waits for the
-// form itself to say what happened.
-func (s *Server) finishAppForm(ctx context.Context, back retry) map[string]interface{} {
-	if response, ok := back.Responses[appFormKey]; ok && response.Action != "accept" {
-		s.bridge.DropAppForm(back.State)
-		return textToolResult("The user declined to open Kaja, so no app was added.")
-	}
-	outcome, err := s.bridge.AwaitAppForm(ctx, back.State)
-	if err != nil {
-		return errorToolResult(err)
+		return errorToolResult(fmt.Errorf("%s was not added: %w. It still needs:\n%s", draft.Name, err, bullets(inspection.Missing)))
 	}
 	if !outcome.Saved {
-		return textToolResult("The user closed the form without adding the app.")
+		return textToolResult(fmt.Sprintf("The user closed Kaja's New app form without adding %s.", draft.Name))
 	}
 	return s.appAdded(ctx, outcome.Name, "")
 }
