@@ -35,8 +35,6 @@ type fakeBridge struct {
 	added       []AppDraft
 	compiled    bool
 	formOpened  []AppDraft
-	awaited     []string
-	dropped     []string
 	formOutcome AppFormOutcome
 	formErr     error
 }
@@ -182,15 +180,10 @@ func (f *fakeBridge) AddApp(_ context.Context, draft AppDraft) error {
 	return nil
 }
 func (f *fakeBridge) AwaitApp(context.Context, string) bool { return f.compiled }
-func (f *fakeBridge) OpenAppForm(draft AppDraft) (AppFormPrompt, error) {
+func (f *fakeBridge) AskAppForm(_ context.Context, draft AppDraft) (AppFormOutcome, error) {
 	f.formOpened = append(f.formOpened, draft)
-	return AppFormPrompt{URL: "kaja://add-app?name=" + draft.Name + "&request=form-1", RequestID: "form-1"}, nil
-}
-func (f *fakeBridge) AwaitAppForm(ctx context.Context, requestID string) (AppFormOutcome, error) {
-	f.awaited = append(f.awaited, requestID)
 	return f.formOutcome, f.formErr
 }
-func (f *fakeBridge) DropAppForm(requestID string) { f.dropped = append(f.dropped, requestID) }
 func (f *fakeBridge) Activity(inFlight int) {
 	f.activity = append(f.activity, inFlight)
 }

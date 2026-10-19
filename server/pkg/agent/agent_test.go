@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -318,7 +319,7 @@ func TestTheMostRecentlyFocusedWindowIsOnDuty(t *testing.T) {
 	defer second.Detach()
 
 	session, _ := registry.Session(token)
-	session.Focus(first.ID, "")
+	session.Focus(first.ID)
 
 	go func() {
 		message := drain(t, first, "run")
@@ -767,41 +768,78 @@ func TestAppFormRoundTrip(t *testing.T) {
 		"spec_url": "https://petstore.example/openapi.json", "token": "sk-live-secret", "password": "${PASSWORD}", "base_url": "",
 	}, Headers: map[string]string{"X-Tenant": "acme"}}
 
-	if _, err := session.OpenAppForm(draft); !errors.Is(err, ErrNoWindow) {
-		t.Fatalf("a window that has not said where it is reached got %v", err)
+	type answer struct {
+		outcome mcp.AppFormOutcome
+		err     error
 	}
-	session.Focus(stream.ID, "https://kaja.example.com/#")
+	done := make(chan answer, 1)
+	go func() {
+		outcome, err := session.AskAppForm(context.Background(), draft)
+		done <- answer{outcome, err}
+	}()
 
-	prompt, err := session.OpenAppForm(draft)
-	if err != nil {
-		t.Fatal(err)
+	link := nextOfType(t, stream, "form").Link
+	if !strings.HasPrefix(link, "kaja://add-app?") {
+		t.Errorf("link = %q", link)
 	}
-	if !strings.HasPrefix(prompt.URL, "https://kaja.example.com/#add-app?") {
-		t.Errorf("url = %q", prompt.URL)
-	}
-	for _, want := range []string{"type=openapi", "name=Petstore", "request=" + prompt.RequestID, "spec_url=https%3A%2F%2Fpetstore.example%2Fopenapi.json", "password=%24%7BPASSWORD%7D", "headers=%7B%22X-Tenant%22%3A%22acme%22%7D"} {
-		if !strings.Contains(prompt.URL, want) {
-			t.Errorf("url lacks %q: %s", want, prompt.URL)
+	for _, want := range []string{"type=openapi", "name=Petstore", "request=", "spec_url=https%3A%2F%2Fpetstore.example%2Fopenapi.json", "password=%24%7BPASSWORD%7D", "headers=%7B%22X-Tenant%22%3A%22acme%22%7D"} {
+		if !strings.Contains(link, want) {
+			t.Errorf("link lacks %q: %s", want, link)
 		}
 	}
 	for _, leaked := range []string{"sk-live-secret", "token=", "base_url="} {
-		if strings.Contains(prompt.URL, leaked) {
-			t.Errorf("url carries %q: %s", leaked, prompt.URL)
+		if strings.Contains(link, leaked) {
+			t.Errorf("link carries %q: %s", leaked, link)
 		}
 	}
 
-	// Saved before the agent's client has asked again: the answer waits.
-	session.AppFormResult(prompt.RequestID, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
-	outcome, err := session.AwaitAppForm(context.Background(), prompt.RequestID)
+	parsed, err := url.Parse(link)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !outcome.Saved || outcome.Name != "Petstore" {
-		t.Errorf("outcome = %+v", outcome)
+	request := parsed.Query().Get("request")
+	session.AppFormResult(request, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
+	got := <-done
+	if got.err != nil {
+		t.Fatal(got.err)
 	}
-	// A form is finished once.
-	if _, err := session.AwaitAppForm(context.Background(), prompt.RequestID); err == nil {
-		t.Errorf("a finished form was waited on again")
+	if !got.outcome.Saved || got.outcome.Name != "Petstore" {
+		t.Errorf("outcome = %+v", got.outcome)
+	}
+	// A form is finished once, so an answer after it lands nowhere.
+	session.AppFormResult(request, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
+}
+
+func TestAppFormFailsWhenTheWindowCloses(t *testing.T) {
+	registry := newRegistry()
+	stream, _ := registry.Attach(token)
+	session, _ := registry.Session(token)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.AskAppForm(context.Background(), mcp.AppDraft{Name: "Petstore", Type: "openapi"})
+		done <- err
+	}()
+	nextOfType(t, stream, "form")
+	stream.Detach()
+	if err := <-done; err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// nextOfType reads the window's stream up to the first message of a type.
+func nextOfType(t *testing.T, stream *Stream, kind string) Message {
+	t.Helper()
+	timeout := time.After(time.Second)
+	for {
+		select {
+		case message := <-stream.Messages():
+			if message.Type == kind {
+				return message
+			}
+		case <-timeout:
+			t.Fatalf("no %q message", kind)
+		}
 	}
 }
 
@@ -835,7 +873,7 @@ func TestOnlyTheWindowOnDutyPushesTheCatalog(t *testing.T) {
 		t.Fatalf("attach: %v", err)
 	}
 	session, _ := registry.Session(token)
-	session.Focus(first.ID, "")
+	session.Focus(first.ID)
 
 	push := func(streamID string, name string) int {
 		request := httptest.NewRequest(http.MethodPost, "/agent-session/catalog", strings.NewReader(`{"apps":[{"name":"`+name+`"}]}`))
@@ -862,7 +900,7 @@ func TestOnlyTheWindowOnDutyPushesTheCatalog(t *testing.T) {
 	}
 
 	// Duty moving is what lets the other window's push through.
-	session.Focus(second.ID, "")
+	session.Focus(second.ID)
 	if code := push(second.ID, "partial"); code != http.StatusNoContent {
 		t.Fatalf("the window that gained duty was refused: %d", code)
 	}

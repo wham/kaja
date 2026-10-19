@@ -104,8 +104,7 @@ func (r *Registry) ServeDetach(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ServeFocus marks the window a run should be sent to, and records where a link to it
-// starts, since a form an agent opens is sent to the same window a run is.
+// ServeFocus marks the window a run, or a form an agent opens, should be sent to.
 func (r *Registry) ServeFocus(w http.ResponseWriter, req *http.Request) {
 	session, ok := r.authorize(w, req)
 	if !ok {
@@ -113,12 +112,11 @@ func (r *Registry) ServeFocus(w http.ResponseWriter, req *http.Request) {
 	}
 	var body struct {
 		StreamID string `json:"streamId"`
-		LinkRoot string `json:"linkRoot"`
 	}
 	if !decode(w, req, maxBody, &body) {
 		return
 	}
-	session.Focus(body.StreamID, body.LinkRoot)
+	session.Focus(body.StreamID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

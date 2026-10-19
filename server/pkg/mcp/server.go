@@ -143,13 +143,9 @@ type Bridge interface {
 	// AwaitApp waits for the window to report the app as callable, and says whether it
 	// did before the wait ran out.
 	AwaitApp(ctx context.Context, name string) bool
-	// OpenAppForm mints the page a person finishes an app on: Kaja's own New app form,
-	// prefilled with the draft. The prompt is what the agent's client is asked to open.
-	OpenAppForm(draft AppDraft) (AppFormPrompt, error)
-	// AwaitAppForm waits for the person to save or close the form a prompt opened.
-	AwaitAppForm(ctx context.Context, requestID string) (AppFormOutcome, error)
-	// DropAppForm forgets a prompt the client declined to open.
-	DropAppForm(requestID string)
+	// AskAppForm opens Kaja's own New app form, prefilled with the draft, in front of
+	// the person and waits for them to save or close it.
+	AskAppForm(ctx context.Context, draft AppDraft) (AppFormOutcome, error)
 }
 
 // AppDraft is an app as an agent describes it: the kaja.json shape, every value said
@@ -172,13 +168,6 @@ type AppInspection struct {
 	// Settled is the draft with what the probe settled written in - the transport a
 	// gRPC server turned out to speak - so the app says outright what it does.
 	Settled AppDraft
-}
-
-// AppFormPrompt is the page a person finishes an app on, and the id the answer
-// comes back under.
-type AppFormPrompt struct {
-	URL       string
-	RequestID string
 }
 
 // AppFormOutcome is what the person did with the form: saved an app by this name, or
@@ -358,9 +347,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// A request that asked to hear about itself is streamed whatever the delivery: a
 	// notification has nowhere to go in a single body, and the whole of what a progress
 	// token asks for is to be told something before the answer.
-	// So is a call asked again with the state an earlier answer handed it: the handler
-	// waits on a person, and a wait with no bytes in it is what a proxy ends.
-	if acceptsEventStream(r) && (s.streamed || progressToken(req.Params) != nil || readRetry(req.Params).State != "") {
+	if acceptsEventStream(r) && (s.streamed || progressToken(req.Params) != nil) {
 		s.respondStreamed(w, r, req, handle, caller, modern)
 		return
 	}

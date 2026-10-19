@@ -148,6 +148,7 @@ func (a *App) attach(app *application.App, window *application.WebviewWindow) {
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
+	a.app.Event.On("window:front", func(*application.CustomEvent) { a.bringToFront() })
 
 	// On their own goroutines because both end in a dialog or a reload, which wait on
 	// the main thread.
@@ -235,6 +236,14 @@ func (a *App) deliverLink(link string) {
 	a.window.UnMinimise()
 	a.window.Show()
 	a.app.Event.Emit("link:open", link)
+}
+
+// bringToFront raises the window over whatever app has the focus, which Show alone
+// does not do while Kaja is in the background.
+func (a *App) bringToFront() {
+	a.window.UnMinimise()
+	a.window.Show()
+	a.window.Focus()
 }
 
 // buildAppMenu assembles the native application menu.

@@ -80,7 +80,7 @@ var (
 
 // Message is what the server sends down a window's stream.
 type Message struct {
-	// Type is "hello", "run", "abort", "activity", "duty" or "scripts".
+	// Type is "hello", "run", "abort", "activity", "duty", "scripts" or "form".
 	Type string `json:"type"`
 	// StreamID identifies this window to the server, on "hello".
 	StreamID string `json:"streamId,omitempty"`
@@ -105,6 +105,9 @@ type Message struct {
 	// "run". A window beats only where somebody is listening, so a run nobody asked
 	// about costs no traffic at all.
 	Progress bool `json:"progress,omitempty"`
+	// Link is the add-app link a "form" opens the New app form from, carrying the
+	// request id the window answers under.
+	Link string `json:"link,omitempty"`
 }
 
 // Stream is one attached window.
@@ -117,10 +120,6 @@ type Stream struct {
 
 	// Guarded by session.mu.
 	focusedAt time.Time
-	// linkRoot is where a link to this window starts - `kaja://` on the desktop, the
-	// page's own address and a `#` in a browser - said by the window, since only it
-	// knows what it is served from.
-	linkRoot string
 }
 
 // Messages is what the HTTP handler writes down to the browser.
@@ -150,15 +149,8 @@ type Session struct {
 	streams   []*Stream
 	catalog   mcp.Catalog
 	pending   map[string]*pendingRun
-	forms     map[string]*pendingForm
+	forms     map[string]chan mcp.AppFormOutcome
 	idleSince time.Time
-}
-
-// pendingForm is a New app form an agent asked a person to finish: where its outcome
-// goes, and when it was opened, so one nobody finished is let go.
-type pendingForm struct {
-	result chan mcp.AppFormOutcome
-	opened time.Time
 }
 
 // pendingRun is a run dispatched to a window: where its answer goes, and what it says
@@ -218,14 +210,11 @@ func (s *Session) remove(stream *Stream) {
 // Focus marks a window as the one being looked at. The most recently focused window
 // is the one a run is sent to: the run's console is in memory in the window that ran
 // it, so a run landing in the wrong window is one you cannot watch.
-func (s *Session) Focus(streamID string, linkRoot string) {
+func (s *Session) Focus(streamID string) {
 	s.mu.Lock()
 	for _, stream := range s.streams {
 		if stream.ID == streamID {
 			stream.focusedAt = time.Now()
-			if linkRoot != "" {
-				stream.linkRoot = linkRoot
-			}
 		}
 	}
 	s.mu.Unlock()
@@ -391,39 +380,38 @@ func (s *Session) Run(ctx context.Context, path, code, client string, progress f
 	}
 }
 
-// OpenAppForm mints the form a person finishes an app on. It is a link to the window
-// on duty - the one being looked at - so what the agent's client is asked to open
-// lands where the person is. Nothing is written until the form is saved.
-func (s *Session) OpenAppForm(draft mcp.AppDraft) (mcp.AppFormPrompt, error) {
+// AskAppForm opens Kaja's New app form, prefilled with the draft, in the window on
+// duty - the one being looked at - and waits for the person to save or close it.
+// Nothing is written until they save.
+func (s *Session) AskAppForm(ctx context.Context, draft mcp.AppDraft) (mcp.AppFormOutcome, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	stream := s.duty()
-	if stream == nil || stream.linkRoot == "" {
-		return mcp.AppFormPrompt{}, ErrNoWindow
-	}
-	for id, form := range s.forms {
-		if time.Since(form.opened) > formTimeout {
-			delete(s.forms, id)
-		}
+	if stream == nil {
+		s.mu.Unlock()
+		return mcp.AppFormOutcome{}, ErrNoWindow
 	}
 	id := randomID()
-	s.forms[id] = &pendingForm{result: make(chan mcp.AppFormOutcome, 1), opened: time.Now()}
-	return mcp.AppFormPrompt{URL: appFormURL(stream.linkRoot, draft, id), RequestID: id}, nil
-}
-
-// AwaitAppForm waits for the person to save or close the form. The entry goes with
-// the answer either way: a form is finished once.
-func (s *Session) AwaitAppForm(ctx context.Context, requestID string) (mcp.AppFormOutcome, error) {
-	s.mu.Lock()
-	form := s.forms[requestID]
+	result := make(chan mcp.AppFormOutcome, 1)
+	s.forms[id] = result
 	s.mu.Unlock()
-	if form == nil {
-		return mcp.AppFormOutcome{}, errors.New("that request has expired or was never made; call add_app again")
-	}
-	defer s.DropAppForm(requestID)
+	defer func() {
+		s.mu.Lock()
+		delete(s.forms, id)
+		s.mu.Unlock()
+	}()
+
 	select {
-	case outcome := <-form.result:
+	case stream.messages <- Message{Type: "form", Link: appFormLink(draft, id)}:
+	case <-stream.closed:
+		return mcp.AppFormOutcome{}, ErrNoWindow
+	case <-ctx.Done():
+		return mcp.AppFormOutcome{}, ctx.Err()
+	}
+	select {
+	case outcome := <-result:
 		return outcome, nil
+	case <-stream.closed:
+		return mcp.AppFormOutcome{}, errors.New("the Kaja window was closed before the form was saved, so no app was added")
 	case <-ctx.Done():
 		return mcp.AppFormOutcome{}, ctx.Err()
 	case <-time.After(formTimeout):
@@ -431,23 +419,15 @@ func (s *Session) AwaitAppForm(ctx context.Context, requestID string) (mcp.AppFo
 	}
 }
 
-// DropAppForm forgets a form nothing waits on any more.
-func (s *Session) DropAppForm(requestID string) {
-	s.mu.Lock()
-	delete(s.forms, requestID)
-	s.mu.Unlock()
-}
-
 // AppFormResult delivers what the person did with a form from the window back to the
-// waiting agent. The channel holds one answer, so a form saved before the client has
-// asked again is an answer waiting rather than one lost.
+// waiting agent. A form is finished once, so a second answer is dropped.
 func (s *Session) AppFormResult(requestID string, outcome mcp.AppFormOutcome) {
 	s.mu.Lock()
 	form := s.forms[requestID]
 	s.mu.Unlock()
 	if form != nil {
 		select {
-		case form.result <- outcome:
+		case form <- outcome:
 		default:
 		}
 	}
@@ -483,10 +463,10 @@ func (s *Session) AwaitApp(ctx context.Context, name string) bool {
 // than a value and travels.
 var secretParameters = map[string]bool{"token": true, "password": true, "spec_header_value": true}
 
-// appFormURL is the deeplink that opens Kaja's New app form prefilled. The verb is
-// the host and the draft is the query, in kaja.json's own field names, with the
+// appFormLink is the add-app link that opens Kaja's New app form prefilled. The verb
+// is the host and the draft is the query, in kaja.json's own field names, with the
 // request id the form answers under.
-func appFormURL(linkRoot string, draft mcp.AppDraft, requestID string) string {
+func appFormLink(draft mcp.AppDraft, requestID string) string {
 	query := url.Values{}
 	query.Set("type", draft.Type)
 	query.Set("name", draft.Name)
@@ -501,7 +481,7 @@ func appFormURL(linkRoot string, draft mcp.AppDraft, requestID string) string {
 		headers, _ := json.Marshal(draft.Headers)
 		query.Set("headers", string(headers))
 	}
-	return linkRoot + "add-app?" + query.Encode()
+	return "kaja://add-app?" + query.Encode()
 }
 
 // Activity tells every window of this browser that an agent is being served, so
@@ -581,7 +561,7 @@ func (r *Registry) Open(token string) (*Session, error) {
 		scripts:   r.scripts,
 		apps:      r.apps,
 		pending:   map[string]*pendingRun{},
-		forms:     map[string]*pendingForm{},
+		forms:     map[string]chan mcp.AppFormOutcome{},
 		idleSince: time.Now(),
 	}
 	// The bridge is bound to the session and the server to the bridge, so a request

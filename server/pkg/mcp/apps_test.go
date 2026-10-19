@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -15,28 +16,6 @@ func appArguments(name string) map[string]interface{} {
 		"parameters": map[string]interface{}{"spec_url": "https://petstore.example/openapi.json", "reflection": true},
 		"headers":    map[string]interface{}{"X-Tenant": "acme"},
 	}
-}
-
-// withURLElicitation is a modern request from a client that can be asked to open a page.
-func withURLElicitation(params map[string]interface{}) map[string]interface{} {
-	return withCapabilities(params, map[string]interface{}{"elicitation": map[string]interface{}{"form": map[string]interface{}{}, "url": map[string]interface{}{}}})
-}
-
-func withCapabilities(params map[string]interface{}, capabilities map[string]interface{}) map[string]interface{} {
-	params = modernParams(params)
-	params["_meta"].(map[string]interface{})[metaClientCapabilities] = capabilities
-	return params
-}
-
-// modernAnswer is a modern result read as it came, without modernResult's own framing
-// of the request, which would write the capabilities back out of _meta.
-func modernAnswer(t *testing.T, srv *Server, params map[string]interface{}) map[string]interface{} {
-	t.Helper()
-	resp := call(t, srv, "tools/call", params)
-	if resp.Error != nil {
-		t.Fatalf("tools/call: %+v", resp.Error)
-	}
-	return resp.Result.(map[string]interface{})
 }
 
 func TestAddAppWritesWhatIsComplete(t *testing.T) {
@@ -68,114 +47,48 @@ func TestAddAppWritesWhatIsComplete(t *testing.T) {
 	}
 }
 
-func TestAddAppAsksToOpenTheFormWhereTheClientCan(t *testing.T) {
+func TestAddAppOpensTheFormAndWaitsForIt(t *testing.T) {
 	bridge := newFakeBridge()
-	bridge.inspection = AppInspection{Summary: "Petstore did not hand over its document.", Missing: []string{"A credential: the document declares bearer (HTTP bearer)."}}
-	srv := NewServer(bridge, token, version)
-
-	params := withURLElicitation(map[string]interface{}{"name": "add_app", "arguments": appArguments("Petstore")})
-	result := modernAnswer(t, srv, params)
-	if result["resultType"] != "input_required" {
-		t.Fatalf("resultType = %v, want input_required: %v", result["resultType"], result)
-	}
-	if result["requestState"] != "form-1" {
-		t.Errorf("requestState = %v", result["requestState"])
-	}
-	requests := result["inputRequests"].(map[string]interface{})
-	request := requests[appFormKey].(map[string]interface{})
-	if request["method"] != "elicitation/create" {
-		t.Errorf("method = %v", request["method"])
-	}
-	elicitation := request["params"].(map[string]interface{})
-	if elicitation["mode"] != "url" || !strings.HasPrefix(elicitation["url"].(string), "kaja://add-app?") {
-		t.Errorf("params = %v", elicitation)
-	}
-	if message, _ := elicitation["message"].(string); !strings.Contains(message, "A credential") {
-		t.Errorf("message = %q", message)
-	}
-	if len(bridge.added) != 0 {
-		t.Errorf("an incomplete draft was written")
-	}
-	if len(bridge.dropped) != 0 {
-		t.Errorf("the form the client is about to open was dropped")
-	}
-}
-
-func TestAddAppRetryWaitsForTheForm(t *testing.T) {
-	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Summary: "Not probed.", Missing: []string{"A proto folder: the server has no reflection."}}
 	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "theatre"}
 	bridge.compiled = true
 	srv := NewServer(bridge, token, version)
 
-	params := withURLElicitation(map[string]interface{}{
-		"name":           "add_app",
-		"arguments":      appArguments("Petstore"),
-		"inputResponses": map[string]interface{}{appFormKey: map[string]interface{}{"action": "accept"}},
-		"requestState":   "form-1",
-	})
-	result := modernAnswer(t, srv, params)
-	if result["resultType"] != "complete" {
-		t.Fatalf("resultType = %v", result["resultType"])
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	if len(bridge.formOpened) != 1 {
+		t.Errorf("forms opened = %d, want 1", len(bridge.formOpened))
 	}
-	text := contentText(t, result)
 	if !strings.Contains(text, "Added theatre") || !strings.Contains(text, "ListShows") {
 		t.Errorf("answer = %q", text)
 	}
-	if len(bridge.awaited) != 1 || bridge.awaited[0] != "form-1" {
-		t.Errorf("awaited = %v", bridge.awaited)
-	}
-	// The retry carries the draft again, but it is the form that was written.
-	if len(bridge.inspected) != 0 || len(bridge.added) != 0 {
-		t.Errorf("the retry probed or wrote: %v %v", bridge.inspected, bridge.added)
-	}
-}
-
-func TestAddAppRetryDeclined(t *testing.T) {
-	bridge := newFakeBridge()
-	srv := NewServer(bridge, token, version)
-
-	params := withURLElicitation(map[string]interface{}{
-		"name":           "add_app",
-		"arguments":      appArguments("Petstore"),
-		"inputResponses": map[string]interface{}{appFormKey: map[string]interface{}{"action": "decline"}},
-		"requestState":   "form-1",
-	})
-	text := contentText(t, modernAnswer(t, srv, params))
-	if !strings.Contains(text, "declined") {
-		t.Errorf("answer = %q", text)
-	}
-	if len(bridge.dropped) != 1 || bridge.dropped[0] != "form-1" {
-		t.Errorf("dropped = %v", bridge.dropped)
-	}
-	if len(bridge.awaited) != 0 {
-		t.Errorf("waited on a form nobody opened")
-	}
-}
-
-func TestAddAppSaysWhatIsMissingWhereTheClientCannotOpenAPage(t *testing.T) {
-	bridge := newFakeBridge()
-	bridge.inspection = AppInspection{Summary: "Not probed.", Missing: []string{"A proto folder: the server has no reflection."}}
-	srv := NewServer(bridge, token, version)
-
-	// A handshake-era client, which declares nothing per request.
-	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	for _, want := range []string{"was not added yet", "A proto folder", "kaja://add-app?"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("answer lacks %q: %q", want, text)
-		}
-	}
-	if len(bridge.dropped) != 1 {
-		t.Errorf("a form nothing waits on was kept: %v", bridge.dropped)
-	}
+	// The form writes the app, not the tool.
 	if len(bridge.added) != 0 {
 		t.Errorf("an incomplete draft was written")
 	}
+}
 
-	// So is a modern client with form mode alone.
-	params := withCapabilities(map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}, map[string]interface{}{"elicitation": map[string]interface{}{}})
-	result := modernAnswer(t, srv, params)
-	if result["resultType"] != "complete" {
-		t.Errorf("form-only client was asked for input: %v", result)
+func TestAddAppFormClosed(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Missing: []string{"A credential."}}
+	srv := NewServer(bridge, token, version)
+
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	if !strings.Contains(text, "without adding Seats") {
+		t.Errorf("answer = %q", text)
+	}
+}
+
+func TestAddAppFormFailed(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Missing: []string{"A credential: the document declares bearer."}}
+	bridge.formErr = errors.New("no Kaja window is open")
+	srv := NewServer(bridge, token, version)
+
+	resp := call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")})
+	result := resp.Result.(map[string]interface{})
+	text := contentText(t, result)
+	if result["isError"] != true || !strings.Contains(text, "no Kaja window") || !strings.Contains(text, "A credential") {
+		t.Errorf("result = %v", result)
 	}
 }
 
