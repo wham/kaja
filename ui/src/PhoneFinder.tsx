@@ -8,7 +8,7 @@ import { countMethods, isCompiling } from "./compileSummary";
 import { FileName } from "./FileName";
 import { Destination, matchesDestination } from "./Finder";
 import { matchParts, methodTag } from "./phone";
-import { WorkspaceControl } from "./StatusBar";
+import { WorkspaceControl } from "./WorkspaceMenu";
 import { unsupportedReason } from "./streaming";
 import { useMediaQuery } from "./useMediaQuery";
 

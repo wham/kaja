@@ -641,7 +641,13 @@ func TestWatchWorkspaceSendsTheChangedFile(t *testing.T) {
 			}
 			return
 		case <-write.C:
-			if err := os.WriteFile(path, changed, 0644); err != nil {
+			// Renamed into place: os.WriteFile truncates first, and a poll landing
+			// between the two reads an empty file.
+			staged := path + ".tmp"
+			if err := os.WriteFile(staged, changed, 0644); err != nil {
+				t.Fatalf("failed to write config file: %v", err)
+			}
+			if err := os.Rename(staged, path); err != nil {
 				t.Fatalf("failed to write config file: %v", err)
 			}
 		case <-deadline:

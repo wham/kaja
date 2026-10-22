@@ -29,6 +29,7 @@ import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
 import { useMediaQuery } from "./useMediaQuery";
+import { WorkspaceMenu, type WorkspaceControl } from "./WorkspaceMenu";
 import {
   appNodeId,
   Fold,
@@ -57,8 +58,8 @@ import {
  * are the one search, and they reach strictly more than a panel filter could.
  *
  * The left of the band belongs to the platform: the traffic lights on macOS, the
- * Kaja mark everywhere else. The tools sit flush right, so desktop and browser differ
- * by exactly one element.
+ * Kaja mark everywhere else. Where there is more than one workspace to be in, its name
+ * follows, since everything under the band belongs to it. The tools sit flush right.
  */
 
 export type SidebarTab = "apps" | "scripts";
@@ -127,6 +128,7 @@ interface SidebarProps {
   // macOS desktop: inset the band to clear the traffic lights and make its empty parts
   // draggable. Also decides whether the band's left corner is the platform's or ours.
   reserveTrafficLights?: boolean;
+  workspace?: WorkspaceControl;
   onEditApp: (appName: string) => void;
   onDeleteApp: (appName: string) => void;
 }
@@ -147,6 +149,7 @@ export const Sidebar = memo(function Sidebar({
   mcpState,
   autoExpandApp,
   reserveTrafficLights = false,
+  workspace,
   onEditApp,
   onDeleteApp,
 }: SidebarProps) {
@@ -258,7 +261,13 @@ export const Sidebar = memo(function Sidebar({
           holds is what belongs to the window rather than to either list below:
           the variables both lists read, and the server an agent reaches them
           through. */}
-      <GlobalBand reserveTrafficLights={reserveTrafficLights} onVariablesClick={onVariablesClick} onMcpClick={onMcpClick} mcpState={mcpState} />
+      <GlobalBand
+        reserveTrafficLights={reserveTrafficLights}
+        workspace={workspace}
+        onVariablesClick={onVariablesClick}
+        onMcpClick={onMcpClick}
+        mcpState={mcpState}
+      />
 
       <TabRow
         tab={tab}
@@ -486,11 +495,13 @@ export const Sidebar = memo(function Sidebar({
  */
 function GlobalBand({
   reserveTrafficLights,
+  workspace,
   onVariablesClick,
   onMcpClick,
   mcpState,
 }: {
   reserveTrafficLights?: boolean;
+  workspace?: WorkspaceControl;
   onVariablesClick?: () => void;
   onMcpClick?: () => void;
   mcpState?: McpState;
@@ -502,13 +513,19 @@ function GlobalBand({
       className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-[3px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
-      {!reserveTrafficLights && (
-        <div className="flex shrink-0 select-none items-center gap-1.5 pl-2.5">
-          <KajaTrace width={18} height={11} />
-          <span className="text-[13px] font-semibold text-foreground">Kaja</span>
+      {workspace ? (
+        <div className={cn("flex min-w-0 items-center", reserveTrafficLights ? "pl-1" : "pl-1.5")} style={noDrag}>
+          <WorkspaceMenu control={workspace} withMark={!reserveTrafficLights} />
         </div>
+      ) : (
+        !reserveTrafficLights && (
+          <div className="flex shrink-0 select-none items-center gap-1.5 pl-2.5">
+            <KajaTrace width={18} height={11} />
+            <span className="text-[13px] font-semibold text-foreground">Kaja</span>
+          </div>
+        )
       )}
-      <div className="ml-auto flex min-w-0 items-center gap-1" style={noDrag}>
+      <div className="ml-auto flex shrink-0 items-center gap-1" style={noDrag}>
         {onVariablesClick && (
           <SimpleTooltip text="Variables" side="bottom">
             <IconButton icon={Braces} size="sm" variant="ghost" tooltip="none" aria-label="Variables" onClick={onVariablesClick} />

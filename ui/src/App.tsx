@@ -49,7 +49,8 @@ import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
 import { NewAppDialog } from "./NewAppDialog";
-import { StatusBar, ColorMode, WorkspaceControl } from "./StatusBar";
+import { StatusBar, ColorMode } from "./StatusBar";
+import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
@@ -3028,6 +3029,7 @@ export function App() {
                   mcpState={mcpBandState}
                   autoExpandApp={autoExpandApp}
                   reserveTrafficLights={isDesktopMac}
+                  workspace={workspaceControl}
                   onEditApp={onEditApp}
                   onDeleteApp={onDeleteApp}
                   scriptsRegion={scriptsRegion}
@@ -3124,7 +3126,6 @@ export function App() {
             onShowCompileLog={onShowCompileLog}
             onRecompile={onRecompile}
             onShowShortcuts={onShortcutsClick}
-            workspace={workspaceControl}
           />
         </div>
       )}
