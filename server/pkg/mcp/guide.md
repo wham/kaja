@@ -35,9 +35,16 @@ under that key, every value a string, so what you write is what the file says.
 missing, the app is written at once and its services are listed back, so the
 next call is a method call. When something is missing — a credential, a proto
 folder, which of several servers a document names — Kaja opens **its own New
-app form** in front of the user, prefilled with what you gave, and the call
-waits until they save or close it. Tell the user to look at Kaja before you
-call, since the call says nothing until they are done.
+app form** in front of the user, prefilled with what you gave. The call waits
+a few seconds in case they are already there, then answers that the form is
+still open. Tell the user to finish it in Kaja and **end your turn** rather than
+waiting; when they say it is done, call `add_app` again with the same name. That
+call answers with what they did — the app's services, or that they closed the
+form — and never opens a second form.
+
+What is not a secret is yours to ask for before you call: which tenant, region
+or server a document's address leaves open. A form with only the credential left
+in it is one the user finishes in a moment.
 
 **Never ask the user for a token or a password yourself**, and never write one
 into a parameter you were not given. Where the user keeps one as a variable,

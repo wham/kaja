@@ -768,15 +768,9 @@ func TestAppFormRoundTrip(t *testing.T) {
 		"spec_url": "https://petstore.example/openapi.json", "token": "sk-live-secret", "password": "${PASSWORD}", "base_url": "",
 	}, Headers: map[string]string{"X-Tenant": "acme"}}
 
-	type answer struct {
-		outcome mcp.AppFormOutcome
-		err     error
+	if err := session.OpenAppForm(context.Background(), draft); err != nil {
+		t.Fatal(err)
 	}
-	done := make(chan answer, 1)
-	go func() {
-		outcome, err := session.AskAppForm(context.Background(), draft)
-		done <- answer{outcome, err}
-	}()
 
 	link := nextOfType(t, stream, "form").Link
 	if !strings.HasPrefix(link, "kaja://add-app?") {
@@ -798,16 +792,28 @@ func TestAppFormRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := parsed.Query().Get("request")
+	// A wait that runs out leaves the form open.
+	short, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if _, found, err := session.AwaitAppForm(short, "Petstore"); !found || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("found = %v, err = %v", found, err)
+	}
+
+	// The person finishes it with nobody waiting, and the next wait is handed what they did.
 	session.AppFormResult(request, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
-	got := <-done
-	if got.err != nil {
-		t.Fatal(got.err)
-	}
-	if !got.outcome.Saved || got.outcome.Name != "Petstore" {
-		t.Errorf("outcome = %+v", got.outcome)
-	}
 	// A form is finished once, so an answer after it lands nowhere.
-	session.AppFormResult(request, mcp.AppFormOutcome{Saved: true, Name: "Petstore"})
+	session.AppFormResult(request, mcp.AppFormOutcome{Saved: false})
+	outcome, found, err := session.AwaitAppForm(context.Background(), "Petstore")
+	if err != nil || !found {
+		t.Fatalf("found = %v, err = %v", found, err)
+	}
+	if !outcome.Saved || outcome.Name != "Petstore" {
+		t.Errorf("outcome = %+v", outcome)
+	}
+	// And handed over once.
+	if _, found, _ := session.AwaitAppForm(context.Background(), "Petstore"); found {
+		t.Errorf("a finished form was handed over twice")
+	}
 }
 
 func TestAppFormFailsWhenTheWindowCloses(t *testing.T) {
@@ -815,15 +821,24 @@ func TestAppFormFailsWhenTheWindowCloses(t *testing.T) {
 	stream, _ := registry.Attach(token)
 	session, _ := registry.Session(token)
 
+	if err := session.OpenAppForm(context.Background(), mcp.AppDraft{Name: "Petstore", Type: "openapi"}); err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := session.AskAppForm(context.Background(), mcp.AppDraft{Name: "Petstore", Type: "openapi"})
+		_, _, err := session.AwaitAppForm(context.Background(), "Petstore")
 		done <- err
 	}()
 	nextOfType(t, stream, "form")
+	// The wait has to have found the form before the window goes, or it finds none.
+	time.Sleep(20 * time.Millisecond)
 	stream.Detach()
 	if err := <-done; err == nil || !strings.Contains(err.Error(), "closed") {
 		t.Errorf("err = %v", err)
+	}
+	// Nobody can finish a form in a window that went away, so the next call opens it again.
+	if _, found, _ := session.AwaitAppForm(context.Background(), "Petstore"); found {
+		t.Errorf("a form in a closed window is still waited on")
 	}
 }
 

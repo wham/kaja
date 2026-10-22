@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 // appArguments is an add_app call's arguments as a client sends them: the draft's
@@ -64,6 +65,39 @@ func TestAddAppOpensTheFormAndWaitsForIt(t *testing.T) {
 	// The form writes the app, not the tool.
 	if len(bridge.added) != 0 {
 		t.Errorf("an incomplete draft was written")
+	}
+}
+
+// A person takes longer than an agent's client will hold a call, so the call hands the
+// turn back with the form still open, and the next call of that name picks up what the
+// person did with it rather than opening a second form.
+func TestAddAppAnswersWhileTheFormIsStillOpen(t *testing.T) {
+	defer func(wait time.Duration) { formWait = wait }(formWait)
+	formWait = 10 * time.Millisecond
+	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Missing: []string{"A credential: the document declares bearer."}}
+	bridge.formPending = true
+	srv := NewServer(bridge, token, version)
+
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	for _, want := range []string{"is open in front of the user", "A credential", "end your turn", `add_app again with the name "Seats"`} {
+		if !strings.Contains(text, want) {
+			t.Errorf("answer lacks %q: %q", want, text)
+		}
+	}
+
+	bridge.formPending = false
+	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "Seats"}
+	bridge.compiled = true
+	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	if !strings.Contains(text, "Added Seats") {
+		t.Errorf("answer = %q", text)
+	}
+	if len(bridge.formOpened) != 1 {
+		t.Errorf("forms opened = %d, want 1", len(bridge.formOpened))
+	}
+	if len(bridge.inspected) != 1 {
+		t.Errorf("probed %d times, want 1: a form already open answers without a probe", len(bridge.inspected))
 	}
 }
 

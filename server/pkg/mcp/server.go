@@ -143,9 +143,13 @@ type Bridge interface {
 	// AwaitApp waits for the window to report the app as callable, and says whether it
 	// did before the wait ran out.
 	AwaitApp(ctx context.Context, name string) bool
-	// AskAppForm opens Kaja's own New app form, prefilled with the draft, in front of
-	// the person and waits for them to save or close it.
-	AskAppForm(ctx context.Context, draft AppDraft) (AppFormOutcome, error)
+	// OpenAppForm opens Kaja's own New app form, prefilled with the draft, in front of
+	// the person, and remembers it under the draft's name.
+	OpenAppForm(ctx context.Context, draft AppDraft) error
+	// AwaitAppForm waits, for as long as ctx allows, on the form opened under a name,
+	// and says whether there is one. A form still open when the wait runs out stays
+	// open, so a later call picks up what the person did with it.
+	AwaitAppForm(ctx context.Context, name string) (outcome AppFormOutcome, found bool, err error)
 }
 
 // AppDraft is an app as an agent describes it: the kaja.json shape, every value said
