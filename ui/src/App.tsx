@@ -2164,11 +2164,12 @@ export function App() {
 
   const currentView = views[0];
   const jsonKey = editAsJsonLabel === "" ? "" : ` (${editAsJsonLabel})`;
-  const jsonView = currentView?.type === "appForm" ? { showing: currentView.editMode === "json", back: `Edit as a form${jsonKey}` } : undefined;
+  const jsonView =
+    currentView?.type === "appForm" && currentView.mode === "edit" ? { showing: currentView.editMode === "json", back: `Edit as a form${jsonKey}` } : undefined;
 
   const toggleJsonView = useCallback((): void => {
     const view = viewsRef.current[0];
-    if (view?.type !== "appForm") return;
+    if (view?.type !== "appForm" || view.mode !== "edit") return;
     if (view.editMode === "json" && !viewJsonValidRef.current) return;
     applyViews((views) => setAppFormEditMode(views, view.id, view.editMode === "json" ? "form" : "json"));
   }, [applyViews]);

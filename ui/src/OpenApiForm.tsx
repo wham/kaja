@@ -676,7 +676,6 @@ function ServerSection({
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">The only server the document declares.</p>
       </div>
     );
   }
@@ -684,7 +683,6 @@ function ServerSection({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Server</label>
-      <p className="text-xs text-muted-foreground">Requests go here, with each operation's path appended.</p>
       <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Server">
         {document.servers.map((server, index) => {
           const selected = choice === index;
@@ -800,7 +798,6 @@ function AuthenticationSection({ document, variables, readOnly, selected, onSele
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
-      <p className="text-xs text-muted-foreground">Read from the document's security schemes. Pick the one you hold a credential for.</p>
       <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Authentication">
         {document.securitySchemes.map((scheme) => {
           const supported = scheme.type !== "mutualTLS";
@@ -900,7 +897,9 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
           <span className="truncate font-mono text-xs text-muted-foreground">{scheme.openIdConnectUrl}</span>
         </div>
       )}
-      <p className={cn("text-xs text-muted-foreground", credentialNote(scheme).mono && "font-mono")}>{credentialNote(scheme).text}</p>
+      {credentialNote(scheme).text && (
+        <p className={cn("text-xs text-muted-foreground", credentialNote(scheme).mono && "font-mono")}>{credentialNote(scheme).text}</p>
+      )}
     </div>
   );
 }

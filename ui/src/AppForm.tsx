@@ -563,7 +563,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           {surface && name.trim() && editMode === "form"
             ? mode === "edit"
               ? `${name.trim()} exposes ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")}.`
-              : `Adds ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")} under ${name.trim()} in the sidebar.`
+              : `Adds ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")}.`
             : ""}
         </p>
         <div className="flex shrink-0 gap-2">

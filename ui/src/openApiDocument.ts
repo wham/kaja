@@ -181,7 +181,7 @@ export function credentialPlaceholder(scheme: OpenApiSecurityScheme): string {
 // where that is what it is.
 export function credentialNote(scheme: OpenApiSecurityScheme): { text: string; mono: boolean } {
   if (isBasicScheme(scheme)) {
-    return { text: "Base64 encoding is Kaja's to do, never yours.", mono: false };
+    return { text: "", mono: false };
   }
   if (scheme.type === "apiKey") {
     if (scheme.in === "cookie") return { text: `Cookie: ${scheme.parameterName}=‹key›`, mono: true };

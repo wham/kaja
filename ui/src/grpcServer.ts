@@ -48,7 +48,6 @@ export function authNote(auth: string, name: string): { text: string; mono: bool
     case AUTH_APIKEY:
       return { text: `${apiKeyName(name)}: ‹key›`, mono: true };
     case AUTH_BASIC:
-      return { text: "Base64 encoding is Kaja's to do, never yours.", mono: false };
     default:
       return { text: "", mono: false };
   }

@@ -118,8 +118,8 @@ describe("authNote", () => {
     expect(authNote(AUTH_APIKEY, "X-Api-Token")).toEqual({ text: "x-api-token: ‹key›", mono: true });
   });
 
-  test("says who does the encoding for Basic", () => {
-    expect(authNote(AUTH_BASIC, "").mono).toBe(false);
+  test("says nothing for Basic", () => {
+    expect(authNote(AUTH_BASIC, "").text).toBe("");
   });
 });
 
