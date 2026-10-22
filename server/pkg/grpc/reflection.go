@@ -3,7 +3,9 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -65,6 +67,19 @@ func (c *ReflectionClient) Target() string { return c.target }
 func (c *ReflectionClient) UseTLS() bool { return c.useTLS }
 
 // reflectionStream abstracts over v1 and v1alpha reflection streams.
+// sendStatus is a send's error as the server put it. A stream the server has already
+// ended, refusing a credential above all, fails its send with a bare io.EOF, and the
+// status it ended with is what the next receive returns.
+func sendStatus[T any](err error, recv func() (T, error)) error {
+	if !errors.Is(err, io.EOF) {
+		return err
+	}
+	if _, recvErr := recv(); recvErr != nil && !errors.Is(recvErr, io.EOF) {
+		return recvErr
+	}
+	return err
+}
+
 type reflectionStream interface {
 	sendListServices() error
 	sendFileContainingSymbol(symbol string) error
@@ -78,21 +93,21 @@ type v1Stream struct {
 }
 
 func (s *v1Stream) sendListServices() error {
-	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: ""},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1Stream) sendFileContainingSymbol(symbol string) error {
-	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_FileContainingSymbol{FileContainingSymbol: symbol},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1Stream) sendFileByFilename(filename string) error {
-	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_FileByFilename{FileByFilename: filename},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1Stream) recv() (*reflectionpb.ServerReflectionResponse, error) {
@@ -105,21 +120,21 @@ type v1alphaStream struct {
 }
 
 func (s *v1alphaStream) sendListServices() error {
-	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
 		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_ListServices{ListServices: ""},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1alphaStream) sendFileContainingSymbol(symbol string) error {
-	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
 		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_FileContainingSymbol{FileContainingSymbol: symbol},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1alphaStream) sendFileByFilename(filename string) error {
-	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+	return sendStatus(s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
 		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_FileByFilename{FileByFilename: filename},
-	})
+	}), s.stream.Recv)
 }
 
 func (s *v1alphaStream) recv() (*reflectionpb.ServerReflectionResponse, error) {
@@ -191,9 +206,9 @@ func (c *ReflectionClient) openV1Stream(ctx context.Context, conn *grpc.ClientCo
 	}
 
 	// Probe first, to detect Unimplemented before committing to this version.
-	if err := stream.Send(&reflectionpb.ServerReflectionRequest{
+	if err := sendStatus(stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: ""},
-	}); err != nil {
+	}), stream.Recv); err != nil {
 		return nil, err
 	}
 	if _, err := stream.Recv(); err != nil {

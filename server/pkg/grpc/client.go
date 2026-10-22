@@ -276,7 +276,10 @@ func (c *Client) OpenServerStream(ctx context.Context, method string, request []
 	if err != nil {
 		return nil, fmt.Errorf("failed to open stream: %w", err)
 	}
-	if err := stream.SendMsg(request); err != nil {
+	if err := sendStatus(stream.SendMsg(request), func() ([]byte, error) {
+		var response []byte
+		return response, stream.RecvMsg(&response)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	if err := stream.CloseSend(); err != nil {
