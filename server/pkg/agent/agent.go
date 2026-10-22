@@ -56,10 +56,6 @@ const (
 	// streamBuffer is how many messages may be in flight to one window before the
 	// server stops waiting for it.
 	streamBuffer = 8
-	// formTimeout is how long add_app waits for a person to finish the form it opened.
-	// A form is a person at a keyboard rather than a server, so it is generous; the
-	// agent's own timeout is what usually ends the wait first.
-	formTimeout = 10 * time.Minute
 	// compileWait is how long add_app waits for the window to report a freshly written
 	// app as callable before answering without its services. A large OpenAPI document
 	// takes a while to compile in the browser.
@@ -149,8 +145,19 @@ type Session struct {
 	streams   []*Stream
 	catalog   mcp.Catalog
 	pending   map[string]*pendingRun
-	forms     map[string]chan mcp.AppFormOutcome
+	forms     map[string]*appForm
 	idleSince time.Time
+}
+
+// appForm is a New app form an agent opened, keyed in the session by the name the
+// agent asked for. It outlives the call that opened it: a person at a keyboard takes
+// longer than an agent's client will wait, so what they did is kept for the next
+// add_app of that name to pick up.
+type appForm struct {
+	request string
+	stream  *Stream
+	done    chan struct{}
+	outcome mcp.AppFormOutcome
 }
 
 // pendingRun is a run dispatched to a window: where its answer goes, and what it says
@@ -200,6 +207,13 @@ func (s *Session) remove(stream *Stream) {
 		}
 	}
 	s.streams = kept
+	// A form still open in a window that went away is one nobody can finish, so the
+	// next add_app opens it again rather than waiting on it.
+	for name, form := range s.forms {
+		if form.stream == stream && !finished(form) {
+			delete(s.forms, name)
+		}
+	}
 	if len(s.streams) == 0 {
 		s.idleSince = time.Now()
 	}
@@ -380,55 +394,80 @@ func (s *Session) Run(ctx context.Context, path, code, client string, progress f
 	}
 }
 
-// AskAppForm opens Kaja's New app form, prefilled with the draft, in the window on
-// duty - the one being looked at - and waits for the person to save or close it.
-// Nothing is written until they save.
-func (s *Session) AskAppForm(ctx context.Context, draft mcp.AppDraft) (mcp.AppFormOutcome, error) {
+// OpenAppForm opens Kaja's New app form, prefilled with the draft, in the window on
+// duty - the one being looked at. Nothing is written until the person saves it.
+func (s *Session) OpenAppForm(ctx context.Context, draft mcp.AppDraft) error {
 	s.mu.Lock()
 	stream := s.duty()
 	if stream == nil {
 		s.mu.Unlock()
-		return mcp.AppFormOutcome{}, ErrNoWindow
+		return ErrNoWindow
 	}
-	id := randomID()
-	result := make(chan mcp.AppFormOutcome, 1)
-	s.forms[id] = result
+	form := &appForm{request: randomID(), stream: stream, done: make(chan struct{})}
+	s.forms[draft.Name] = form
 	s.mu.Unlock()
-	defer func() {
-		s.mu.Lock()
-		delete(s.forms, id)
-		s.mu.Unlock()
-	}()
 
 	select {
-	case stream.messages <- Message{Type: "form", Link: appFormLink(draft, id)}:
+	case stream.messages <- Message{Type: "form", Link: appFormLink(draft, form.request)}:
+		return nil
 	case <-stream.closed:
-		return mcp.AppFormOutcome{}, ErrNoWindow
+		return ErrNoWindow
 	case <-ctx.Done():
-		return mcp.AppFormOutcome{}, ctx.Err()
+		s.mu.Lock()
+		if s.forms[draft.Name] == form {
+			delete(s.forms, draft.Name)
+		}
+		s.mu.Unlock()
+		return ctx.Err()
+	}
+}
+
+// AwaitAppForm waits on the form opened for this name, for as long as ctx lets it. A
+// finished form is handed over once and forgotten; one still open stays open when the
+// wait runs out. found is false where no form was opened for the name.
+func (s *Session) AwaitAppForm(ctx context.Context, name string) (outcome mcp.AppFormOutcome, found bool, err error) {
+	s.mu.Lock()
+	form := s.forms[name]
+	s.mu.Unlock()
+	if form == nil {
+		return mcp.AppFormOutcome{}, false, nil
 	}
 	select {
-	case outcome := <-result:
-		return outcome, nil
-	case <-stream.closed:
-		return mcp.AppFormOutcome{}, errors.New("the Kaja window was closed before the form was saved, so no app was added")
+	case <-form.done:
+	case <-form.stream.closed:
+		// The answer may have landed in the same moment the window went.
+		if !finished(form) {
+			return mcp.AppFormOutcome{}, true, errors.New("the Kaja window was closed before the form was saved, so no app was added")
+		}
 	case <-ctx.Done():
-		return mcp.AppFormOutcome{}, ctx.Err()
-	case <-time.After(formTimeout):
-		return mcp.AppFormOutcome{}, fmt.Errorf("nobody finished the form within %s", formTimeout)
+		return mcp.AppFormOutcome{}, true, ctx.Err()
+	}
+	s.mu.Lock()
+	if s.forms[name] == form {
+		delete(s.forms, name)
+	}
+	s.mu.Unlock()
+	return form.outcome, true, nil
+}
+
+func finished(form *appForm) bool {
+	select {
+	case <-form.done:
+		return true
+	default:
+		return false
 	}
 }
 
 // AppFormResult delivers what the person did with a form from the window back to the
-// waiting agent. A form is finished once, so a second answer is dropped.
+// session. A form is finished once, so a second answer is dropped.
 func (s *Session) AppFormResult(requestID string, outcome mcp.AppFormOutcome) {
 	s.mu.Lock()
-	form := s.forms[requestID]
-	s.mu.Unlock()
-	if form != nil {
-		select {
-		case form <- outcome:
-		default:
+	defer s.mu.Unlock()
+	for _, form := range s.forms {
+		if form.request == requestID && !finished(form) {
+			form.outcome = outcome
+			close(form.done)
 		}
 	}
 }
@@ -561,7 +600,7 @@ func (r *Registry) Open(token string) (*Session, error) {
 		scripts:   r.scripts,
 		apps:      r.apps,
 		pending:   map[string]*pendingRun{},
-		forms:     map[string]chan mcp.AppFormOutcome{},
+		forms:     map[string]*appForm{},
 		idleSince: time.Now(),
 	}
 	// The bridge is bound to the session and the server to the bridge, so a request

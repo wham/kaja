@@ -240,7 +240,10 @@ func allToolDefinitions() []map[string]interface{} {
 			"description": "Add an API to the workspace as an app, so its methods become callable from a script. " +
 				"The address is probed first: when everything the app needs is there it is added at once and its services are listed back; " +
 				"when something is missing - a credential, a proto folder, which of several servers - Kaja opens its own New app form " +
-				"in front of the user, prefilled with what you gave, and the call waits until they save or close it - tell the user to look at Kaja before you call. " +
+				"in front of the user, prefilled with what you gave. The call waits a few seconds for them and then answers that the form is still open: " +
+				"tell the user to finish it and end your turn, and when they say it is done call add_app again with the same name, which answers with what they did " +
+				"rather than opening a second form. " +
+				"Ask the user for anything that is not a secret - which tenant or region, which server - before you call, so the form has less left in it. " +
 				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
 				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
 			"inputSchema": obj(map[string]interface{}{

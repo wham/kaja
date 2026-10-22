@@ -87,6 +87,10 @@ func (b *bridge) AwaitApp(ctx context.Context, name string) bool {
 	return b.session.AwaitApp(ctx, name)
 }
 
-func (b *bridge) AskAppForm(ctx context.Context, draft mcp.AppDraft) (mcp.AppFormOutcome, error) {
-	return b.session.AskAppForm(ctx, draft)
+func (b *bridge) OpenAppForm(ctx context.Context, draft mcp.AppDraft) error {
+	return b.session.OpenAppForm(ctx, draft)
+}
+
+func (b *bridge) AwaitAppForm(ctx context.Context, name string) (mcp.AppFormOutcome, bool, error) {
+	return b.session.AwaitAppForm(ctx, name)
 }

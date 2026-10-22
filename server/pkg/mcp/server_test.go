@@ -37,6 +37,9 @@ type fakeBridge struct {
 	formOpened  []AppDraft
 	formOutcome AppFormOutcome
 	formErr     error
+	// formPending holds a form open until the wait on it runs out.
+	formPending bool
+	forms       map[string]bool
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -46,6 +49,7 @@ type fakeBridge struct {
 func newFakeBridge() *fakeBridge {
 	return &fakeBridge{
 		scripts: map[string]string{"/s/hello.ts": "console.log('hi')"},
+		forms:   map[string]bool{},
 		catalog: Catalog{
 			Apps: []CatalogApp{
 				{
@@ -180,9 +184,24 @@ func (f *fakeBridge) AddApp(_ context.Context, draft AppDraft) error {
 	return nil
 }
 func (f *fakeBridge) AwaitApp(context.Context, string) bool { return f.compiled }
-func (f *fakeBridge) AskAppForm(_ context.Context, draft AppDraft) (AppFormOutcome, error) {
+func (f *fakeBridge) OpenAppForm(_ context.Context, draft AppDraft) error {
 	f.formOpened = append(f.formOpened, draft)
-	return f.formOutcome, f.formErr
+	if f.formErr != nil {
+		return f.formErr
+	}
+	f.forms[draft.Name] = true
+	return nil
+}
+func (f *fakeBridge) AwaitAppForm(ctx context.Context, name string) (AppFormOutcome, bool, error) {
+	if !f.forms[name] {
+		return AppFormOutcome{}, false, nil
+	}
+	if f.formPending {
+		<-ctx.Done()
+		return AppFormOutcome{}, true, ctx.Err()
+	}
+	delete(f.forms, name)
+	return f.formOutcome, true, nil
 }
 func (f *fakeBridge) Activity(inFlight int) {
 	f.activity = append(f.activity, inFlight)
