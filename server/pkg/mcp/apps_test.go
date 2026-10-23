@@ -80,10 +80,16 @@ func TestAddAppAnswersWhileTheFormIsStillOpen(t *testing.T) {
 	srv := NewServer(bridge, token, version)
 
 	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	for _, want := range []string{"is open in front of the user", "A credential", "end your turn", `add_app again with the name "Seats"`} {
+	for _, want := range []string{"is open in front of the user", "A credential", "without ending your turn", `add_app again with the name "Seats"`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("answer lacks %q: %q", want, text)
 		}
+	}
+
+	// The agent asks again in the same turn, and is told to go on asking.
+	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	if !strings.Contains(text, "has not finished") || !strings.Contains(text, "without ending your turn") {
+		t.Errorf("answer = %q", text)
 	}
 
 	bridge.formPending = false
@@ -98,6 +104,44 @@ func TestAddAppAnswersWhileTheFormIsStillOpen(t *testing.T) {
 	}
 	if len(bridge.inspected) != 1 {
 		t.Errorf("probed %d times, want 1: a form already open answers without a probe", len(bridge.inspected))
+	}
+}
+
+// Past formPatience the person has likely walked away, so the agent stops asking and
+// hands the turn back, and the form still answers whenever they finish it.
+func TestAddAppStopsAskingAfterAWhile(t *testing.T) {
+	defer func(wait, patience time.Duration) { formWait, formPatience = wait, patience }(formWait, formPatience)
+	formWait = 10 * time.Millisecond
+	formPatience = 15 * time.Millisecond
+	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Missing: []string{"A credential."}}
+	bridge.formPending = true
+	srv := NewServer(bridge, token, version)
+
+	toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	if !strings.Contains(text, "Stop calling add_app") || !strings.Contains(text, "end your turn") {
+		t.Errorf("answer = %q", text)
+	}
+}
+
+// What the agent read up on reaches the form with the draft, under its own name.
+func TestAddAppCarriesHintsToTheForm(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.inspection = AppInspection{Missing: []string{"A credential."}}
+	bridge.formOutcome = AppFormOutcome{Saved: false}
+	srv := NewServer(bridge, token, version)
+
+	arguments := appArguments("Seats")
+	arguments["hints"] = map[string]interface{}{"username": "The API key goes here."}
+	arguments["note"] = "  Keys are per user.  "
+	call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": arguments})
+	if len(bridge.formOpened) != 1 {
+		t.Fatalf("forms opened = %d, want 1", len(bridge.formOpened))
+	}
+	draft := bridge.formOpened[0]
+	if draft.Hints["username"] != "The API key goes here." || draft.Note != "Keys are per user." {
+		t.Errorf("draft = %+v", draft)
 	}
 }
 

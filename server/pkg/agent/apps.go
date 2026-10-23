@@ -336,7 +336,7 @@ func buildWorkspaceApp(draft mcp.AppDraft) (*api.WorkspaceApp, error) {
 // settledDraft is the draft read back off the message after a probe wrote into it,
 // so what the form is prefilled with and what is written is what the probe settled.
 func settledDraft(draft mcp.AppDraft, app *api.WorkspaceApp) mcp.AppDraft {
-	settled := mcp.AppDraft{Name: draft.Name, Type: draft.Type, Parameters: map[string]string{}, Headers: draft.Headers}
+	settled := mcp.AppDraft{Name: draft.Name, Type: draft.Type, Parameters: map[string]string{}, Headers: draft.Headers, Hints: draft.Hints, Note: draft.Note, Agent: draft.Agent}
 	message := app.ProtoReflect()
 	field := message.WhichOneof(message.Descriptor().Oneofs().ByName("app"))
 	if field == nil {

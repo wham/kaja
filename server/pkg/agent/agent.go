@@ -437,7 +437,7 @@ func (s *Session) AwaitAppForm(ctx context.Context, name string) (outcome mcp.Ap
 	case <-form.stream.closed:
 		// The answer may have landed in the same moment the window went.
 		if !finished(form) {
-			return mcp.AppFormOutcome{}, true, errors.New("the Kaja window was closed before the form was saved, so no app was added")
+			return mcp.AppFormOutcome{}, true, errors.New("Kaja's window disconnected before the form was saved, so no app was added; it may have reloaded, and calling add_app again opens the form again")
 		}
 	case <-ctx.Done():
 		return mcp.AppFormOutcome{}, true, ctx.Err()
@@ -520,7 +520,39 @@ func appFormLink(draft mcp.AppDraft, requestID string) string {
 		headers, _ := json.Marshal(draft.Headers)
 		query.Set("headers", string(headers))
 	}
+	hints := map[string]string{}
+	for key, hint := range draft.Hints {
+		if hint = clip(strings.TrimSpace(hint), hintLimit); hint != "" && len(hints) < maxHints {
+			hints[key] = hint
+		}
+	}
+	if len(hints) > 0 {
+		encoded, _ := json.Marshal(hints)
+		query.Set("hints", string(encoded))
+	}
+	if note := clip(strings.TrimSpace(draft.Note), noteLimit); note != "" {
+		query.Set("note", note)
+	}
+	if draft.Agent != "" {
+		query.Set("agent", draft.Agent)
+	}
 	return "kaja://add-app?" + query.Encode()
+}
+
+// What an agent may say beside a form is bounded, since it is drawn above the fields
+// the person came to fill in.
+const (
+	hintLimit = 300
+	noteLimit = 600
+	maxHints  = 16
+)
+
+func clip(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return strings.TrimSpace(string(runes[:limit-1])) + "…"
 }
 
 // Activity tells every window of this browser that an agent is being served, so

@@ -1426,7 +1426,7 @@ export function App() {
         agentSession.reportAppForm(replaced.agentRequest, { saved: false });
       }
       const parameters = Object.fromEntries(Object.entries(link.parameters).map(([key, value]) => [parameterKey(key), value]));
-      applyViews((views) => showAppForm(views, "create", buildApp(link.name, link.type, parameters, link.headers), link.request));
+      applyViews((views) => showAppForm(views, "create", buildApp(link.name, link.type, parameters, link.headers), link.request, link.notes));
     },
     [applyViews, runtime.canUpdateWorkspace, showFileError],
   );
@@ -2826,6 +2826,7 @@ export function App() {
           onSubmit={onAppFormSubmit}
           onCancel={onAppFormCancel}
           onJsonValidChange={setViewJsonValid}
+          agentNotes={view.agentNotes}
         />
       )}
       {view.type === "start" && (

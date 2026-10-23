@@ -2,6 +2,7 @@ import { Braces, FileCode, House, Keyboard, PenLine, Plug, ScrollText, Settings,
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
+import { AgentNotes } from "./scriptLink";
 import { isUntouched, Draft } from "./drafts";
 import { draftTitleText } from "./draftTitle";
 import { WorkspaceApp } from "./server/api";
@@ -57,6 +58,7 @@ export interface AppFormView extends ViewBase {
   editMode: "form" | "json";
   // Set where an agent opened the form and is waiting to hear whether it was saved.
   agentRequest?: string;
+  agentNotes?: AgentNotes;
 }
 
 export interface ScriptView extends ViewBase {
@@ -169,14 +171,23 @@ export function showDefinition(views: View[], model: monaco.editor.ITextModel, s
   return show(views, { ...nextView("definition"), type: "definition", model, startLineNumber, startColumn });
 }
 
-export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp, agentRequest?: string): View[] {
+export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp, agentRequest?: string, agentNotes?: AgentNotes): View[] {
   const existing = views.find((view) => view.type === "appForm" && view.mode === mode && view.editingAppName === initialData?.name);
   // A form an agent opened is refilled with what the agent sent, where a second click
   // on New app leaves what is being typed alone.
-  if (existing && agentRequest) return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest }), existing.id);
+  if (existing && agentRequest) return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes }), existing.id);
   if (existing) return visit(views, existing.id);
 
-  return show(views, { ...nextView("appForm"), type: "appForm", mode, editingAppName: initialData?.name, initialData, editMode: "form", agentRequest });
+  return show(views, {
+    ...nextView("appForm"),
+    type: "appForm",
+    mode,
+    editingAppName: initialData?.name,
+    initialData,
+    editMode: "form",
+    agentRequest,
+    agentNotes,
+  });
 }
 
 export function showVariables(views: View[]): View[] {

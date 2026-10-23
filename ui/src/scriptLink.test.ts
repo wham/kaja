@@ -221,6 +221,14 @@ describe("parseLink add-app", () => {
     expect(link.parameters).toEqual({});
   });
 
+  test("reads what the agent found out apart from the app", () => {
+    const hints = encodeURIComponent(JSON.stringify({ base_url: "Your tenant's address.", username: 7 }));
+    const link = parsedAddApp(`kaja://add-app?type=openapi&name=Benchling&hints=${hints}&note=Keys+are+per+user.&agent=Claude`);
+    expect(link.notes).toEqual({ agent: "Claude", hints: { base_url: "Your tenant's address." }, note: "Keys are per user." });
+    expect(link.parameters).toEqual({});
+    expect(parsedAddApp("kaja://add-app?type=openapi&name=Benchling&agent=Claude").notes).toBeUndefined();
+  });
+
   test("takes the web's spelling after a #", () => {
     const link = parsedAddApp("https://kaja.example.com/#add-app?type=mcp&name=Docs&url=https%3A%2F%2Fmcp.example%2Fmcp");
     expect(link.type).toBe("mcp");

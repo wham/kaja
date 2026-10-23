@@ -47,6 +47,17 @@ export interface AddAppLink {
   headers: { [key: string]: string };
   /** What the form answers under, where an agent is waiting on it. */
   request?: string;
+  /** What the agent read up on, shown with the form. */
+  notes?: AgentNotes;
+}
+
+/** What an agent found out about an app it asked a person to finish adding. */
+export interface AgentNotes {
+  /** Who it is from, as the agent names itself. */
+  agent: string;
+  /** Keyed by the app's fields as kaja.json spells them, like `parameters`. */
+  hints: { [key: string]: string };
+  note: string;
 }
 
 export type KajaLink = ScriptLink | AddAppLink;
@@ -54,7 +65,7 @@ export type KajaLink = ScriptLink | AddAppLink;
 export type ParsedLink = { ok: true; link: KajaLink } | { ok: false; error: string };
 
 // The keys of an add-app link that are the link's own rather than the app's.
-const ADD_APP_KEYS = new Set(["type", "name", "request", "headers"]);
+const ADD_APP_KEYS = new Set(["type", "name", "request", "headers", "hints", "note", "agent"]);
 
 /**
  * Where a deeplink to *this* Kaja starts, before its verb — the one function here
@@ -205,22 +216,36 @@ function parseAddAppLink(url: URL): ParsedLink {
   for (const [key, value] of url.searchParams) {
     if (!ADD_APP_KEYS.has(key)) parameters[key] = value;
   }
-  let headers: { [key: string]: string } = {};
-  const encoded = url.searchParams.get("headers");
-  if (encoded) {
-    try {
-      const parsed: unknown = JSON.parse(encoded);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        headers = Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "string")) as { [key: string]: string };
-      }
-    } catch {
-      // Headers that aren't a JSON object are left out; the form takes them typed.
-    }
-  }
+  const hints = stringMap(url.searchParams.get("hints"));
+  const note = url.searchParams.get("note")?.trim() ?? "";
+  const notes = Object.keys(hints).length > 0 || note ? { agent: url.searchParams.get("agent")?.trim() ?? "", hints, note } : undefined;
   return {
     ok: true,
-    link: { kind: "add-app", type, name: url.searchParams.get("name") ?? "", parameters, headers, request: url.searchParams.get("request") ?? undefined },
+    link: {
+      kind: "add-app",
+      type,
+      name: url.searchParams.get("name") ?? "",
+      parameters,
+      headers: stringMap(url.searchParams.get("headers")),
+      request: url.searchParams.get("request") ?? undefined,
+      notes,
+    },
   };
+}
+
+// A value that isn't a JSON object of strings is left out: the form takes headers
+// typed, and a hint is only ever an aside.
+function stringMap(encoded: string | null): { [key: string]: string } {
+  if (!encoded) return {};
+  try {
+    const parsed: unknown = JSON.parse(encoded);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "string")) as { [key: string]: string };
+    }
+  } catch {
+    // Not JSON at all.
+  }
+  return {};
 }
 
 /** The `run/…` or `add-app?…` a page URL carries after its `#`, if that is what it carries. */

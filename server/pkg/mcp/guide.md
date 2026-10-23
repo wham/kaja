@@ -35,12 +35,23 @@ under that key, every value a string, so what you write is what the file says.
 missing, the app is written at once and its services are listed back, so the
 next call is a method call. When something is missing — a credential, a proto
 folder, which of several servers a document names — Kaja opens **its own New
-app form** in front of the user, prefilled with what you gave. The call waits
-a few seconds in case they are already there, then answers that the form is
-still open. Tell the user to finish it in Kaja and **end your turn** rather than
-waiting; when they say it is done, call `add_app` again with the same name. That
-call answers with what they did — the app's services, or that they closed the
-form — and never opens a second form.
+app form** in front of the user, prefilled with what you gave. Each call waits
+a few seconds, then answers that the form is still open. Tell the user once what
+to fill in, then **call `add_app` again with the same name without ending your
+turn**, and keep calling: each call answers the moment they save or close the
+form — with the app's services, or that they closed it — and none opens a second
+form. So you carry on as soon as they are done, without them coming back to say
+so. If the form stays open long enough that they have likely walked away, the
+answer says to stop; then end your turn, and call again when they say it is done.
+
+**Read up on an API you don't know before you add it.** Its documentation says
+what the person will have to supply and where it differs from the obvious: an
+address that is different for every tenant or region, an API key that is sent as
+the basic-auth username with an empty password, where in the product a key is
+made and what it can reach. Say it in `hints`, keyed by the same field names as
+`parameters` (`"base_url": "Your tenant's address, https://<tenant>.example.com/api/v1"`),
+and anything about the app as a whole in `note`. The form shows both while the
+user fills it in, which is where they need them; the chat is not.
 
 What is not a secret is yours to ask for before you call: which tenant, region
 or server a document's address leaves open. A form with only the credential left
