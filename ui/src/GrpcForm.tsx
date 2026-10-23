@@ -786,7 +786,7 @@ function SchemeCredentials({ scheme, parameters, onParameterChange, variables, r
           </div>
         </div>
       )}
-      <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>
+      {note.text && <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>}
     </div>
   );
 }
