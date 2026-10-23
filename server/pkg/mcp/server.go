@@ -160,6 +160,13 @@ type AppDraft struct {
 	Type       string            `json:"type"`
 	Parameters map[string]string `json:"parameters,omitempty"`
 	Headers    map[string]string `json:"headers,omitempty"`
+	// Hints and Note are what the agent found out while reading up on the API, shown
+	// in the form the person finishes and written nowhere: a hint is keyed like
+	// Parameters and sits with that field, the note is about the app as a whole.
+	Hints map[string]string `json:"hints,omitempty"`
+	Note  string            `json:"note,omitempty"`
+	// Agent is who the hints are from, as the agent names itself.
+	Agent string `json:"agent,omitempty"`
 }
 
 // AppInspection is what probing a draft found. Summary describes what answered;
@@ -225,17 +232,21 @@ type Server struct {
 	// there are rather than by how often they connect.
 	sessions map[string]string
 	pinned   map[string]string
+	// When each form add_app opened was opened, by the app's name, which is how long
+	// the agent has been asking after it.
+	formsOpened map[string]time.Time
 }
 
 // NewServer builds a server. token guards every request via a bearer header; it must
 // be non-empty. version is the running kaja's own, reported as this server's.
 func NewServer(bridge Bridge, token, version string) *Server {
 	return &Server{
-		bridge:   bridge,
-		token:    token,
-		version:  version,
-		sessions: map[string]string{},
-		pinned:   map[string]string{},
+		bridge:      bridge,
+		token:       token,
+		version:     version,
+		sessions:    map[string]string{},
+		pinned:      map[string]string{},
+		formsOpened: map[string]time.Time{},
 	}
 }
 

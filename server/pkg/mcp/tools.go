@@ -240,9 +240,12 @@ func allToolDefinitions() []map[string]interface{} {
 			"description": "Add an API to the workspace as an app, so its methods become callable from a script. " +
 				"The address is probed first: when everything the app needs is there it is added at once and its services are listed back; " +
 				"when something is missing - a credential, a proto folder, which of several servers - Kaja opens its own New app form " +
-				"in front of the user, prefilled with what you gave. The call waits a few seconds for them and then answers that the form is still open: " +
-				"tell the user to finish it and end your turn, and when they say it is done call add_app again with the same name, which answers with what they did " +
+				"in front of the user, prefilled with what you gave. Each call waits a few seconds and then answers that the form is still open: " +
+				"call add_app again with the same name without ending your turn, which waits again and answers with what the user did " +
 				"rather than opening a second form. " +
+				"Before adding an API you don't know, read its documentation for what the user will have to supply: an address that differs per tenant or region, " +
+				"a credential sent somewhere unusual (an API key as the basic-auth username), where in its dashboard a key is made. Put what you learn in hints and note, " +
+				"which the form shows the user while they fill it in. " +
 				"Ask the user for anything that is not a secret - which tenant or region, which server - before you call, so the form has less left in it. " +
 				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
 				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
@@ -251,6 +254,11 @@ func allToolDefinitions() []map[string]interface{} {
 				"type":       str(appTypeNote),
 				"parameters": params("The type's kaja.json fields, each value a string. " + appParametersNote),
 				"headers":    params("Headers sent with every request, by name."),
+				"hints": params("What the user should know about a field, keyed by the same kaja.json names as parameters, shown with the form: " +
+					"`base_url`: \"Your tenant's address, https://<tenant>.example.com/api/v1\"; `username`: \"The API key goes here; leave the password empty.\" " +
+					"A sentence each, from the API's documentation. Never a secret's value."),
+				"note": str("A sentence or two about the app as a whole, shown at the head of the form: a caveat the documentation states, " +
+					"such as where the user creates a key or what it can reach. Never a secret's value."),
 			}, "name", "type"),
 		},
 		{
@@ -419,7 +427,7 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 	case "inspect_api":
 		return s.inspectApi(ctx, appDraft(arguments)), nil
 	case "add_app":
-		return s.addApp(ctx, appDraft(arguments), progressToken(params)), nil
+		return s.addApp(ctx, appDraft(arguments), caller, progressToken(params)), nil
 	case "run_script":
 		return s.runScript(ctx, args["path"], args["code"], caller, progressToken(params)), nil
 	default:

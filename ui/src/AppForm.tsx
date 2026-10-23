@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -7,13 +7,14 @@ import { Input } from "./components/input";
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback, useMemo, type ComponentType } from "react";
-import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, parameterKey, typeForwardsHeaders } from "./appTypes";
 import { AppNameField } from "./AppNameField";
 import { GrpcForm } from "./GrpcForm";
 import { McpForm } from "./McpForm";
 import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
+import { AgentNotes } from "./scriptLink";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { WorkspaceApp } from "./server/api";
 import { formatJson } from "./formatter";
@@ -77,6 +78,8 @@ interface AppFormProps {
   onCancel: () => void;
   // Whether the JSON parses, which decides if the view can be switched back.
   onJsonValidChange: (valid: boolean) => void;
+  // What the agent that opened the form read up on about the API.
+  agentNotes?: AgentNotes;
 }
 
 function createEmptyApp(): WorkspaceApp {
@@ -202,7 +205,49 @@ function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variabl
   );
 }
 
-export function AppForm({ mode, initialData, allApps, variables, readOnly = false, editMode, onSubmit, onCancel, onJsonValidChange }: AppFormProps) {
+// The agent's notes sit above the fields rather than under each one, because a custom
+// form draws a field only in some states (a server the document declares is a choice,
+// not a URL field), and a hint under a field that isn't drawn is a hint nobody reads.
+function AgentNotesPanel({ notes, type }: { notes: AgentNotes; type: string }) {
+  const parameters = getAppType(type)?.parameters ?? [];
+  const hints = Object.entries(notes.hints).map(([field, hint]) => ({
+    field,
+    label: parameters.find((parameter) => parameter.key === parameterKey(field))?.label ?? field,
+    hint,
+  }));
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border bg-card px-3 py-2.5">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Bot size={13} className="shrink-0" />
+        <span>From {notes.agent || "your agent"}</span>
+      </div>
+      {notes.note && <p className="text-sm text-foreground">{notes.note}</p>}
+      {hints.length > 0 && (
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+          {hints.map(({ field, label, hint }) => (
+            <div key={field} className="contents">
+              <dt className="font-medium text-foreground">{label}</dt>
+              <dd className="text-muted-foreground">{hint}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+export function AppForm({
+  mode,
+  initialData,
+  allApps,
+  variables,
+  readOnly = false,
+  editMode,
+  onSubmit,
+  onCancel,
+  onJsonValidChange,
+  agentNotes,
+}: AppFormProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
@@ -434,6 +479,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         {editMode === "form" ? (
           <div key="form" className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
+              {agentNotes && !readOnly && <AgentNotesPanel notes={agentNotes} type={type} />}
               {customForm ? (
                 // Keyed by the app being edited: switching apps in the sidebar starts the form over
                 // rather than reading the next server behind the previous one's transport and

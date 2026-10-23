@@ -28,6 +28,8 @@ func appDraft(arguments toolArguments) AppDraft {
 		Type:       strings.TrimSpace(arguments.strings["type"]),
 		Parameters: arguments.maps["parameters"],
 		Headers:    arguments.maps["headers"],
+		Hints:      arguments.maps["hints"],
+		Note:       strings.TrimSpace(arguments.strings["note"]),
 	}
 }
 
@@ -52,11 +54,14 @@ func (s *Server) inspectApi(ctx context.Context, draft AppDraft) map[string]inte
 	return textToolResult(text.String())
 }
 
-// formWait is how long add_app waits on a form before answering that it is still
-// open. A person takes longer than an agent's client will hold a call, so the call
-// does not wait for them: it covers someone already looking at Kaja and hands the
-// turn back otherwise.
+// formWait is how long one add_app call waits on a form before answering that it is
+// still open. A person takes longer than an agent's client will hold a call, so the
+// agent calls again rather than this call waiting for them.
 var formWait = 25 * time.Second
+
+// formPatience is how long the agent is told to go on calling after a form. Past it
+// the person has likely walked away, and the agent hands the turn back instead.
+var formPatience = 10 * time.Minute
 
 // formBeat is how often a call waiting on a form says so, for a client that restarts
 // its timeout on progress.
@@ -67,13 +72,14 @@ var formBeat = 10 * time.Second
 // typed there never passes through the agent, and no client has to support anything
 // for it. The form outlives the call, so calling again with the same name picks up
 // what the person did with it rather than opening a second one.
-func (s *Server) addApp(ctx context.Context, draft AppDraft, token json.RawMessage) map[string]interface{} {
+func (s *Server) addApp(ctx context.Context, draft AppDraft, caller string, token json.RawMessage) map[string]interface{} {
 	if draft.Name == "" {
 		return errorToolResult(errors.New("provide name: it is what a script imports the app as"))
 	}
 	if result, found := s.awaitAppForm(ctx, draft.Name, nil, token, false); found {
 		return result
 	}
+	draft.Agent = caller
 	inspection, err := s.bridge.InspectApp(ctx, draft)
 	if err != nil {
 		return errorToolResult(err)
@@ -90,6 +96,9 @@ func (s *Server) addApp(ctx context.Context, draft AppDraft, token json.RawMessa
 	if err := s.bridge.OpenAppForm(ctx, inspection.Settled); err != nil {
 		return errorToolResult(fmt.Errorf("%s was not added: %w. It still needs:\n%s", draft.Name, err, bullets(inspection.Missing)))
 	}
+	s.mu.Lock()
+	s.formsOpened[draft.Name] = time.Now()
+	s.mu.Unlock()
 	result, _ := s.awaitAppForm(ctx, draft.Name, inspection.Missing, token, true)
 	return result
 }
@@ -107,10 +116,17 @@ func (s *Server) awaitAppForm(ctx context.Context, name string, missing []string
 	if !found {
 		return nil, false
 	}
+	s.mu.Lock()
+	openedAt := s.formsOpened[name]
+	stillOpen := err != nil && ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded)
+	if !stillOpen {
+		delete(s.formsOpened, name)
+	}
+	s.mu.Unlock()
+	if stillOpen {
+		return textToolResult(formStillOpen(name, missing, openedAt)), true
+	}
 	if err != nil {
-		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
-			return textToolResult(formStillOpen(name, missing)), true
-		}
 		return errorToolResult(fmt.Errorf("%s was not added: %w", name, err)), true
 	}
 	if !outcome.Saved {
@@ -119,16 +135,27 @@ func (s *Server) awaitAppForm(ctx context.Context, name string, missing []string
 	return s.appAdded(ctx, outcome.Name, ""), true
 }
 
-func formStillOpen(name string, missing []string) string {
+// formStillOpen tells the agent to keep asking while the person is plausibly at the
+// form, so it carries on the moment they save, and to hand the turn back once they
+// have likely walked away. missing is only known to the call that opened the form.
+func formStillOpen(name string, missing []string, opened time.Time) string {
 	var text strings.Builder
-	fmt.Fprintf(&text, "Kaja's New app form for %s is open in front of the user, and %s is added when they save it.", name, name)
-	if len(missing) > 0 {
-		text.WriteString(" It still needs:\n" + bullets(missing))
-	} else {
-		text.WriteString("\n")
+	if time.Since(opened) >= formPatience {
+		fmt.Fprintf(&text, "Kaja's New app form for %s has been open for %s without being saved. Stop calling add_app: "+
+			"tell the user the form is waiting for them in Kaja, and end your turn. "+
+			"Once they say it is done, call add_app again with the name %q: it answers with what the user did, without opening a second form.",
+			name, time.Since(opened).Round(time.Minute), name)
+		return text.String()
 	}
-	fmt.Fprintf(&text, "Tell the user to finish it in Kaja, and end your turn rather than waiting. "+
-		"Once they say it is done, call add_app again with the name %q: it answers with what the user did, without opening a second form.", name)
+	if len(missing) == 0 {
+		fmt.Fprintf(&text, "The user has not finished Kaja's New app form for %s yet. Call add_app again with the name %q now, without ending your turn "+
+			"and without writing to the user in between.", name, name)
+		return text.String()
+	}
+	fmt.Fprintf(&text, "Kaja's New app form for %s is open in front of the user, and %s is added when they save it. It still needs:\n%s", name, name, bullets(missing))
+	fmt.Fprintf(&text, "Tell the user in a line or two what to fill in, then call add_app again with the name %q straight away, without ending your turn. "+
+		"Each call waits up to %s and answers the moment the user saves or closes the form, so you carry on as soon as they are done; "+
+		"keep calling until it answers with the app or says to stop.", name, formWait)
 	return text.String()
 }
 
