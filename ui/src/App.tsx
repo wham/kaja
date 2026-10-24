@@ -2964,6 +2964,7 @@ export function App() {
               workspaces={workspaceControl}
               apps={apps}
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
+              onEditApp={onEditApp}
               onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
               errorCount={currentIsEditor ? syntaxErrors.count : 0}
               open={finder !== undefined}
