@@ -221,7 +221,7 @@ Plain Run keeps its place and pressing it never opens anything. A caret beside i
 
 ### Where the rest of it lives
 
-- **The desktop holds the link, because a deeplink often launches Kaja.** macOS delivers the URL long before there is a webview, so `openLink` buffers until the UI emits `link:ready` and then flushes. It rides a Wails event in each direction. Registering the scheme is a bundle's job, so `CFBundleURLTypes` in the plist templates is the one place it is declared.
+- **The desktop holds the link, because a deeplink often launches Kaja.** macOS delivers the URL long before there is a webview, so `openLink` buffers until the UI emits `link:ready` and then flushes. It rides a Wails event in each direction. Registering the scheme is a bundle's job, so `CFBundleURLTypes` in the plist templates is the one place it is declared. **Wails' iOS delegate implements no `openURL`**, so iOS launched Kaja for a link and handed it to nobody; `open_url_ios.m` adds it as a category, which survives the link only because the archive is `-force_load`ed.
 - **The web needs no buffer, because the URL is one.** The link *is* the page load, or a `hashchange`; a fragment arriving before the script list is simply left where it is. It is cleared once handed over (`history.replaceState`, which fires no `hashchange`) — the URL is a door, not a location.
 
 ## A filename is one object
