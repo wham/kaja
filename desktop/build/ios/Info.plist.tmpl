@@ -17,6 +17,22 @@
         <string>{{Version}}</string>
         <key>LSRequiresIPhoneOS</key>
         <true/>
+        <!-- Siri hears the name spoken, and "Kaja" said aloud is "Kaya", which
+             matches no app until it is listed here. Every App Shortcut phrase
+             naming the app is matched against these too. -->
+        <key>INAlternativeAppNames</key>
+        <array>
+            <dict>
+                <key>INAlternativeAppName</key>
+                <string>Kaya</string>
+                <key>INAlternativeAppNamePronunciationHint</key>
+                <string>kah yah</string>
+            </dict>
+            <dict>
+                <key>INAlternativeAppName</key>
+                <string>Kaia</string>
+            </dict>
+        </array>
         <!-- Keep in step with MIN_IOS_VERSION in desktop/build/ios/Taskfile.yml,
              which is the version the binary in this bundle is compiled for. -->
         <key>MinimumOSVersion</key>
