@@ -17,16 +17,18 @@ import {
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { AppNameField } from "./AppNameField";
-import { DemoLink, ReadingRow } from "./InspectStatus";
+import { ReadingRow } from "./InspectStatus";
+import { KnownChip, KnownList } from "./KnownList";
+import { KnownGrpcServer, knownGrpcServerFor, matchingGrpcServers } from "./knownGrpcServers";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { buildApp, CustomFormProps, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
 import {
   AUTH_APIKEY,
@@ -119,12 +121,18 @@ export function GrpcForm({
   const [nameTouched, setNameTouched] = useState(Boolean(name));
   // Typing is the only change that waits for a pause before reading.
   const typedRef = useRef(false);
+  // Whether the field is offering the servers Kaja knows the address of.
+  const [picker, setPicker] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   const url = parameters.url ?? "";
   const protoDir = parameters.protoDir ?? "";
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   const source = inspectionKey(parameters);
+  const known = useMemo(() => knownGrpcServerFor(url), [url]);
+  const offered = useMemo(() => matchingGrpcServers(url), [url]);
+  const picking = picker && !readOnly && surfaceMode === "reflection" && !known && offered.length > 0;
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
     const parameters = parametersRef.current;
@@ -173,7 +181,7 @@ export function GrpcForm({
     onParametersChange((previous) => ((previous.reflection ?? "") === wanted ? previous : { ...previous, reflection: wanted }));
   }, [surfaceMode, readOnly, onParametersChange]);
 
-  // Read once the source settles. The demo link, a picked folder, or the app this form
+  // Read once the source settles. A known server, a picked folder, or the app this form
   // was opened on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
@@ -237,7 +245,12 @@ export function GrpcForm({
     onParametersChange((previous) => ({ ...previous, protoDir: "" }));
   };
 
-  const demo = getAppType("grpc")?.demo;
+  const pick = (chosen: KnownGrpcServer) => {
+    setPicker(false);
+    typedRef.current = false;
+    onParametersChange((previous) => ({ ...previous, url: chosen.address, protoDir: "" }));
+  };
+
   const auth = (parameters.auth ?? "").trim() || AUTH_NONE;
   const transport = (parameters.tls ?? "").trim();
 
@@ -264,23 +277,54 @@ export function GrpcForm({
           </SegmentedControl>
         </div>
 
-        <VariableSuggestInput
-          id="grpc-url"
-          value={url}
-          onValueChange={(value) => {
-            typedRef.current = true;
-            setParameter("url", value);
-          }}
-          variables={variables}
-          placeholder="dns:example.com:443"
-          disabled={readOnly}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
+        <div className="relative">
+          <VariableSuggestInput
+            id="grpc-url"
+            value={url}
+            onValueChange={(value) => {
+              typedRef.current = true;
+              setParameter("url", value);
+            }}
+            variables={variables}
+            placeholder="dns:example.com:443"
+            disabled={readOnly}
+            className={known ? "pr-28" : undefined}
+            trailingAction={known && <KnownChip entry={known} />}
+            onFocus={() => setPicker(true)}
+            onBlur={() => setPicker(false)}
+            onKeyDown={(event) => {
+              if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                event.preventDefault();
+                setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                return;
+              }
+              if (picking && event.key === "Escape") {
+                event.preventDefault();
+                setPicker(false);
+                return;
+              }
+              if (event.key !== "Enter") return;
               event.preventDefault();
-              read({ fresh: true });
-            }
-          }}
-        />
+              if (picking) pick(offered[highlight % offered.length]);
+              else read({ fresh: true });
+            }}
+          />
+          {picking && (
+            <KnownList
+              heading="Known servers"
+              entries={offered}
+              query={url}
+              highlight={highlight % offered.length}
+              onHighlight={setHighlight}
+              onPick={(index) => pick(offered[index])}
+              footer={
+                <>
+                  Or type any address. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                </>
+              }
+            />
+          )}
+        </div>
 
         {surfaceMode === "protoDir" && (
           <PathField
@@ -302,15 +346,6 @@ export function GrpcForm({
           state={state}
           mode={surfaceMode}
           readOnly={readOnly}
-          demoLabel={demo?.label}
-          onDemo={
-            demo
-              ? () => {
-                  setSurfaceMode("reflection");
-                  onParametersChange((previous) => ({ ...previous, ...demo.parameters, protoDir: "" }));
-                }
-              : undefined
-          }
           onCancel={() => {
             readIdRef.current++;
             setState({ status: "idle" });
@@ -374,8 +409,6 @@ interface SourceStatusProps {
   state: ReadState;
   mode: SurfaceMode;
   readOnly: boolean;
-  demoLabel?: string;
-  onDemo?: () => void;
   onCancel: () => void;
   onRetry: () => void;
   onSwitchMode: (mode: SurfaceMode) => void;
@@ -383,14 +416,13 @@ interface SourceStatusProps {
 
 // SourceStatus is the one slot under the address carrying every state: the caption,
 // the read in progress, the server that answered, and each way reaching it can fail.
-function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
+function SourceStatus({ state, mode, readOnly, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
   if (state.status === "idle") {
     return (
       <p className="text-xs text-muted-foreground">
         {mode === "reflection"
           ? "Kaja asks the server what it serves and fills in the rest."
           : "Kaja reads every .proto file in the folder and fills in the rest."}
-        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
       </p>
     );
   }
