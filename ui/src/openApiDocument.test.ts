@@ -33,6 +33,9 @@ function scheme(fields: Partial<OpenApiSecurityScheme>): OpenApiSecurityScheme {
     description: "",
     operationCount: 0,
     requiresOthers: false,
+    supplied: false,
+    signIn: false,
+    signedIn: false,
     ...fields,
   };
 }
@@ -131,6 +134,16 @@ describe("defaultSecurityScheme", () => {
 
   test("sends no credentials when every scheme is unsupported", () => {
     expect(defaultSecurityScheme(document([scheme({ key: "mtls", type: "mutualTLS" })]))).toBe(NO_CREDENTIALS);
+  });
+
+  test("preselects a sign-in where nothing has been typed", () => {
+    const schemes = [scheme({ key: "githubSignIn", type: "oauth2", signIn: true }), scheme({ key: "personalAccessToken", type: "http", scheme: "bearer" })];
+    expect(defaultSecurityScheme(document(schemes))).toBe("githubSignIn");
+  });
+
+  test("keeps a typed token rather than signing in", () => {
+    const schemes = [scheme({ key: "githubSignIn", type: "oauth2", signIn: true }), scheme({ key: "personalAccessToken", type: "http", scheme: "bearer" })];
+    expect(defaultSecurityScheme(document(schemes), true)).toBe("personalAccessToken");
   });
 });
 

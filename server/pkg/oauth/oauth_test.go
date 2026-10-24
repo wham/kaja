@@ -1,4 +1,4 @@
-package mcp
+package oauth
 
 import (
 	"encoding/json"
@@ -793,9 +793,9 @@ func sendBack(t *testing.T, authorizer *Authorizer, redirect string, query url.V
 	defer response.Body.Close()
 }
 
-// An app configured to sign in sends the token kaja holds, read as the call is
-// made rather than held from when the app was opened.
-func TestAnAppSignedInSendsItsToken(t *testing.T) {
+// An app signed in sends the token kaja holds, read as the call is made rather
+// than held from when the app was opened.
+func TestTheCredentialIsTheTokenKajaHolds(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
@@ -811,11 +811,7 @@ func TestAnAppSignedInSendsItsToken(t *testing.T) {
 		t.Fatalf("the sign-in: %v", err)
 	}
 
-	credential, _, err := credentialSource(map[string]string{"url": fake.endpoint(), "auth": AuthOAuth}, authorizer)
-	if err != nil {
-		t.Fatalf("credentialSource: %v", err)
-	}
-	headers, err := credential()
+	headers, err := authorizer.Credential(fake.endpoint())()
 	if err != nil {
 		t.Fatalf("the credential: %v", err)
 	}
@@ -824,23 +820,59 @@ func TestAnAppSignedInSendsItsToken(t *testing.T) {
 	}
 }
 
-// A build with nowhere to keep a sign-in says so where the credential is asked
-// for, rather than opening an app that would be refused on every call.
-func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
-	if _, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, nil); err == nil {
-		t.Fatal("expected the app to refuse to open")
+// Signing in is what puts a token there. Until then the call says so rather than
+// going out without one.
+func TestTheCredentialSaysWhenNotSignedIn(t *testing.T) {
+	authorizer := testAuthorizer(t)
+	if _, err := authorizer.Credential("https://example.com/mcp")(); err == nil || !strings.Contains(err.Error(), "not signed in") {
+		t.Errorf("expected the call to say it is not signed in, got %v", err)
 	}
 }
 
-// Signing in is what puts a token there. Until then the call says so rather than
-// going out without one.
-func TestAnAppNotSignedInSaysSo(t *testing.T) {
+// An API kaja knows the issuer of is signed in to there, without asking the
+// endpoint for metadata it does not publish.
+func TestSignsInAtAKnownIssuer(t *testing.T) {
+	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
-	credential, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, authorizer)
+
+	endpoint := fake.resource.URL + "/api"
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: endpoint, Issuer: fake.as.URL, Scope: "repo"})
 	if err != nil {
-		t.Fatalf("credentialSource: %v", err)
+		t.Fatalf("Begin: %v", err)
 	}
-	if _, err := credential(); err == nil || !strings.Contains(err.Error(), "not signed in") {
-		t.Errorf("expected the call to say it is not signed in, got %v", err)
+	query := mustQuery(t, prompt.URL)
+	if got := query.Get("scope"); got != "repo" {
+		t.Errorf("scope = %q, want the one the app named", got)
+	}
+	if got := query.Get("resource"); got != endpoint {
+		t.Errorf("resource = %q, want the endpoint", got)
+	}
+	sendBack(t, authorizer, query.Get("redirect_uri"), url.Values{
+		"code": {"the-code"}, "state": {query.Get("state")}, "iss": {fake.as.URL},
+	})
+	if err := <-done; err != nil {
+		t.Fatalf("the sign-in: %v", err)
+	}
+	if !authorizer.SignedIn(endpoint) {
+		t.Error("expected a token for the endpoint")
+	}
+}
+
+// The challenge an endpoint answers with is the app's to ask for, and what it
+// names outranks what the metadata says.
+func TestTheProbedChallengeDecidesTheScope(t *testing.T) {
+	fake := newFakeAuthorization(t)
+	authorizer := testAuthorizer(t)
+
+	probe := func(*http.Client) string {
+		return fmt.Sprintf(`Bearer resource_metadata=%q, scope="files:write"`, fake.resource.URL+"/.well-known/oauth-protected-resource/mcp")
+	}
+	prompt, done, err := authorizer.Begin(AppAuthorization{Endpoint: fake.endpoint(), Probe: probe})
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer authorizer.Cancel(done)
+	if got := mustQuery(t, prompt.URL).Get("scope"); got != "files:write" {
+		t.Errorf("scope = %q, want the challenged one", got)
 	}
 }

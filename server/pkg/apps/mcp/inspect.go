@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/oauth"
 )
 
 // inspectTimeout is the leash on reading a server the form is asking about. It
@@ -54,7 +55,7 @@ func (p *Problem) Error() string {
 
 // Inspect reads what a server exposes without creating an app, so the New MCP
 // app form can fill itself in from what answered.
-func Inspect(ctx context.Context, parameters map[string]string, authorizer *Authorizer) (*Surface, *Problem) {
+func Inspect(ctx context.Context, parameters map[string]string, authorizer *oauth.Authorizer) (*Surface, *Problem) {
 	endpoint := strings.TrimSpace(parameters["url"])
 	if endpoint == "" {
 		return nil, &Problem{Kind: ProblemTarget, Message: "Enter the server's MCP endpoint."}

@@ -1,10 +1,9 @@
-package mcp
+package oauth
 
 import (
 	"context"
 	"fmt"
 	"html"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -45,7 +44,9 @@ func (a *Authorizer) redirectURI() string {
 	return fmt.Sprintf("http://127.0.0.1:%d%s", port, callbackPath)
 }
 
-// Authorizer runs MCP's authorization flow and holds what it produced.
+// Authorizer runs an OAuth sign-in and holds what it produced. It is MCP's
+// authorization flow, which is also what an API kaja knows the issuer of is
+// signed in to: that one skips the discovery and starts at the issuer.
 //
 // A flow is two halves with a browser in between: `Begin` does the discovery and
 // hands back a URL to open, and the loopback listener takes the redirect that
@@ -96,9 +97,15 @@ type SignInPrompt struct {
 // AppAuthorization is the app's half of a sign-in: which server, and the client
 // it is to be identified as where the authorization server registers none.
 type AppAuthorization struct {
+	// Endpoint is what the token is for and the only address it is sent to.
 	Endpoint string
-	// Headers the app sends, which a document behind a login is fetched with.
-	Headers map[string]string
+	// Issuer is the authorization server, where kaja knows it rather than
+	// discovering it. Empty reads it off the endpoint's resource metadata.
+	Issuer string
+	// Probe asks the endpoint for the challenge an unauthenticated request is
+	// answered with, a `WWW-Authenticate` value or nothing. What such a request
+	// is depends on what the endpoint speaks, which is why the app supplies it.
+	Probe func(client *http.Client) string
 	// ClientID is a client of the person's own: one an authorization server's
 	// dashboard issued them, or the https URL of a client ID metadata document.
 	// Empty asks the server to register kaja itself.
@@ -108,7 +115,7 @@ type AppAuthorization struct {
 
 func NewAuthorizer(store *TokenStore, client *http.Client) *Authorizer {
 	if client == nil {
-		client = &http.Client{Timeout: inspectTimeout}
+		client = &http.Client{Timeout: requestTimeout}
 	}
 	return &Authorizer{store: store, client: client, port: callbackPort, pending: map[string]*flow{}}
 }
@@ -119,7 +126,7 @@ func DefaultAuthorizer() (*Authorizer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewAuthorizer(store, &http.Client{Timeout: inspectTimeout}), nil
+	return NewAuthorizer(store, &http.Client{Timeout: requestTimeout}), nil
 }
 
 // Begin discovers everything a sign-in needs and hands back the page to open and
@@ -131,8 +138,18 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 		return SignInPrompt{}, nil, err
 	}
 
-	challenged, metadataURL := a.probe(app)
-	server, described, audience, err := a.signInAt(app.Endpoint, resource, metadataURL)
+	var server *authorizationServer
+	var described *protectedResource
+	audience := resource
+	challenged := challenge{}
+	if app.Issuer != "" {
+		server, err = a.readAuthorizationServer(app.Issuer)
+	} else {
+		if app.Probe != nil {
+			challenged = parseChallenge(app.Probe(a.client))
+		}
+		server, described, audience, err = a.signInAt(app.Endpoint, resource, challenged["resource_metadata"])
+	}
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
@@ -298,34 +315,6 @@ func (a *Authorizer) Forget(endpoint string) error {
 		return err
 	}
 	return a.store.Forget(resource)
-}
-
-// probe asks the server for the challenge it answers an unauthenticated request
-// with. A server that answers something else is not a failure here: the
-// well-known URIs are the other half of the same discovery, and this is only
-// what makes the first of them unnecessary.
-func (a *Authorizer) probe(app AppAuthorization) (challenge, string) {
-	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`
-	request, err := http.NewRequest(http.MethodPost, app.Endpoint, strings.NewReader(body))
-	if err != nil {
-		return challenge{}, ""
-	}
-	for name, value := range app.Headers {
-		request.Header.Set(name, value)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json, text/event-stream")
-	response, err := a.client.Do(request)
-	if err != nil {
-		return challenge{}, ""
-	}
-	defer response.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, metadataLimit))
-	if response.StatusCode != http.StatusUnauthorized && response.StatusCode != http.StatusForbidden {
-		return challenge{}, ""
-	}
-	parsed := parseChallenge(response.Header.Get("WWW-Authenticate"))
-	return parsed, parsed["resource_metadata"]
 }
 
 // signInAt is the authorization server to sign in at, the resource's own
@@ -605,10 +594,10 @@ func writeCallbackPage(w http.ResponseWriter, status int, message string) {
 		html.EscapeString(message))
 }
 
-// oauthCredential is what an app with `auth: "oauth"` sends: a bearer token read
-// from the store as the call is made, so a renewed one is used without the app
-// being opened again.
-func (a *Authorizer) oauthCredential(endpoint string) func() (map[string]string, error) {
+// Credential is what an app that signed in sends: a bearer token read from the
+// store as the call is made, so a renewed one is used without the app being
+// opened again.
+func (a *Authorizer) Credential(endpoint string) func() (map[string]string, error) {
 	return func() (map[string]string, error) {
 		token, err := a.Token(endpoint)
 		if err != nil {

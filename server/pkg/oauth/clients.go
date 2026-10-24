@@ -1,4 +1,4 @@
-package mcp
+package oauth
 
 // What kaja knows about particular authorization servers: the client it is
 // identified as where the server issues one to nobody, and the grant to use

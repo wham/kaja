@@ -17,6 +17,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -40,14 +42,14 @@ const callTimeout = 120 * time.Second
 type App struct {
 	// authorizer is what an app with `auth: "oauth"` reads its token from. A build
 	// without one cannot sign in, and says so where the credential is asked for.
-	authorizer *Authorizer
+	authorizer *oauth.Authorizer
 }
 
 func New() *App { return &App{} }
 
 // WithAuthorizer is how the process that owns this machine's stored tokens hands
 // them to the app type.
-func (a *App) WithAuthorizer(authorizer *Authorizer) *App {
+func (a *App) WithAuthorizer(authorizer *oauth.Authorizer) *App {
 	a.authorizer = authorizer
 	return a
 }
@@ -62,7 +64,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	}
 	log("MCP endpoint: " + endpoint)
 
-	credential, oauth, err := credentialSource(parameters, a.authorizer)
+	credential, signsIn, err := credentialSource(parameters, a.authorizer)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +73,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	if err != nil {
 		return nil, err
 	}
-	if !oauth {
+	if !signsIn {
 		// Read with the credential the app was opened with; called with the one it
 		// has when the call is made, which the instance applies itself.
 		client.credential = noCredential
@@ -91,7 +93,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 		return nil, err
 	}
 
-	return &apps.Opened{Instance: &instance{client: client, methods: methods, oauth: oauth, opened: Credential(parameters)}}, nil
+	return &apps.Opened{Instance: &instance{client: client, methods: methods, oauth: signsIn, opened: Credential(parameters)}}, nil
 }
 
 // credentialSource is what the app sends while its surface is read, and whether
@@ -99,12 +101,12 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 // call is made, because a token that renewed itself between two calls has to reach
 // the second one; every other credential is read off the call's parameters the
 // same way, by the instance.
-func credentialSource(parameters map[string]string, authorizer *Authorizer) (func() (map[string]string, error), bool, error) {
+func credentialSource(parameters map[string]string, authorizer *oauth.Authorizer) (func() (map[string]string, error), bool, error) {
 	if strings.TrimSpace(parameters["auth"]) == AuthOAuth {
 		if authorizer == nil {
 			return nil, true, fmt.Errorf("this kaja cannot sign in to an MCP server")
 		}
-		return authorizer.oauthCredential(strings.TrimSpace(parameters["url"])), true, nil
+		return authorizer.Credential(strings.TrimSpace(parameters["url"])), true, nil
 	}
 	headers := Credential(parameters)
 	return func() (map[string]string, error) { return headers, nil }, false, nil
@@ -218,4 +220,33 @@ func serviceOfMethodPath(path string) string {
 		return path[:i]
 	}
 	return path
+}
+
+// Probe asks an endpoint for the challenge it refuses an unauthenticated request
+// with, which is the first half of MCP's discovery. A server that answers
+// something else is not a failure here: the well-known URIs are the other half of
+// the same discovery, and this is only what makes the first of them unnecessary.
+func Probe(endpoint string, headers map[string]string) func(*http.Client) string {
+	return func(client *http.Client) string {
+		body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`
+		request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body))
+		if err != nil {
+			return ""
+		}
+		for name, value := range headers {
+			request.Header.Set(name, value)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json, text/event-stream")
+		response, err := client.Do(request)
+		if err != nil {
+			return ""
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
+		if response.StatusCode != http.StatusUnauthorized && response.StatusCode != http.StatusForbidden {
+			return ""
+		}
+		return response.Header.Get("WWW-Authenticate")
+	}
 }

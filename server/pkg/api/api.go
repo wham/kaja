@@ -19,6 +19,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
 	"github.com/wham/kaja/v2/pkg/apps/twirp"
 	pkggrpc "github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -32,10 +33,10 @@ type ApiService struct {
 	canUpdateWorkspace bool
 	gitRef             string
 	buildNumber        string
-	// mcpAuthorizer holds this installation's MCP sign-ins. It is nil where there
-	// is nowhere to keep one, and the verbs that use it are then absent.
-	mcpAuthorizer *mcp.Authorizer
-	apps          *apps.Manager
+	// authorizer holds this installation's sign-ins. It is nil where there is
+	// nowhere to keep one, and the verbs that use it are then absent.
+	authorizer *oauth.Authorizer
+	apps       *apps.Manager
 	// compiled is every surface this process has compiled, so an app whose
 	// parameters have not moved is reopened without reading its upstream again.
 	compiled *compileCache
@@ -64,11 +65,11 @@ func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string,
 	// A sign-in is a write: it leaves a credential on the machine serving the
 	// workspace. So a kaja serving its workspace read-only has no authorizer, and
 	// the verbs that would use one say there is nothing to sign in with.
-	var authorizer *mcp.Authorizer
+	var authorizer *oauth.Authorizer
 	if canUpdateWorkspace {
-		opened, err := mcp.DefaultAuthorizer()
+		opened, err := oauth.DefaultAuthorizer()
 		if err != nil {
-			slog.Warn("MCP authorization is unavailable", "error", err)
+			slog.Warn("Signing in is unavailable", "error", err)
 		}
 		authorizer = opened
 	}
@@ -79,12 +80,12 @@ func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string,
 		gitRef:             gitRef,
 		buildNumber:        buildNumber,
 		variableStore:      variableStore,
-		mcpAuthorizer:      authorizer,
+		authorizer:         authorizer,
 		compiled:           newCompileCache(),
 		apps: apps.NewManager(map[string]apps.App{
 			"grpc":    rpc.New(),
 			"twirp":   twirp.New(),
-			"openapi": openapi.New(),
+			"openapi": openapi.New().WithAuthorizer(authorizer),
 			"openai":  openai.New(),
 			"folder":  folder.New(),
 			"mcp":     mcp.New().WithAuthorizer(authorizer),
@@ -473,7 +474,7 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Mcp{Mcp: req.Mcp}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
-	surface, problem := mcp.Inspect(ctx, parameters, s.mcpAuthorizer)
+	surface, problem := mcp.Inspect(ctx, parameters, s.authorizer)
 	if problem != nil {
 		return &InspectMcpResponse{Problem: &McpProblem{
 			Kind:    mcpProblemKind(problem.Kind),
@@ -495,23 +496,23 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 	if req.Mcp == nil {
 		return fmt.Errorf("mcp app is required")
 	}
-	if s.mcpAuthorizer == nil {
+	if s.authorizer == nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: &McpProblem{
 			Kind:    McpProblemKind_MCP_PROBLEM_AUTHORIZATION,
 			Message: "This kaja serves its workspace read-only, so it has nowhere to keep a sign-in.",
 		}})
 	}
 
-	prompt, done, err := s.mcpAuthorizer.Begin(s.mcpAuthorization(req.Mcp))
+	prompt, done, err := s.authorizer.Begin(s.mcpAuthorization(req.Mcp))
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
 	if err := stream.Send(&AuthorizeMcpResponse{AuthorizationUrl: prompt.URL, UserCode: prompt.UserCode}); err != nil {
-		s.mcpAuthorizer.Cancel(done)
+		s.authorizer.Cancel(done)
 		return err
 	}
 
-	if err := s.mcpAuthorizer.Wait(stream.Context(), done); err != nil {
+	if err := s.authorizer.Wait(stream.Context(), done); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			// The window went away. There is nobody left to answer.
 			return nil
@@ -526,23 +527,90 @@ func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpA
 	if req.Mcp == nil {
 		return nil, fmt.Errorf("mcp app is required")
 	}
-	if s.mcpAuthorizer == nil {
+	if s.authorizer == nil {
 		return &ForgetMcpAuthorizationResponse{}, nil
 	}
-	if err := s.mcpAuthorizer.Forget(s.Variables().Expand(req.Mcp.Url)); err != nil {
+	if err := s.authorizer.Forget(s.Variables().Expand(req.Mcp.Url)); err != nil {
 		return nil, err
 	}
 	return &ForgetMcpAuthorizationResponse{}, nil
 }
 
+// AuthorizeOpenApi signs kaja in to the scheme an OpenAPI app names, which is one
+// kaja knows the issuer of: the document read the way the form read it says which.
+func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.ServerStreamingServer[AuthorizeOpenApiResponse]) error {
+	if req.Openapi == nil {
+		return fmt.Errorf("openapi app is required")
+	}
+	failed := func(err error) error {
+		return stream.Send(&AuthorizeOpenApiResponse{Problem: &OpenApiProblem{
+			Kind:    OpenApiProblemKind_OPEN_API_PROBLEM_AUTHORIZATION,
+			Message: "The sign-in failed.",
+			Detail:  err.Error(),
+		}})
+	}
+	if s.authorizer == nil {
+		return stream.Send(&AuthorizeOpenApiResponse{Problem: &OpenApiProblem{
+			Kind:    OpenApiProblemKind_OPEN_API_PROBLEM_AUTHORIZATION,
+			Message: "This kaja serves its workspace read-only, so it has nowhere to keep a sign-in.",
+		}})
+	}
+
+	authorization, err := openapi.SignInFor(stream.Context(), s.openApiParameters(req.Openapi))
+	if err != nil {
+		return failed(err)
+	}
+	prompt, done, err := s.authorizer.Begin(authorization)
+	if err != nil {
+		return failed(err)
+	}
+	if err := stream.Send(&AuthorizeOpenApiResponse{AuthorizationUrl: prompt.URL, UserCode: prompt.UserCode}); err != nil {
+		s.authorizer.Cancel(done)
+		return err
+	}
+	if err := s.authorizer.Wait(stream.Context(), done); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+		return failed(err)
+	}
+	return stream.Send(&AuthorizeOpenApiResponse{Authorized: true})
+}
+
+// ForgetOpenApiAuthorization drops the token kaja holds for the app's scheme.
+func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *ForgetOpenApiAuthorizationRequest) (*ForgetOpenApiAuthorizationResponse, error) {
+	if req.Openapi == nil {
+		return nil, fmt.Errorf("openapi app is required")
+	}
+	if s.authorizer == nil {
+		return &ForgetOpenApiAuthorizationResponse{}, nil
+	}
+	authorization, err := openapi.SignInFor(ctx, s.openApiParameters(req.Openapi))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizer.Forget(authorization.Endpoint); err != nil {
+		return nil, err
+	}
+	return &ForgetOpenApiAuthorizationResponse{}, nil
+}
+
+// openApiParameters is the app flattened and expanded the way it would be opened.
+func (s *ApiService) openApiParameters(app *OpenApiApp) map[string]string {
+	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: app}})
+	expandAppParameters(parameters, s.Variables(), NewLogger())
+	return parameters
+}
+
 // mcpAuthorization is the app's half of a sign-in, with its variables resolved:
 // the same endpoint and headers the app would be opened with, since a server
 // guarding its metadata guards it against an unconfigured request too.
-func (s *ApiService) mcpAuthorization(app *McpApp) mcp.AppAuthorization {
+func (s *ApiService) mcpAuthorization(app *McpApp) oauth.AppAuthorization {
 	resolver := s.Variables()
-	return mcp.AppAuthorization{
-		Endpoint: resolver.Expand(app.Url),
-		Headers:  resolver.ExpandAll(app.Headers),
+	endpoint := resolver.Expand(app.Url)
+	return oauth.AppAuthorization{
+		Endpoint: endpoint,
+		Probe:    mcp.Probe(endpoint, resolver.ExpandAll(app.Headers)),
 		ClientID: resolver.Expand(app.ClientId),
 		Scope:    resolver.Expand(app.Scope),
 	}
@@ -604,13 +672,12 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 		return nil, fmt.Errorf("openapi app is required")
 	}
 
-	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: req.Openapi}})
-	expandAppParameters(parameters, s.Variables(), NewLogger())
+	parameters := s.openApiParameters(req.Openapi)
 
 	if req.Fresh {
 		ctx = apps.WithFresh(ctx)
 	}
-	document, problem := openapi.Inspect(ctx, parameters, func(message string) { slog.Info(message) })
+	document, problem := openapi.Inspect(ctx, parameters, s.authorizer, func(message string) { slog.Info(message) })
 	if problem != nil {
 		return &InspectOpenApiResponse{Problem: &OpenApiProblem{
 			Kind:    problemKind(problem.Kind),
@@ -665,6 +732,9 @@ func describeDocument(document *openapi.Document) *OpenApiDocument {
 			OpenIdConnectUrl: scheme.OpenIDConnectURL,
 			Description:      scheme.Description,
 			OperationCount:   int32(scheme.OperationCount),
+			Supplied:         scheme.Supplied,
+			SignIn:           scheme.SignIn,
+			SignedIn:         scheme.SignedIn,
 			RequiresOthers:   scheme.RequiresOthers,
 		})
 	}

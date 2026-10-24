@@ -16,6 +16,7 @@ import (
 
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -52,9 +53,20 @@ func (gen *generated) write(protoDir string) error {
 }
 
 // App is the openapi app factory. Register it with the apps.Manager.
-type App struct{}
+type App struct {
+	// authorizer is what a scheme kaja signs in to reads its token from. A build
+	// without one cannot sign in, and a call that needs it says so.
+	authorizer *oauth.Authorizer
+}
 
 func New() *App { return &App{} }
+
+// WithAuthorizer is how the process that owns this machine's stored tokens hands
+// them to the app type.
+func (a *App) WithAuthorizer(authorizer *oauth.Authorizer) *App {
+	a.authorizer = authorizer
+	return a
+}
 
 func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
@@ -116,11 +128,12 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	}
 
 	return &apps.Opened{Instance: &instance{
-		baseURL: baseURL,
-		methods: methods,
-		client:  &http.Client{Timeout: 30 * time.Second},
-		spec:    s,
-		auth:    authentication,
+		baseURL:    baseURL,
+		methods:    methods,
+		client:     &http.Client{Timeout: 30 * time.Second},
+		spec:       s,
+		auth:       authentication,
+		authorizer: a.authorizer,
 	}}, nil
 }
 

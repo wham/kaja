@@ -120,16 +120,19 @@ function trimSlash(url: string): string {
 }
 
 // defaultSecurityScheme preselects the scheme the most operations accept, which is
-// the first one the server sorted. A document that declares none pins nothing.
-export function defaultSecurityScheme(document: OpenApiDocument): string {
+// the first one the server sorted. A document that declares none pins nothing. A
+// token already typed outranks a sign-in, so an app saved with one before Kaja knew
+// how the API signs in goes on sending it.
+export function defaultSecurityScheme(document: OpenApiDocument, hasToken = false): string {
   if (document.securitySchemes.length === 0) return "";
-  return document.securitySchemes.find((scheme) => scheme.type !== "mutualTLS")?.key ?? NO_CREDENTIALS;
+  return document.securitySchemes.find((scheme) => scheme.type !== "mutualTLS" && !(hasToken && scheme.signIn))?.key ?? NO_CREDENTIALS;
 }
 
 // schemeLabel says how the credential travels. An apiKey scheme is not labelled
 // "API key": that is also what an API calls the credential its dashboard hands you,
 // so the row is read as the one taking it whatever it is really carrying.
 export function schemeLabel(scheme: OpenApiSecurityScheme): string {
+  if (scheme.signIn) return "Sign in";
   switch (scheme.type) {
     case "apiKey":
       return apiKeyLabel(scheme);

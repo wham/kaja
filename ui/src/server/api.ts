@@ -235,6 +235,19 @@ export interface OpenApiSecurityScheme {
      * credential per app can't satisfy.
      */
     requiresOthers: boolean;
+    /**
+     * Whether kaja knows the API takes this scheme and the document never declared
+     * it.
+     */
+    supplied: boolean;
+    /**
+     * Whether kaja obtains the credential itself, by signing in.
+     */
+    signIn: boolean;
+    /**
+     * Whether kaja holds a token for it.
+     */
+    signedIn: boolean;
 }
 
 /**
@@ -362,6 +375,27 @@ export interface ForgetMcpAuthorizationRequest {
 }
 
 export interface ForgetMcpAuthorizationResponse {}
+
+/**
+ * AuthorizeOpenApi signs kaja in to the scheme the app's security_scheme names.
+ * The messages are AuthorizeMcp's, the failure being an OpenAPI one.
+ */
+export interface AuthorizeOpenApiRequest {
+    openapi?: OpenApiApp;
+}
+
+export interface AuthorizeOpenApiResponse {
+    authorizationUrl: string;
+    userCode: string;
+    authorized: boolean;
+    problem?: OpenApiProblem;
+}
+
+export interface ForgetOpenApiAuthorizationRequest {
+    openapi?: OpenApiApp;
+}
+
+export interface ForgetOpenApiAuthorizationResponse {}
 
 /**
  * CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
@@ -1023,6 +1057,10 @@ export enum OpenApiProblemKind {
      * Not parseable as JSON or YAML.
      */
     OPEN_API_PROBLEM_MALFORMED = 7,
+    /**
+     * A sign-in that did not happen.
+     */
+    OPEN_API_PROBLEM_AUTHORIZATION = 8,
 }
 
 export enum McpProblemKind {
@@ -1201,7 +1239,10 @@ export const OpenApiSecurityScheme: MessageType<OpenApiSecurityScheme> = new Mes
     { no: 7, name: "open_id_connect_url", kind: "scalar", T: 9 },
     { no: 8, name: "description", kind: "scalar", T: 9 },
     { no: 9, name: "operation_count", kind: "scalar", T: 5 },
-    { no: 10, name: "requires_others", kind: "scalar", T: 8 }
+    { no: 10, name: "requires_others", kind: "scalar", T: 8 },
+    { no: 11, name: "supplied", kind: "scalar", T: 8 },
+    { no: 12, name: "sign_in", kind: "scalar", T: 8 },
+    { no: 13, name: "signed_in", kind: "scalar", T: 8 }
 ]);
 
 export const OpenApiProblem: MessageType<OpenApiProblem> = new MessageType<OpenApiProblem>("OpenApiProblem", [
@@ -1253,6 +1294,23 @@ export const ForgetMcpAuthorizationRequest: MessageType<ForgetMcpAuthorizationRe
 ]);
 
 export const ForgetMcpAuthorizationResponse: MessageType<ForgetMcpAuthorizationResponse> = new MessageType<ForgetMcpAuthorizationResponse>("ForgetMcpAuthorizationResponse", []);
+
+export const AuthorizeOpenApiRequest: MessageType<AuthorizeOpenApiRequest> = new MessageType<AuthorizeOpenApiRequest>("AuthorizeOpenApiRequest", [
+    { no: 1, name: "openapi", kind: "message", T: () => OpenApiApp }
+]);
+
+export const AuthorizeOpenApiResponse: MessageType<AuthorizeOpenApiResponse> = new MessageType<AuthorizeOpenApiResponse>("AuthorizeOpenApiResponse", [
+    { no: 1, name: "authorization_url", kind: "scalar", T: 9 },
+    { no: 2, name: "user_code", kind: "scalar", T: 9 },
+    { no: 3, name: "authorized", kind: "scalar", T: 8 },
+    { no: 4, name: "problem", kind: "message", T: () => OpenApiProblem }
+]);
+
+export const ForgetOpenApiAuthorizationRequest: MessageType<ForgetOpenApiAuthorizationRequest> = new MessageType<ForgetOpenApiAuthorizationRequest>("ForgetOpenApiAuthorizationRequest", [
+    { no: 1, name: "openapi", kind: "message", T: () => OpenApiApp }
+]);
+
+export const ForgetOpenApiAuthorizationResponse: MessageType<ForgetOpenApiAuthorizationResponse> = new MessageType<ForgetOpenApiAuthorizationResponse>("ForgetOpenApiAuthorizationResponse", []);
 
 export const CompileResponse: MessageType<CompileResponse> = new MessageType<CompileResponse>("CompileResponse", [
     { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
@@ -1522,6 +1580,8 @@ export const Api = new ServiceType("Api", [
     { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
     { name: "AuthorizeMcp", serverStreaming: true, options: {}, I: AuthorizeMcpRequest, O: AuthorizeMcpResponse },
     { name: "ForgetMcpAuthorization", options: {}, I: ForgetMcpAuthorizationRequest, O: ForgetMcpAuthorizationResponse },
+    { name: "AuthorizeOpenApi", serverStreaming: true, options: {}, I: AuthorizeOpenApiRequest, O: AuthorizeOpenApiResponse },
+    { name: "ForgetOpenApiAuthorization", options: {}, I: ForgetOpenApiAuthorizationRequest, O: ForgetOpenApiAuthorizationResponse },
     { name: "GetWorkspace", options: {}, I: GetWorkspaceRequest, O: GetWorkspaceResponse },
     { name: "WatchWorkspace", serverStreaming: true, options: {}, I: WatchWorkspaceRequest, O: GetWorkspaceResponse },
     { name: "UpdateWorkspace", options: {}, I: UpdateWorkspaceRequest, O: UpdateWorkspaceResponse },
@@ -1588,8 +1648,20 @@ export class ApiClient {
         return stackIntercept<ForgetMcpAuthorizationRequest, ForgetMcpAuthorizationResponse>("unary", this.#transport, Api.methods[6], this.#transport.mergeOptions(options), input);
     }
 
+    /**
+     * AuthorizeOpenApi signs kaja in to the scheme an OpenAPI app names, where kaja
+     * knows the issuer. It streams for the reason AuthorizeMcp does.
+     */
+    authorizeOpenApi(input: AuthorizeOpenApiRequest, options?: RpcOptions): ServerStreamingCall<AuthorizeOpenApiRequest, AuthorizeOpenApiResponse> {
+        return stackIntercept<AuthorizeOpenApiRequest, AuthorizeOpenApiResponse>("serverStreaming", this.#transport, Api.methods[7], this.#transport.mergeOptions(options), input);
+    }
+
+    forgetOpenApiAuthorization(input: ForgetOpenApiAuthorizationRequest, options?: RpcOptions): UnaryCall<ForgetOpenApiAuthorizationRequest, ForgetOpenApiAuthorizationResponse> {
+        return stackIntercept<ForgetOpenApiAuthorizationRequest, ForgetOpenApiAuthorizationResponse>("unary", this.#transport, Api.methods[8], this.#transport.mergeOptions(options), input);
+    }
+
     getWorkspace(input: GetWorkspaceRequest, options?: RpcOptions): UnaryCall<GetWorkspaceRequest, GetWorkspaceResponse> {
-        return stackIntercept<GetWorkspaceRequest, GetWorkspaceResponse>("unary", this.#transport, Api.methods[7], this.#transport.mergeOptions(options), input);
+        return stackIntercept<GetWorkspaceRequest, GetWorkspaceResponse>("unary", this.#transport, Api.methods[9], this.#transport.mergeOptions(options), input);
     }
 
     /**
@@ -1598,70 +1670,70 @@ export class ApiClient {
      * afterwards, because the message is the new workspace.
      */
     watchWorkspace(input: WatchWorkspaceRequest, options?: RpcOptions): ServerStreamingCall<WatchWorkspaceRequest, GetWorkspaceResponse> {
-        return stackIntercept<WatchWorkspaceRequest, GetWorkspaceResponse>("serverStreaming", this.#transport, Api.methods[8], this.#transport.mergeOptions(options), input);
+        return stackIntercept<WatchWorkspaceRequest, GetWorkspaceResponse>("serverStreaming", this.#transport, Api.methods[10], this.#transport.mergeOptions(options), input);
     }
 
     updateWorkspace(input: UpdateWorkspaceRequest, options?: RpcOptions): UnaryCall<UpdateWorkspaceRequest, UpdateWorkspaceResponse> {
-        return stackIntercept<UpdateWorkspaceRequest, UpdateWorkspaceResponse>("unary", this.#transport, Api.methods[9], this.#transport.mergeOptions(options), input);
+        return stackIntercept<UpdateWorkspaceRequest, UpdateWorkspaceResponse>("unary", this.#transport, Api.methods[11], this.#transport.mergeOptions(options), input);
     }
 
     setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse> {
-        return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[10], this.#transport.mergeOptions(options), input);
+        return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[12], this.#transport.mergeOptions(options), input);
     }
 
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
-        return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[11], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[13], this.#transport.mergeOptions(options), input);
     }
 
     listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse> {
-        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[12], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
     }
 
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
-        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[13], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
     }
 
     writeScript(input: WriteScriptRequest, options?: RpcOptions): UnaryCall<WriteScriptRequest, WriteScriptResponse> {
-        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
+        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
     }
 
     createScript(input: CreateScriptRequest, options?: RpcOptions): UnaryCall<CreateScriptRequest, CreateScriptResponse> {
-        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
     }
 
     renameScript(input: RenameScriptRequest, options?: RpcOptions): UnaryCall<RenameScriptRequest, RenameScriptResponse> {
-        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
     }
 
     deleteScript(input: DeleteScriptRequest, options?: RpcOptions): UnaryCall<DeleteScriptRequest, DeleteScriptResponse> {
-        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
     }
 
     copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse> {
-        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
     }
 
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse> {
-        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
     }
 
     createScriptFolder(input: CreateScriptFolderRequest, options?: RpcOptions): UnaryCall<CreateScriptFolderRequest, CreateScriptFolderResponse> {
-        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
     }
 
     renameScriptFolder(input: RenameScriptFolderRequest, options?: RpcOptions): UnaryCall<RenameScriptFolderRequest, RenameScriptFolderResponse> {
-        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
     }
 
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
-        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
     }
 
     copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse> {
-        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[25], this.#transport.mergeOptions(options), input);
     }
 
     scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
-        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[26], this.#transport.mergeOptions(options), input);
     }
 }

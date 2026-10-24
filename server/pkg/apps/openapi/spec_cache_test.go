@@ -75,7 +75,7 @@ func TestFailedSpecFetchIsNotKept(t *testing.T) {
 	srv, fetches := countingSpecServer(t, status)
 	parameters := map[string]string{"spec_url": srv.URL}
 
-	if _, problem := Inspect(context.Background(), parameters, func(string) {}); problem == nil {
+	if _, problem := Inspect(context.Background(), parameters, nil, func(string) {}); problem == nil {
 		t.Fatal("expected the failed fetch to be reported")
 	}
 	status.Store(0)

@@ -1,4 +1,4 @@
-package mcp
+package oauth
 
 import (
 	"encoding/json"
@@ -65,6 +65,8 @@ func DefaultTokenStore() (*TokenStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("finding where to keep the authorization: %w", err)
 	}
+	// Named from when only an MCP app signed in, and kept so the sign-ins already
+	// held are still found.
 	return NewTokenStore(filepath.Join(dir, "kaja", "mcp-oauth.json")), nil
 }
 
