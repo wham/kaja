@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { Ban, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, X } from "lucide-react";
+import { Ban, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Method, Service } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
@@ -25,6 +25,7 @@ interface PhoneFinderProps {
   workspaces?: WorkspaceControl;
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
+  onEditApp: (appName: string) => void;
   // Absent where the workspace can't be written.
   onNewApp?: () => void;
   errorCount: number;
@@ -39,7 +40,19 @@ interface PhoneFinderProps {
  * views; with one it is the same ranked list the desktop finder gives, with nothing
  * between the rows.
  */
-export function PhoneFinder({ recent, elsewhere, workspace, workspaces, apps, onSelectMethod, onNewApp, errorCount, open, onOpenChange }: PhoneFinderProps) {
+export function PhoneFinder({
+  recent,
+  elsewhere,
+  workspace,
+  workspaces,
+  apps,
+  onSelectMethod,
+  onEditApp,
+  onNewApp,
+  errorCount,
+  open,
+  onOpenChange,
+}: PhoneFinderProps) {
   const [query, setQuery] = useState("");
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -230,6 +243,19 @@ export function PhoneFinder({ recent, elsewhere, workspace, workspaces, apps, on
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
                           <AppDetail app={app} />
                         </Row>
+                        {/* Above the tree: a failed app has none, and is the one that needs its settings. */}
+                        {isExpanded && (
+                          <Row
+                            onClick={() => {
+                              onEditApp(name);
+                              onOpenChange(false);
+                            }}
+                            className="pl-11"
+                          >
+                            <Settings size={16} className="shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">Settings</span>
+                          </Row>
+                        )}
                         {isExpanded && !isCompiling(app) && <AppTree app={app} onSelect={selectMethod} />}
                       </div>
                     );
