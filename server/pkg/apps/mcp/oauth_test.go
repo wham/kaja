@@ -96,7 +96,8 @@ func TestDiscoveryNamesTheAddressItLookedAtFirst(t *testing.T) {
 	if !strings.Contains(err.Error(), "/.well-known/oauth-protected-resource/v1/mcp") {
 		t.Errorf("err = %v, want the address it looked at first", err)
 	}
-	if strings.Contains(err.Error(), "404") {
+	// The status text rather than the code: the error names a random port, which can hold "404".
+	if strings.Contains(err.Error(), "Not Found") {
 		t.Errorf("err = %v, want the fallback's answer left out", err)
 	}
 }
