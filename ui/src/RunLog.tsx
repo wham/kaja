@@ -792,18 +792,20 @@ const HeadersContent = function ({ methodCall }: HeadersContentProps) {
   // What the server said while it was working, which reached us between the request
   // and the response and is stated where it happened.
   const notices = methodCall.notices ?? [];
+  // A phone has no width for a key column: the longest name would take most of it.
+  const stacked = useMediaQuery(PHONE_QUERY);
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
-      <div className="grid" style={{ gridTemplateColumns: "max-content minmax(0,1fr)", columnGap: 28, rowGap: 3 }}>
+      <div className="grid" style={{ gridTemplateColumns: stacked ? "minmax(0,1fr)" : "max-content minmax(0,1fr)", columnGap: 28, rowGap: 3 }}>
         <HeaderGroupBar label="Request" headers={requestHeaders} size={payloadBytes(methodCall.input)} />
         {requestLine && <RequestLine line={requestLine} />}
-        <HeaderRows headers={requestHeaders} />
+        <HeaderRows headers={requestHeaders} stacked={stacked} />
         {notices.length > 0 && (
           <>
             <HeaderGroupBar label="Notices" headers={{}} className="mt-4" />
             {notices.map((notice, index) => (
-              <span key={index} className="whitespace-pre-wrap break-all text-foreground" style={{ gridColumn: "1/-1" }}>
+              <span key={index} className="whitespace-pre-wrap wrap-anywhere text-foreground" style={{ gridColumn: "1/-1" }}>
                 {notice}
               </span>
             ))}
@@ -820,7 +822,7 @@ const HeadersContent = function ({ methodCall }: HeadersContentProps) {
         />
         {/* A call with no response yet keeps its bar and nothing under it: the half
             exists, and a placeholder would be stating something nobody sent. */}
-        {answered && <HeaderRows headers={responseHeaders} />}
+        {answered && <HeaderRows headers={responseHeaders} stacked={stacked} />}
       </div>
     </div>
   );
@@ -893,7 +895,7 @@ const RequestLine = function ({ line }: { line: string }) {
   const { method, origin, path, query } = splitRequestLine(line);
 
   return (
-    <div className="mb-1.5 break-all" style={{ gridColumn: "1/-1", textIndent: -HANGING_INDENT, paddingLeft: HANGING_INDENT }}>
+    <div className="mb-1.5 wrap-anywhere" style={{ gridColumn: "1/-1", textIndent: -HANGING_INDENT, paddingLeft: HANGING_INDENT }}>
       {method && <span className="font-medium text-foreground">{method}&nbsp;&nbsp;</span>}
       {origin && <span className="text-muted-foreground">{origin}</span>}
       <span className="text-foreground">{path}</span>
@@ -907,17 +909,17 @@ const RequestLine = function ({ line }: { line: string }) {
  * the log's job is to be complete, and reordering is editorialising. Both halves are
  * cells of the one grid, so a value starts at the same x wherever it is read.
  */
-const HeaderRows = function ({ headers }: { headers: { [key: string]: string } }) {
+const HeaderRows = function ({ headers, stacked }: { headers: { [key: string]: string }; stacked: boolean }) {
   return (
     <>
       {Object.keys(headers).map((name) => (
-        <HeaderRow key={name} name={name} value={headers[name]} />
+        <HeaderRow key={name} name={name} value={headers[name]} stacked={stacked} />
       ))}
     </>
   );
 };
 
-const HeaderRow = function ({ name, value }: { name: string; value: string }) {
+const HeaderRow = function ({ name, value, stacked }: { name: string; value: string; stacked: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -931,7 +933,7 @@ const HeaderRow = function ({ name, value }: { name: string; value: string }) {
   return (
     <div className="group contents">
       <span className="text-muted-foreground">{name}</span>
-      <span className="relative break-all text-foreground">
+      <span className={cn("relative wrap-anywhere text-foreground", stacked && "mb-1.5 pl-3")}>
         {value}
         <IconButton
           icon={copied ? Check : Copy}
