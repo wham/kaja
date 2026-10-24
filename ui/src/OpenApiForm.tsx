@@ -167,7 +167,7 @@ export function OpenApiForm({
     }
   }, []);
 
-  // Read once the source settles. A file, the demo link, or the app this form was
+  // Read once the source settles. A file, a known API, or the app this form was
   // opened on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
