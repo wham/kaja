@@ -347,7 +347,7 @@ export function Variables({
           </div>
         )}
 
-        <div className="flex h-[26px] shrink-0 items-center gap-3 px-1 text-xs text-muted-foreground">
+        <div className="flex h-[26px] shrink-0 items-center gap-3 px-1 text-xs text-muted-foreground max-sm:hidden">
           <span className="w-[216px]">Name</span>
           {readOnly && <span className="w-[104px]">Source</span>}
           <span className="flex-1">Value</span>
@@ -517,7 +517,7 @@ function VariableRowEditor({
 
   return (
     <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1.5 border-t border-border px-1 py-1.5 transition-colors hover:bg-muted/40">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 max-sm:flex-wrap max-sm:gap-y-1">
         {/* Three bordered boxes across a row is more frame than content, so the
             name is plain text until the pointer or the focus is on it. */}
         <Input
@@ -532,13 +532,13 @@ function VariableRowEditor({
             }
           }}
           placeholder="API_BASE_URL"
-          className="w-[216px] shrink-0 border-transparent bg-transparent px-2.5 font-mono text-xs shadow-none hover:border-input focus-visible:border-input"
+          className="w-[216px] shrink-0 border-transparent bg-transparent px-2.5 font-mono text-xs shadow-none hover:border-input focus-visible:border-input max-sm:order-1 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
         />
 
         {/* The source picker is welded to the value it describes: one control
             that states the mode at rest and changes it in one click, and a field
             to its right that is whatever the mode needs. */}
-        <div className="flex min-w-0 flex-1 items-center">
+        <div className="flex min-w-0 flex-1 items-center max-sm:order-5">
           <SourcePicker kind={kind} name={name} environmentName={environmentName(row)} storeAvailable={storeAvailable} onSelect={onSource} />
           <ValueField
             warn={unset}
@@ -576,17 +576,18 @@ function VariableRowEditor({
             )}
           </ValueField>
         </div>
+        <PhoneLineBreak />
 
-        <span className="w-[132px] shrink-0">{usedBy}</span>
+        <span className="w-[132px] shrink-0 max-sm:order-2 max-sm:w-auto">{usedBy}</span>
         {/* Delete isn't a mode, so it doesn't sit in the mode list. Twice the
             column gap from the count beside it, so it reads as the row's. */}
-        <span className="ml-1 flex w-6 shrink-0 justify-center">
+        <span className="ml-1 flex w-6 shrink-0 justify-center max-sm:order-3">
           <IconButton
             icon={Trash2}
             aria-label="Delete variable"
             variant="ghost"
             size="sm"
-            className="h-6 w-6 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:size-3.5"
+            className="h-6 w-6 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 [&_svg]:size-3.5"
             onClick={() => onRemove()}
           />
         </span>
@@ -605,14 +606,15 @@ function VariableRowEditor({
   );
 }
 
+// A phone draws a row as two lines; the flex orders around it say which part goes on which.
+function PhoneLineBreak() {
+  return <span aria-hidden className="hidden basis-full max-sm:order-4 max-sm:block" />;
+}
+
 // A caption sits under the field it is about, left edge aligned to the value
 // column, which is what says it belongs to that field rather than to the row.
 function RowCaption({ children }: { children: ReactNode }) {
-  return (
-    <div className="text-xs text-muted-foreground" style={{ paddingLeft: 228 }}>
-      {children}
-    </div>
-  );
+  return <div className="pl-[228px] text-xs text-muted-foreground max-sm:pl-0">{children}</div>;
 }
 
 // The whole field is one hit target, so its action can sit next to the state it
@@ -816,10 +818,10 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
   const envName = status?.envName || (kind === "stored" ? storedEnvName(row.key) : environmentName(row));
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-3 border-t border-border px-1 text-xs">
-      <span className="w-[216px] shrink-0 truncate px-2.5 font-mono">{row.key}</span>
-      <span className="w-[104px] shrink-0 text-muted-foreground">{SOURCE_LABEL[kind]}</span>
-      <span className="min-w-0 flex-1 truncate">
+    <div className="flex h-11 shrink-0 items-center gap-3 border-t border-border px-1 text-xs max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2">
+      <span className="w-[216px] shrink-0 truncate px-2.5 font-mono max-sm:order-1 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">{row.key}</span>
+      <span className="w-[104px] shrink-0 text-muted-foreground max-sm:order-5 max-sm:w-auto max-sm:pl-2.5">{SOURCE_LABEL[kind]}</span>
+      <span className="min-w-0 flex-1 truncate max-sm:order-6">
         {kind === "value" ? (
           <span className="font-mono">{row.value}</span>
         ) : source === VariableSource.UNSET ? (
@@ -834,8 +836,9 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
           </span>
         )}
       </span>
-      <span className="w-[132px] shrink-0">{usedBy}</span>
-      <span className="ml-1 w-6 shrink-0" />
+      <span className="w-[132px] shrink-0 max-sm:order-2 max-sm:w-auto">{usedBy}</span>
+      <span className="ml-1 w-6 shrink-0 max-sm:hidden" />
+      <PhoneLineBreak />
     </div>
   );
 }
