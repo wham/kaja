@@ -696,7 +696,7 @@ function SourcePicker({
         <SourceItem
           selected={kind === "stored"}
           label="Keychain"
-          description={storeAvailable ? "Stored on this Mac" : `Read from ${storedEnvName(name || "NAME")}`}
+          description={storeAvailable ? "Stored on this device" : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
         <SourceItem
@@ -754,7 +754,7 @@ function StoredValueCell({ storedEnv, source, held, storeAvailable }: { storedEn
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-      <span className="truncate text-xs text-muted-foreground">Stored on this Mac</span>
+      <span className="truncate text-xs text-muted-foreground">Stored on this device</span>
       {action}
     </span>
   );
@@ -793,7 +793,7 @@ function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () 
             }
           }}
         />
-        <p className="text-xs text-muted-foreground">Stored on this Mac.</p>
+        <p className="text-xs text-muted-foreground">Stored on this device.</p>
       </div>
     </Dialog>
   );
@@ -821,7 +821,7 @@ function DeleteDialog({
         <span className="mt-3 flex items-center gap-2">
           <Checkbox checked={clearStored} onCheckedChange={(checked) => setClearStored(checked === true)} id="clear-stored" />
           <label htmlFor="clear-stored" className="cursor-pointer text-sm text-foreground">
-            Also clear the value stored on this Mac
+            Also clear the value stored on this device
           </label>
         </span>
       )}
@@ -848,7 +848,7 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
             <code>{envName}</code> not set
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
-          <span className="text-muted-foreground">Stored on this Mac</span>
+          <span className="text-muted-foreground">Stored on this device</span>
         ) : (
           <span className="text-muted-foreground">
             Read from <code>{envName}</code>

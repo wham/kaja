@@ -183,7 +183,7 @@ export function ParameterSheet({ door, fileName, address, parameters, values, on
           (parameters.length > 0 ? (
             <div className="rounded-md border border-border px-3 py-2">
               <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
-                {schemeLink ? "Anything on this Mac that opens a URL can run this script" : "Anything that opens a URL can run this script"}: a{" "}
+                {schemeLink ? "Anything on this device that opens a URL can run this script" : "Anything that opens a URL can run this script"}: a{" "}
                 {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}
                 <span className="font-mono text-foreground">open &ldquo;{shellExample}&rdquo;</span> in a shell.
               </p>
