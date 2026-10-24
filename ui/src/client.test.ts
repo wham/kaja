@@ -93,12 +93,12 @@ const app = {
   },
 };
 
-function client() {
+function client(host = new KajaHost()) {
   sent.length = 0;
   refuse = undefined;
   trailer = {};
   const calls: MethodCall[] = [];
-  const kaja: Kaja = new KajaHost().run({
+  const kaja: Kaja = host.run({
     onMethodCallUpdate: (methodCall) => void calls.push(methodCall),
     onAsk: () => Promise.reject(new Error("not asked")),
     onApprove: () => Promise.resolve("all" as const),
@@ -162,6 +162,23 @@ describe("a call's headers", () => {
       response: undefined,
       headers: { "www-authenticate": "Bearer" },
     });
+  });
+
+  it("says which of the app's variables had nothing behind them when the call failed", async () => {
+    const host = new KajaHost();
+    host.missingVariables = new Map([["theatre", [{ name: "TOKEN", defined: true, apps: ["theatre"] }]]]);
+    const { methods, calls } = client(host);
+    refuse = Object.assign(new Error("unauthenticated"), { code: "UNAUTHENTICATED" });
+    await methods.ListShows({});
+    expect(calls.at(-1)?.missingVariables?.map((variable) => variable.name)).toEqual(["TOKEN"]);
+  });
+
+  it("says nothing about them on a call that succeeded", async () => {
+    const host = new KajaHost();
+    host.missingVariables = new Map([["theatre", [{ name: "TOKEN", defined: true, apps: ["theatre"] }]]]);
+    const { methods, calls } = client(host);
+    await methods.ListShows({});
+    expect(calls.at(-1)?.missingVariables).toBeUndefined();
   });
 
   it("hands back the response with what the API answered with beside it", async () => {

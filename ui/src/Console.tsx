@@ -62,6 +62,8 @@ interface ConsoleProps {
   // What a table cell naming another script does when it is clicked, and the size it
   // was clicked at.
   onRunScript: (run: CellRun, fullScreen: boolean) => void;
+  // Where a failed call's missing variable is fixed.
+  onRevealVariable: (name: string) => void;
   onClear?: () => void;
   // A run nobody pressed Run for, worth showing rather than leaving in a panel.
   // One-shot — `onPresented` is called once it has been shown, and once it is clear
@@ -94,6 +96,7 @@ export function Console({
   onTablePull,
   onTableCells,
   onRunScript,
+  onRevealVariable,
   onClear,
   present,
   onPresented,
@@ -342,6 +345,7 @@ export function Console({
       onEmbeddedChange={onEmbeddedChange}
       onShowLogs={onShowLogs}
       onGoToCanvas={onGoToCanvas}
+      onRevealVariable={onRevealVariable}
     />
   );
 

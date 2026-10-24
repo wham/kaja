@@ -196,6 +196,7 @@ export function createClient(
           methodCall.error = callError(error);
           applyErrorMetadata(methodCall, error);
         }
+        if (methodCall.error !== undefined) methodCall.missingVariables = kaja._internal.missingVariables(methodCall.appName);
 
         kaja._internal.methodCallUpdate(methodCall);
 

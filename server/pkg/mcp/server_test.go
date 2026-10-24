@@ -780,6 +780,20 @@ func TestRunScriptReport(t *testing.T) {
 	}
 }
 
+// A credential with no value behind it is the likeliest reason for the refusal, and
+// one the response can't say, so it comes before the status's own advice.
+func TestRunScriptReportsMissingVariables(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.runValue = RunResult{
+		MethodCalls: []MethodCallLog{
+			{Service: "Shows", Method: "ListShows", Failure: &CallFailure{Kind: "UNAUTHORIZED", Message: "unauthorized", Status: 401, MissingVariables: []string{"TOKEN"}}},
+		},
+	}
+	srv := NewServer(bridge, token, version)
+	text := tool(t, srv, "run_script", map[string]string{"path": "/s/hello.ts"})
+	contains(t, text, "The app uses ${TOKEN}, which has no value on the machine Kaja is running on", "Ask the person to set it in Kaja's Variables", "The credentials were missing or refused.")
+}
+
 // What a script drew is the receipt that its output landed - an agent's run has
 // a canvas but nobody looking at it.
 func TestRunScriptReportsWhatItDrew(t *testing.T) {

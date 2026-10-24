@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { Ban, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
+import { Ban, Braces, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Method, Service } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
@@ -11,6 +11,7 @@ import { matchParts, methodTag } from "./phone";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { unsupportedReason } from "./streaming";
 import { useMediaQuery } from "./useMediaQuery";
+import { MissingVariable, missingVariableSentence } from "./variableUsage";
 
 // Recent stops here so the apps start above the fold.
 const RESTING_RECENT = 5;
@@ -26,6 +27,8 @@ interface PhoneFinderProps {
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
   onEditApp: (appName: string) => void;
+  missingVariables: Map<string, MissingVariable[]>;
+  onRevealVariable: (name: string) => void;
   // Absent where the workspace can't be written.
   onNewApp?: () => void;
   errorCount: number;
@@ -48,6 +51,8 @@ export function PhoneFinder({
   apps,
   onSelectMethod,
   onEditApp,
+  missingVariables,
+  onRevealVariable,
   onNewApp,
   errorCount,
   open,
@@ -203,7 +208,7 @@ export function PhoneFinder({
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
                         <Matched text={app.configuration.name} query={query} />
                       </span>
-                      <AppDetail app={app} />
+                      <AppDetail app={app} missing={missingVariables.get(app.configuration.name)} />
                     </Row>
                   ))}
                 </>
@@ -232,6 +237,7 @@ export function PhoneFinder({
                   {apps.map((app) => {
                     const name = app.configuration.name;
                     const isExpanded = expanded.has(name);
+                    const missing = missingVariables.get(name);
                     return (
                       <div key={name}>
                         <Row onClick={() => toggleApp(name)} aria-expanded={isExpanded}>
@@ -241,8 +247,22 @@ export function PhoneFinder({
                             <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
                           )}
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-                          <AppDetail app={app} />
+                          <AppDetail app={app} missing={missing} />
                         </Row>
+                        {isExpanded &&
+                          missing?.map((variable) => (
+                            <Row
+                              key={variable.name}
+                              onClick={() => {
+                                onRevealVariable(variable.name);
+                                onOpenChange(false);
+                              }}
+                              className="pl-11"
+                            >
+                              <Braces size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                              <span className="min-w-0 flex-1 truncate text-sm text-amber-700 dark:text-amber-300">{missingVariableSentence(variable)}</span>
+                            </Row>
+                          ))}
                         {/* Above the tree: a failed app has none, and is the one that needs its settings. */}
                         {isExpanded && (
                           <Row
@@ -360,7 +380,7 @@ function Matched({ text, query }: { text: string; query: string }) {
 }
 
 // The same sentence the sidebar's row says about an app, in the room a phone row has.
-function AppDetail({ app }: { app: App }) {
+function AppDetail({ app, missing }: { app: App; missing?: MissingVariable[] }) {
   if (app.compilation.status === "error") {
     return (
       <span className="flex shrink-0 items-center gap-1.5 text-xs text-destructive">
@@ -370,6 +390,14 @@ function AppDetail({ app }: { app: App }) {
     );
   }
   if (isCompiling(app)) return <span className="shrink-0 text-xs text-muted-foreground">compiling…</span>;
+  if (missing && missing.length > 0) {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+        <span className="size-1.5 rounded-full bg-amber-500" />
+        {missing.length === 1 ? `needs ${missing[0].name}` : `needs ${missing.length} variables`}
+      </span>
+    );
+  }
   const methods = countMethods(app);
   return (
     <span className="shrink-0 text-xs text-muted-foreground">
