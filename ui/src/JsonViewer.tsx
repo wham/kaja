@@ -25,6 +25,8 @@ monaco.languages.setMonarchTokensProvider(LANGUAGE_ID, {
 interface JsonViewerProps {
   value: any;
   rawText?: string;
+  // A phone has no width to scroll sideways through, so lines wrap instead.
+  wrap?: boolean;
 }
 
 export interface JsonViewerHandle {
@@ -33,7 +35,7 @@ export interface JsonViewerHandle {
   copyToClipboard: () => Promise<boolean>;
 }
 
-export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText }, ref) {
+export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText, wrap = false }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const jsonTextRef = useRef("");
@@ -96,6 +98,16 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       editorRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({
+      wordWrap: wrap ? "on" : "off",
+      wrappingIndent: "indent",
+      guides: { indentation: !wrap },
+      lineDecorationsWidth: wrap ? 4 : 10,
+      scrollbar: { horizontal: wrap ? "hidden" : "auto" },
+    });
+  }, [wrap]);
 
   // Print the payload into the editor. Synchronous on purpose: the selection
   // follows a run as it happens, so this runs as often as the console repaints,

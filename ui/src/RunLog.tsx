@@ -15,6 +15,8 @@ import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { useShortcutLabel } from "./shortcuts";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import { LogLevel } from "./server/api";
 import { copyText } from "./clipboard";
 import { unwrapFailure, upstreamRequestLine } from "./upstream";
@@ -593,6 +595,7 @@ function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload
 const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
+  const phone = useMediaQuery(PHONE_QUERY);
   const answered = hasResponse(methodCall);
   const hasError = methodCall.error !== undefined;
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
@@ -629,7 +632,7 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
       {/* The pane names itself: which part of the call on the left, and what
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
-      <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
+      <div className="@container flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
         <PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
         {activeTab !== "headers" && <ResponseSummary methodCall={methodCall} bytes={bytes} sizeOnly={activeTab === "request"} />}
         {showsJson && (
@@ -676,7 +679,7 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
           {activeTab === "response" && hasError && requestLine && (
             <div className="border-y border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">{requestLine}</div>
           )}
-          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
+          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
         </>
       )}
     </div>
