@@ -45,7 +45,7 @@ tasks:
 
   package:
     desc: The .app bundle - the Go archive linked with UIKit and signed
-    deps: [build]
+    deps: [build, intents]
     cmds:
       - task: link
       - task: bundle
@@ -121,20 +121,62 @@ tasks:
         -tags production,ios -ldflags "-X main.GitRef={{.GIT_REF}}"
         -o "{{.BIN}}/{{.NAME}}.a" .
 
+  # The App Intents are Swift, compiled outside Xcode, so the metadata Xcode would
+  # write into the bundle is written here: the compiler records the intents' constant
+  # values, and the processor turns them into the Metadata.appintents iOS indexes. The
+  # const values name the source by the path swiftc was given, so it is absolute.
+  intents:
+    internal: true
+    vars:
+      SDK_PATH:
+        sh: xcrun --sdk {{.IOS_SDK}} --show-sdk-path
+      TOOLCHAIN:
+        sh: dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")"
+      XCODE_BUILD:
+        sh: xcodebuild -version | awk '/Build version/ {print $3}'
+      OUT: "{{.BIN}}/intents"
+    sources:
+      - build/ios/intents/*
+    generates:
+      - "{{.BIN}}/intents/Intents.o"
+      - "{{.BIN}}/intents/Metadata.appintents/*"
+    cmds:
+      - rm -rf "{{.OUT}}" && mkdir -p "{{.OUT}}"
+      - >-
+        xcrun swiftc -target {{.IOS_TARGET}} -sdk {{.SDK_PATH}} -module-name {{.NAME}}
+        -parse-as-library -O -import-objc-header build/ios/intents/bridge.h
+        -c "$PWD/build/ios/intents/Intents.swift" -o "{{.OUT}}/Intents.o"
+        -emit-const-values-path "$PWD/{{.OUT}}/Intents.swiftconstvalues"
+        -Xfrontend -const-gather-protocols-file -Xfrontend build/ios/intents/const-protocols.json
+      - echo "$PWD/build/ios/intents/Intents.swift" > "{{.OUT}}/sources"
+      - echo "$PWD/{{.OUT}}/Intents.swiftconstvalues" > "{{.OUT}}/consts"
+      - >-
+        xcrun appintentsmetadataprocessor --output "{{.OUT}}" --toolchain-dir "{{.TOOLCHAIN}}"
+        --module-name {{.NAME}} --sdk-root {{.SDK_PATH}} --xcode-version {{.XCODE_BUILD}}
+        --platform-family iOS --deployment-target {{.MIN_IOS_VERSION}} --target-triple {{.IOS_TARGET}}
+        --source-file-list "{{.OUT}}/sources" --swift-const-vals-list "{{.OUT}}/consts"
+      - test -d "{{.OUT}}/Metadata.appintents"
+
   link:
     internal: true
     vars:
       SDK_PATH:
         sh: xcrun --sdk {{.IOS_SDK}} --show-sdk-path
+      TOOLCHAIN:
+        sh: dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")"
     cmds:
       # -force_load, because the archive's entry points are only reached from
-      # Objective-C and the linker would drop them as unreferenced.
+      # Objective-C and the linker would drop them as unreferenced. AppIntents is
+      # weak because it arrived in iOS 16 and the bundle runs on 15; the Swift
+      # object names its own libraries, and these are where they are found.
       - >-
         xcrun -sdk {{.IOS_SDK}} clang -target {{.IOS_TARGET}} -isysroot {{.SDK_PATH}}
         -framework Foundation -framework UIKit -framework WebKit
         -framework Security -framework CoreFoundation
-        -framework UniformTypeIdentifiers -lresolv
-        -o "{{.BIN}}/{{.NAME}}" build/ios/xcode/main/main.m
+        -framework UniformTypeIdentifiers -weak_framework AppIntents -lresolv
+        -L{{.SDK_PATH}}/usr/lib/swift -L{{.TOOLCHAIN}}/usr/lib/swift/{{.IOS_SDK}}
+        -Wl,-rpath,/usr/lib/swift
+        -o "{{.BIN}}/{{.NAME}}" build/ios/xcode/main/main.m "{{.BIN}}/intents/Intents.o"
         -Wl,-force_load,"{{.BIN}}/{{.NAME}}.a"
 
   bundle:
@@ -145,6 +187,7 @@ tasks:
       - cp "{{.BIN}}/{{.NAME}}" "{{.BUNDLE}}/{{.NAME}}"
       - bash -c '. ../scripts/common && product_plist ios/Info.plist.tmpl' > "{{.BUNDLE}}/Info.plist"
       - cp build/ios/PrivacyInfo.xcprivacy "{{.BUNDLE}}/"
+      - cp -R "{{.BIN}}/intents/Metadata.appintents" "{{.BUNDLE}}/"
       - task: icons
       - |
         # Entitlements are for device builds alone: a simulator bundle carrying

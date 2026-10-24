@@ -176,6 +176,11 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// and every snippet on it is copyable before the switch has ever been turned on.
 	a.mcpMu.Lock()
 	a.mcpToken = a.loadOrCreateMCPToken()
+	if appIntents {
+		if _, err := a.agents.Open(a.mcpToken); err != nil {
+			slog.Error("Failed to open the agent session", "error", err)
+		}
+	}
 	a.mcpMu.Unlock()
 
 	// Started here rather than left for the window to ask for: the window attaches to
@@ -563,6 +568,7 @@ func main() {
 	})
 
 	kaja.attach(wailsApp, window)
+	serveIntents(kaja)
 	wailsApp.Menu.Set(kaja.buildAppMenu())
 
 	// A kaja:// link is an application event in v3 rather than a Mac option. Registered

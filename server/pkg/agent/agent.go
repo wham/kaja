@@ -144,6 +144,9 @@ type Session struct {
 	mu        sync.Mutex
 	streams   []*Stream
 	catalog   mcp.Catalog
+	// The window whose push the catalog is, which is how Ready tells a catalog the
+	// window on duty has said from one left over from a window that has gone.
+	catalogFrom string
 	pending   map[string]*pendingRun
 	forms     map[string]*appForm
 	idleSince time.Time
@@ -305,6 +308,7 @@ func (s *Stream) abort(runID string) {
 func (s *Session) SetCatalog(catalog mcp.Catalog) {
 	s.mu.Lock()
 	s.catalog = catalog
+	s.catalogFrom = ""
 	s.mu.Unlock()
 }
 
@@ -320,7 +324,18 @@ func (s *Session) SetCatalogFrom(streamID string, catalog mcp.Catalog) bool {
 		return false
 	}
 	s.catalog = catalog
+	s.catalogFrom = streamID
 	return true
+}
+
+// Ready is whether a window is on duty and has said what is callable, which is what a
+// caller in this process waits for after bringing the window up: before it, a
+// listing is empty and a run has nowhere to go.
+func (s *Session) Ready() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	on := s.duty()
+	return on != nil && on.ID == s.catalogFrom
 }
 
 // Result delivers a run's outcome from the window back to the waiting agent.
