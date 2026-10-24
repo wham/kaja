@@ -1,6 +1,5 @@
-import { GitHubMark, SwaggerMark } from "./brandMarks";
+import { BenchlingMark, GitHubMark, SwaggerMark } from "./brandMarks";
 import { canonicalEndpoint, endpointLabel } from "./knownServers";
-import { OpenApiMark } from "./protocolMarks";
 
 // An API whose OpenAPI document Kaja knows the address of, so naming it is enough to
 // read it. Unlike a known MCP server, nothing about signing in comes with it.
@@ -11,14 +10,13 @@ export interface KnownApi {
 }
 
 export const knownApis: KnownApi[] = [
-  // Benchling publishes no mark under a license that allows drawing it here.
-  { name: "Benchling v3", specUrl: "https://benchling.com/api/v3/openapi.yaml", mark: OpenApiMark },
-  { name: "Petstore", specUrl: "https://petstore3.swagger.io/api/v3/openapi.json", mark: SwaggerMark },
   {
     name: "GitHub",
     specUrl: "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
     mark: GitHubMark,
   },
+  { name: "Petstore", specUrl: "https://petstore3.swagger.io/api/v3/openapi.json", mark: SwaggerMark },
+  { name: "Benchling", specUrl: "https://benchling.com/api/v3/openapi.yaml", mark: BenchlingMark },
 ];
 
 export function knownApiFor(url: string): KnownApi | undefined {
