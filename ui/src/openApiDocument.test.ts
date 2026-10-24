@@ -48,6 +48,7 @@ function document(schemes: OpenApiSecurityScheme[]): OpenApiDocument {
     securitySchemes: schemes,
     guessedBaseUrl: "",
     perOperationSecurity: false,
+    ageSeconds: 0,
   };
 }
 

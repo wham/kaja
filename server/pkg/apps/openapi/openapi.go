@@ -71,8 +71,10 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 		if err := requireHTTPScheme(specURL); err != nil {
 			return nil, err
 		}
-		log("Fetching OpenAPI spec from " + specURL)
-		s, p = loadSpec(ctx, specURL, specFetchCredentials(parameters), log)
+		var fetched *fetchedSpec
+		if fetched, p = fetchSpec(ctx, specURL, specFetchCredentials(parameters), log); p == nil {
+			s = fetched.spec
+		}
 	default:
 		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
 	}

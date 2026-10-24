@@ -73,10 +73,10 @@ function inspectionKey(parameters: Record<string, string>): string {
 // Reads already on the wire, so two forms ask the server for the same document once.
 const reading = new Map<string, Promise<InspectOpenApiResponse>>();
 
-function inspect(key: string, openapi: OpenApiApp | undefined): Promise<InspectOpenApiResponse> {
+function inspect(key: string, openapi: OpenApiApp | undefined, fresh: boolean): Promise<InspectOpenApiResponse> {
   return joinReading(reading, key, () =>
     getApiClient()
-      .inspectOpenApi({ openapi })
+      .inspectOpenApi({ openapi, fresh })
       .then(({ response }) => response),
   );
 }
@@ -142,10 +142,10 @@ export function OpenApiForm({
     try {
       const app = buildApp("", "openapi", parameters, {});
       const openapi = app.app.oneofKind === "openapi" ? app.app.openapi : undefined;
-      const response = await inspect(key, openapi);
+      const response = await inspect(key, openapi, Boolean(options?.fresh));
       if (readId !== readIdRef.current) return;
       if (response.document) {
-        const readAt = Date.now();
+        const readAt = Date.now() - response.document.ageSeconds * 1000;
         remember(inspected, key, { document: response.document, readAt });
         setState({ status: "read", document: response.document, readAt });
       } else {

@@ -6,6 +6,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Document is what an OpenAPI document says about itself, read before an app is
@@ -25,6 +26,9 @@ type Document struct {
 	// security. When none does, every scheme applies to every operation and the
 	// coverage counts carry no information.
 	PerOperationSecurity bool
+	// ReadAt is when the document was fetched, which is earlier than the answer
+	// where the process kept what it read before.
+	ReadAt time.Time
 }
 
 type DocumentServer struct {
@@ -73,6 +77,7 @@ func Inspect(ctx context.Context, parameters map[string]string, log func(string)
 
 	var s *spec
 	var p *problem
+	readAt := time.Now()
 	switch {
 	case specContent != "":
 		log("Parsing uploaded OpenAPI spec")
@@ -81,15 +86,19 @@ func Inspect(ctx context.Context, parameters map[string]string, log func(string)
 		if err := requireHTTPScheme(specURL); err != nil {
 			return nil, &Problem{Kind: string(problemUnreachable), Message: "That isn't a URL kaja can fetch", Detail: err.Error()}
 		}
-		log("Fetching OpenAPI spec from " + specURL)
-		s, p = loadSpec(ctx, specURL, specFetchCredentials(parameters), log)
+		var fetched *fetchedSpec
+		if fetched, p = fetchSpec(ctx, specURL, specFetchCredentials(parameters), log); p == nil {
+			s, readAt = fetched.spec, fetched.readAt
+		}
 	default:
 		return nil, &Problem{Kind: string(problemNotADocument), Message: "No document yet", Detail: "Give a URL, or upload a file."}
 	}
 	if p != nil {
 		return nil, &Problem{Kind: string(p.Kind), Message: p.Message, Detail: p.Detail}
 	}
-	return describe(s, specURL), nil
+	document := describe(s, specURL)
+	document.ReadAt = readAt
+	return document, nil
 }
 
 // specFetchCredentials collects the credentials used to fetch the document

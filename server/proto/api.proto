@@ -160,6 +160,8 @@ enum GrpcProblemKind {
 // the credentials used to fetch a protected document).
 message InspectOpenApiRequest {
   OpenApiApp openapi = 1;
+  // Read the document again rather than answering with the one the process kept.
+  bool fresh = 2;
 }
 
 message InspectOpenApiResponse {
@@ -186,6 +188,9 @@ message OpenApiDocument {
   // scheme applies to every operation and the coverage counts carry no
   // information.
   bool per_operation_security = 9;
+  // How long ago the document was fetched, in seconds: the process keeps what it
+  // read, so the answer can be older than the request.
+  int32 age_seconds = 10;
 }
 
 message OpenApiServer {

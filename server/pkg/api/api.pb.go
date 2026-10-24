@@ -939,8 +939,10 @@ func (x *GrpcProblem) GetDetail() string {
 // the same parameters the app would be opened with (spec_url or spec_content, and
 // the credentials used to fetch a protected document).
 type InspectOpenApiRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Openapi       *OpenApiApp            `protobuf:"bytes,1,opt,name=openapi,proto3" json:"openapi,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Openapi *OpenApiApp            `protobuf:"bytes,1,opt,name=openapi,proto3" json:"openapi,omitempty"`
+	// Read the document again rather than answering with the one the process kept.
+	Fresh         bool `protobuf:"varint,2,opt,name=fresh,proto3" json:"fresh,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -980,6 +982,13 @@ func (x *InspectOpenApiRequest) GetOpenapi() *OpenApiApp {
 		return x.Openapi
 	}
 	return nil
+}
+
+func (x *InspectOpenApiRequest) GetFresh() bool {
+	if x != nil {
+		return x.Fresh
+	}
+	return false
 }
 
 type InspectOpenApiResponse struct {
@@ -1054,8 +1063,11 @@ type OpenApiDocument struct {
 	// scheme applies to every operation and the coverage counts carry no
 	// information.
 	PerOperationSecurity bool `protobuf:"varint,9,opt,name=per_operation_security,json=perOperationSecurity,proto3" json:"per_operation_security,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// How long ago the document was fetched, in seconds: the process keeps what it
+	// read, so the answer can be older than the request.
+	AgeSeconds    int32 `protobuf:"varint,10,opt,name=age_seconds,json=ageSeconds,proto3" json:"age_seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *OpenApiDocument) Reset() {
@@ -1149,6 +1161,13 @@ func (x *OpenApiDocument) GetPerOperationSecurity() bool {
 		return x.PerOperationSecurity
 	}
 	return false
+}
+
+func (x *OpenApiDocument) GetAgeSeconds() int32 {
+	if x != nil {
+		return x.AgeSeconds
+	}
+	return 0
 }
 
 type OpenApiServer struct {
@@ -4974,12 +4993,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vGrpcProblem\x12$\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x10.GrpcProblemKindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x16\n" +
-	"\x06detail\x18\x03 \x01(\tR\x06detail\">\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\"T\n" +
 	"\x15InspectOpenApiRequest\x12%\n" +
-	"\aopenapi\x18\x01 \x01(\v2\v.OpenApiAppR\aopenapi\"q\n" +
+	"\aopenapi\x18\x01 \x01(\v2\v.OpenApiAppR\aopenapi\x12\x14\n" +
+	"\x05fresh\x18\x02 \x01(\bR\x05fresh\"q\n" +
 	"\x16InspectOpenApiResponse\x12,\n" +
 	"\bdocument\x18\x01 \x01(\v2\x10.OpenApiDocumentR\bdocument\x12)\n" +
-	"\aproblem\x18\x02 \x01(\v2\x0f.OpenApiProblemR\aproblem\"\xfd\x02\n" +
+	"\aproblem\x18\x02 \x01(\v2\x0f.OpenApiProblemR\aproblem\"\x9e\x03\n" +
 	"\x0fOpenApiDocument\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12'\n" +
@@ -4989,7 +5009,10 @@ const file_proto_api_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\v2\x0e.OpenApiServerR\aservers\x12A\n" +
 	"\x10security_schemes\x18\a \x03(\v2\x16.OpenApiSecuritySchemeR\x0fsecuritySchemes\x12(\n" +
 	"\x10guessed_base_url\x18\b \x01(\tR\x0eguessedBaseUrl\x124\n" +
-	"\x16per_operation_security\x18\t \x01(\bR\x14perOperationSecurity\"y\n" +
+	"\x16per_operation_security\x18\t \x01(\bR\x14perOperationSecurity\x12\x1f\n" +
+	"\vage_seconds\x18\n" +
+	" \x01(\x05R\n" +
+	"ageSeconds\"y\n" +
 	"\rOpenApiServer\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x124\n" +
