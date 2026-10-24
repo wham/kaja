@@ -10,14 +10,15 @@ import (
 
 // VariableStore holds variable values outside kaja.json - the OS keychain in the
 // desktop app. A deployment without one (the web server) binds nothing, and a
-// "${secret}" variable falls back to the environment.
+// "${secret}" variable falls back to the environment. A value is the workspace's,
+// named by the workspace's id rather than by where its file is.
 type VariableStore interface {
 	// Available reports whether the store can be used at all. A desktop with no
 	// usable keyring binds a store that is simply unavailable.
 	Available() bool
-	Get(name string) (string, bool)
-	Set(name string, value string) error
-	Delete(name string) error
+	Get(workspaceID string, name string) (string, bool)
+	Set(workspaceID string, name string, value string) error
+	Delete(workspaceID string, name string) error
 }
 
 // SecretSource is the whole value of a variable this machine holds the value
@@ -50,9 +51,9 @@ type hiddenValue struct {
 	value string
 }
 
-// NewResolver resolves every configured variable once, against the given store
-// and the process environment.
-func NewResolver(variables map[string]string, store VariableStore) *Resolver {
+// NewResolver resolves every configured variable once, against what the store
+// holds for the workspace and the process environment.
+func NewResolver(variables map[string]string, store VariableStore, workspaceID string) *Resolver {
 	resolver := &Resolver{values: make(map[string]string, len(variables))}
 
 	names := make([]string, 0, len(variables))
@@ -62,7 +63,7 @@ func NewResolver(variables map[string]string, store VariableStore) *Resolver {
 	sort.Strings(names)
 
 	for _, name := range names {
-		value, status := resolveVariable(name, variables[name], store)
+		value, status := resolveVariable(name, variables[name], store, workspaceID)
 		resolver.statuses = append(resolver.statuses, status)
 		// A variable whose source holds nothing is not defined at all: ${NAME}
 		// passes through literally, which is what the UI tells the user happens.
@@ -86,11 +87,12 @@ func NewResolver(variables map[string]string, store VariableStore) *Resolver {
 
 // resolveVariable resolves one variable's configured value: literal, the value
 // this machine stores for it, or the environment variables it references.
-func resolveVariable(name string, configured string, store VariableStore) (string, *VariableStatus) {
+func resolveVariable(name string, configured string, store VariableStore, workspaceID string) (string, *VariableStatus) {
 	if strings.TrimSpace(configured) == SecretSource {
 		envName := storedEnvName(name)
-		if store != nil && store.Available() {
-			if stored, ok := store.Get(name); ok {
+		// A workspace with no id has never had a value stored for it.
+		if store != nil && store.Available() && workspaceID != "" {
+			if stored, ok := store.Get(workspaceID, name); ok {
 				return stored, &VariableStatus{Name: name, Source: VariableSource_VARIABLE_SOURCE_KEYCHAIN, EnvName: envName}
 			}
 		}
