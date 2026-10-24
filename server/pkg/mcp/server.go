@@ -71,6 +71,9 @@ type CallFailure struct {
 	Message string `json:"message"`
 	Status  int    `json:"status,omitempty"`
 	Code    string `json:"code,omitempty"`
+	// Variables the call's app uses that have no value where this kaja runs, so they
+	// went out as written. The service can't say so: it only saw the reference.
+	MissingVariables []string `json:"missingVariables,omitempty"`
 }
 
 // BlockLog is something the script drew. The agent produced the contents already,

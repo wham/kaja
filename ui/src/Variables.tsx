@@ -46,6 +46,9 @@ interface VariablesProps {
   onStoreValue: (name: string, value: string) => Promise<void>;
   onScriptSelect: (script: Script) => void;
   onRevealApp: (name: string) => void;
+  // One-shot: the variable something elsewhere said was missing, which is brought into
+  // view with what fixes it already open.
+  reveal?: { name: string };
 }
 
 const SOURCE_LABEL: Record<VariableKind, string> = {
@@ -114,6 +117,7 @@ export function Variables({
   onStoreValue,
   onScriptSelect,
   onRevealApp,
+  reveal,
 }: VariablesProps) {
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
   const [editVersion, setEditVersion] = useState(0);
@@ -124,6 +128,7 @@ export function Variables({
   const [movingToEnvironment, setMovingToEnvironment] = useState<{ index: number; name: string; value: string } | null>(null);
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const nameInputs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const variablesRef = useRef(variables);
   const editVersionRef = useRef(editVersion);
   const attemptedVersionRef = useRef(-1);
@@ -281,6 +286,20 @@ export function Variables({
     return statusByName.get(name)?.source === VariableSource.KEYCHAIN || justStored.has(name);
   };
 
+  useEffect(() => {
+    if (!reveal) return;
+    const index = rows.findIndex((row) => row.key.trim() === reveal.name);
+    // Not a row yet: what defines it is the banner at the top.
+    if (index === -1) {
+      scrollerRef.current?.scrollTo({ top: 0 });
+      return;
+    }
+    nameInputs.current.get(index)?.scrollIntoView({ block: "center" });
+    const row = rows[index];
+    if (!readOnly && storeAvailable && variableKind(row.value) === "stored" && !held(row)) setKeychainSheet({ index, name: reveal.name });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
+
   // Deleting a variable something reads breaks that reference, and deleting one the
   // keychain holds a value for throws the value away. Either is worth stating; a
   // variable that is neither goes on the click.
@@ -318,7 +337,7 @@ export function Variables({
         </Blankslate>
       </div>
     ) : (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-3.5">
+      <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-3.5">
         {undefinedReferences.length > 0 && (
           <div className="flex shrink-0 flex-col gap-2 pb-3">
             {undefinedReferences.map((name) => (

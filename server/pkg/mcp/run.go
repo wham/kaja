@@ -24,6 +24,25 @@ var failureAdvice = map[string]string{
 	"UNKNOWN":         "The failure carried nothing to classify it by.",
 }
 
+// adviceFor is what to do about a failure. A variable with nothing behind it is said
+// first, because it outranks whatever the status suggests: the request may be fine and
+// the credential the app sends is the literal ${NAME}, which no agent can supply.
+func adviceFor(failure CallFailure) string {
+	advice := failureAdvice[failure.Kind]
+	if len(failure.MissingVariables) == 0 {
+		return advice
+	}
+	names := make([]string, len(failure.MissingVariables))
+	for i, name := range failure.MissingVariables {
+		names[i] = "${" + name + "}"
+	}
+	missing := fmt.Sprintf("The app uses %s, which has no value on the machine Kaja is running on, so it was sent as written. Ask the person to set it in Kaja's Variables; it is not something to work around in the script.", strings.Join(names, ", "))
+	if advice == "" {
+		return missing
+	}
+	return missing + " " + advice
+}
+
 // maxPayload caps one request or response body in the run report. A script that
 // wants all of a large response should console.log the part it cares about.
 const maxPayload = 4000
@@ -143,7 +162,7 @@ func renderCall(index int, call MethodCallLog) string {
 			fmt.Fprintf(&b, "     %s\n", label)
 		}
 		fmt.Fprintf(&b, "     %s\n", call.Failure.Message)
-		if advice := failureAdvice[call.Failure.Kind]; advice != "" {
+		if advice := adviceFor(*call.Failure); advice != "" {
 			fmt.Fprintf(&b, "     %s\n", advice)
 		}
 	}
@@ -283,7 +302,7 @@ func reportRun(label string, result RunResult) RunReport {
 			Response:   payload(call.Output),
 		}
 		if call.Failure != nil {
-			reported.Failure = &ReportedFailure{CallFailure: *call.Failure, Advice: failureAdvice[call.Failure.Kind]}
+			reported.Failure = &ReportedFailure{CallFailure: *call.Failure, Advice: adviceFor(*call.Failure)}
 		}
 		report.Calls = append(report.Calls, reported)
 	}

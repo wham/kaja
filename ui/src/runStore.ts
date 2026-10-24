@@ -6,6 +6,7 @@ import { MethodCall } from "./kaja";
 import { ConsoleItem, Run, RunStatus } from "./runs";
 import { Log } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
+import { MissingVariable } from "./variableUsage";
 
 // Storing code is free; storing responses is not. A file keeps its last few run
 // headers, the payloads under them are dropped after a week, and only the fifty most
@@ -41,6 +42,7 @@ interface StoredCall {
   timestamp: number;
   durationMs?: number;
   upstreamDurationMs?: number;
+  missingVariables?: MissingVariable[];
 }
 
 // A block is already plain JSON, so it survives the store as itself.
@@ -96,6 +98,7 @@ function toStoredCall(call: MethodCall): StoredCall {
     timestamp: call.timestamp,
     durationMs: call.durationMs,
     upstreamDurationMs: call.upstreamDurationMs,
+    missingVariables: call.missingVariables,
   };
 }
 
@@ -130,6 +133,7 @@ function fromStoredCall(stored: StoredCall): MethodCall {
     timestamp: stored.timestamp,
     durationMs: stored.durationMs,
     upstreamDurationMs: stored.upstreamDurationMs,
+    missingVariables: stored.missingVariables,
   };
 }
 

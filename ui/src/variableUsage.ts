@@ -1,7 +1,7 @@
 import { Script } from "./apps";
 import { appHeaders, appParameters } from "./appTypes";
 import { ScriptReference } from "./scriptFiles";
-import { WorkspaceApp } from "./server/api";
+import { VariableSource, VariableStatus, WorkspaceApp } from "./server/api";
 import { pluralCount } from "./plural";
 import { variableReferences } from "./variableExpansion";
 
@@ -43,6 +43,48 @@ export function appVariableUses(apps: WorkspaceApp[]): Map<string, VariableUse[]
     }
   }
   return uses;
+}
+
+/**
+ * A variable an app uses that has nothing behind it here, so the reference goes out as
+ * written. kaja.json is shared and a keychain is not, so a workspace synced from another
+ * machine names a value this one never held, and nothing about the file says so.
+ */
+export interface MissingVariable {
+  name: string;
+  // Whether kaja.json names it at all. One it names is missing a value; one it doesn't
+  // is missing its definition, which is a different fix on the same screen.
+  defined: boolean;
+  apps: string[];
+}
+
+export function missingVariables(variables: { [key: string]: string }, status: VariableStatus[], uses: Map<string, VariableUse[]>): MissingVariable[] {
+  // Read off a status that is present rather than one that is absent, so a workspace
+  // whose statuses haven't arrived yet doesn't flash every variable as missing.
+  const unset = new Set(status.filter((entry) => entry.source === VariableSource.UNSET).map((entry) => entry.name));
+  const missing: MissingVariable[] = [];
+  for (const [name, appUses] of uses) {
+    const defined = name in variables;
+    if (defined && !unset.has(name)) continue;
+    missing.push({ name, defined, apps: [...new Set(appUses.map((use) => use.app))] });
+  }
+  return missing.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function missingByApp(missing: MissingVariable[]): Map<string, MissingVariable[]> {
+  const byApp = new Map<string, MissingVariable[]>();
+  for (const variable of missing) {
+    for (const app of variable.apps) {
+      const existing = byApp.get(app);
+      if (existing) existing.push(variable);
+      else byApp.set(app, [variable]);
+    }
+  }
+  return byApp;
+}
+
+export function missingVariableSentence(variable: Pick<MissingVariable, "name" | "defined">): string {
+  return variable.defined ? `\${${variable.name}} has no value on this machine` : `\${${variable.name}} isn't defined`;
 }
 
 /**

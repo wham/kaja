@@ -44,6 +44,7 @@ import { baseName, linkName } from "./scriptLink";
 import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 import { uuidV4 } from "./uuid";
+import type { MissingVariable } from "./variableUsage";
 
 // Swallowed by the script runner: a cancelled prompt quietly stops the script.
 export class AskCancelledError extends Error {
@@ -388,6 +389,8 @@ export class KajaHost {
   // Includes values kaja.json only names: scripts are the desktop only, where there
   // is no remote browser being handed a value it shouldn't have.
   variables: { [key: string]: string } = {};
+  // By app, so a call that fails can say which of its references went out as written.
+  missingVariables = new Map<string, MissingVariable[]>();
   readonly tables = new LiveTables();
 
   /** A fresh run, with its output already addressed. */
@@ -472,7 +475,7 @@ export class Kaja {
   #onPerfSchedule?: (schedule: PerfSchedule) => void;
 
   constructor(context: RunContext, host: KajaHost = new KajaHost()) {
-    this._internal = new KajaInternal(context.onMethodCallUpdate, context.onLog);
+    this._internal = new KajaInternal(context.onMethodCallUpdate, context.onLog, (app) => host.missingVariables.get(app));
     this.#host = host;
     this.input = context.input ?? {};
     this.#onAsk = context.onAsk;
@@ -1243,6 +1246,10 @@ export interface MethodCall {
   // call without the trip between this UI and Kaja. Absent when nothing measured it
   // (a stored run from before it existed, a call that never left this process).
   upstreamDurationMs?: number;
+  // Set on a failed call whose app uses a variable with nothing behind it here, as it
+  // stood when the call was made: the likeliest reason it failed, and one the response
+  // can't state, since the API only saw the reference it was sent.
+  missingVariables?: MissingVariable[];
 }
 
 /**
@@ -1312,11 +1319,13 @@ class KajaInternal {
   // times is mostly wasted walks.
   readonly sampledMethods = new Map<string, number>();
   readonly onLog: LogSink;
+  readonly missingVariables: (app: string) => MissingVariable[] | undefined;
   #onMethodCallUpdate: MethodCallUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onLog: LogSink) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onLog: LogSink, missingVariables: (app: string) => MissingVariable[] | undefined = () => undefined) {
     this.#onMethodCallUpdate = onMethodCallUpdate;
     this.onLog = onLog;
+    this.missingVariables = missingVariables;
   }
 
   /**

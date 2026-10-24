@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { WorkspaceApp } from "./server/api";
-import { appVariableUses, orderReferences, scannedAgo, scriptReferenceLabel } from "./variableUsage";
+import { VariableSource, WorkspaceApp } from "./server/api";
+import { appVariableUses, missingByApp, missingVariables, missingVariableSentence, orderReferences, scannedAgo, scriptReferenceLabel } from "./variableUsage";
 
 function grpcApp(name: string, url: string, headers: { [key: string]: string } = {}): WorkspaceApp {
   return { name, app: { oneofKind: "grpc", grpc: { url, protoDir: "", headers, reflection: "", auth: "" } } } as unknown as WorkspaceApp;
@@ -69,4 +69,47 @@ describe("scannedAgo", () => {
   it("says just now within the minute", () => expect(scannedAgo(at, at + 59_000)).toBe("Scanned just now"));
   it("counts minutes", () => expect(scannedAgo(at, at + 120_000)).toBe("Scanned 2 minutes ago"));
   it("counts hours", () => expect(scannedAgo(at, at + 3 * 3_600_000)).toBe("Scanned 3 hours ago"));
+});
+
+describe("missingVariables", () => {
+  const apps = [grpcApp("theatre", "${HOST}", { Authorization: "Bearer ${TOKEN}" }), grpcApp("box", "${HOST}")];
+  const uses = appVariableUses(apps);
+
+  it("names a variable kaja.json defines and this machine holds nothing for", () => {
+    const status = [
+      { name: "HOST", source: VariableSource.FILE, envName: "" },
+      { name: "TOKEN", source: VariableSource.UNSET, envName: "KAJA_TOKEN" },
+    ];
+    expect(missingVariables({ HOST: "localhost", TOKEN: "${secret}" }, status, uses)).toEqual([{ name: "TOKEN", defined: true, apps: ["theatre"] }]);
+  });
+
+  it("names a reference no variable defines", () => {
+    const status = [{ name: "HOST", source: VariableSource.FILE, envName: "" }];
+    expect(missingVariables({ HOST: "localhost" }, status, uses)).toEqual([{ name: "TOKEN", defined: false, apps: ["theatre"] }]);
+  });
+
+  it("says nothing about a defined variable whose status hasn't arrived", () => {
+    expect(missingVariables({ HOST: "localhost", TOKEN: "${secret}" }, [], uses)).toEqual([]);
+  });
+
+  it("leaves out a variable nothing uses", () => {
+    const status = [{ name: "UNUSED", source: VariableSource.UNSET, envName: "KAJA_UNUSED" }];
+    expect(missingVariables({ HOST: "x", TOKEN: "y", UNUSED: "${secret}" }, status, uses)).toEqual([]);
+  });
+
+  it("lists each app once, and every app using it", () => {
+    const status = [{ name: "HOST", source: VariableSource.UNSET, envName: "HOST" }];
+    const missing = missingVariables({ HOST: "${env:HOST}", TOKEN: "t" }, status, uses);
+    expect(missing).toEqual([{ name: "HOST", defined: true, apps: ["theatre", "box"] }]);
+    expect(
+      missingByApp(missing)
+        .get("box")
+        ?.map((variable) => variable.name),
+    ).toEqual(["HOST"]);
+  });
+
+  it("says which of the two fixes it is", () => {
+    expect(missingVariableSentence({ name: "TOKEN", defined: true })).toBe("${TOKEN} has no value on this machine");
+    expect(missingVariableSentence({ name: "TOKEN", defined: false })).toBe("${TOKEN} isn't defined");
+  });
 });

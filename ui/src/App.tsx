@@ -91,7 +91,7 @@ import { useWorkspaceChanges } from "./useWorkspaceChanges";
 import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
 import { setVariables } from "./variableExpansion";
-import { appVariableUses } from "./variableUsage";
+import { appVariableUses, missingByApp, missingVariables } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
 import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowBackground, setWindowTitle } from "./wails";
@@ -2444,9 +2444,28 @@ export function App() {
   // Names no variable defines are in here too: the Variables view shows them as a warning.
   const variableUses = useMemo(() => appVariableUses(workspace?.apps ?? []), [workspace?.apps]);
 
+  const missing = useMemo(
+    () => missingVariables(workspace?.variables ?? {}, variableStatus, variableUses),
+    [workspace?.variables, variableStatus, variableUses],
+  );
+  const missingApps = useMemo(() => missingByApp(missing), [missing]);
+  useEffect(() => {
+    host.missingVariables = missingApps;
+  }, [host, missingApps]);
+
   const onVariablesClick = useCallback(() => {
     applyViews(showVariables);
   }, [applyViews]);
+
+  // One-shot, like autoExpandApp: the Variables view takes the row it names and lets go.
+  const [variableReveal, setVariableReveal] = useState<{ name: string }>();
+  const onRevealVariable = useCallback(
+    (name: string) => {
+      setVariableReveal({ name });
+      applyViews(showVariables);
+    },
+    [applyViews],
+  );
 
   const onMcpClick = useCallback(() => {
     applyViews(showMcp);
@@ -2636,7 +2655,18 @@ export function App() {
   // Kaja's own views on the phone's finder, each wearing the state the status bar
   // and the sidebar's band would have shown.
   const phoneWorkspace = useMemo<Destination[]>(() => {
-    const rows: Destination[] = [{ key: "variables", name: "Variables", path: "", origin: "", icon: Braces, go: onVariablesClick }];
+    const rows: Destination[] = [
+      {
+        key: "variables",
+        name: "Variables",
+        path: "",
+        origin: "",
+        icon: Braces,
+        status:
+          missing.length === 0 ? undefined : { dot: "bg-amber-500", note: missing.length === 1 ? `${missing[0].name} missing` : `${missing.length} missing` },
+        go: missing.length === 0 ? onVariablesClick : () => onRevealVariable(missing[0].name),
+      },
+    ];
     if (mcpControl && mcpBandStatus) {
       rows.push({
         key: "mcp",
@@ -2667,7 +2697,7 @@ export function App() {
       });
     }
     return rows;
-  }, [apps, workspaceLoaded, mcpControl, mcpBandStatus, onVariablesClick, onMcpClick, onShowCompileLog]);
+  }, [apps, workspaceLoaded, mcpControl, mcpBandStatus, missing, onVariablesClick, onRevealVariable, onMcpClick, onShowCompileLog]);
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
@@ -2866,6 +2896,7 @@ export function App() {
           onStoreValue={onStoreVariableValue}
           onScriptSelect={(script) => void onScriptSelect(script)}
           onRevealApp={(name) => setAutoExpandApp({ name })}
+          reveal={variableReveal}
         />
       )}
     </>
@@ -2965,6 +2996,8 @@ export function App() {
               apps={apps}
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
               onEditApp={onEditApp}
+              missingVariables={missingApps}
+              onRevealVariable={onRevealVariable}
               onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
               errorCount={currentIsEditor ? syntaxErrors.count : 0}
               open={finder !== undefined}
@@ -2986,6 +3019,7 @@ export function App() {
               onTablePull={onTablePull}
               onTableCells={onTableCells}
               onRunScript={onRunScriptCell}
+              onRevealVariable={onRevealVariable}
               onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
               present={present}
               onPresented={() => setPresent(undefined)}
@@ -3028,6 +3062,9 @@ export function App() {
                   onNewAppClick={onNewAppClick}
                   onNewScript={onNewDraft}
                   onVariablesClick={onVariablesClick}
+                  variablesMissing={missing.length > 0}
+                  missingVariables={missingApps}
+                  onRevealVariable={onRevealVariable}
                   onMcpClick={mcpControl ? onMcpClick : undefined}
                   mcpState={mcpBandState}
                   autoExpandApp={autoExpandApp}
@@ -3104,6 +3141,7 @@ export function App() {
                         onTablePull={onTablePull}
                         onTableCells={onTableCells}
                         onRunScript={onRunScriptCell}
+                        onRevealVariable={onRevealVariable}
                         onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
                         present={present}
                         onPresented={() => setPresent(undefined)}
@@ -3445,6 +3483,7 @@ function toMethodCallLog(call: MethodCall) {
     durationMs: callDurationMs(call),
     input: call.input,
     output: call.output,
-    failure: call.error === undefined ? undefined : classifyFailure(call.error),
+    failure:
+      call.error === undefined ? undefined : { ...classifyFailure(call.error), missingVariables: call.missingVariables?.map((variable) => variable.name) },
   };
 }

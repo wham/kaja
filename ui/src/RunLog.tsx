@@ -20,6 +20,7 @@ import { useMediaQuery } from "./useMediaQuery";
 import { LogLevel } from "./server/api";
 import { copyText } from "./clipboard";
 import { unwrapFailure, upstreamRequestLine } from "./upstream";
+import { MissingVariable, missingVariableSentence } from "./variableUsage";
 
 // A fixed height is what lets the log virtualise and lets the tail bar say how many
 // rows are below without measuring any of them.
@@ -66,6 +67,7 @@ interface RunLogProps {
   onEmbeddedChange: (embedded: boolean) => void;
   onShowLogs: () => void;
   onGoToCanvas: () => void;
+  onRevealVariable: (name: string) => void;
 }
 
 /**
@@ -95,6 +97,7 @@ export const RunLog = memo(function RunLog({
   onEmbeddedChange,
   onShowLogs,
   onGoToCanvas,
+  onRevealVariable,
 }: RunLogProps) {
   void version;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -225,9 +228,17 @@ export const RunLog = memo(function RunLog({
             embedded={embedded}
             onTabChange={onTabChange}
             onEmbeddedChange={onEmbeddedChange}
+            onRevealVariable={onRevealVariable}
           />
         ) : selectedItem?.call ? (
-          <PayloadPane methodCall={selectedItem.call} activeTab={activeTab} embedded={embedded} onTabChange={onTabChange} onEmbeddedChange={onEmbeddedChange} />
+          <PayloadPane
+            methodCall={selectedItem.call}
+            activeTab={activeTab}
+            embedded={embedded}
+            onTabChange={onTabChange}
+            onEmbeddedChange={onEmbeddedChange}
+            onRevealVariable={onRevealVariable}
+          />
         ) : selectedItem?.printed ? (
           <PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
         ) : (
@@ -544,6 +555,7 @@ interface PayloadPaneProps {
   embedded: boolean;
   onTabChange: (tab: ConsoleTab) => void;
   onEmbeddedChange: (embedded: boolean) => void;
+  onRevealVariable: (name: string) => void;
 }
 
 // What the pane draws, and whether there is a document in it to read. The two are
@@ -592,7 +604,7 @@ function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload
   return readPayload(unwrapEnvelope(methodCall.outputType, methodCall.output), embedded);
 }
 
-const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange }: PayloadPaneProps) {
+const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange, onRevealVariable }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const phone = useMediaQuery(PHONE_QUERY);
@@ -684,12 +696,30 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
           {activeTab === "response" && hasError && requestLine && (
             <div className="border-y border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">{requestLine}</div>
           )}
+          {activeTab === "response" &&
+            hasError &&
+            methodCall.missingVariables?.map((variable) => (
+              <MissingVariableLine key={variable.name} variable={variable} onReveal={() => onRevealVariable(variable.name)} />
+            ))}
           <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
         </>
       )}
     </div>
   );
 };
+
+// The response says the API refused the call; this says what it was sent, which is
+// the half of the story only Kaja knows.
+function MissingVariableLine({ variable, onReveal }: { variable: MissingVariable; onReveal: () => void }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-border bg-amber-500/10 px-4 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+      <span className="min-w-0 flex-1">{missingVariableSentence(variable)}, so it was sent as written.</span>
+      <button type="button" className="shrink-0 rounded-full border border-amber-500 px-2 py-0.5 hover:bg-amber-500/10" onClick={onReveal}>
+        {variable.defined ? "Set value" : "Define it"}
+      </button>
+    </div>
+  );
+}
 
 interface PayloadTabsProps {
   methodCall: MethodCall;

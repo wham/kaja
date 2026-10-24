@@ -29,6 +29,7 @@ import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
 import { useMediaQuery } from "./useMediaQuery";
+import { MissingVariable, missingVariableSentence } from "./variableUsage";
 import { WorkspaceMenu, type WorkspaceControl } from "./WorkspaceMenu";
 import {
   appNodeId,
@@ -119,6 +120,10 @@ interface SidebarProps {
   onNewAppClick: () => void;
   onNewScript?: () => void;
   onVariablesClick?: () => void;
+  variablesMissing?: boolean;
+  // By app: what each one uses that has nothing behind it on this machine.
+  missingVariables?: Map<string, MissingVariable[]>;
+  onRevealVariable?: (name: string) => void;
   // Absent where this build offers no MCP server at all, which is what leaves the band
   // with the one tool it always had.
   onMcpClick?: () => void;
@@ -145,6 +150,9 @@ export const Sidebar = memo(function Sidebar({
   onNewAppClick,
   onNewScript,
   onVariablesClick,
+  variablesMissing = false,
+  missingVariables,
+  onRevealVariable,
   onMcpClick,
   mcpState,
   autoExpandApp,
@@ -265,6 +273,7 @@ export const Sidebar = memo(function Sidebar({
         reserveTrafficLights={reserveTrafficLights}
         workspace={workspace}
         onVariablesClick={onVariablesClick}
+        variablesMissing={variablesMissing}
         onMcpClick={onMcpClick}
         mcpState={mcpState}
       />
@@ -337,6 +346,7 @@ export const Sidebar = memo(function Sidebar({
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
+                  {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} />}
                   <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
                     {(touch || active) && (
                       <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
@@ -497,12 +507,14 @@ function GlobalBand({
   reserveTrafficLights,
   workspace,
   onVariablesClick,
+  variablesMissing,
   onMcpClick,
   mcpState,
 }: {
   reserveTrafficLights?: boolean;
   workspace?: WorkspaceControl;
   onVariablesClick?: () => void;
+  variablesMissing?: boolean;
   onMcpClick?: () => void;
   mcpState?: McpState;
 }) {
@@ -527,8 +539,11 @@ function GlobalBand({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1" style={noDrag}>
         {onVariablesClick && (
-          <SimpleTooltip text="Variables" side="bottom">
-            <IconButton icon={Braces} size="sm" variant="ghost" tooltip="none" aria-label="Variables" onClick={onVariablesClick} />
+          <SimpleTooltip text={variablesMissing ? "Variables: a value is missing on this machine" : "Variables"} side="bottom">
+            <span className="relative inline-flex">
+              <IconButton icon={Braces} size="sm" variant="ghost" tooltip="none" aria-label="Variables" onClick={onVariablesClick} />
+              {variablesMissing && <span aria-hidden className="pointer-events-none absolute top-1 right-1 size-[5px] rounded-full bg-amber-500" />}
+            </span>
           </SimpleTooltip>
         )}
         {onMcpClick && mcpState && <McpTool state={mcpState} onClick={onMcpClick} />}
@@ -694,6 +709,27 @@ function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLo
       }}
     >
       {failed ? <CircleX size={12} /> : <TriangleAlert size={12} />}
+    </button>
+  );
+}
+
+// Beside the compile marker rather than folded into it: the app compiled, and what it
+// is missing is a value on this machine rather than anything the compile log can say.
+function AppVariableMarker({ appName, missing, onReveal }: { appName: string; missing?: MissingVariable[]; onReveal: (name: string) => void }) {
+  if (!missing || missing.length === 0) return null;
+  const label = missing.map(missingVariableSentence).join(". ");
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={`${appName}: ${label}. Show variables`}
+      className="ml-1 inline-flex shrink-0 items-center text-amber-600 dark:text-amber-400"
+      onClick={(e: React.MouseEvent) => {
+        e.stopPropagation();
+        onReveal(missing[0].name);
+      }}
+    >
+      <Braces size={12} />
     </button>
   );
 }
