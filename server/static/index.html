@@ -6,7 +6,8 @@
     <link rel="shortcut icon" href="./static/favicon.ico" />
     <link rel="mask-icon" href="./static/favicon.svg" color="#000000" />
     <link rel="stylesheet" href="./main.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- iOS zooms into any field under 16px on focus and stays there; since iOS 10 maximum-scale no longer stops pinch zoom. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <title>Kaja</title>
     <style>
       /* https://stackoverflow.com/questions/47017753/monaco-editor-dynamically-resizable */
