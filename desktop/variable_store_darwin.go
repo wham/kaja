@@ -12,6 +12,13 @@ package main
 // cost is that an unsigned local build has no such entitlement and gets
 // errSecMissingEntitlement, which Available() reports as "no store" so the UI
 // asks for the environment instead.
+//
+// An item is written synchronizable, so iCloud Keychain carries it to the
+// person's other devices: the Mac and iOS builds share an application
+// identifier, which makes them one access group, and a workspace synced between
+// them names its values by the same id on both. A query has to say it takes
+// either kind or it finds only the items that don't sync, which is every item
+// written before they did.
 
 /*
 #cgo LDFLAGS: -framework CoreFoundation -framework Security
@@ -33,6 +40,7 @@ static CFMutableDictionaryRef keychainQuery(const char* service, const char* acc
     CFDictionarySetValue(query, kSecAttrService, serviceRef);
     CFDictionarySetValue(query, kSecAttrAccount, accountRef);
     CFDictionarySetValue(query, kSecUseDataProtectionKeychain, kCFBooleanTrue);
+    CFDictionarySetValue(query, kSecAttrSynchronizable, kSecAttrSynchronizableAny);
 
     CFRelease(serviceRef);
     CFRelease(accountRef);
@@ -79,9 +87,9 @@ static int kajaKeychainSet(const char* service, const char* account, const char*
         CFRelease(update);
     } else {
         CFDictionarySetValue(query, kSecValueData, data);
-        // The value is only ever needed while someone is using the app, and it
-        // has no business travelling to another Mac in a backup.
-        CFDictionarySetValue(query, kSecAttrAccessible, kSecAttrAccessibleWhenUnlockedThisDeviceOnly);
+        CFDictionarySetValue(query, kSecAttrSynchronizable, kCFBooleanTrue);
+        // A ThisDeviceOnly class is one iCloud Keychain refuses to sync.
+        CFDictionarySetValue(query, kSecAttrAccessible, kSecAttrAccessibleWhenUnlocked);
         err = SecItemAdd(query, NULL);
     }
 

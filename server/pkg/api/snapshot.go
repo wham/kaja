@@ -64,7 +64,7 @@ func buildSnapshot(workspaceFile string, store VariableStore) *workspaceSnapshot
 	normalize(workspace, logger)
 	validateApps(workspace, logger)
 
-	resolver := NewResolver(workspace.Variables, store)
+	resolver := NewResolver(workspace.Variables, store, workspace.Id)
 	snapshot := &workspaceSnapshot{
 		workspace:  workspace,
 		logs:       logger.logs,

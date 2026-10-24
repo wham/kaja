@@ -225,7 +225,10 @@ func (a *App) openWorkspace(dir string, pendingLink string) {
 	a.workspaceMu.Unlock()
 
 	workspaceFile := workspaceFileIn(dir)
-	a.api.SetWorkspace(workspaceFile, NewKeychainStore(workspaceFile))
+	a.api.SetWorkspace(workspaceFile)
+	if a.keychain != nil {
+		adoptStoredValues(a.api, workspaceFile, osKeychainItems{a.keychain})
+	}
 
 	a.workspaceMu.Lock()
 	a.workspaceDir = dir

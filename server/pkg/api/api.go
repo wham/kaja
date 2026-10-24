@@ -25,9 +25,11 @@ import (
 )
 
 type ApiService struct {
-	// Guarded by workspaceMu: the desktop swaps both when it opens another workspace.
+	// Guarded by workspaceMu: the desktop swaps it when it opens another workspace.
 	workspaceMu   sync.RWMutex
 	workspaceFile string
+	// variableStore is the machine's, so it outlives a switch: a value is filed under
+	// the workspace's id rather than under anything the store was opened with.
 	variableStore VariableStore
 
 	canUpdateWorkspace bool
@@ -106,8 +108,6 @@ func (s *ApiService) workspaceFilePath() string {
 }
 
 func (s *ApiService) valueStore() VariableStore {
-	s.workspaceMu.RLock()
-	defer s.workspaceMu.RUnlock()
 	return s.variableStore
 }
 
@@ -118,14 +118,13 @@ func (s *ApiService) WorkspaceDir() string {
 // SetWorkspace points the service at another file. Everything derived from the old
 // one goes with it: the snapshot, the open instances, and the watcher - whose streams
 // end, so a window still watching opens a new one on the new file.
-func (s *ApiService) SetWorkspace(workspaceFile string, variableStore VariableStore) {
+func (s *ApiService) SetWorkspace(workspaceFile string) {
 	if err := s.Close(); err != nil {
 		slog.Warn("Failed to stop watching the workspace", "error", err)
 	}
 
 	s.workspaceMu.Lock()
 	s.workspaceFile = workspaceFile
-	s.variableStore = variableStore
 	s.workspaceMu.Unlock()
 
 	s.invalidateSnapshot()
@@ -875,8 +874,14 @@ func (s *ApiService) UpdateWorkspace(ctx context.Context, req *UpdateWorkspaceRe
 	}
 
 	if err := s.MutateWorkspace(func(workspace *Workspace) error {
+		id := workspace.Id
 		proto.Reset(workspace)
 		proto.Merge(workspace, req.Workspace)
+		// A window writes the file it last heard, and storing a value can write the id a
+		// moment before it hears that: taking its copy whole would orphan the value.
+		if workspace.Id == "" {
+			workspace.Id = id
+		}
 		return nil
 	}); err != nil {
 		return nil, err
@@ -931,7 +936,11 @@ func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequ
 
 	slog.Info("Storing variable value", "name", req.Name)
 
-	if err := s.valueStore().Set(req.Name, req.Value); err != nil {
+	workspaceID, err := s.EnsureWorkspaceID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
+	}
+	if err := s.valueStore().Set(workspaceID, req.Name, req.Value); err != nil {
 		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
 	}
 	s.invalidateSnapshot()
@@ -947,15 +956,32 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 		return nil, err
 	}
 
-	if s.variableStoreAvailable() {
+	if workspaceID := s.snapshot().workspace.GetId(); workspaceID != "" && s.variableStoreAvailable() {
 		slog.Info("Clearing stored variable value", "name", req.Name)
-		if err := s.valueStore().Delete(req.Name); err != nil {
+		if err := s.valueStore().Delete(workspaceID, req.Name); err != nil {
 			return nil, fmt.Errorf("failed to clear the value for %q: %w", req.Name, err)
 		}
 		s.invalidateSnapshot()
 	}
 
 	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
+}
+
+// EnsureWorkspaceID is the id the workspace's stored values are filed under, giving
+// the workspace one if it has none yet.
+func (s *ApiService) EnsureWorkspaceID() (string, error) {
+	if id := s.snapshot().workspace.GetId(); id != "" {
+		return id, nil
+	}
+	var id string
+	err := s.MutateWorkspace(func(workspace *Workspace) error {
+		if workspace.Id == "" {
+			workspace.Id = newWorkspaceID()
+		}
+		id = workspace.Id
+		return nil
+	})
+	return id, err
 }
 
 func (s *ApiService) checkStoredValueAllowed(name string) error {

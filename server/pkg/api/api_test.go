@@ -43,7 +43,7 @@ func TestTheDoorLogsTheStatusOfAFailureThatSurfacedMidStream(t *testing.T) {
 	stream := &timedStream{
 		stream:   &failingStream{err: failure},
 		started:  time.Now(),
-		resolver: NewResolver(nil, nil),
+		resolver: NewResolver(nil, nil, ""),
 		log:      callLog{method: "orders.v1.Orders/List", app: "orders"},
 	}
 
@@ -70,7 +70,7 @@ func TestTheDoorLogsNoStatusForAStreamThatEnded(t *testing.T) {
 	stream := &timedStream{
 		stream:   &failingStream{err: io.EOF},
 		started:  time.Now(),
-		resolver: NewResolver(nil, nil),
+		resolver: NewResolver(nil, nil, ""),
 		log:      callLog{method: "orders.v1.Orders/List", app: "orders"},
 	}
 

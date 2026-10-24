@@ -715,6 +715,11 @@ message Workspace {
   // written by hand, and read by the web alone: the switch is the person's, and on
   // the desktop a folder somebody cloned must not be what opens a listener.
   WorkspaceMcp mcp = 8;
+  // A random UUID naming this workspace wherever its file is, written the first time a
+  // value is stored for it. The values a "${secret}" variable keeps in the keychain are
+  // filed under it, so a workspace synced between devices finds the same ones on each.
+  // Never edited: a changed id is every stored value left behind.
+  string id = 10;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.

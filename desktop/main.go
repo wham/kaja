@@ -94,6 +94,8 @@ type App struct {
 	api           *api.ApiService
 	bookmarkStore *BookmarkStore
 	settings      *settingsStore
+	// Nil in a test, where nothing is stored.
+	keychain *keychainStore
 	// The installation's own folder; the default workspace is a folder inside it.
 	kajaDir string
 
@@ -489,7 +491,8 @@ func main() {
 	setupLogging(kajaDir)
 
 	defaultDir := defaultWorkspaceDir(kajaDir)
-	if err := migrateDefaultWorkspace(kajaDir, func(path string) api.VariableStore { return NewKeychainStore(path) }); err != nil {
+	keychain := NewKeychainStore()
+	if err := migrateDefaultWorkspace(kajaDir, osKeychainItems{keychain}); err != nil {
 		slog.Error("Failed to move the default workspace", "error", err)
 		println("Error:", err.Error())
 		return
@@ -521,11 +524,13 @@ func main() {
 	workspaceFile := workspaceFileIn(workspaceDir)
 
 	// Create API service. Variable values that kaja.json only names live in the
-	// OS keychain, filed under this workspace's kaja.json.
-	apiService := api.NewApiService(workspaceFile, true, GitRef, buildNumber(), NewKeychainStore(workspaceFile))
+	// OS keychain, filed under the workspace's id.
+	apiService := api.NewApiService(workspaceFile, true, GitRef, buildNumber(), keychain)
+	adoptStoredValues(apiService, workspaceFile, osKeychainItems{keychain})
 
 	kaja := NewApp(apiService, bookmarkStore, settings, kajaDir, workspaceDir)
 	kaja.missingWorkspace = missingWorkspace
+	kaja.keychain = keychain
 
 	// Creating the application, creating the window and running are three steps in v3.
 	// The About box is the application's Name and Description rather than a Mac option:

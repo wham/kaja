@@ -4200,7 +4200,12 @@ type Workspace struct {
 	// is what lets a deployed workspace ship a session that is already on. Only ever
 	// written by hand, and read by the web alone: the switch is the person's, and on
 	// the desktop a folder somebody cloned must not be what opens a listener.
-	Mcp           *WorkspaceMcp `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
+	Mcp *WorkspaceMcp `protobuf:"bytes,8,opt,name=mcp,proto3" json:"mcp,omitempty"`
+	// A random UUID naming this workspace wherever its file is, written the first time a
+	// value is stored for it. The values a "${secret}" variable keeps in the keychain are
+	// filed under it, so a workspace synced between devices finds the same ones on each.
+	// Never edited: a changed id is every stored value left behind.
+	Id            string `protobuf:"bytes,10,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4268,6 +4273,13 @@ func (x *Workspace) GetMcp() *WorkspaceMcp {
 		return x.Mcp
 	}
 	return nil
+}
+
+func (x *Workspace) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
 }
 
 // WorkspaceMcp is what kaja.json says about the agent session. Only `enabled`: the
@@ -5414,14 +5426,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\ascripts\x18\x02 \x03(\v2\x10.ScriptReferenceR\ascripts\"n\n" +
 	"\x1bScanScriptVariablesResponse\x121\n" +
 	"\tvariables\x18\x01 \x03(\v2\x13.VariableReferencesR\tvariables\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x8f\x03\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\x9f\x03\n" +
 	"\tWorkspace\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12!\n" +
 	"\x04apps\x18\x05 \x03(\v2\r.WorkspaceAppR\x04apps\x127\n" +
 	"\tvariables\x18\x06 \x03(\v2\x19.Workspace.VariablesEntryR\tvariables\x127\n" +
 	"\tshortcuts\x18\a \x03(\v2\x19.Workspace.ShortcutsEntryR\tshortcuts\x12\x1f\n" +
-	"\x03mcp\x18\b \x01(\v2\r.WorkspaceMcpR\x03mcp\x1a<\n" +
+	"\x03mcp\x18\b \x01(\v2\r.WorkspaceMcpR\x03mcp\x12\x0e\n" +
+	"\x02id\x18\n" +
+	" \x01(\tR\x02id\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +

@@ -757,6 +757,13 @@ export interface Workspace {
      * the desktop a folder somebody cloned must not be what opens a listener.
      */
     mcp?: WorkspaceMcp;
+    /**
+     * A random UUID naming this workspace wherever its file is, written the first time a
+     * value is stored for it. The values a "${secret}" variable keeps in the keychain are
+     * filed under it, so a workspace synced between devices finds the same ones on each.
+     * Never edited: a changed id is every stored value left behind.
+     */
+    id: string;
 }
 
 /**
@@ -1487,7 +1494,8 @@ export const Workspace: MessageType<Workspace> = new MessageType<Workspace>("Wor
     { no: 5, name: "apps", kind: "message", repeat: 2, T: () => WorkspaceApp },
     { no: 6, name: "variables", kind: "map", K: 9, V: { kind: "scalar", T: 9 } },
     { no: 7, name: "shortcuts", kind: "map", K: 9, V: { kind: "scalar", T: 9 } },
-    { no: 8, name: "mcp", kind: "message", T: () => WorkspaceMcp }
+    { no: 8, name: "mcp", kind: "message", T: () => WorkspaceMcp },
+    { no: 10, name: "id", kind: "scalar", T: 9 }
 ]);
 
 export const WorkspaceMcp: MessageType<WorkspaceMcp> = new MessageType<WorkspaceMcp>("WorkspaceMcp", [

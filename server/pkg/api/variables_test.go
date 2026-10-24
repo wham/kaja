@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -14,21 +15,22 @@ type fakeStore struct {
 
 func (s *fakeStore) Available() bool { return s.available }
 
-func (s *fakeStore) Get(name string) (string, bool) {
-	value, ok := s.values[name]
+// values are keyed "<workspace id>#<name>", the way the keychain names them.
+func (s *fakeStore) Get(workspaceID string, name string) (string, bool) {
+	value, ok := s.values[workspaceID+"#"+name]
 	return value, ok
 }
 
-func (s *fakeStore) Set(name string, value string) error {
+func (s *fakeStore) Set(workspaceID string, name string, value string) error {
 	if s.values == nil {
 		s.values = map[string]string{}
 	}
-	s.values[name] = value
+	s.values[workspaceID+"#"+name] = value
 	return nil
 }
 
-func (s *fakeStore) Delete(name string) error {
-	delete(s.values, name)
+func (s *fakeStore) Delete(workspaceID string, name string) error {
+	delete(s.values, workspaceID+"#"+name)
 	return nil
 }
 
@@ -44,7 +46,7 @@ func statusFor(t *testing.T, resolver *Resolver, name string) *VariableStatus {
 }
 
 func TestResolveLiteralValue(t *testing.T) {
-	resolver := NewResolver(map[string]string{"API_BASE_URL": "https://api.example.com"}, nil)
+	resolver := NewResolver(map[string]string{"API_BASE_URL": "https://api.example.com"}, nil, "w")
 
 	if got := resolver.Expand("${API_BASE_URL}/v1"); got != "https://api.example.com/v1" {
 		t.Errorf("expected the literal value to expand, got %q", got)
@@ -63,9 +65,9 @@ func TestResolveLiteralValue(t *testing.T) {
 // was typed, and an inherited KAJA_<NAME> should not silently override it.
 func TestResolveSecretPrefersStoreOverEnvironment(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "from-environment")
-	store := &fakeStore{available: true, values: map[string]string{"TOKEN": "from-keychain"}}
+	store := &fakeStore{available: true, values: map[string]string{"w#TOKEN": "from-keychain"}}
 
-	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, store)
+	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, store, "w")
 
 	if got := resolver.Expand("Bearer ${TOKEN}"); got != "Bearer from-keychain" {
 		t.Errorf("expected the stored value, got %q", got)
@@ -82,8 +84,8 @@ func TestResolveSecretPrefersStoreOverEnvironment(t *testing.T) {
 func TestResolveSecretFallsBackToEnvironment(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "from-environment")
 
-	for _, store := range []VariableStore{nil, &fakeStore{available: false, values: map[string]string{"TOKEN": "unreachable"}}} {
-		resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, store)
+	for _, store := range []VariableStore{nil, &fakeStore{available: false, values: map[string]string{"w#TOKEN": "unreachable"}}} {
+		resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, store, "w")
 
 		if got := resolver.Expand("Bearer ${TOKEN}"); got != "Bearer from-environment" {
 			t.Errorf("expected the environment value, got %q", got)
@@ -97,7 +99,7 @@ func TestResolveSecretFallsBackToEnvironment(t *testing.T) {
 // A variable whose source holds nothing is not defined at all, so ${NAME} passes
 // through literally - which is what the Variables tab tells the user happens.
 func TestResolveUnsetSecretLeavesTheReference(t *testing.T) {
-	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, &fakeStore{available: true})
+	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, &fakeStore{available: true}, "w")
 
 	if got := resolver.Expand("Bearer ${TOKEN}"); got != "Bearer ${TOKEN}" {
 		t.Errorf("expected the reference to pass through, got %q", got)
@@ -115,7 +117,7 @@ func TestResolveEnvironmentReference(t *testing.T) {
 	resolver := NewResolver(map[string]string{
 		"API_BASE_URL": "https://${env:SERVICE_HOST}/v1",
 		"GH_TOKEN":     "${env:GITHUB_TOKEN}",
-	}, nil)
+	}, nil, "w")
 
 	if got := resolver.Expand("${API_BASE_URL}"); got != "https://api.example.com/v1" {
 		t.Errorf("expected the embedded reference to expand, got %q", got)
@@ -139,7 +141,7 @@ func TestResolveEnvironmentReference(t *testing.T) {
 // synthesized from its own credentials is masked by content.
 func TestRedactMasksResolvedValues(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "super-secret-value")
-	resolver := NewResolver(map[string]string{"TOKEN": "${secret}", "PLAIN": "not-a-secret"}, nil)
+	resolver := NewResolver(map[string]string{"TOKEN": "${secret}", "PLAIN": "not-a-secret"}, nil, "w")
 
 	redacted := resolver.Redact(map[string]string{
 		"Authorization": "Bearer super-secret-value",
@@ -158,7 +160,7 @@ func TestRedactMasksResolvedValues(t *testing.T) {
 // stored value can't corrupt unrelated text by matching a substring of it.
 func TestRedactRestoresSentHeaders(t *testing.T) {
 	t.Setenv("KAJA_SHORT", "secret")
-	resolver := NewResolver(map[string]string{"SHORT": "${secret}"}, nil)
+	resolver := NewResolver(map[string]string{"SHORT": "${secret}"}, nil, "w")
 
 	sent := map[string]string{"Authorization": "Bearer ${SHORT}", "X-Plain": "not-a-secret"}
 	redacted := resolver.Redact(resolver.ExpandAll(sent), sent)
@@ -173,7 +175,7 @@ func TestRedactRestoresSentHeaders(t *testing.T) {
 
 func TestExpandAllHeaders(t *testing.T) {
 	t.Setenv("KAJA_TOKEN", "super-secret")
-	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, nil)
+	resolver := NewResolver(map[string]string{"TOKEN": "${secret}"}, nil, "w")
 
 	expanded := resolver.ExpandAll(map[string]string{"Authorization": "Bearer ${TOKEN}", "X-Plain": "as-is"})
 
@@ -269,5 +271,45 @@ func TestValidateVariables(t *testing.T) {
 	err = validateVariables(map[string]string{"TOKEN": "Bearer ${secret}"})
 	if err == nil || !strings.Contains(err.Error(), "whole value") {
 		t.Errorf("expected an embedded ${secret} to be rejected, got %v", err)
+	}
+}
+
+// Storing a value is what gives a workspace its id, and a window writing the copy it
+// had from before must not take the id away again.
+func TestStoringAValueGivesTheWorkspaceAnIdThatWritesKeep(t *testing.T) {
+	path := writeWorkspace(t, `{"variables": {"TOKEN": "${secret}"}}`)
+	store := &fakeStore{available: true}
+	service := NewApiService(path, true, "", "", store)
+	defer service.Close()
+	ctx := context.Background()
+
+	if _, err := service.SetStoredValue(ctx, &SetStoredValueRequest{Name: "TOKEN", Value: "s3cr3t"}); err != nil {
+		t.Fatalf("SetStoredValue: %v", err)
+	}
+	id := service.snapshot().workspace.GetId()
+	if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(id) {
+		t.Fatalf("the workspace's id is %q, want a version 4 UUID", id)
+	}
+	if got := store.values[id+"#TOKEN"]; got != "s3cr3t" {
+		t.Errorf("the value is filed under %v, want the workspace's id", store.values)
+	}
+
+	if _, err := service.UpdateWorkspace(ctx, &UpdateWorkspaceRequest{Workspace: &Workspace{
+		Variables: map[string]string{"TOKEN": "${secret}"},
+	}}); err != nil {
+		t.Fatalf("UpdateWorkspace: %v", err)
+	}
+	if got := service.snapshot().workspace.GetId(); got != id {
+		t.Fatalf("a write without the id left %q, want %q", got, id)
+	}
+	if got := service.Variables().Expand("${TOKEN}"); got != "s3cr3t" {
+		t.Errorf("${TOKEN} expands to %q after the write, want the stored value", got)
+	}
+
+	if _, err := service.ClearStoredValue(ctx, &ClearStoredValueRequest{Name: "TOKEN"}); err != nil {
+		t.Fatalf("ClearStoredValue: %v", err)
+	}
+	if len(store.values) != 0 {
+		t.Errorf("clearing left %v", store.values)
 	}
 }
