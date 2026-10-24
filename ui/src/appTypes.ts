@@ -94,11 +94,6 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "password", label: "Password", type: "text", optional: true },
       { key: "apiKeyName", label: "Metadata key", type: "text", optional: true },
     ],
-    demo: {
-      label: "try the grpcb.in demo server",
-      name: "grpcb.in",
-      parameters: { url: "grpcb.in:9000", reflection: "true" },
-    },
   },
   {
     type: "openapi",
