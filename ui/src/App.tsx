@@ -322,7 +322,7 @@ export function App() {
       .then((info) => {
         if (mcpRequestRef.current !== request) return;
         setMcpInfo(info);
-        if (info.enabled && info.token) agentSession.adopt(info.token);
+        if ((info.enabled || info.intents) && info.token) agentSession.adopt(info.token);
         else agentSession.releaseHost();
       })
       .catch((err) => {
@@ -332,6 +332,7 @@ export function App() {
           url: "",
           token: "",
           error: rpcErrorMessage(err),
+          intents: current?.intents ?? false,
           configurationPaths: current?.configurationPaths ?? {},
         }));
         agentSession.releaseHost();
@@ -348,7 +349,7 @@ export function App() {
       .then((info) => {
         if (mcpRequestRef.current !== request) return;
         setMcpInfo(info);
-        if (info.enabled && info.token) agentSession.adopt(info.token);
+        if ((info.enabled || info.intents) && info.token) agentSession.adopt(info.token);
       })
       .catch((err) => {
         if (mcpRequestRef.current !== request) return;
@@ -1684,7 +1685,7 @@ export function App() {
       .then((info) => {
         if (mcpRequestRef.current !== request) return;
         setMcpInfo(info);
-        if (info.enabled && info.token) agentSession.adopt(info.token);
+        if ((info.enabled || info.intents) && info.token) agentSession.adopt(info.token);
         else agentSession.releaseHost();
       })
       .catch((err) => {

@@ -38,6 +38,9 @@ type MCPInfo struct {
 	URL     string `json:"url"`
 	Token   string `json:"token"`
 	Error   string `json:"error"`
+	// Intents is whether the system's App Intents reach the session, which keeps the
+	// window attached with the switch off.
+	Intents bool `json:"intents"`
 	// ConfigurationPaths is where each agent keeps the file its snippet goes
 	// into, keyed by the agent the MCP page shows it under.
 	ConfigurationPaths map[string]string `json:"configurationPaths"`
@@ -101,7 +104,7 @@ func (a *App) RegenerateMCPToken() MCPInfo {
 	}
 	previous := a.mcpToken
 	a.mcpToken = token
-	if a.mcpServer == nil {
+	if a.mcpServer == nil && !appIntents {
 		return a.mcpInfoLocked()
 	}
 	// Opened before the old one is dropped, so the window has somewhere to reattach.
@@ -126,6 +129,7 @@ func (a *App) RegenerateMCPToken() MCPInfo {
 func (a *App) mcpInfoLocked() MCPInfo {
 	return MCPInfo{
 		Enabled:            a.mcpServer != nil,
+		Intents:            appIntents,
 		URL:                a.mcpURL,
 		Token:              a.readMCPToken(),
 		Error:              a.mcpError,
@@ -238,7 +242,9 @@ func (a *App) stopMCPServer() {
 	if err := srv.Shutdown(ctx); err != nil {
 		_ = srv.Close()
 	}
-	a.agents.Drop(a.mcpToken)
+	if !appIntents {
+		a.agents.Drop(a.mcpToken)
+	}
 	a.mcpServer = nil
 	a.mcpURL = ""
 	slog.Info("MCP server stopped")

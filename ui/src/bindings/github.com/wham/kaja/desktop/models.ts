@@ -17,6 +17,12 @@ export class MCPInfo {
     "error": string;
 
     /**
+     * Intents is whether the system's App Intents reach the session, which keeps the
+     * window attached with the switch off.
+     */
+    "intents": boolean;
+
+    /**
      * ConfigurationPaths is where each agent keeps the file its snippet goes
      * into, keyed by the agent the MCP page shows it under.
      */
@@ -36,6 +42,9 @@ export class MCPInfo {
         if (!("error" in $$source)) {
             this["error"] = "";
         }
+        if (!("intents" in $$source)) {
+            this["intents"] = false;
+        }
         if (!("configurationPaths" in $$source)) {
             this["configurationPaths"] = {};
         }
@@ -47,10 +56,10 @@ export class MCPInfo {
      * Creates a new MCPInfo instance from a string or object.
      */
     static createFrom($$source: any = {}): MCPInfo {
-        const $$createField4_0 = $$createType0;
+        const $$createField5_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("configurationPaths" in $$parsedSource) {
-            $$parsedSource["configurationPaths"] = $$createField4_0($$parsedSource["configurationPaths"]);
+            $$parsedSource["configurationPaths"] = $$createField5_0($$parsedSource["configurationPaths"]);
         }
         return new MCPInfo($$parsedSource as Partial<MCPInfo>);
     }
