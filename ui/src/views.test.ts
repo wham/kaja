@@ -71,6 +71,15 @@ describe("the mounted cache", () => {
     expect(viewIdentity(showAppForm([], "create", buildApp("", "openapi", {}, {}))[0]).name).toBe("New OpenAPI app");
   });
 
+  it("starts a new app over when another type is picked", () => {
+    const mcp = showAppForm([], "create", buildApp("", "mcp", { url: "https://example.com/mcp" }, {}));
+    const openapi = showAppForm(setAppFormEditMode(mcp, mcp[0].id, "json"), "create", buildApp("", "openapi", {}, {}));
+
+    expect(openapi).toHaveLength(1);
+    expect(viewIdentity(openapi[0]).name).toBe("New OpenAPI app");
+    expect((openapi[0] as any).editMode).toBe("form");
+  });
+
   it("remembers which view of the app is showing", () => {
     const views = showAppForm([], "edit", grpcApp("orders"));
     expect((setAppFormEditMode(views, views[0].id, "json")[0] as any).editMode).toBe("json");

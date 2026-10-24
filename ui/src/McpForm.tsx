@@ -13,7 +13,8 @@ import { cn } from "./cn";
 import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, authNote, authSchemes, deriveAppName, eraLabel } from "./mcpServer";
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
-import { KnownServer, endpointLabel, knownServerFor, matchingServers } from "./knownServers";
+import { KnownServer, knownServerFor, matchingServers } from "./knownServers";
+import { KnownChip, KnownList } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -304,7 +305,7 @@ export function McpForm({
             placeholder="https://example.com/mcp"
             disabled={readOnly}
             className={known ? "pr-28" : undefined}
-            trailingAction={known && <KnownServerChip server={known} />}
+            trailingAction={known && <KnownChip entry={known} />}
             onFocus={() => setPicker(true)}
             onBlur={() => setPicker(false)}
             onKeyDown={(event) => {
@@ -324,7 +325,26 @@ export function McpForm({
               else read({ fresh: true });
             }}
           />
-          {picking && <KnownServerList servers={offered} query={url} highlight={highlight % offered.length} onHighlight={setHighlight} onPick={pick} />}
+          {picking && (
+            <KnownList
+              heading="Servers Kaja is set up for"
+              note="sign-in ready"
+              entries={offered.map((server) => ({ name: server.name, address: server.endpoint, mark: server.mark }))}
+              query={url}
+              highlight={highlight % offered.length}
+              onHighlight={setHighlight}
+              onPick={(index) => pick(offered[index])}
+              footer={
+                !url.trim() || isReadableUrl(url) ? (
+                  <>
+                    Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                  </>
+                ) : (
+                  "Nothing typed here is a URL yet, so no server has been reached."
+                )
+              }
+            />
+          )}
         </div>
 
         <EndpointStatus
@@ -376,66 +396,6 @@ export function McpForm({
         </>
       )}
     </div>
-  );
-}
-
-interface KnownServerListProps {
-  servers: KnownServer[];
-  query: string;
-  highlight: number;
-  onHighlight: (index: number) => void;
-  onPick: (server: KnownServer) => void;
-}
-
-// The servers Kaja is set up for, under the field they fill in. Rows are the height of
-// that field, and the footer is the escape hatch: everything here is an offer, and
-// pasting an address nobody bundled is the ordinary way to use the form.
-function KnownServerList({ servers, query, highlight, onHighlight, onPick }: KnownServerListProps) {
-  const typed = query.trim().length > 0;
-  return (
-    // Keep focus in the input so a click on a row isn't lost to blur.
-    <div
-      onMouseDown={(event) => event.preventDefault()}
-      className="absolute left-0 top-full z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-md"
-    >
-      {!typed && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Servers Kaja is set up for</p>}
-      {servers.map((server, index) => (
-        <button
-          key={server.endpoint}
-          type="button"
-          onMouseEnter={() => onHighlight(index)}
-          onClick={() => onPick(server)}
-          className={cn("flex h-8 w-full items-center gap-2 px-3 text-left", index === highlight ? "bg-accent" : "hover:bg-accent/50")}
-        >
-          <span className="flex size-[18px] shrink-0 items-center justify-center text-foreground">
-            <server.mark size={16} />
-          </span>
-          <span className="shrink-0 text-sm text-foreground">{server.name}</span>
-          <span className="truncate font-mono text-xs text-muted-foreground">{endpointLabel(server.endpoint)}</span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{typed && index === highlight ? "⏎" : "sign-in ready"}</span>
-        </button>
-      ))}
-      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {!typed || isReadableUrl(query) ? (
-          <>
-            Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
-          </>
-        ) : (
-          "Nothing typed here is a URL yet, so no server has been reached."
-        )}
-      </p>
-    </div>
-  );
-}
-
-// The server the endpoint turned out to be, said in the field that holds it. It is the
-// one thing recognition adds above the divider: everything it changed is below.
-function KnownServerChip({ server }: { server: KnownServer }) {
-  return (
-    <span className="flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-      <server.mark size={12} />
-      <span className="max-w-24 truncate">{server.name}</span>
-    </span>
   );
 }
 
