@@ -173,9 +173,11 @@ export function showDefinition(views: View[], model: monaco.editor.ITextModel, s
 
 export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp, agentRequest?: string, agentNotes?: AgentNotes): View[] {
   const existing = views.find((view) => view.type === "appForm" && view.mode === mode && view.editingAppName === initialData?.name);
-  // A form an agent opened is refilled with what the agent sent, where a second click
-  // on New app leaves what is being typed alone.
-  if (existing && agentRequest) return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes }), existing.id);
+  // A form an agent opened is refilled with what the agent sent, and a type picked in
+  // the New dialog starts the new app over, whatever was being typed into the last one.
+  if (existing && (agentRequest || mode === "create")) {
+    return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes, editMode: "form" }), existing.id);
+  }
   if (existing) return visit(views, existing.id);
 
   return show(views, {

@@ -22,10 +22,12 @@ import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { AppNameField } from "./AppNameField";
-import { DemoLink, ReadingRow } from "./InspectStatus";
+import { ReadingRow } from "./InspectStatus";
+import { KnownChip, KnownList } from "./KnownList";
+import { KnownApi, knownApiFor, matchingApis } from "./knownApis";
 import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { buildApp, CustomFormProps, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
 import {
   NO_CREDENTIALS,
@@ -113,11 +115,17 @@ export function OpenApiForm({
   // Credentials typed for a scheme, kept while another scheme is selected so flipping
   // back and forth doesn't lose typing.
   const credentialsRef = useRef<Record<string, Credentials>>({});
+  // Whether the field is offering the documents Kaja knows the address of.
+  const [picker, setPicker] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   const specUrl = parameters.specUrl ?? "";
   const specContent = parameters.specContent ?? "";
   const source = sourceMode === "url" ? specUrl : specContent;
   const document = state.status === "read" ? state.document : undefined;
+  const known = useMemo(() => knownApiFor(specUrl), [specUrl]);
+  const offered = useMemo(() => matchingApis(specUrl), [specUrl]);
+  const picking = picker && !readOnly && !known && offered.length > 0;
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
     const parameters = parametersRef.current;
@@ -261,7 +269,12 @@ export function OpenApiForm({
     reader.readAsText(file);
   };
 
-  const demo = getAppType("openapi")?.demo;
+  const pick = (chosen: KnownApi) => {
+    setPicker(false);
+    typedRef.current = false;
+    onParametersChange((previous) => ({ ...previous, specUrl: chosen.specUrl, specContent: "" }));
+  };
+
   const selectedScheme = (parameters.securityScheme ?? "").trim() || (document ? defaultSecurityScheme(document) : NO_CREDENTIALS);
 
   const selectScheme = (key: string) => {
@@ -291,23 +304,58 @@ export function OpenApiForm({
         </div>
 
         {sourceMode === "url" && (
-          <VariableSuggestInput
-            id="openapi-source"
-            value={specUrl}
-            onValueChange={(value) => {
-              typedRef.current = true;
-              setParameter("specUrl", value);
-            }}
-            variables={variables}
-            placeholder="https://example.com/openapi.json"
-            disabled={readOnly}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
+          <div className="relative">
+            <VariableSuggestInput
+              id="openapi-source"
+              value={specUrl}
+              onValueChange={(value) => {
+                typedRef.current = true;
+                setParameter("specUrl", value);
+              }}
+              variables={variables}
+              placeholder="https://example.com/openapi.json"
+              disabled={readOnly}
+              className={known ? "pr-28" : undefined}
+              trailingAction={known && <KnownChip entry={known} />}
+              onFocus={() => setPicker(true)}
+              onBlur={() => setPicker(false)}
+              onKeyDown={(event) => {
+                if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                  event.preventDefault();
+                  setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                  return;
+                }
+                if (picking && event.key === "Escape") {
+                  event.preventDefault();
+                  setPicker(false);
+                  return;
+                }
+                if (event.key !== "Enter") return;
                 event.preventDefault();
-                if (isReadableUrl(specUrl)) read();
-              }
-            }}
-          />
+                if (picking) pick(offered[highlight % offered.length]);
+                else if (isReadableUrl(specUrl)) read();
+              }}
+            />
+            {picking && (
+              <KnownList
+                heading="Known APIs"
+                entries={offered.map((api) => ({ name: api.name, address: api.specUrl, mark: api.mark }))}
+                query={specUrl}
+                highlight={highlight % offered.length}
+                onHighlight={setHighlight}
+                onPick={(index) => pick(offered[index])}
+                footer={
+                  !specUrl.trim() || isReadableUrl(specUrl) ? (
+                    <>
+                      Or paste any document URL. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                    </>
+                  ) : (
+                    "Nothing typed here is a URL yet, so no document has been read."
+                  )
+                }
+              />
+            )}
+          </div>
         )}
 
         {sourceMode === "file" && (
@@ -350,15 +398,6 @@ export function OpenApiForm({
           parameters={parameters}
           variables={variables}
           readOnly={readOnly}
-          demoLabel={demo?.label}
-          onDemo={
-            demo
-              ? () => {
-                  setSourceMode("url");
-                  onParametersChange((previous) => ({ ...previous, ...demo.parameters, specContent: "" }));
-                }
-              : undefined
-          }
           onCancel={() => {
             readIdRef.current++;
             setState({ status: "idle" });
@@ -430,8 +469,6 @@ interface SourceStatusProps {
   parameters: Record<string, string>;
   variables: { [key: string]: string };
   readOnly: boolean;
-  demoLabel?: string;
-  onDemo?: () => void;
   onCancel: () => void;
   onRefresh: () => void;
   onUploadInstead: () => void;
@@ -441,26 +478,9 @@ interface SourceStatusProps {
 
 // SourceStatus is the one slot under the source field carrying every state: the
 // caption, the read in progress, the document that was read, and each way it can fail.
-function SourceStatus({
-  state,
-  parameters,
-  variables,
-  readOnly,
-  demoLabel,
-  onDemo,
-  onCancel,
-  onRefresh,
-  onUploadInstead,
-  onSpecHeaderChange,
-  onRetry,
-}: SourceStatusProps) {
+function SourceStatus({ state, parameters, variables, readOnly, onCancel, onRefresh, onUploadInstead, onSpecHeaderChange, onRetry }: SourceStatusProps) {
   if (state.status === "idle") {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Kaja reads it and fills in the rest.
-        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
-      </p>
-    );
+    return <p className="text-xs text-muted-foreground">Kaja reads it and fills in the rest.</p>;
   }
 
   if (state.status === "reading") {

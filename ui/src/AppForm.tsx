@@ -303,9 +303,9 @@ export function AppForm({
   // mode it is the full app. This runs during render rather than in an effect so the
   // fields are already the new app's when a keyed custom form below mounts — otherwise
   // it would mount against the previous app's parameters and read the wrong document.
-  const [loaded, setLoaded] = useState<{ mode: string; app?: WorkspaceApp } | null>(null);
+  const [loaded, setLoaded] = useState<{ mode: string; app?: WorkspaceApp; generation: number } | null>(null);
   if (loaded?.mode !== mode || loaded?.app !== initialData) {
-    setLoaded({ mode, app: initialData });
+    setLoaded({ mode, app: initialData, generation: (loaded?.generation ?? 0) + 1 });
     updateFormFromApp(initialData ?? createEmptyApp());
   }
 
@@ -481,11 +481,11 @@ export function AppForm({
             <div className="flex flex-col gap-6">
               {agentNotes && !readOnly && <AgentNotesPanel notes={agentNotes} type={type} />}
               {customForm ? (
-                // Keyed by the app being edited: switching apps in the sidebar starts the form over
-                // rather than reading the next server behind the previous one's transport and
-                // credentials.
+                // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
+                // in the New dialog again, starts the form over rather than reading the next
+                // server behind the previous one's transport and credentials.
                 <CustomForm
-                  key={initialData?.name || "__new__"}
+                  key={loaded?.generation}
                   name={name}
                   onNameChange={setName}
                   duplicateName={duplicateName}

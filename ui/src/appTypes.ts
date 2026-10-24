@@ -120,11 +120,6 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "specHeaderName", label: "Document header", type: "text", optional: true },
       { key: "specHeaderValue", label: "Document header value", type: "text", optional: true },
     ],
-    demo: {
-      label: "try the Petstore demo",
-      name: "Petstore",
-      parameters: { specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" },
-    },
   },
   {
     type: "mcp",
