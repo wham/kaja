@@ -139,6 +139,12 @@ type securityScheme struct {
 	BearerFormat     string `json:"bearerFormat"`
 	Description      string `json:"description"`
 	OpenIDConnectURL string `json:"openIdConnectUrl"`
+
+	// supplied marks a scheme kaja knows the API takes and the document never
+	// declared (known_apis.go).
+	supplied bool
+	// signIn is set where kaja can obtain the credential itself.
+	signIn *signIn
 }
 
 // securitySchemes is components.securitySchemes, keeping the order the document
@@ -183,6 +189,16 @@ func (s *securitySchemes) order() []string { return s.names }
 func (s *securitySchemes) get(name string) *securityScheme { return s.byName[name] }
 
 func (s *securitySchemes) len() int { return len(s.byName) }
+
+func (s *securitySchemes) add(name string, scheme *securityScheme) {
+	if s.byName == nil {
+		s.byName = map[string]*securityScheme{}
+	}
+	if _, ok := s.byName[name]; !ok {
+		s.names = append(s.names, name)
+	}
+	s.byName[name] = scheme
+}
 
 // openAPIType is a schema "type". OpenAPI 3.0 writes a single string
 // ("string"), while OpenAPI 3.1 (JSON Schema) also allows an array such as
@@ -397,6 +413,7 @@ func readSpec(body []byte, contentType string) (*spec, *problem) {
 			Detail:  "There is nothing to call - check that it is the complete document.",
 		}
 	}
+	supplement(&s)
 	return &s, nil
 }
 

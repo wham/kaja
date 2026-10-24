@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -463,7 +465,7 @@ func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
 	defer server.Close()
 
 	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth}
-	_, problem := Inspect(context.Background(), parameters, testAuthorizer(t))
+	_, problem := Inspect(context.Background(), parameters, oauth.NewAuthorizer(oauth.NewTokenStore(filepath.Join(t.TempDir(), "oauth.json")), nil))
 	if problem == nil || problem.Kind != ProblemSignIn {
 		t.Fatalf("problem = %v, want signIn", problem)
 	}
@@ -1031,5 +1033,13 @@ func TestCredentialIsReadOffTheCall(t *testing.T) {
 	}
 	if got := fake.asked("tools/call").Headers.Get("Authorization"); got != "Bearer by-hand" {
 		t.Errorf("Authorization = %q, want the configured header kept", got)
+	}
+}
+
+// A build with nowhere to keep a sign-in says so where the credential is asked
+// for, rather than opening an app that would be refused on every call.
+func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
+	if _, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, nil); err == nil {
+		t.Fatal("expected the app to refuse to open")
 	}
 }

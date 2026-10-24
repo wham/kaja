@@ -2,11 +2,14 @@ package openapi
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"path"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/wham/kaja/v2/pkg/oauth"
 )
 
 // Document is what an OpenAPI document says about itself, read before an app is
@@ -58,6 +61,13 @@ type DocumentSecurityScheme struct {
 	// RequiresOthers marks a scheme that only ever appears alongside another one,
 	// which a single credential per app can't satisfy.
 	RequiresOthers bool
+	// Supplied marks a scheme kaja knows the API takes and the document never
+	// declared.
+	Supplied bool
+	// SignIn marks a scheme kaja obtains the credential for itself, and SignedIn
+	// says whether it holds one.
+	SignIn   bool
+	SignedIn bool
 }
 
 // Problem is a document that couldn't be read, classified so the form can name
@@ -71,7 +81,7 @@ type Problem struct {
 // Inspect reads the document an openapi app would be opened with and reports what
 // it declares, without creating the app. It takes the same flattened parameters
 // as Open.
-func Inspect(ctx context.Context, parameters map[string]string, log func(string)) (*Document, *Problem) {
+func Inspect(ctx context.Context, parameters map[string]string, authorizer *oauth.Authorizer, log func(string)) (*Document, *Problem) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
 	specContent := strings.TrimSpace(parameters["spec_content"])
 
@@ -98,7 +108,48 @@ func Inspect(ctx context.Context, parameters map[string]string, log func(string)
 	}
 	document := describe(s, specURL)
 	document.ReadAt = readAt
+	for i, scheme := range document.SecuritySchemes {
+		if signIn := s.Components.SecuritySchemes.get(scheme.Key).signIn; signIn != nil && authorizer != nil {
+			document.SecuritySchemes[i].SignedIn = authorizer.SignedIn(signIn.resource)
+		}
+	}
 	return document, nil
+}
+
+// SignInFor is what signing in to the app's chosen scheme takes: the server the
+// token is for, and the issuer and scopes kaja knows it by. It reads the document
+// the way Inspect does, which is the process's cached copy after the first read.
+func SignInFor(ctx context.Context, parameters map[string]string) (oauth.AppAuthorization, error) {
+	s, err := readFor(ctx, parameters)
+	if err != nil {
+		return oauth.AppAuthorization{}, err
+	}
+	key := strings.TrimSpace(parameters["security_scheme"])
+	scheme := s.Components.SecuritySchemes.get(key)
+	if scheme == nil || scheme.signIn == nil {
+		return oauth.AppAuthorization{}, fmt.Errorf("kaja cannot sign in to the %q scheme", key)
+	}
+	return oauth.AppAuthorization{Endpoint: scheme.signIn.resource, Issuer: scheme.signIn.issuer, Scope: scheme.signIn.scope}, nil
+}
+
+// readFor is the document an app's parameters name, quietly.
+func readFor(ctx context.Context, parameters map[string]string) (*spec, error) {
+	if content := strings.TrimSpace(parameters["spec_content"]); content != "" {
+		s, p := readSpec([]byte(content), "")
+		if p != nil {
+			return nil, p
+		}
+		return s, nil
+	}
+	specURL := strings.TrimSpace(parameters["spec_url"])
+	if err := requireHTTPScheme(specURL); err != nil {
+		return nil, err
+	}
+	fetched, p := fetchSpec(ctx, specURL, specFetchCredentials(parameters), func(string) {})
+	if p != nil {
+		return nil, p
+	}
+	return fetched.spec, nil
 }
 
 // specFetchCredentials collects the credentials used to fetch the document
@@ -188,6 +239,8 @@ func describe(s *spec, specURL string) *Document {
 			Description:      scheme.Description,
 			OperationCount:   coverage[name],
 			RequiresOthers:   seenWithOthers[name] && !seenAlone[name],
+			Supplied:         scheme.supplied,
+			SignIn:           scheme.signIn != nil,
 		})
 	}
 	// Most applicable first, so the form preselects the scheme the most

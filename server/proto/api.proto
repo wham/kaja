@@ -17,6 +17,10 @@ service Api {
   // and the last one says how it went once the server has sent the person back.
   rpc AuthorizeMcp(AuthorizeMcpRequest) returns (stream AuthorizeMcpResponse);
   rpc ForgetMcpAuthorization(ForgetMcpAuthorizationRequest) returns (ForgetMcpAuthorizationResponse);
+  // AuthorizeOpenApi signs kaja in to the scheme an OpenAPI app names, where kaja
+  // knows the issuer. It streams for the reason AuthorizeMcp does.
+  rpc AuthorizeOpenApi(AuthorizeOpenApiRequest) returns (stream AuthorizeOpenApiResponse);
+  rpc ForgetOpenApiAuthorization(ForgetOpenApiAuthorizationRequest) returns (ForgetOpenApiAuthorizationResponse);
   rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
   // WatchWorkspace streams kaja.json as it is edited: one message carrying the
   // whole workspace each time the file changes. What changed is never asked for
@@ -229,6 +233,13 @@ message OpenApiSecurityScheme {
   // Whether the scheme only ever appears alongside another one, which a single
   // credential per app can't satisfy.
   bool requires_others = 10;
+  // Whether kaja knows the API takes this scheme and the document never declared
+  // it.
+  bool supplied = 11;
+  // Whether kaja obtains the credential itself, by signing in.
+  bool sign_in = 12;
+  // Whether kaja holds a token for it.
+  bool signed_in = 13;
 }
 
 // OpenApiProblem is a document that couldn't be read, classified so the form can
@@ -257,6 +268,8 @@ enum OpenApiProblemKind {
   OPEN_API_PROBLEM_SWAGGER2 = 6;
   // Not parseable as JSON or YAML.
   OPEN_API_PROBLEM_MALFORMED = 7;
+  // A sign-in that did not happen.
+  OPEN_API_PROBLEM_AUTHORIZATION = 8;
 }
 
 // InspectMcp reads what an MCP server exposes without creating an app, so the
@@ -366,6 +379,25 @@ message ForgetMcpAuthorizationRequest {
 }
 
 message ForgetMcpAuthorizationResponse {}
+
+// AuthorizeOpenApi signs kaja in to the scheme the app's security_scheme names.
+// The messages are AuthorizeMcp's, the failure being an OpenAPI one.
+message AuthorizeOpenApiRequest {
+  OpenApiApp openapi = 1;
+}
+
+message AuthorizeOpenApiResponse {
+  string authorization_url = 1;
+  string user_code = 2;
+  bool authorized = 3;
+  OpenApiProblem problem = 4;
+}
+
+message ForgetOpenApiAuthorizationRequest {
+  OpenApiApp openapi = 1;
+}
+
+message ForgetOpenApiAuthorizationResponse {}
 
 // CompileResponse is one message of the compilation's stream. A STATUS_RUNNING
 // message carries the log lines written since the last one and nothing else; the

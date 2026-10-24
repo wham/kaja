@@ -1,4 +1,4 @@
-package mcp
+package oauth
 
 import (
 	"crypto/rand"
@@ -20,11 +20,14 @@ import (
 // Everything here is a request kaja makes on its own behalf. The one thing it
 // cannot do in this process is show the authorization page: that is a browser's
 // job, which is why the flow is halves - a URL to open, and the redirect that
-// comes back to the loopback listener in oauth_flow.go.
+// comes back to the loopback listener in flow.go.
 
 // oauthClientName is how kaja introduces itself to an authorization server that
 // registers it, and what the consent page shows the person approving.
 const oauthClientName = "Kaja"
+
+// requestTimeout bounds every request a sign-in makes on its own behalf.
+const requestTimeout = 20 * time.Second
 
 // metadataLimit bounds a discovery document. These are small JSON objects, and
 // an endpoint that answers one with a stream is not one to read to the end.
@@ -483,4 +486,16 @@ func fetchJSON(client *http.Client, target string, into any) error {
 		return fmt.Errorf("%s did not answer with a metadata document: %s", target, summarize(payload))
 	}
 	return nil
+}
+
+// summarize is an answer short enough to quote in an error.
+func summarize(payload []byte) string {
+	text := strings.TrimSpace(string(payload))
+	if text == "" {
+		return "the response was empty"
+	}
+	if len(text) > 200 {
+		return text[:200] + "…"
+	}
+	return text
 }

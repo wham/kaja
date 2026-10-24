@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/oauth"
 )
 
 // boundMethod pairs a method's HTTP binding with the protobuf descriptors used to
@@ -38,6 +39,8 @@ type instance struct {
 	// the app was opened with, sent by a call that carries no parameters of its own.
 	spec *spec
 	auth *auth
+	// authorizer holds the token a scheme kaja signs in to is sent with.
+	authorizer *oauth.Authorizer
 }
 
 func (in *instance) Close() error {
@@ -67,6 +70,10 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	authentication := in.auth
 	if call.Parameters != nil && in.spec != nil {
 		authentication = authFor(in.spec, call.Parameters)
+	}
+	authentication, err = authentication.withToken(in.authorizer, in.baseURL)
+	if err != nil {
+		return nil, err
 	}
 
 	ex, err := in.transcode(ctx, method.binding, reqJSON, call.Headers, authentication)

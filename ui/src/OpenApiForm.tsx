@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Server as ServerIcon,
   Shield,
+  ShieldCheck,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -48,6 +49,7 @@ import { pluralCount } from "./plural";
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
+import { SignInState, SignInStatus, followSignIn } from "./SignIn";
 
 // The value itself lives in specUrl (URL) or specContent (file, paste); switching
 // mode clears it but keeps everything the document filled in, since people often
@@ -68,6 +70,19 @@ const inspected = new Map<string, { document: OpenApiDocument; readAt: number }>
 // per token.
 function inspectionKey(parameters: Record<string, string>): string {
   return JSON.stringify(["specUrl", "specContent", "specHeaderName", "specHeaderValue", "token", "username", "password"].map((key) => parameters[key] ?? ""));
+}
+
+// openApiApp is the app the form is describing right now, which is what both reading
+// the document and signing in are asked about.
+function openApiApp(parameters: Record<string, string>): OpenApiApp | undefined {
+  const app = buildApp("", "openapi", parameters, {});
+  return app.app.oneofKind === "openapi" ? app.app.openapi : undefined;
+}
+
+// withSignedIn is the document with one scheme's sign-in recorded, which is what a
+// sign-in or a sign-out changes and all it changes: the document is not read again.
+function withSignedIn(document: OpenApiDocument, key: string, signedIn: boolean): OpenApiDocument {
+  return { ...document, securitySchemes: document.securitySchemes.map((scheme) => (scheme.key === key ? { ...scheme, signedIn } : scheme)) };
 }
 
 // Reads already on the wire, so two forms ask the server for the same document once.
@@ -98,6 +113,7 @@ export function OpenApiForm({
 }: CustomFormProps) {
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => ((parameters.specContent ?? "").trim() ? "paste" : "url"));
   const [state, setState] = useState<ReadState>({ status: "idle" });
+  const [signIn, setSignIn] = useState<SignInState>({ status: "idle" });
   const [uploadName, setUploadName] = useState("");
   const [serverChoice, setServerChoice] = useState<number | "custom">(0);
   const [serverVariables, setServerVariables] = useState<Record<number, Record<string, string>>>({});
@@ -140,9 +156,7 @@ export function OpenApiForm({
 
     setState({ status: "reading" });
     try {
-      const app = buildApp("", "openapi", parameters, {});
-      const openapi = app.app.oneofKind === "openapi" ? app.app.openapi : undefined;
-      const response = await inspect(key, openapi, Boolean(options?.fresh));
+      const response = await inspect(key, openApiApp(parameters), Boolean(options?.fresh));
       if (readId !== readIdRef.current) return;
       if (response.document) {
         const readAt = Date.now() - response.document.ageSeconds * 1000;
@@ -166,6 +180,34 @@ export function OpenApiForm({
       });
     }
   }, []);
+
+  const recordSignIn = useCallback((key: string, signedIn: boolean) => {
+    const cacheKey = inspectionKey(parametersRef.current);
+    const cached = inspected.get(cacheKey);
+    if (cached) inspected.set(cacheKey, { ...cached, document: withSignedIn(cached.document, key, signedIn) });
+    setState((previous) => (previous.status === "read" ? { ...previous, document: withSignedIn(previous.document, key, signedIn) } : previous));
+  }, []);
+
+  const authorize = useCallback(async () => {
+    const parameters = parametersRef.current;
+    const call = getApiClient().authorizeOpenApi({ openapi: openApiApp(parameters) });
+    if (await followSignIn(call.responses, setSignIn)) recordSignIn(parameters.securityScheme ?? "", true);
+  }, [recordSignIn]);
+
+  const forget = useCallback(async () => {
+    const parameters = parametersRef.current;
+    try {
+      await getApiClient().forgetOpenApiAuthorization({ openapi: openApiApp(parameters) });
+    } catch {
+      // A token kaja could not drop is one the next call fails with, which is where
+      // that is worth saying.
+    }
+    setSignIn({ status: "idle" });
+    recordSignIn(parameters.securityScheme ?? "", false);
+  }, [recordSignIn]);
+
+  // A sign-in that failed is about the document it was tried against.
+  useEffect(() => setSignIn({ status: "idle" }), [source]);
 
   // Read once the source settles. A file, a known API, or the app this form was
   // opened on are already complete and read at once.
@@ -227,7 +269,7 @@ export function OpenApiForm({
     setCustomServerUrl(baseUrl || (document.servers[0] ? resolveServerUrl(document.servers[0], defaults[0]) : ""));
 
     if (!parametersRef.current.securityScheme) {
-      onParametersChange((previous) => ({ ...previous, securityScheme: defaultSecurityScheme(document) }));
+      onParametersChange((previous) => ({ ...previous, securityScheme: defaultSecurityScheme(document, Boolean((previous.token ?? "").trim())) }));
     }
   }, [document, onParametersChange]);
 
@@ -275,7 +317,8 @@ export function OpenApiForm({
     onParametersChange((previous) => ({ ...previous, specUrl: chosen.specUrl, specContent: "" }));
   };
 
-  const selectedScheme = (parameters.securityScheme ?? "").trim() || (document ? defaultSecurityScheme(document) : NO_CREDENTIALS);
+  const selectedScheme =
+    (parameters.securityScheme ?? "").trim() || (document ? defaultSecurityScheme(document, Boolean((parameters.token ?? "").trim())) : NO_CREDENTIALS);
 
   const selectScheme = (key: string) => {
     credentialsRef.current[selectedScheme] = {
@@ -451,6 +494,9 @@ export function OpenApiForm({
             onSelect={selectScheme}
             parameters={parameters}
             onParameterChange={setParameter}
+            signIn={signIn}
+            onSignIn={authorize}
+            onSignOut={forget}
           />
         </>
       )}
@@ -505,9 +551,13 @@ function SourceStatus({ state, parameters, variables, readOnly, onCancel, onRefr
 }
 
 function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDocument; readAt: number; onRefresh: () => void }) {
+  // A scheme Kaja supplied is one the document left out, which is still worth saying
+  // the document left out: the rows below are Kaja's, not the API's.
+  const declared = document.securitySchemes.filter((scheme) => !scheme.supplied).length;
+  const supplied = document.securitySchemes.length - declared;
   const missing: string[] = [];
   if (document.servers.length === 0) missing.push("servers");
-  if (document.securitySchemes.length === 0) missing.push("securitySchemes");
+  if (declared === 0 && supplied === 0) missing.push("securitySchemes");
 
   return (
     <div className="flex flex-col gap-2">
@@ -525,7 +575,8 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
           <p className="text-xs text-muted-foreground">
             {pluralCount(document.operationCount, "operation")} · {pluralCount(document.tagCount, "tag")} ·{" "}
             {document.servers.length ? pluralCount(document.servers.length, "server") : "no servers"} ·{" "}
-            {document.securitySchemes.length ? pluralCount(document.securitySchemes.length, "security scheme") : "no security schemes"}
+            {declared ? pluralCount(declared, "security scheme") : "no security schemes"}
+            {supplied > 0 && ` · ${pluralCount(supplied, "scheme")} from Kaja`}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-muted-foreground">
@@ -791,11 +842,25 @@ interface AuthenticationSectionProps {
   onSelect: (key: string) => void;
   parameters: Record<string, string>;
   onParameterChange: (key: string, value: string) => void;
+  signIn: SignInState;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
 // One row per security scheme the document declares, in coverage order, plus a row
 // for sending nothing.
-function AuthenticationSection({ document, variables, readOnly, selected, onSelect, parameters, onParameterChange }: AuthenticationSectionProps) {
+function AuthenticationSection({
+  document,
+  variables,
+  readOnly,
+  selected,
+  onSelect,
+  parameters,
+  onParameterChange,
+  signIn,
+  onSignIn,
+  onSignOut,
+}: AuthenticationSectionProps) {
   if (document.securitySchemes.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -826,8 +891,14 @@ function AuthenticationSection({ document, variables, readOnly, selected, onSele
             <ChoiceCard key={scheme.key} selected={isSelected} className={cn(!supported && "opacity-60")}>
               <ChoiceRow selected={isSelected} disabled={readOnly || !supported} onSelect={() => onSelect(scheme.key)} icon={schemeIcon(scheme)}>
                 <span className={cn("shrink-0 text-sm", isSelected ? "text-foreground" : "text-muted-foreground")}>{schemeLabel(scheme)}</span>
-                <span className="truncate font-mono text-xs text-muted-foreground">{schemeIdentity(scheme)}</span>
-                {!supported ? (
+                {scheme.signIn ? (
+                  <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
+                ) : (
+                  <span className="truncate font-mono text-xs text-muted-foreground">{schemeIdentity(scheme)}</span>
+                )}
+                {scheme.signIn ? (
+                  <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>
+                ) : !supported ? (
                   <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Not yet supported</span>
                 ) : scheme.requiresOthers ? (
                   <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Needs another too</span>
@@ -839,7 +910,14 @@ function AuthenticationSection({ document, variables, readOnly, selected, onSele
                   )
                 )}
               </ChoiceRow>
-              {isSelected && (
+              {isSelected && scheme.signIn && (
+                <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+                  {/* The verbs go where the workspace can't be written, as in the MCP form. */}
+                  {!readOnly && <SignInStatus state={signIn} signedIn={scheme.signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
+                  {scheme.signedIn && <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>}
+                </div>
+              )}
+              {isSelected && !scheme.signIn && (
                 <SchemeCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
               )}
             </ChoiceCard>
@@ -937,6 +1015,7 @@ function RelativeTime({ at }: { at: number }) {
 }
 
 function schemeIcon(scheme: OpenApiSecurityScheme): LucideIcon {
+  if (scheme.signIn) return ShieldCheck;
   if (scheme.type === "oauth2" || scheme.type === "openIdConnect" || scheme.type === "mutualTLS") return Shield;
   if (scheme.type === "http" && scheme.scheme.toLowerCase() === "basic") return Lock;
   return Key;

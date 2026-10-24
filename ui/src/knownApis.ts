@@ -2,7 +2,8 @@ import { BenchlingMark, GitHubMark, SwaggerMark } from "./brandMarks";
 import { canonicalEndpoint, endpointLabel } from "./knownServers";
 
 // An API whose OpenAPI document Kaja knows the address of, so naming it is enough to
-// read it. Unlike a known MCP server, nothing about signing in comes with it.
+// read it. Whether Kaja can sign in to it is the server's to say, since that is a
+// fact about the API rather than about where its document is.
 export interface KnownApi {
   name: string;
   specUrl: string;

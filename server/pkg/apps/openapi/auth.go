@@ -1,9 +1,12 @@
 package openapi
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/wham/kaja/v2/pkg/oauth"
 )
 
 // authKind is the shape of credential the upstream expects.
@@ -14,6 +17,7 @@ const (
 	authBearer authKind = "bearer" // Authorization: Bearer <token>
 	authBasic  authKind = "basic"  // Authorization: Basic base64(user:pass)
 	authAPIKey authKind = "apiKey" // a named header/query/cookie carrying the key
+	authOAuth  authKind = "oauth"  // a token kaja obtained by signing in, sent as a bearer token
 )
 
 // auth resolves the spec's security scheme together with the credentials the user
@@ -28,6 +32,9 @@ type auth struct {
 	// negotiate, ...), which kaja forwards verbatim without doing its handshake.
 	httpScheme string
 
+	// signIn is where the token comes from, for authOAuth.
+	signIn *signIn
+
 	token    string // bearer token or api key value
 	username string // basic auth user
 	password string // basic auth password
@@ -35,7 +42,31 @@ type auth struct {
 
 // configured reports whether the user supplied any credentials.
 func (a *auth) configured() bool {
-	return a != nil && (a.token != "" || a.username != "" || a.password != "")
+	return a != nil && (a.kind == authOAuth || a.token != "" || a.username != "" || a.password != "")
+}
+
+// withToken is the auth a call is sent with. A sign-in's token is read from the
+// store as the call is made, so one renewed between two calls reaches the second.
+func (a *auth) withToken(authorizer *oauth.Authorizer, baseURL string) (*auth, error) {
+	if a == nil || a.kind != authOAuth {
+		return a, nil
+	}
+	if authorizer == nil {
+		return nil, fmt.Errorf("this kaja serves its workspace read-only, so it has no sign-in to send")
+	}
+	// The token is for one server. A base URL pointed somewhere else is a call
+	// the token must not go out with.
+	if !sameServer(baseURL, a.signIn.resource) {
+		return nil, fmt.Errorf("the sign-in is for %s, and this app calls %s", a.signIn.resource, baseURL)
+	}
+	token, err := authorizer.Token(a.signIn.resource)
+	if err != nil {
+		return nil, err
+	}
+	resolved := *a
+	resolved.kind = authBearer
+	resolved.token = token
+	return &resolved, nil
 }
 
 // applyQuery adds an apiKey credential to the query string when the scheme places
@@ -147,6 +178,10 @@ func applyScheme(a *auth, scheme *securityScheme) {
 		a.apiKeyName = scheme.Name
 	case "oauth2", "openIdConnect":
 		a.kind = authBearer
+		if scheme.signIn != nil {
+			a.kind = authOAuth
+			a.signIn = scheme.signIn
+		}
 	}
 }
 
@@ -162,6 +197,8 @@ func capitalize(value string) string {
 // pickScheme chooses the security scheme to apply across the app. It honours the
 // document-level security requirement, falling back to the sole defined scheme
 // when the requirement is absent (common when security is declared per-operation).
+// A scheme kaja supplied is never picked: it applies where the app names it, so
+// an app saved before kaja knew about it goes on sending what it sent.
 func pickScheme(s *spec) *securityScheme {
 	schemes := &s.Components.SecuritySchemes
 	if schemes.len() == 0 {
@@ -169,12 +206,12 @@ func pickScheme(s *spec) *securityScheme {
 	}
 	for _, requirement := range s.Security {
 		for name := range requirement {
-			if sc := schemes.get(name); sc != nil {
+			if sc := schemes.get(name); sc != nil && !sc.supplied {
 				return sc
 			}
 		}
 	}
-	if names := schemes.order(); len(names) == 1 {
+	if names := schemes.order(); len(names) == 1 && !schemes.get(names[0]).supplied {
 		return schemes.get(names[0])
 	}
 	return nil
@@ -189,6 +226,8 @@ func (a *auth) describe() string {
 	switch a.kind {
 	case authBearer:
 		return "sending token as Authorization: " + a.authorizationScheme()
+	case authOAuth:
+		return "sending the token kaja signed in to " + a.signIn.resource + " for"
 	case authBasic:
 		return "sending username/password as HTTP Basic auth"
 	case authAPIKey:
