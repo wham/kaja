@@ -200,7 +200,7 @@ func (a *App) ServiceShutdown() error {
 	return a.api.Close()
 }
 
-// openLink is what macOS hands a kaja:// link to. It is held until the UI is
+// openLink is what the platform hands a kaja:// link to. It is held until the UI is
 // listening rather than emitted at once: a link is what launches the app as often as
 // not, and on a cold launch this runs long before there is a webview to hear it.
 // What the link means is the UI's to decide (scriptLink.ts); which workspace it means
@@ -570,6 +570,7 @@ func main() {
 	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl, func(event *application.ApplicationEvent) {
 		kaja.openLink(event.Context().URL())
 	})
+	onOpenURL(kaja.openLink)
 
 	if err := wailsApp.Run(); err != nil {
 		println("Error:", err.Error())
