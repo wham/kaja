@@ -153,6 +153,11 @@ export function GrpcForm({
       if (readId !== readIdRef.current) return;
       if (response.server) {
         remember(inspected, key, response.server);
+        // The transport that answered is about to be written into the app, which moves
+        // the key; without this the form would reflect the server a second time.
+        if ((parameters.tls ?? "") === TLS_AUTO && response.server.reachable) {
+          remember(inspected, inspectionKey({ ...parameters, tls: tlsFromServer(response.server) }), response.server);
+        }
         setState({ status: "read", server: response.server });
       } else {
         setState({
