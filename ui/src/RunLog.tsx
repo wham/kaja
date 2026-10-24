@@ -650,22 +650,27 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
                 onClick={() => onEmbeddedChange(!embedded)}
               />
             )}
-            <IconButton
-              icon={FoldVertical}
-              aria-label="Fold all"
-              variant="ghost"
-              size="sm"
-              className={utilityButtonClass}
-              onClick={() => jsonViewerRef.current?.foldAll()}
-            />
-            <IconButton
-              icon={UnfoldVertical}
-              aria-label="Unfold all"
-              variant="ghost"
-              size="sm"
-              className={utilityButtonClass}
-              onClick={() => jsonViewerRef.current?.unfoldAll()}
-            />
+            {/* Folding is a desktop gesture; on a phone it would push Copy off the row. */}
+            {!phone && (
+              <>
+                <IconButton
+                  icon={FoldVertical}
+                  aria-label="Fold all"
+                  variant="ghost"
+                  size="sm"
+                  className={utilityButtonClass}
+                  onClick={() => jsonViewerRef.current?.foldAll()}
+                />
+                <IconButton
+                  icon={UnfoldVertical}
+                  aria-label="Unfold all"
+                  variant="ghost"
+                  size="sm"
+                  className={utilityButtonClass}
+                  onClick={() => jsonViewerRef.current?.unfoldAll()}
+                />
+              </>
+            )}
             <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={copy} />
           </div>
         )}
