@@ -134,6 +134,10 @@ export interface GrpcProblem {
  */
 export interface InspectOpenApiRequest {
     openapi?: OpenApiApp;
+    /**
+     * Read the document again rather than answering with the one the process kept.
+     */
+    fresh: boolean;
 }
 
 export interface InspectOpenApiResponse {
@@ -172,6 +176,11 @@ export interface OpenApiDocument {
      * information.
      */
     perOperationSecurity: boolean;
+    /**
+     * How long ago the document was fetched, in seconds: the process keeps what it
+     * read, so the answer can be older than the request.
+     */
+    ageSeconds: number;
 }
 
 export interface OpenApiServer {
@@ -1147,7 +1156,8 @@ export const GrpcProblem: MessageType<GrpcProblem> = new MessageType<GrpcProblem
 ]);
 
 export const InspectOpenApiRequest: MessageType<InspectOpenApiRequest> = new MessageType<InspectOpenApiRequest>("InspectOpenApiRequest", [
-    { no: 1, name: "openapi", kind: "message", T: () => OpenApiApp }
+    { no: 1, name: "openapi", kind: "message", T: () => OpenApiApp },
+    { no: 2, name: "fresh", kind: "scalar", T: 8 }
 ]);
 
 export const InspectOpenApiResponse: MessageType<InspectOpenApiResponse> = new MessageType<InspectOpenApiResponse>("InspectOpenApiResponse", [
@@ -1164,7 +1174,8 @@ export const OpenApiDocument: MessageType<OpenApiDocument> = new MessageType<Ope
     { no: 6, name: "servers", kind: "message", repeat: 2, T: () => OpenApiServer },
     { no: 7, name: "security_schemes", kind: "message", repeat: 2, T: () => OpenApiSecurityScheme },
     { no: 8, name: "guessed_base_url", kind: "scalar", T: 9 },
-    { no: 9, name: "per_operation_security", kind: "scalar", T: 8 }
+    { no: 9, name: "per_operation_security", kind: "scalar", T: 8 },
+    { no: 10, name: "age_seconds", kind: "scalar", T: 5 }
 ]);
 
 export const OpenApiServer: MessageType<OpenApiServer> = new MessageType<OpenApiServer>("OpenApiServer", [

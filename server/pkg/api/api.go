@@ -330,6 +330,9 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 		}
 	}
 
+	if req.Fresh {
+		ctx = apps.WithFresh(ctx)
+	}
 	protoDir := ""
 	if needsSourcesDir(appType, parameters) {
 		dir, err := tempdir.NewSourcesDir()
@@ -604,6 +607,9 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: req.Openapi}})
 	expandAppParameters(parameters, s.Variables(), NewLogger())
 
+	if req.Fresh {
+		ctx = apps.WithFresh(ctx)
+	}
 	document, problem := openapi.Inspect(ctx, parameters, func(message string) { slog.Info(message) })
 	if problem != nil {
 		return &InspectOpenApiResponse{Problem: &OpenApiProblem{
@@ -639,6 +645,7 @@ func describeDocument(document *openapi.Document) *OpenApiDocument {
 		TagCount:             int32(document.TagCount),
 		GuessedBaseUrl:       document.GuessedBaseURL,
 		PerOperationSecurity: document.PerOperationSecurity,
+		AgeSeconds:           int32(time.Since(document.ReadAt).Seconds()),
 	}
 	for _, server := range document.Servers {
 		described.Servers = append(described.Servers, &OpenApiServer{
