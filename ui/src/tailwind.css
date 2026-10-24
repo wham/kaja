@@ -170,3 +170,23 @@
     }
   }
 }
+
+/* Styling the scrollbar is what stops WebKit overlaying it: the overlay one widens
+   under the pointer and takes the clicks meant for a row's right-edge controls,
+   while this one takes its own 6px. scrollbar-width is left unset on purpose,
+   because Chromium ignores these pseudo-elements once it is set. */
+@utility thin-scrollbar {
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: transparent;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+  }
+}
