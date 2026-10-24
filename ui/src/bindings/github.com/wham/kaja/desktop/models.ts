@@ -61,6 +61,11 @@ export class WorkspaceFolder {
     "name": string;
     "default": boolean;
 
+    /**
+     * The folder as a person reads it, with their home folder shortened to ~.
+     */
+    "location": string;
+
     /** Creates a new WorkspaceFolder instance. */
     constructor($$source: Partial<WorkspaceFolder> = {}) {
         if (!("dir" in $$source)) {
@@ -71,6 +76,9 @@ export class WorkspaceFolder {
         }
         if (!("default" in $$source)) {
             this["default"] = false;
+        }
+        if (!("location" in $$source)) {
+            this["location"] = "";
         }
 
         Object.assign(this, $$source);

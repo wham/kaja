@@ -108,3 +108,17 @@ func TestReadableFolderRefusesWhatIsNotAFolder(t *testing.T) {
 		t.Error("expected a file to be refused")
 	}
 }
+
+func TestHomeRelative(t *testing.T) {
+	for _, c := range []struct{ home, dir, want string }{
+		{"/Users/me", "/Users/me/code/kaja", "~/code/kaja"},
+		{"/Users/me", "/Users/me", "~"},
+		{"/Users/me", "/Users/meg/code", "/Users/meg/code"},
+		{"/Users/me", "/Volumes/disk/kaja", "/Volumes/disk/kaja"},
+		{"", "/Users/me/code", "/Users/me/code"},
+	} {
+		if got := homeRelative(c.home, c.dir); got != c.want {
+			t.Errorf("homeRelative(%q, %q) = %q, want %q", c.home, c.dir, got, c.want)
+		}
+	}
+}
