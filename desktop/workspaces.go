@@ -13,6 +13,8 @@ type WorkspaceFolder struct {
 	Dir     string `json:"dir"`
 	Name    string `json:"name"`
 	Default bool   `json:"default"`
+	// The folder as a person reads it, with their home folder shortened to ~.
+	Location string `json:"location"`
 }
 
 type WorkspacesInfo struct {
@@ -136,6 +138,19 @@ func describeWorkspaces(defaultDir string, dirs []string) []WorkspaceFolder {
 	return workspaces
 }
 
+func homeRelative(home, dir string) string {
+	if home == "" {
+		return dir
+	}
+	if dir == home {
+		return "~"
+	}
+	if rel, err := filepath.Rel(home, dir); err == nil && filepath.IsLocal(rel) {
+		return "~" + string(filepath.Separator) + rel
+	}
+	return dir
+}
+
 func workspaceFileIn(dir string) string {
 	return filepath.Join(dir, "kaja.json")
 }
@@ -150,6 +165,10 @@ func (a *App) Workspaces() WorkspacesInfo {
 // Must be called with workspaceMu held.
 func (a *App) workspacesLocked() WorkspacesInfo {
 	known := describeWorkspaces(a.workspaces.defaultDir, a.workspaces.known())
+	home, _ := homeDir()
+	for i := range known {
+		known[i].Location = homeRelative(home, known[i].Dir)
+	}
 	info := WorkspacesInfo{Known: known}
 	for _, workspace := range known {
 		if workspace.Dir == a.workspaceDir {
