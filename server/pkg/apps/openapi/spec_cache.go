@@ -3,8 +3,6 @@ package openapi
 import (
 	"container/list"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -26,18 +24,18 @@ type fetchedSpec struct {
 
 type specCache struct {
 	mu      sync.Mutex
-	entries map[string]*list.Element
+	entries map[specKey]*list.Element
 	order   *list.List
 }
 
 type specCacheEntry struct {
-	key     string
+	key     specKey
 	fetched *fetchedSpec
 }
 
-var specs = &specCache{entries: map[string]*list.Element{}, order: list.New()}
+var specs = &specCache{entries: map[specKey]*list.Element{}, order: list.New()}
 
-func (c *specCache) get(key string) (*fetchedSpec, bool) {
+func (c *specCache) get(key specKey) (*fetchedSpec, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	element, ok := c.entries[key]
@@ -48,7 +46,7 @@ func (c *specCache) get(key string) (*fetchedSpec, bool) {
 	return element.Value.(*specCacheEntry).fetched, true
 }
 
-func (c *specCache) put(key string, fetched *fetchedSpec) {
+func (c *specCache) put(key specKey, fetched *fetchedSpec) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if element, ok := c.entries[key]; ok {
@@ -64,20 +62,16 @@ func (c *specCache) put(key string, fetched *fetchedSpec) {
 
 // specKey is what a fetch depends on: the URL and every credential it was sent with,
 // since a document behind a login can differ per token.
-func specKey(specURL string, credentials fetchCredentials) string {
-	digest := sha256.New()
-	for _, part := range []string{specURL, credentials.token, credentials.username, credentials.password, credentials.headerName, credentials.headerValue} {
-		digest.Write([]byte(part))
-		digest.Write([]byte{0})
-	}
-	return hex.EncodeToString(digest.Sum(nil))
+type specKey struct {
+	url         string
+	credentials fetchCredentials
 }
 
 // fetchSpec is loadSpec behind the process's cache. Only a document that was read is
 // kept, so a failure is asked again on the next try; a fresh context reads the URL
 // again and replaces what was kept.
 func fetchSpec(ctx context.Context, specURL string, credentials fetchCredentials, log func(string)) (*fetchedSpec, *problem) {
-	key := specKey(specURL, credentials)
+	key := specKey{url: specURL, credentials: credentials}
 	if !apps.Fresh(ctx) {
 		if fetched, ok := specs.get(key); ok {
 			log(fmt.Sprintf("Reused the OpenAPI spec read %s ago; recompile to read it again", time.Since(fetched.readAt).Round(time.Second)))
