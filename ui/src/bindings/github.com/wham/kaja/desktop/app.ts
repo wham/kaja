@@ -45,6 +45,14 @@ export function OpenFileDialog(): $CancellablePromise<string> {
 }
 
 /**
+ * OpenInBrowser hands a URL to the system browser, the webview being no place to
+ * navigate away to.
+ */
+export function OpenInBrowser(url: string): $CancellablePromise<void> {
+    return $Call.ByID(2149156246, url);
+}
+
+/**
  * RegenerateMCPToken mints a new bearer token and moves a running session onto it.
  * Every configuration already pasted names the old one, which is what the page warns
  * about before it asks for this.

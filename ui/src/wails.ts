@@ -64,9 +64,9 @@ export function emitWailsEvent(name: string, data?: unknown): void {
 
 /** Opens a URL in the system browser rather than in the webview. */
 export function openInBrowser(url: string): void {
-  runtime()
-    .then(({ Browser }) => Browser.OpenURL(url))
-    .catch(() => {});
+  bindings()
+    .then((app) => app.OpenInBrowser(url))
+    .catch((error) => console.error("Could not open the browser:", error));
 }
 
 /** Puts text on the system clipboard, saying whether it landed. */
