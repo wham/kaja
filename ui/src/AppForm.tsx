@@ -39,6 +39,8 @@ interface AppFormProps {
   onSaveControlChange?: (control: AppFormSaveControl | undefined) => void;
   onSubmit: (app: WorkspaceApp, originalName?: string) => void;
   onCancel: () => void;
+  // A phone has no row menu to hold Delete, so the form carries it there.
+  onDelete?: (appName: string) => void;
   // What the agent that opened the form read up on about the API.
   agentNotes?: AgentNotes;
 }
@@ -176,7 +178,18 @@ function AgentNotesPanel({ notes, type }: { notes: AgentNotes; type: string }) {
   );
 }
 
-export function AppForm({ mode, initialData, allApps, variables, readOnly = false, onSaveControlChange, onSubmit, onCancel, agentNotes }: AppFormProps) {
+export function AppForm({
+  mode,
+  initialData,
+  allApps,
+  variables,
+  readOnly = false,
+  onSaveControlChange,
+  onSubmit,
+  onCancel,
+  onDelete,
+  agentNotes,
+}: AppFormProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
@@ -392,6 +405,13 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 variables={variables}
                 readOnly={readOnly}
               />
+            )}
+
+            {phone && mode === "edit" && !readOnly && onDelete && initialData && (
+              <Button variant="outline" className="mt-4 h-10 text-destructive hover:text-destructive" onClick={() => onDelete(initialData.name)}>
+                <Trash2 size={16} />
+                Delete app
+              </Button>
             )}
           </div>
         </div>
