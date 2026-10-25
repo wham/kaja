@@ -156,8 +156,14 @@ func readFor(ctx context.Context, parameters map[string]string) (*spec, error) {
 // itself. They double as the API's credentials when no separate spec header is
 // configured.
 func specFetchCredentials(parameters map[string]string) fetchCredentials {
+	token := strings.TrimSpace(parameters["token"])
+	// A sign-in is never expanded, and its token is for the API rather than wherever
+	// the document is hosted; raw.githubusercontent.com answers a bad token with 404.
+	if strings.Contains(token, "${") {
+		token = ""
+	}
 	return fetchCredentials{
-		token:       strings.TrimSpace(parameters["token"]),
+		token:       token,
 		username:    strings.TrimSpace(parameters["username"]),
 		password:    strings.TrimSpace(parameters["password"]),
 		headerName:  strings.TrimSpace(parameters["spec_header_name"]),
