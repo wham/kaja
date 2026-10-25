@@ -161,6 +161,11 @@ export interface FailureNotice {
 }
 
 // The key is what makes two failures the same, so it is what the row can honestly state.
+// What a script that threw leaves on the canvas.
+export function isScriptError(item: ConsoleItem): boolean {
+  return item.block === undefined && !item.printed && (item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR) ?? false);
+}
+
 export function failureNotices(items: ConsoleItem[]): FailureNotice[] {
   const notices = new Map<string, FailureNotice>();
   for (const item of items) {

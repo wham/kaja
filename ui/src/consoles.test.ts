@@ -369,6 +369,17 @@ describe("failures the run said nothing about", () => {
     expect(store.file("a.ts").groups[0].unreported).toHaveLength(0);
   });
 
+  it("names the failures a script crashed on rather than hiding them behind the crash", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("ListShows", { error: { code: "UNAUTHENTICATED", message: "Requires authentication" } }), NOW);
+    store.recordLogs("a.ts", created.id, [{ level: LogLevel.LEVEL_ERROR, message: "TypeError: undefined is not an object" }], NOW);
+    paint();
+
+    const [group] = store.file("a.ts").groups;
+    expect(group.unreported).toHaveLength(1);
+    expect(group.scriptFailed).toBe(true);
+  });
+
   it("says one row for a method that failed the same way ten times", () => {
     const created = start("a.ts");
     for (let i = 0; i < 10; i++) store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);

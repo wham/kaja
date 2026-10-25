@@ -27,7 +27,9 @@ interface PhoneFinderProps {
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
   onEditApp: (appName: string) => void;
+  // Only an app with stories has a page to open.
   onOpenApp: (appName: string) => void;
+  storyApps: Set<string>;
   missingVariables: Map<string, MissingVariable[]>;
   onRevealVariable: (name: string) => void;
   // Absent where the workspace can't be written.
@@ -53,6 +55,7 @@ export function PhoneFinder({
   onSelectMethod,
   onEditApp,
   onOpenApp,
+  storyApps,
   missingVariables,
   onRevealVariable,
   onNewApp,
@@ -100,6 +103,11 @@ export function PhoneFinder({
   };
 
   const openApp = (name: string) => {
+    if (!storyApps.has(name)) {
+      setQuery("");
+      setExpanded((previous) => new Set([...previous, name]));
+      return;
+    }
     onOpenApp(name);
     onOpenChange(false);
   };
@@ -203,7 +211,6 @@ export function PhoneFinder({
                   {results.map((destination, index) => (
                     <ResultRow key={destination.key} destination={destination} query={query} first={index === 0} onSelect={() => select(destination)} />
                   ))}
-                  {/* An app is a place to go: its page. */}
                   {matchingApps.map((app) => (
                     <Row key={`app:${app.configuration.name}`} onClick={() => openApp(app.configuration.name)}>
                       <span className="w-4 shrink-0" />
@@ -258,7 +265,7 @@ export function PhoneFinder({
                           </button>
                           <button
                             type="button"
-                            onClick={() => openApp(name)}
+                            onClick={() => (storyApps.has(name) ? openApp(name) : toggleApp(name))}
                             className="flex h-full min-w-0 flex-1 items-center gap-3 pr-4 text-left active:bg-accent"
                           >
                             <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>

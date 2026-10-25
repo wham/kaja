@@ -39,7 +39,7 @@ import {
   tableWindow,
   TableView,
 } from "./tableView";
-import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
+import { ConsoleItem, FailureNotice, isScriptError, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { exclusionNote, StatTiles, TileCell } from "./Stats";
 import { formatErrorRate, formatMs, formatRps } from "./statsChart";
@@ -108,8 +108,10 @@ export function Canvas({
   onTableCells,
   onRunScript,
 }: CanvasProps) {
-  const drawn = group.drawn;
   const unreported = group.unreported;
+  // The calls a crash happened on are what explains it, so they are read first.
+  const drawn = unreported.length === 0 ? group.drawn : [...group.drawn.filter((item) => !isScriptError(item))];
+  const crashes = unreported.length === 0 ? [] : group.drawn.filter(isScriptError);
   const scroller = useRef<HTMLDivElement>(null);
 
   // The same document in another container, so the offset is carried rather than the
@@ -169,6 +171,24 @@ export function Canvas({
       {unreported.map((failure) => (
         <div key={failure.itemId} className="shrink-0">
           <Canvas.Failure failure={failure} onOpen={() => onSelectCall(failure.itemId)} />
+        </div>
+      ))}
+      {crashes.map((item) => (
+        <div key={item.id} className="shrink-0">
+          <Canvas.Entry
+            item={item}
+            fullScreen={fullScreen}
+            onAnswer={onAnswer}
+            onCancelAsk={onCancelAsk}
+            onDecide={onDecide}
+            onFullScreen={onFullScreen}
+            onOpenStats={onOpenStats}
+            tableViews={tableViews}
+            onTableView={onTableView}
+            onTablePull={onTablePull}
+            onTableCells={onTableCells}
+            onRunScript={onRunScript}
+          />
         </div>
       ))}
     </div>

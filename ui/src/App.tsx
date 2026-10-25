@@ -2453,10 +2453,13 @@ export function App() {
     applyViews((views) => showAppForm(views, "create", buildApp("", type, {}, {})));
   };
 
+  // Only an app with stories has a page: everything else on it is the sidebar's.
+  const storyApps = useMemo(() => new Set(apps.filter((app) => collectionFor(app.configuration)).map((app) => app.configuration.name)), [apps]);
+
   const onOpenApp = useCallback(
     (appName: string) => {
       const app = appStore.app(appName);
-      if (app) applyViews((views) => showApp(views, appName, appType(app.configuration)));
+      if (app && collectionFor(app.configuration)) applyViews((views) => showApp(views, appName, appType(app.configuration)));
     },
     [applyViews],
   );
@@ -2502,7 +2505,7 @@ export function App() {
 
     if (isNewApp) {
       setAutoExpandApp({ name: app.name });
-      applyViews((views) => showApp(views, app.name, appType(app)));
+      if (collectionFor(app)) applyViews((views) => showApp(views, app.name, appType(app)));
     }
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: true, name: app.name });
   };
@@ -2688,7 +2691,7 @@ export function App() {
     const shownApps = new Set(views.flatMap((view) => (view.type === "app" ? [view.appName] : [])));
     for (const app of apps) {
       const name = app.configuration.name;
-      if (shownApps.has(name)) continue;
+      if (shownApps.has(name) || !collectionFor(app.configuration)) continue;
       const mark = getAppType(appType(app.configuration))?.icon ?? FileCode;
       destinations.push({ key: `app:${name}`, name, path: "Apps", origin: "", icon: mark, go: () => onOpenApp(name) });
     }
@@ -2949,7 +2952,6 @@ export function App() {
           missing={missingApps.get(view.appName)}
           phone={isPhone}
           onOpenStory={openStory}
-          onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
           onShowCompileLog={onShowCompileLog}
           onRevealVariable={onRevealVariable}
         />
@@ -3106,6 +3108,7 @@ export function App() {
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
               onEditApp={onEditApp}
               onOpenApp={onOpenApp}
+              storyApps={storyApps}
               missingVariables={missingApps}
               onRevealVariable={onRevealVariable}
               onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
@@ -3183,6 +3186,7 @@ export function App() {
                   workspace={workspaceControl}
                   onEditApp={onEditApp}
                   onOpenApp={onOpenApp}
+                  storyApps={storyApps}
                   onDeleteApp={onDeleteApp}
                   scriptsRegion={scriptsRegion}
                 />
@@ -3488,7 +3492,6 @@ function AppPageBody({
   missing,
   phone,
   onOpenStory,
-  onSelectMethod,
   onShowCompileLog,
   onRevealVariable,
 }: {
@@ -3499,16 +3502,18 @@ function AppPageBody({
   missing?: MissingVariable[];
   phone: boolean;
   onOpenStory: (appName: string, collection: StoryCollection, story: Story, options: { run: boolean }) => void;
-  onSelectMethod: (method: Method, service: Service, app: AppModel) => void;
   onShowCompileLog: (appName: string) => void;
   onRevealVariable: (name: string) => void;
 }) {
   const app = apps.find((candidate) => candidate.configuration.name === appName);
   const collection = app ? collectionFor(app.configuration) : undefined;
+  if (!collection) {
+    return <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">No stories for {appName}.</div>;
+  }
   const running = new Set(
-    (collection?.stories ?? [])
+    collection.stories
       .filter((story) => {
-        const draft = findStoryDraft(drafts, storyId(collection!, story), appName);
+        const draft = findStoryDraft(drafts, storyId(collection, story), appName);
         return draft !== undefined && runningFiles.has(draft.id);
       })
       .map((story) => story.name),
@@ -3521,9 +3526,8 @@ function AppPageBody({
       running={running}
       missing={missing}
       phone={phone}
-      onRunStory={(story) => collection && onOpenStory(appName, collection, story, { run: true })}
-      onOpenStory={(story) => collection && onOpenStory(appName, collection, story, { run: false })}
-      onSelectMethod={onSelectMethod}
+      onRunStory={(story) => onOpenStory(appName, collection, story, { run: true })}
+      onOpenStory={(story) => onOpenStory(appName, collection, story, { run: false })}
       onShowCompileLog={onShowCompileLog}
       onRevealVariable={onRevealVariable}
     />
