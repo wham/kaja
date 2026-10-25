@@ -193,7 +193,7 @@ func configurationDir(home string) string {
 func (a *App) startMCPServer() {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
-	if a.mcpServer != nil {
+	if a.mcpServer != nil || !mcpListener {
 		return
 	}
 	a.mcpError = ""
