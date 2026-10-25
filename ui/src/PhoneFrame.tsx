@@ -23,13 +23,11 @@ interface PhoneFrameProps {
   finder: React.ReactNode;
   // Run for a script, the view's own verb for anything else.
   action?: React.ReactNode;
-  // The nearest script in the view stack: the one on screen, or the one you were last
-  // in. The sheet shows it wherever you are.
+  // The nearest script in the view stack, whose editor stays mounted in the sheet.
   script?: PhoneScript;
-  // Set while that script is the view on screen, which is when the run is the body.
+  // Set while that script is the view on screen: the run is the body and the sheet is
+  // there to raise. Anywhere else there is no sheet.
   onScript: boolean;
-  // An app form is about the app, so a script from elsewhere in the stack has no place over it.
-  sheetHidden?: boolean;
   // The mounted editors, whichever view is current; they live in the sheet.
   editor: React.ReactNode;
   console: (phone: PhoneConsole) => React.ReactNode;
@@ -39,11 +37,11 @@ interface PhoneFrameProps {
 
 /**
  * The window under 640px: a header that is the finder and Run, the view under it, and
- * the script as an overlay that can be raised over any of them. There is no sidebar,
+ * on a script, its code as an overlay raised over the run. There is no sidebar,
  * no splitter and no sidebar foot — what the sidebar said is said on the finder's
  * own rows.
  */
-export function PhoneFrame({ finder, action, script, onScript, sheetHidden = false, editor, console: renderConsole, children }: PhoneFrameProps) {
+export function PhoneFrame({ finder, action, script, onScript, editor, console: renderConsole, children }: PhoneFrameProps) {
   const [position, setPosition] = useState<SheetPosition>("rest");
   const [editing, setEditing] = useState(false);
   const fileId = script?.fileId;
@@ -86,45 +84,41 @@ export function PhoneFrame({ finder, action, script, onScript, sheetHidden = fal
 
   const phone = useMemo<PhoneConsole>(() => ({ onShowRun: () => onPositionChange("rest") }), [onPositionChange]);
 
-  const up = position !== "rest" && !sheetHidden;
+  const up = onScript && position !== "rest";
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-background text-foreground" style={{ overscrollBehavior: "contain" }}>
-      <div className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border bg-chrome px-3">
-        {finder}
-        {action}
+      <div className="shrink-0 border-b border-border bg-chrome" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="flex h-[52px] items-center gap-2 px-3">
+          {finder}
+          {action}
+        </div>
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
         {onScript && (
           <div
             data-testid="phone-run"
             className={cn("flex min-h-0 flex-1 flex-col transition-opacity duration-200", up && "opacity-40")}
-            style={{ paddingBottom: CODE_SHEET_REST_HEIGHT }}
+            style={{ paddingBottom: `calc(${CODE_SHEET_REST_HEIGHT}px + env(safe-area-inset-bottom))` }}
           >
             {renderConsole(phone)}
           </div>
         )}
-        <div
-          className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden", up && "opacity-40")}
-          style={{ paddingBottom: sheetHidden ? 0 : CODE_SHEET_REST_HEIGHT }}
-        >
+        <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           {children}
         </div>
         {/* What is behind a raised sheet is dimmed, and a tap on it is the way back. */}
         {up && <button type="button" aria-label="Put the code away" className="absolute inset-0 z-10" onClick={() => onPositionChange("rest")} />}
-        {/* Hidden rather than unmounted: the editors the view cache holds live in it. */}
-        <div className={cn(sheetHidden && "hidden")}>
-          <CodeSheet
-            model={script?.model}
-            name={script?.name}
-            readOnly={script?.readOnly ?? true}
-            position={position}
-            onPositionChange={onPositionChange}
-            editing={editing}
-            onEditingChange={onEditingChange}
-            editor={editor}
-          />
-        </div>
+        <CodeSheet
+          model={onScript ? script?.model : undefined}
+          name={script?.name}
+          readOnly={script?.readOnly ?? true}
+          position={position}
+          onPositionChange={onPositionChange}
+          editing={editing}
+          onEditingChange={onEditingChange}
+          editor={editor}
+        />
       </div>
     </div>
   );

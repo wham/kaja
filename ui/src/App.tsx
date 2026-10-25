@@ -2888,9 +2888,6 @@ export function App() {
     </div>
   );
 
-  // The phone's sheet shows the nearest script in the view stack, so the answer to
-  // "which code?" is always "the one you were last in" — which is what lets it be
-  // raised over a definition, Variables or an app form as readily as over a run.
   const phoneScriptView = views.find(isEditorView);
   const phoneScript =
     phoneScriptView && (phoneScriptView.type === "draft" || phoneScriptView.type === "script")
@@ -2987,7 +2984,6 @@ export function App() {
           action={action}
           script={phoneScript}
           onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
-          sheetHidden={currentView?.type === "appForm"}
           editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
           console={(phone) => (
             <Console

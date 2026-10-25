@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -145,3 +146,23 @@ func (m memoryStore) Delete(name string) error {
 	return nil
 }
 
+
+func TestASignInIsNotSentToWhereTheDocumentIsHosted(t *testing.T) {
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(githubLike))
+	}))
+	defer server.Close()
+	authorization = "unset"
+	if _, err := SignInFor(t.Context(), map[string]string{
+		"spec_url":        server.URL + "/github.yaml",
+		"token":           "${GITHUB}",
+		"security_scheme": "githubSignIn",
+	}); err != nil {
+		t.Fatalf("SignInFor: %v", err)
+	}
+	if authorization != "" {
+		t.Errorf("the document was fetched with Authorization %q", authorization)
+	}
+}
