@@ -63,9 +63,9 @@ function ErrorRow({ error }: { error: AppError }) {
 }
 
 /**
- * What Kaja failed at, in the footer.
+ * What Kaja failed at, in the sidebar's foot.
  *
- * Absent while there is nothing to say, the way `CompileStatus` is absent with no
+ * Absent while there is nothing to say, the way the compile marker is absent with no
  * apps: a permanent `0` is a promise that a number is coming, and in most sessions it
  * never does. It does not open itself either — an error arrives while you are working
  * on something else, and a panel over that work is a worse interruption than a red

@@ -5,26 +5,28 @@ import * as monaco from "monaco-editor";
 // on --background, the deepest plane in the system, and the widgets it floats
 // (suggestions, hovers) sit on --popover with a --border hairline.
 const surfaces = {
-  night: { background: "#0a0a0a", chrome: "#171717", widget: "#171717", border: "#ffffff1a", accent: "#404040", destructive: "#e57373" },
-  day: { background: "#ffffff", chrome: "#f5f5f5", widget: "#ffffff", border: "#e5e5e5", accent: "#f5f5f5", destructive: "#e7000b" },
+  night: { background: "#242320", chrome: "#1b1a18", widget: "#2a2825", border: "#fff6e612", accent: "#3d3a36", destructive: "#e07a6c" },
+  day: { background: "#faf9f6", chrome: "#f3f1ec", widget: "#ffffff", border: "#e6e3dc", accent: "#e8e5df", destructive: "#e7000b" },
 };
 
-// Three hues, all of them Kaja's own — emerald for strings, amber for numbers
-// and literals, a muted blue for types and imports — at roughly half the chroma
-// of VS Dark+, so nothing in a request body outshines the Run button.
-// Everything else is carried by the neutral ramp.
+// Three hues, all of them Kaja's own — sage for strings, amber for numbers and
+// literals, a muted blue for types and imports — at roughly half the chroma of
+// VS Dark+, so nothing in a request body outshines the Run button. Everything
+// else is carried by the warm neutral ramp.
 //
 // None of the three is red: red is reserved for actual error states (failed
 // calls, the response status line, the error banner).
 const palettes = {
   night: {
-    text: "d4d4d4",
-    identifier: "d4d4d4",
-    type: "7fa6cf",
-    keyword: "9a9a9a",
-    string: "35b981",
-    number: "d19a4a",
-    punctuation: "6b6b6b",
+    text: "ece9e3",
+    identifier: "ece9e3",
+    type: "9db8d9",
+    keyword: "9c988f",
+    string: "a9c49b",
+    number: "d9a55b",
+    punctuation: "9c988f",
+    lineNumber: "55524c",
+    activeLineNumber: "8a867e",
   },
   day: {
     text: "3f3f46",
@@ -34,6 +36,8 @@ const palettes = {
     string: "047857",
     number: "a15c07",
     punctuation: "a1a1aa",
+    lineNumber: "a1a1aa",
+    activeLineNumber: "3f3f46",
   },
 };
 
@@ -68,8 +72,8 @@ function colors(mode: ColorMode): monaco.editor.IColors {
     "editor.background": surface.background,
     "editor.foreground": `#${palette.text}`,
     "editorGutter.background": surface.background,
-    "editorLineNumber.foreground": `#${palette.punctuation}`,
-    "editorLineNumber.activeForeground": `#${palette.identifier}`,
+    "editorLineNumber.foreground": `#${palette.lineNumber}`,
+    "editorLineNumber.activeForeground": `#${palette.activeLineNumber}`,
     "editorWidget.background": surface.widget,
     "editorWidget.border": surface.border,
     "editorSuggestWidget.background": surface.widget,

@@ -7,32 +7,31 @@ import { cn } from "../cn";
 // (selected) leaf, leading/trailing visuals, and a loading SubTree. Rows toggle
 // when they have a SubTree, otherwise they call onSelect.
 //
-// Depth is drawn as a hairline rather than paid for in icons: a package and a
-// service repeat the same glyph on every row, so the column costs width to say
-// what the indent already says. Levels that branch nest inside a guide; a list
-// of leaves takes the indent without one, because a line nothing hangs off is
-// noise, and its rows drop the chevron slot they would never fill.
+// Depth is the indent and nothing else: a package and a service repeat the same
+// glyph on every row, so an icon column costs width to say what the indent
+// already says, and a guide line beside it was a second way of saying it. A list
+// of leaves drops the chevron slot its rows would never fill.
 const LeafContext = React.createContext(false);
 
-const GUIDE = "relative pl-3.5 before:absolute before:inset-y-0 before:left-3.5 before:w-px before:bg-border before:content-['']";
+const NESTED = "pl-3.5";
 const LEAF = "pl-5";
 
 function TreeView({
   children,
-  guide,
+  nested,
   leaf,
   ...props
 }: {
   children: React.ReactNode;
-  // Nest the whole list under a hairline, for a tree hung off a header that is
-  // not itself an Item (an app in the sidebar).
-  guide?: boolean;
+  // Indent the whole list, for a tree hung off a header that is not itself an
+  // Item (an app in the sidebar).
+  nested?: boolean;
   // A list that never branches, indented but unguided.
   leaf?: boolean;
   "aria-label"?: string;
 }) {
   return (
-    <ul role="tree" className={cn("select-none", guide && GUIDE, leaf && LEAF)} {...props}>
+    <ul role="tree" className={cn("select-none", nested && NESTED, leaf && LEAF)} {...props}>
       <LeafContext.Provider value={!!leaf}>{children}</LeafContext.Provider>
     </ul>
   );
@@ -85,13 +84,13 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded, event) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
-          "group flex h-[22px] cursor-pointer items-center gap-1.5 pl-2 pr-2 text-[13px] outline-none",
-          current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50",
-          "focus-visible:bg-accent/50",
+          "group flex h-6 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-2 text-sm outline-none",
+          current ? "bg-accent/60 text-accent-foreground" : cn(leaf ? "text-foreground/90" : "text-foreground", "hover:bg-accent/40"),
+          "focus-visible:bg-accent/40",
         )}
       >
         {!leaf && (
-          <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+          <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground/70">
             {hasSubtree && <ChevronRight size={12} className={cn("transition-transform", expanded && "rotate-90")} />}
           </span>
         )}
@@ -117,13 +116,13 @@ interface SubTreeProps {
 }
 
 function SubTree({ state, count = 3, leaf, children }: SubTreeProps) {
-  const className = cn("select-none", leaf ? LEAF : GUIDE);
+  const className = cn("select-none", leaf ? LEAF : NESTED);
   if (state === "loading") {
     return (
       <ul role="group" className={className}>
         {Array.from({ length: count }).map((_, index) => (
           <li key={index} role="treeitem">
-            <div className="flex h-[22px] items-center gap-1.5 pl-2 pr-2">
+            <div className="flex h-6 items-center gap-1.5 pl-2 pr-2">
               <span className="size-3 shrink-0" />
               <div className="h-2.5 w-24 animate-pulse rounded bg-muted" />
             </div>

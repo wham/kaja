@@ -20,9 +20,9 @@ interface PhoneFinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
-  // Kaja's own views, each carrying the state the status bar would have shown.
+  // Kaja's own views, each carrying the state the sidebar would have shown.
   workspace: Destination[];
-  // The status bar's workspace menu, which the phone has no status bar to hold.
+  // The sidebar band's workspace menu, which the phone has no sidebar to hold.
   workspaces?: WorkspaceControl;
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;

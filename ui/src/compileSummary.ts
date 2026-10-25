@@ -3,7 +3,7 @@ import { App, isReady } from "./apps";
 import { Log, LogLevel } from "./server/api";
 import { pluralCount } from "./plural";
 
-// The compile state of the whole workspace, rolled up for the status bar. A
+// The compile state of the whole workspace, rolled up for the Apps tab. A
 // failure outranks a warning outranks progress, so the indicator never has to
 // combine two states in one label.
 export type CompileState = "empty" | "loading" | "compiling" | "failed" | "warning" | "ready";
@@ -93,11 +93,4 @@ export function summarizeCompilation(apps: App[], workspaceLoaded: boolean): Com
   }
 
   return { ...summary, state: "ready", label: pluralCount(apps.length, "app") };
-}
-
-// The receipt shown for a few seconds after a batch settles green.
-export function settledLabel(apps: App[], milliseconds: number): string {
-  const seconds = Math.max(milliseconds, 100) / 1000;
-  const duration = seconds >= 10 ? `${Math.round(seconds)}s` : `${seconds.toFixed(1)}s`;
-  return `${pluralCount(apps.length, "app")} ready · ${duration}`;
 }

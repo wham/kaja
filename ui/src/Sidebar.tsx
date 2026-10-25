@@ -2,11 +2,13 @@ import { memo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
+import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { TreeView } from "./components/tree-view";
 import {
   Ban,
   Braces,
+  Check,
   ChevronRight,
   CircleX,
   Ellipsis,
@@ -22,7 +24,7 @@ import {
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
-import { firstErrorMessage, warningCount } from "./compileSummary";
+import { firstErrorMessage, summarizeCompilation, warningCount } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
 import { pluralCount } from "./plural";
 import { unsupportedReason } from "./streaming";
@@ -75,10 +77,10 @@ export const SIDEBAR_TABS: SidebarTab[] = ["apps", "scripts"];
 export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // An app's row, and the one row the empty list draws in its place.
-const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-[13px] font-medium text-foreground";
+const SECTION_ROW = "flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground";
 
-// Small enough to sit inside a 22px row, which is what lets the frequent verbs live
-// on the row instead of behind a menu. Every one of them sits in an 18px box 8px in
+// Small enough to sit inside a 24px row, which is what lets the frequent verbs live
+// on the row instead of behind a menu. Every one of them sits in an 18px box 16px in
 // from the panel's right edge — one column, from the band's tools down to the last
 // method in the tree.
 export const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
@@ -115,7 +117,8 @@ interface SidebarProps {
   // Clicking goes to the call; ⌥click (or the + on the row) adds it to the script
   // already on screen.
   onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
-  onShowCompileLog: (appName: string) => void;
+  workspaceLoaded: boolean;
+  onShowCompileLog: (appName?: string) => void;
   onRecompileApp: (appName: string) => void;
   onNewAppClick: () => void;
   onNewScript?: () => void;
@@ -145,6 +148,7 @@ export const Sidebar = memo(function Sidebar({
   scriptsRegion,
   canUpdateWorkspace = true,
   onSelect,
+  workspaceLoaded,
   onShowCompileLog,
   onRecompileApp,
   onNewAppClick,
@@ -281,6 +285,7 @@ export const Sidebar = memo(function Sidebar({
       <TabRow
         tab={tab}
         onTabChange={onTabChange}
+        marker={(apps.length > 0 || !workspaceLoaded) && <CompileMarker apps={apps} workspaceLoaded={workspaceLoaded} onShowCompileLog={onShowCompileLog} />}
         action={
           tab === "apps"
             ? canUpdateWorkspace && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
@@ -291,7 +296,7 @@ export const Sidebar = memo(function Sidebar({
       <div className="flex min-h-0 flex-1 flex-col">
         {/* Both panes stay mounted and the one not on screen is hidden, so a fold, a
           hover, or a name being typed survives a switch. */}
-        <TabPane tab="apps" active={tab} paneRefs={paneRefs} paneScroll={paneScroll} className="pt-1">
+        <TabPane tab="apps" active={tab} paneRefs={paneRefs} paneScroll={paneScroll}>
           {/* Where there is an action, the empty list shows the action rather than
               a sentence about it: this list can be filled from here, so its one row
               is the verb, at the same 22px as the app rows it will be replaced by. */}
@@ -302,7 +307,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={onNewAppClick}
                 className={cn(
                   SECTION_ROW,
-                  "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/40 hover:text-foreground",
                 )}
               >
                 <Plus size={12} className="shrink-0" />
@@ -333,7 +338,7 @@ export const Sidebar = memo(function Sidebar({
                   the glyph says something the indent can't — gRPC or OpenAPI or
                   Folder. Everything below repeats itself, so it goes. */}
                 <div
-                  className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
+                  className={cn(SECTION_ROW, active ? "bg-accent/60" : "hover:bg-accent/40")}
                   onMouseEnter={() => setHoveredApp(appName)}
                   onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
                   onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
@@ -342,7 +347,10 @@ export const Sidebar = memo(function Sidebar({
                     setAppMenu({ appName, top: e.clientY, left: e.clientX });
                   }}
                 >
-                  <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                  <ChevronRight
+                    size={12}
+                    className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", isExpanded && "rotate-90")}
+                  />
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
@@ -354,7 +362,7 @@ export const Sidebar = memo(function Sidebar({
                   </span>
                 </div>
                 {isExpanded && (
-                  <TreeView guide aria-label="Services and methods">
+                  <TreeView nested aria-label="Services and methods">
                     {app.compilation.status === "running" || app.compilation.status === "pending" ? (
                       <LoadingTreeViewItem />
                     ) : (
@@ -440,7 +448,7 @@ export const Sidebar = memo(function Sidebar({
                               onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
                             >
                               {/* No icon: every package row carried the same one,
-                                which is 20px per row spent saying what the guide
+                                which is 20px per row spent saying what the indent
                                 already says. */}
                               <span className="text-muted-foreground">{packageName}</span>
                               <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
@@ -522,7 +530,7 @@ function GlobalBand({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-[3px]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-[3px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       {workspace ? (
@@ -583,16 +591,30 @@ export function sidebarTabId(tab: SidebarTab): string {
 
 /**
  * The row under the band: the two tabs, and the verb that belongs to the one that is
- * on. The active tab is underlined rather than filled, so the row reads as a header
- * over the list and not as a control floating in it.
+ * on. The active tab is a filled pill and nothing divides the row from the list, so
+ * the panel is one plane that the tone step alone sets apart from the work area.
+ *
+ * The compile marker rides inside the Apps tab whichever tab is on, because it reports
+ * on the apps rather than on the list in front of you. It is a sibling of the tab
+ * button rather than a child, since a button can't hold another one.
  */
-function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (tab: SidebarTab) => void; action?: React.ReactNode }) {
+function TabRow({
+  tab,
+  onTabChange,
+  marker,
+  action,
+}: {
+  tab: SidebarTab;
+  onTabChange: (tab: SidebarTab) => void;
+  marker?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="flex h-[30px] shrink-0 items-stretch border-b border-border pr-2 pl-3">
+    <div className="flex h-7 shrink-0 items-center pr-4 pl-2.5">
       <div
         role="tablist"
         aria-label="Sidebar"
-        className="flex items-stretch gap-3.5"
+        className="flex items-center gap-1"
         onKeyDown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           event.preventDefault();
@@ -604,23 +626,27 @@ function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (t
       >
         {SIDEBAR_TABS.map((candidate) => {
           const selected = candidate === tab;
+          const tabMarker = candidate === "apps" && marker ? marker : undefined;
           return (
-            <button
-              key={candidate}
-              type="button"
-              role="tab"
-              id={sidebarTabId(candidate)}
-              aria-selected={selected}
-              aria-controls={`${candidate}-panel`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => onTabChange(candidate)}
-              className={cn(
-                "flex cursor-pointer select-none items-center text-[13px] outline-none focus-visible:bg-accent/50",
-                selected ? "font-medium text-foreground shadow-[inset_0_-2px_0_currentColor]" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {TAB_LABEL[candidate]}
-            </button>
+            <span key={candidate} className={cn("flex h-6 items-center rounded-md", selected && "bg-muted", tabMarker !== undefined && "pr-1")}>
+              <button
+                type="button"
+                role="tab"
+                id={sidebarTabId(candidate)}
+                aria-selected={selected}
+                aria-controls={`${candidate}-panel`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => onTabChange(candidate)}
+                className={cn(
+                  "flex h-full cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
+                  selected ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                  tabMarker !== undefined && "pr-1.5",
+                )}
+              >
+                {TAB_LABEL[candidate]}
+              </button>
+              {tabMarker}
+            </span>
           );
         })}
       </div>
@@ -631,19 +657,49 @@ function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (t
   );
 }
 
+/**
+ * What compiling the apps came to, as one 18px glyph on the Apps tab: a check when
+ * every app is ready, a spinner while any is compiling, a dot when one failed or
+ * warned. Clicking opens the compile log, on the first failure if there is one.
+ */
+function CompileMarker({ apps, workspaceLoaded, onShowCompileLog }: { apps: App[]; workspaceLoaded: boolean; onShowCompileLog: (appName?: string) => void }) {
+  const summary = summarizeCompilation(apps, workspaceLoaded);
+  const label = summary.state === "ready" ? `${pluralCount(summary.total, "app")} compiled` : summary.label;
+  const firstFailure = apps.find((app) => app.compilation.status === "error") ?? apps.find((app) => warningCount(app) > 0);
+
+  return (
+    <SimpleTooltip text={`${label} · Show compile log`} side="bottom">
+      <button
+        type="button"
+        aria-label={`${label}. Show compile log`}
+        onClick={() => onShowCompileLog(firstFailure?.configuration.name)}
+        className="flex size-[18px] shrink-0 items-center justify-center rounded-sm hover:bg-accent"
+      >
+        {summary.state === "loading" || summary.state === "compiling" ? (
+          <Spinner size="sm" className="size-3 text-muted-foreground" />
+        ) : summary.state === "failed" ? (
+          <span className="size-[7px] rounded-full bg-destructive" />
+        ) : summary.state === "warning" ? (
+          <span className="size-[7px] rounded-full bg-amber-500" />
+        ) : (
+          <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
+        )}
+      </button>
+    </SimpleTooltip>
+  );
+}
+
 function TabPane({
   tab,
   active,
   paneRefs,
   paneScroll,
-  className,
   children,
 }: {
   tab: SidebarTab;
   active: SidebarTab;
   paneRefs: React.RefObject<Record<SidebarTab, HTMLDivElement | null>>;
   paneScroll: React.RefObject<Record<SidebarTab, number>>;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -658,7 +714,7 @@ function TabPane({
       onScroll={(event) => {
         paneScroll.current[tab] = event.currentTarget.scrollTop;
       }}
-      className={cn("thin-scrollbar min-h-0 flex-1 overflow-y-auto pb-1", className)}
+      className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-2"
     >
       {children}
     </div>

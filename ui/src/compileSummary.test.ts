@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { App, CompilationStatus, createPendingApp } from "./apps";
 import { LogLevel } from "./server/api";
-import { countMethods, countWarnings, firstErrorLine, firstErrorMessage, settledLabel, summarizeCompilation, warningCount } from "./compileSummary";
+import { countMethods, countWarnings, firstErrorLine, firstErrorMessage, summarizeCompilation, warningCount } from "./compileSummary";
 
 // The surface keeps what the store read off the log, which is what the store writes
 // when a compile lands (appStore.ts).
@@ -106,19 +106,5 @@ describe("app details", () => {
       { name: "T", packageName: "p", sourcePath: "", typeName: "", methods: [{ name: "o" }] },
     ];
     expect(countMethods(withServices)).toBe(3);
-  });
-});
-
-describe("settledLabel", () => {
-  test("sub-second compiles keep a decimal", () => {
-    expect(settledLabel([app("a", "success")], 1400)).toBe("1 app ready · 1.4s");
-  });
-
-  test("a very fast compile still reads as time passing", () => {
-    expect(settledLabel([app("a", "success")], 12)).toBe("1 app ready · 0.1s");
-  });
-
-  test("long compiles round to whole seconds", () => {
-    expect(settledLabel([app("a", "success"), app("b", "success")], 12400)).toBe("2 apps ready · 12s");
   });
 });

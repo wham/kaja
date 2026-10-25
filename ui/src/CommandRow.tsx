@@ -60,7 +60,7 @@ export function CommandRow({
 
   return (
     <div
-      className="@container flex h-[40px] shrink-0 items-center border-b border-border bg-chrome"
+      className="@container flex h-[40px] shrink-0 items-center border-b border-border/70 bg-background"
       style={{ "--wails-draggable": "drag" } as React.CSSProperties}
     >
       <div
