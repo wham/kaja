@@ -2428,6 +2428,11 @@ export function App() {
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: false });
   };
 
+  const onAppFormDelete = (appName: string) => {
+    onAppFormCancel();
+    void onDeleteApp(appName);
+  };
+
   // Names no variable defines are in here too: the Variables view shows them as a warning.
   const variableUses = useMemo(() => appVariableUses(workspace?.apps ?? []), [workspace?.apps]);
 
@@ -2835,6 +2840,7 @@ export function App() {
           readOnly={!runtime.canUpdateWorkspace}
           onSubmit={onAppFormSubmit}
           onCancel={onAppFormCancel}
+          onDelete={onAppFormDelete}
           onSaveControlChange={(control) => reportAppFormSave(view.id, control)}
           agentNotes={view.agentNotes}
         />
