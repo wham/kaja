@@ -65,6 +65,13 @@ export interface ScriptView extends ViewBase {
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
+// The type is held because the identity is drawn before the app may have loaded.
+export interface AppView extends ViewBase {
+  type: "app";
+  appName: string;
+  appType: string;
+}
+
 export interface VariablesView extends ViewBase {
   type: "variables";
 }
@@ -80,7 +87,7 @@ export interface ShortcutsView extends ViewBase {
   type: "shortcuts";
 }
 
-export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
+export type View = CompilerView | DraftView | DefinitionView | AppFormView | AppView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
 
 let sequence = 0;
 
@@ -188,6 +195,20 @@ export function showAppForm(views: View[], mode: "create" | "edit", initialData?
   });
 }
 
+export function showApp(views: View[], appName: string, type: string): View[] {
+  const existing = views.find((view) => view.type === "app" && view.appName === appName);
+  if (existing) return visit(views, existing.id);
+  return show(views, { ...nextView("app"), type: "app", appName, appType: type });
+}
+
+export function followAppPages(views: View[], renames: Map<string, string>): View[] {
+  return views.map((view) => (view.type === "app" && renames.has(view.appName) ? { ...view, appName: renames.get(view.appName)! } : view));
+}
+
+export function dropAppPage(views: View[], appName: string): View[] {
+  return views.filter((view) => !(view.type === "app" && view.appName === appName));
+}
+
 export function showVariables(views: View[]): View[] {
   const existing = views.find((view) => view.type === "variables");
   if (existing) return visit(views, existing.id);
@@ -256,6 +277,8 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
       return { name: appFormName(view), path: "Workspace", origin: "", icon: appFormIcon(view) };
+    case "app":
+      return { name: view.appName, path: "Apps", origin: "", icon: getAppType(view.appType)?.icon ?? Settings };
     case "variables":
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
     case "mcp":

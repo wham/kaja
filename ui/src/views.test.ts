@@ -1,8 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
+  dropAppPage,
   dropView,
+  followAppPages,
   restoreViews,
   serializeViews,
+  showApp,
   showAppForm,
   showCompiler,
   showDefinition,
@@ -91,6 +94,31 @@ describe("the MCP view", () => {
     let views = once;
     for (let i = 0; i < 15; i++) views = showAppForm(views, "edit", buildApp(`app-${i}`, "grpc", { url: "example.com:443" }, {}));
     expect(views.some((v) => v.type === "mcp")).toBe(false);
+  });
+});
+
+describe("the app page", () => {
+  it("is one page per app, visited rather than opened twice", () => {
+    const once = showApp([startView()], "github", "openapi");
+    const twice = showApp(showVariables(once), "github", "openapi");
+    expect(twice.filter((view) => view.type === "app")).toHaveLength(1);
+    expect(twice[0].type).toBe("app");
+  });
+
+  it("is named after the app and wears its type's mark", () => {
+    const [page] = showApp([], "github", "openapi");
+    expect(viewIdentity(page)).toMatchObject({ name: "github", path: "Apps" });
+  });
+
+  it("follows a rename and goes with the app", () => {
+    const views = showApp([startView()], "github", "openapi");
+    const renamed = followAppPages(views, new Map([["github", "work"]]));
+    expect(renamed[0]).toMatchObject({ type: "app", appName: "work" });
+    expect(dropAppPage(renamed, "work").some((view) => view.type === "app")).toBe(false);
+  });
+
+  it("is not restored after a reload", () => {
+    expect(serializeViews(showApp([startView()], "github", "openapi"), () => undefined).views).toEqual([]);
   });
 });
 

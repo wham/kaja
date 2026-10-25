@@ -8,6 +8,7 @@ import {
   ConsoleView,
   FailureNotice,
   failureNotices,
+  isScriptError,
   ItemStats,
   LogFloor,
   newItemId,
@@ -170,7 +171,9 @@ class Group implements RunGroup {
     this.#seq++;
     // Printing is not drawing: a loop that logs each iteration would otherwise speak
     // for every failure it logged past.
-    if (item.block !== undefined || (item.logs !== undefined && !item.printed)) this.#drawnAt = this.#seq;
+    // Nor is the script's own crash, which a failed call handing back undefined is the
+    // usual cause of: it would hide the failure behind the error it caused.
+    if (item.block !== undefined || (item.logs !== undefined && !item.printed && !isScriptError(item))) this.#drawnAt = this.#seq;
     else if (item.call?.error !== undefined) this.#failed.set(item.id, { item, seq: this.#seq });
   }
 }

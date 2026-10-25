@@ -24,6 +24,8 @@ interface RunButtonProps {
   // discard that closes the buffer. Absent on a file.
   onSaveAsFile?: () => void;
   onDiscardDraft?: () => void;
+  // A story's draft that no longer reads as Kaja ships it.
+  onResetStory?: () => void;
   // A read-only file's only route to a copy you can change.
   onDuplicateAsDraft?: () => void;
   // The phone's header is taller than the command row and has no keyboard to hint at.
@@ -52,6 +54,7 @@ export function RunButton({
   onRevealInFinder,
   onSaveAsFile,
   onDiscardDraft,
+  onResetStory,
   onDuplicateAsDraft,
   size = "default",
 }: RunButtonProps) {
@@ -63,7 +66,7 @@ export function RunButton({
   const saveAsFileLabel = useShortcutLabel("saveAsFile");
   const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator above it.
-  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onSaveAsFile, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
+  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onSaveAsFile, onResetStory, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to choose
   // between.
   const split = !running && (aboutTheScript || onRunWithParameters !== undefined);
@@ -150,6 +153,11 @@ export function RunButton({
                 <DropdownMenuItem onSelect={() => onSaveAsFile()}>
                   <span className="flex-1">Save as file…</span>
                   <Shortcut label={saveAsFileLabel} />
+                </DropdownMenuItem>
+              )}
+              {onResetStory && (
+                <DropdownMenuItem onSelect={() => onResetStory()}>
+                  <span className="flex-1">Reset story</span>
                 </DropdownMenuItem>
               )}
               {onDiscardDraft && (
