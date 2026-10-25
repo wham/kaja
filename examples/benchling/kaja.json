@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "name": "benchling",
+      "openapi": {
+        "spec_url": "https://benchling.com/api/v2/openapi.yaml",
+        "base_url": "https://${BENCHLING_TENANT}.benchling.com/api/v2",
+        "security_scheme": "basicApiKeyAuth",
+        "username": "${BENCHLING_API_KEY}"
+      }
+    }
+  ],
+  "variables": {
+    "BENCHLING_TENANT": "your-tenant",
+    "BENCHLING_API_KEY": "${secret}"
+  }
+}
