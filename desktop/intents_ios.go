@@ -21,6 +21,10 @@ import (
 // phone can reach.
 const appIntents = true
 
+// mcpListener is false because a loopback port on a phone is one no agent can reach,
+// so the switch, the page and the listener are not offered there at all.
+const mcpListener = false
+
 // intentClient is who an intent's runs are made as, which is the name the agent draft
 // wears in the sidebar.
 const intentClient = "Siri"

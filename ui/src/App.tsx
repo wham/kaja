@@ -358,14 +358,17 @@ export function App() {
   const mcpControl: McpControl | undefined = useMemo(
     () =>
       isWailsEnvironment()
-        ? {
-            enabled: mcpInfo?.enabled === true,
-            attached: agentState.attached,
-            onDuty: agentState.onDuty,
-            error: mcpInfo?.error || agentState.error,
-            setEnabled: setMCPEnabled,
-            regenerateToken: regenerateMCPToken,
-          }
+        ? // Only the iOS app reports intents, and a phone has nothing that could reach its listener.
+          mcpInfo?.intents
+          ? undefined
+          : {
+              enabled: mcpInfo?.enabled === true,
+              attached: agentState.attached,
+              onDuty: agentState.onDuty,
+              error: mcpInfo?.error || agentState.error,
+              setEnabled: setMCPEnabled,
+              regenerateToken: regenerateMCPToken,
+            }
         : !agentState.available
           ? undefined
           : {
