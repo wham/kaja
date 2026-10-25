@@ -46,6 +46,8 @@ interface VariablesProps {
   onStoreValue: (name: string, value: string) => Promise<void>;
   onScriptSelect: (script: Script) => void;
   onRevealApp: (name: string) => void;
+  // Opens an app's settings, which is where a sign-in is made.
+  onEditApp: (name: string) => void;
   // One-shot: the variable something elsewhere said was missing, which is brought into
   // view with what fixes it already open.
   reveal?: { name: string };
@@ -54,8 +56,14 @@ interface VariablesProps {
 const SOURCE_LABEL: Record<VariableKind, string> = {
   value: "Value",
   stored: "Keychain",
+  signIn: "Sign-in",
   environment: "Environment",
 };
+
+// Both keep what they hold in the keychain, so a row leaving either takes it along.
+function keptInStore(kind: VariableKind): boolean {
+  return kind === "stored" || kind === "signIn";
+}
 
 const AUTOSAVE_MS = 600;
 
@@ -117,6 +125,7 @@ export function Variables({
   onStoreValue,
   onScriptSelect,
   onRevealApp,
+  onEditApp,
   reveal,
 }: VariablesProps) {
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
@@ -252,9 +261,9 @@ export function Variables({
       for (const name of Object.keys(snapshot)) retainStoredRef.current.delete(name);
       const cleared = Object.keys(variables).filter(
         (name) =>
-          variableKind(variables[name]) === "stored" &&
+          keptInStore(variableKind(variables[name])) &&
           !retainStoredRef.current.has(name) &&
-          (!(name in snapshot) || variableKind(snapshot[name]) !== "stored"),
+          (!(name in snapshot) || variableKind(snapshot[name]) !== variableKind(variables[name])),
       );
 
       void onSaveRef
@@ -283,7 +292,8 @@ export function Variables({
 
   const held = (row: VariableRow) => {
     const name = row.key.trim();
-    return statusByName.get(name)?.source === VariableSource.KEYCHAIN || justStored.has(name);
+    const source = statusByName.get(name)?.source;
+    return source === VariableSource.KEYCHAIN || source === VariableSource.SIGN_IN || justStored.has(name);
   };
 
   useEffect(() => {
@@ -300,6 +310,13 @@ export function Variables({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
 
+  // A sign-in is made in the settings of the app it signs in, which is the one that
+  // names the variable.
+  const signIn = (name: string) => {
+    const app = uses.get(name)?.[0]?.app;
+    if (app) onEditApp(app);
+  };
+
   // Deleting a variable something reads breaks that reference, and deleting one the
   // keychain holds a value for throws the value away. Either is worth stating; a
   // variable that is neither goes on the click.
@@ -308,7 +325,7 @@ export function Variables({
     const name = row.key.trim();
     const apps = uses.get(name)?.length ?? 0;
     const files = scan.status === "scanned" ? (scan.references.get(name)?.length ?? 0) : 0;
-    const holdsValue = variableKind(row.value) === "stored" && held(row);
+    const holdsValue = keptInStore(variableKind(row.value)) && held(row);
     if (!name || (apps === 0 && files === 0 && !holdsValue)) {
       removeRow(index);
       return;
@@ -405,7 +422,7 @@ export function Variables({
               }}
               onChange={(patch) => update(index, patch)}
               onSource={(kind) => setSource(index, kind)}
-              onEnterValue={() => setKeychainSheet({ index, name })}
+              onEnterValue={() => (variableKind(row.value) === "signIn" ? signIn(name) : setKeychainSheet({ index, name }))}
               onRemove={(focus) => (focus === undefined ? askToDelete(index) : removeRow(index, focus))}
               onAddRow={index === rows.length - 1 ? addRow : undefined}
               isLast={index === rows.length - 1}
@@ -532,7 +549,8 @@ function VariableRowEditor({
   const unset =
     Boolean(name) &&
     !error &&
-    ((kind === "stored" && !held && source === VariableSource.UNSET) || (kind === "environment" && status?.source === VariableSource.UNSET));
+    (((kind === "stored" || kind === "signIn") && !held && source === VariableSource.UNSET) ||
+      (kind === "environment" && status?.source === VariableSource.UNSET));
 
   return (
     <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1.5 border-t border-border px-1 py-1.5 transition-colors hover:bg-muted/40">
@@ -562,11 +580,13 @@ function VariableRowEditor({
           <ValueField
             warn={unset}
             error={Boolean(error)}
-            clickable={kind === "stored" && storeAvailable}
-            onClick={kind === "stored" && storeAvailable ? onEnterValue : undefined}
+            clickable={(kind === "stored" && storeAvailable) || (kind === "signIn" && !held)}
+            onClick={(kind === "stored" && storeAvailable) || (kind === "signIn" && !held) ? onEnterValue : undefined}
           >
             {kind === "stored" ? (
               <StoredValueCell storedEnv={storedEnv} source={source} held={held} storeAvailable={storeAvailable} />
+            ) : kind === "signIn" ? (
+              <SignInCell storedEnv={storedEnv} status={status} />
             ) : (
               <>
                 <Input
@@ -693,6 +713,8 @@ function SourcePicker({
       <DropdownMenuContent align="start" className="w-[288px]">
         <div className="flex h-6 items-center px-2 text-xs text-muted-foreground">Where the value comes from</div>
         <SourceItem selected={kind === "value"} label="Value" description="Written in kaja.json" onSelect={() => onSelect("value")} />
+        {/* Signing in from an app is what makes one, so it is listed only where it is. */}
+        {kind === "signIn" && <SourceItem selected label="Sign-in" description="Kept by signing in from an app" onSelect={() => onSelect("signIn")} />}
         <SourceItem
           selected={kind === "stored"}
           label="Keychain"
@@ -720,6 +742,42 @@ function SourceItem({ selected, label, description, onSelect }: { selected: bool
       </span>
     </DropdownMenuItem>
   );
+}
+
+// SignInCell says which server the sign-in is for, never anything of the token. The
+// fix for one that is missing is signing in from the app, which the click opens.
+function SignInCell({ storedEnv, status }: { storedEnv: string; status?: VariableStatus }) {
+  if (status?.source === VariableSource.SIGN_IN) {
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <span className="truncate text-xs text-muted-foreground">Signed in to {resourceHost(status.signInResource)}</span>
+      </span>
+    );
+  }
+  if (status?.source === VariableSource.ENVIRONMENT) {
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <span className="truncate text-xs text-muted-foreground">
+          Read from <code>{storedEnv}</code>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+      <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+      <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not signed in on this device</span>
+      <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover/value:text-foreground">Sign in…</span>
+    </span>
+  );
+}
+
+function resourceHost(resource: string): string {
+  try {
+    return new URL(resource).host;
+  } catch {
+    return resource;
+  }
 }
 
 // StoredValueCell never shows the value: it says whether there is one, and names the
@@ -834,7 +892,7 @@ function DeleteDialog({
 function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?: VariableStatus; usedBy: ReactNode }) {
   const kind = variableKind(row.value);
   const source = status?.source ?? VariableSource.UNSET;
-  const envName = status?.envName || (kind === "stored" ? storedEnvName(row.key) : environmentName(row));
+  const envName = status?.envName || (keptInStore(kind) ? storedEnvName(row.key) : environmentName(row));
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-3 border-t border-border px-1 text-xs max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2">
@@ -849,6 +907,8 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
           <span className="text-muted-foreground">Stored on this device</span>
+        ) : source === VariableSource.SIGN_IN ? (
+          <span className="text-muted-foreground">Signed in to {resourceHost(status?.signInResource ?? "")}</span>
         ) : (
           <span className="text-muted-foreground">
             Read from <code>{envName}</code>

@@ -2897,6 +2897,7 @@ export function App() {
           onStoreValue={onStoreVariableValue}
           onScriptSelect={(script) => void onScriptSelect(script)}
           onRevealApp={(name) => setAutoExpandApp({ name })}
+          onEditApp={onEditApp}
           reveal={variableReveal}
         />
       )}

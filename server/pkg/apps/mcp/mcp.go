@@ -106,7 +106,7 @@ func credentialSource(parameters map[string]string, authorizer *oauth.Authorizer
 		if authorizer == nil {
 			return nil, true, fmt.Errorf("this kaja cannot sign in to an MCP server")
 		}
-		return authorizer.Credential(strings.TrimSpace(parameters["url"])), true, nil
+		return authorizer.Credential(parameters["token"], strings.TrimSpace(parameters["url"])), true, nil
 	}
 	headers := Credential(parameters)
 	return func() (map[string]string, error) { return headers, nil }, false, nil

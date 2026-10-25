@@ -53,8 +53,13 @@ func (a *Authorizer) redirectURI() string {
 // comes back. Only the halves are here; who opens the URL is the window's
 // business, since the desktop and a browser open one differently.
 type Authorizer struct {
-	store  *TokenStore
+	store  Store
 	client *http.Client
+
+	// renewing serializes renewals, because two calls finding one token expired
+	// would otherwise each spend the refresh token, and a server that rotates them
+	// takes the second as a replay.
+	renewing sync.Mutex
 
 	// port is the loopback port the redirect comes back on. Zero asks the OS for
 	// one, which only a test does: an authorization server is registered against
@@ -64,11 +69,17 @@ type Authorizer struct {
 	mu       sync.Mutex
 	pending  map[string]*flow
 	listener net.Listener
+	// sent is the token last handed out under each name, so it can be masked out
+	// of what an app reports having sent: it is never a variable's value, which
+	// is what everything else is masked by.
+	sent map[string]string
 }
 
 // flow is one sign-in in progress: what it will need to finish, and where to say
 // it has.
 type flow struct {
+	// name is the variable the sign-in is kept under.
+	name     string
 	resource string
 	// audience is the resource a token is asked for, which is the endpoint or
 	// the parent its metadata says one token covers.
@@ -97,6 +108,9 @@ type SignInPrompt struct {
 // AppAuthorization is the app's half of a sign-in: which server, and the client
 // it is to be identified as where the authorization server registers none.
 type AppAuthorization struct {
+	// Credential is the app's credential as it names its sign-in: "${NAME}", NAME
+	// being the variable the sign-in is kept in.
+	Credential string
 	// Endpoint is what the token is for and the only address it is sent to.
 	Endpoint string
 	// Issuer is the authorization server, where kaja knows it rather than
@@ -113,26 +127,24 @@ type AppAuthorization struct {
 	Scope    string
 }
 
-func NewAuthorizer(store *TokenStore, client *http.Client) *Authorizer {
+func NewAuthorizer(store Store, client *http.Client) *Authorizer {
 	if client == nil {
 		client = &http.Client{Timeout: requestTimeout}
 	}
-	return &Authorizer{store: store, client: client, port: callbackPort, pending: map[string]*flow{}}
-}
-
-// DefaultAuthorizer is the one this installation uses, over the store it keeps.
-func DefaultAuthorizer() (*Authorizer, error) {
-	store, err := DefaultTokenStore()
-	if err != nil {
-		return nil, err
-	}
-	return NewAuthorizer(store, &http.Client{Timeout: requestTimeout}), nil
+	return &Authorizer{store: store, client: client, port: callbackPort, pending: map[string]*flow{}, sent: map[string]string{}}
 }
 
 // Begin discovers everything a sign-in needs and hands back the page to open and
 // a channel that reports how it went. Nothing is stored until the flow finishes:
 // a sign-in that is never completed leaves no trace.
 func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, error) {
+	name, err := signInSlot(app.Credential)
+	if err != nil {
+		return SignInPrompt{}, nil, err
+	}
+	if a.store == nil || !a.store.Available() {
+		return SignInPrompt{}, nil, fmt.Errorf("this machine has nowhere to keep a sign-in")
+	}
 	resource, err := canonicalResource(app.Endpoint)
 	if err != nil {
 		return SignInPrompt{}, nil, err
@@ -156,11 +168,11 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	scope := pickScope(challenged["scope"], app.Scope, described)
 
 	if usesDeviceGrant(server) {
-		registered := a.heldClient(server, app.ClientID)
+		registered := a.heldClient(server, app.ClientID, name)
 		if registered == nil {
 			return SignInPrompt{}, nil, fmt.Errorf("the authorization server registers no clients, so it needs a client id of your own")
 		}
-		return a.beginDevice(resource, audience, scope, server, registered)
+		return a.beginDevice(name, resource, audience, scope, server, registered)
 	}
 
 	// The listener comes first, because the address it is on is what kaja is
@@ -170,7 +182,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	}
 	redirect := a.redirectURI()
 
-	registered, err := a.clientFor(server, app.ClientID, scope, redirect)
+	registered, err := a.clientFor(server, app.ClientID, name, scope, redirect)
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
@@ -189,6 +201,7 @@ func (a *Authorizer) Begin(app AppAuthorization) (SignInPrompt, <-chan error, er
 	}
 
 	pending := &flow{
+		name:       name,
 		resource:   resource,
 		audience:   audience,
 		scope:      scope,
@@ -232,35 +245,84 @@ func (a *Authorizer) Cancel(done <-chan error) {
 	}
 }
 
-// Token is the access token to call a resource with, renewed where it has to be.
-// It is asked for on every call rather than held, so replacing a token takes
-// effect on the next call rather than on the next time the app is opened.
-func (a *Authorizer) Token(endpoint string) (string, error) {
+// Token is the access token an app's credential stands for, renewed where it has
+// to be. It is asked for on every call rather than held, so a sign-in replaced
+// or renewed elsewhere is used by the next call.
+//
+// A credential naming a variable reads the sign-in kept there, which is sent to
+// the resource it was issued for and nowhere else. Anything else is a token the
+// variable resolved to from the environment, where a kaja with nowhere to keep
+// a sign-in is handed one somebody made by hand.
+func (a *Authorizer) Token(credential string, endpoint string) (string, error) {
 	resource, err := canonicalResource(endpoint)
 	if err != nil {
 		return "", err
 	}
-	held := a.store.Grant(resource)
-	if held == nil || held.Token == nil {
-		return "", fmt.Errorf("kaja is not signed in to %s yet", resource)
-	}
-	if !held.Token.expired(time.Now()) {
-		return held.Token.AccessToken, nil
-	}
-	if held.Token.RefreshToken == "" {
-		return "", fmt.Errorf("the token for %s has expired and the server issued nothing to renew it with; sign in again", resource)
+	name, ok := SignInName(credential)
+	if !ok {
+		if token := strings.TrimSpace(credential); token != "" {
+			return token, nil
+		}
+		return "", fmt.Errorf("the app names no variable to keep its sign-in in; sign in from the app's settings")
 	}
 
+	a.renewing.Lock()
+	defer a.renewing.Unlock()
+
+	held := readGrant(a.store, name)
+	if held == nil {
+		return "", fmt.Errorf("${%s} holds no sign-in on this device; sign in from the app's settings", name)
+	}
+	if held.Resource != resource {
+		return "", fmt.Errorf("${%s} is a sign-in to %s rather than to %s; sign in again", name, held.Resource, resource)
+	}
+	if !held.Token.expired(time.Now()) {
+		return a.handOut(name, held.Token.AccessToken), nil
+	}
+
+	renewed, err := a.renew(held)
+	if err != nil {
+		// The sign-in is shared with every device the workspace is on, so another
+		// one may have renewed it first - and a server that rotates refresh tokens
+		// refuses the one it replaced. What that device kept is the way on.
+		latest := readGrant(a.store, name)
+		if latest == nil || latest.Resource != resource || latest.Token.RefreshToken == held.Token.RefreshToken {
+			return "", err
+		}
+		if !latest.Token.expired(time.Now()) {
+			return a.handOut(name, latest.Token.AccessToken), nil
+		}
+		held = latest
+		if renewed, err = a.renew(held); err != nil {
+			return "", err
+		}
+	}
+	held.Token = renewed
+	if err := writeGrant(a.store, name, held); err != nil {
+		return "", err
+	}
+	return a.handOut(name, renewed.AccessToken), nil
+}
+
+// renew asks for a new token with the refresh token a grant holds.
+func (a *Authorizer) renew(held *grant) (*tokenSet, error) {
+	if held.Token.RefreshToken == "" {
+		return nil, fmt.Errorf("the token for %s has expired and the server issued nothing to renew it with; sign in again", held.Resource)
+	}
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", held.Token.RefreshToken)
-	form.Set("resource", held.audience(resource))
+	form.Set("resource", held.audience())
 	if held.Token.Scope != "" {
 		form.Set("scope", held.Token.Scope)
 	}
-	renewed, err := requestToken(a.client, held.Server, a.refreshClient(held), form)
+	client := held.Client
+	if client == nil {
+		client = &registration{}
+	}
+	renewed, err := requestToken(a.client, held.Server, client, form)
 	if err != nil {
-		return "", fmt.Errorf("renewing the token for %s: %w", resource, err)
+		return nil, fmt.Errorf("renewing the token for %s: %w", held.Resource, err)
 	}
 	// A server that rotates refresh tokens sends the new one; one that doesn't
 	// expects the old one to go on being used.
@@ -270,51 +332,53 @@ func (a *Authorizer) Token(endpoint string) (string, error) {
 	if renewed.Scope == "" {
 		renewed.Scope = held.Token.Scope
 	}
-	held.Token = renewed
-	if err := a.store.SaveGrant(resource, held); err != nil {
-		return "", err
-	}
-	return renewed.AccessToken, nil
+	return renewed, nil
 }
 
-// refreshClient is the client a held token was issued to, read off the grant
-// rather than resolved again: neither a configured client id nor one kaja ships
-// is in the store, and a refresh token is worth nothing to another client.
-func (a *Authorizer) refreshClient(held *grant) *registration {
-	registered := a.store.Client(held.Server.Issuer)
-	if held.ClientID == "" {
-		// A grant from before the client was recorded on one, which can only be
-		// a client kaja registered.
-		if registered != nil {
-			return registered
-		}
-		return &registration{}
-	}
-	// The registration is what carries a secret, where the server issued one.
-	if registered != nil && registered.ClientID == held.ClientID {
-		return registered
-	}
-	return &registration{ClientID: held.ClientID}
+func (a *Authorizer) handOut(name string, token string) string {
+	a.mu.Lock()
+	a.sent[name] = token
+	a.mu.Unlock()
+	return token
 }
 
-// SignedIn reports whether a resource has a token at all, which is what the app
-// form states beside the button.
-func (a *Authorizer) SignedIn(endpoint string) bool {
+// Sent is the token last handed out under each variable's name.
+func (a *Authorizer) Sent() map[string]string {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	sent := make(map[string]string, len(a.sent))
+	for name, token := range a.sent {
+		sent[name] = token
+	}
+	return sent
+}
+
+// SignedIn reports whether an app's credential has a token to send to the
+// endpoint, which is what the app form states beside the button.
+func (a *Authorizer) SignedIn(credential string, endpoint string) bool {
+	name, ok := SignInName(credential)
+	if !ok {
+		return strings.TrimSpace(credential) != ""
+	}
 	resource, err := canonicalResource(endpoint)
 	if err != nil {
 		return false
 	}
-	held := a.store.Grant(resource)
-	return held != nil && held.Token != nil
+	held := readGrant(a.store, name)
+	return held != nil && held.Resource == resource
 }
 
-// Forget drops a resource's token, which is what signing out is.
-func (a *Authorizer) Forget(endpoint string) error {
-	resource, err := canonicalResource(endpoint)
-	if err != nil {
-		return err
+// Forget drops the sign-in an app's credential names, which is what signing out
+// is. The variable stays: it is still where the app's sign-in goes.
+func (a *Authorizer) Forget(credential string) error {
+	name, ok := SignInName(credential)
+	if !ok || a.store == nil {
+		return nil
 	}
-	return a.store.Forget(resource)
+	return a.store.Delete(name)
 }
 
 // signInAt is the authorization server to sign in at, the resource's own
@@ -419,37 +483,32 @@ func (a *Authorizer) readAuthorizationServer(issuer string) (*authorizationServe
 
 // clientFor is the client kaja is identified as, in the order the specification
 // asks for: one the person already has, then one kaja ships for this server,
-// then one this installation registered with it before, then one registered now.
+// then the one the sign-in kept under this name was issued to, then one
+// registered now.
 // A client id metadata document is the first of those - it is an https URL, so
 // it is a client id the person has - and kaja hosts none of its own. What kaja
 // ships outranks what it registered, a server it ships an id for being one that
 // registers nobody.
-func (a *Authorizer) clientFor(server *authorizationServer, configured string, scope string, redirect string) (*registration, error) {
-	if held := a.heldClient(server, configured); held != nil {
+func (a *Authorizer) clientFor(server *authorizationServer, configured string, name string, scope string, redirect string) (*registration, error) {
+	if held := a.heldClient(server, configured, name); held != nil {
 		return held, nil
 	}
-	registered, err := registerClient(a.client, server, redirect, scope)
-	if err != nil {
-		return nil, err
-	}
-	if err := a.store.SaveClient(server.Issuer, registered); err != nil {
-		return nil, err
-	}
-	return registered, nil
+	return registerClient(a.client, server, redirect, scope)
 }
 
 // heldClient is the client kaja already has for a server - one the person
-// configured, one kaja ships, or one this installation registered before - or
-// nothing, which is what registering is for.
-func (a *Authorizer) heldClient(server *authorizationServer, configured string) *registration {
+// configured, one kaja ships, or the one the sign-in under this name was issued
+// to - or nothing, which is what registering is for. A registration is kept with
+// the sign-in it was made for, so it travels and is dropped with it.
+func (a *Authorizer) heldClient(server *authorizationServer, configured string, name string) *registration {
 	if configured = strings.TrimSpace(configured); configured != "" {
 		return &registration{ClientID: configured}
 	}
 	if shipped := builtInClient(server.Issuer); shipped != nil {
 		return shipped
 	}
-	if held := a.store.Client(server.Issuer); held != nil && held.ClientID != "" {
-		return held
+	if held := readGrant(a.store, name); held != nil && held.Client != nil && held.Client.ClientID != "" && sameIssuer(held.Server.Issuer, server.Issuer) {
+		return held.Client
 	}
 	return nil
 }
@@ -535,13 +594,13 @@ func (a *Authorizer) finish(pending *flow, query url.Values) error {
 	if issued.Scope == "" {
 		issued.Scope = pending.scope
 	}
-	return a.store.SaveGrant(pending.resource, pending.grant(issued))
+	return writeGrant(a.store, pending.name, pending.grant(issued))
 }
 
 // grant is what a finished flow keeps: the token, and everything a renewal has
 // to present with it.
 func (f *flow) grant(issued *tokenSet) *grant {
-	held := &grant{Server: f.server, Token: issued, ClientID: f.registered.ClientID}
+	held := &grant{Resource: f.resource, Server: f.server, Token: issued, Client: f.registered}
 	if f.audience != f.resource {
 		held.Audience = f.audience
 	}
@@ -594,12 +653,12 @@ func writeCallbackPage(w http.ResponseWriter, status int, message string) {
 		html.EscapeString(message))
 }
 
-// Credential is what an app that signed in sends: a bearer token read from the
-// store as the call is made, so a renewed one is used without the app being
+// Credential is what an app that signed in sends: a bearer token read from where
+// the sign-in is kept as the call is made, so a renewed one is used without the app being
 // opened again.
-func (a *Authorizer) Credential(endpoint string) func() (map[string]string, error) {
+func (a *Authorizer) Credential(credential string, endpoint string) func() (map[string]string, error) {
 	return func() (map[string]string, error) {
-		token, err := a.Token(endpoint)
+		token, err := a.Token(credential, endpoint)
 		if err != nil {
 			return nil, err
 		}

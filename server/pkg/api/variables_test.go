@@ -313,3 +313,66 @@ func TestStoringAValueGivesTheWorkspaceAnIdThatWritesKeep(t *testing.T) {
 		t.Errorf("clearing left %v", store.values)
 	}
 }
+
+// A sign-in is never a value: the reference reaches the app naming it intact, and
+// the status says which server it is a sign-in to.
+func TestResolveSignInLeavesTheReferenceForTheApp(t *testing.T) {
+	t.Setenv("KAJA_GITHUB", "from-environment")
+	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"the-token"}}`
+	store := &fakeStore{available: true, values: map[string]string{"w#GITHUB": held}}
+
+	resolver := NewResolver(map[string]string{"GITHUB": "${signin}"}, store, "w")
+
+	if got := resolver.Expand("${GITHUB}"); got != "${GITHUB}" {
+		t.Errorf("expected the reference to pass through, got %q", got)
+	}
+	if _, ok := resolver.Values()["GITHUB"]; ok {
+		t.Error("expected a sign-in to be handed to no script")
+	}
+	status := statusFor(t, resolver, "GITHUB")
+	if status.Source != VariableSource_VARIABLE_SOURCE_SIGN_IN || status.SignInResource != "https://api.github.com" {
+		t.Errorf("status = %v", status)
+	}
+	if !resolver.SignsIn("GITHUB") {
+		t.Error("expected the resolver to know the variable holds a sign-in")
+	}
+}
+
+// Where nothing is kept, KAJA_<NAME> is a token used as it stands: a kaja with
+// nowhere to keep a sign-in is handed one somebody made by hand.
+func TestResolveSignInFallsBackToTheEnvironment(t *testing.T) {
+	t.Setenv("KAJA_GITHUB", "from-environment")
+	resolver := NewResolver(map[string]string{"GITHUB": "${signin}"}, nil, "w")
+
+	if got := resolver.Expand("${GITHUB}"); got != "from-environment" {
+		t.Errorf("expected the environment's token, got %q", got)
+	}
+	if got := statusFor(t, resolver, "GITHUB").Source; got != VariableSource_VARIABLE_SOURCE_ENVIRONMENT {
+		t.Errorf("expected source ENVIRONMENT, got %v", got)
+	}
+}
+
+func TestResolveSignInNotHeldIsUnset(t *testing.T) {
+	resolver := NewResolver(map[string]string{"GITHUB": "${signin}"}, &fakeStore{available: true}, "w")
+	if got := statusFor(t, resolver, "GITHUB").Source; got != VariableSource_VARIABLE_SOURCE_UNSET {
+		t.Errorf("expected source UNSET, got %v", got)
+	}
+}
+
+func TestValidateVariablesKeepsSignInWhole(t *testing.T) {
+	if err := validateVariables(map[string]string{"GITHUB": "${signin}"}); err != nil {
+		t.Errorf("expected a sign-in variable to pass, got %v", err)
+	}
+	if err := validateVariables(map[string]string{"GITHUB": "Bearer ${signin}"}); err == nil || !strings.Contains(err.Error(), "whole value") {
+		t.Errorf("expected an embedded ${signin} to be rejected, got %v", err)
+	}
+}
+
+func TestResolveSecretIsNeverASignIn(t *testing.T) {
+	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"the-token"}}`
+	store := &fakeStore{available: true, values: map[string]string{"w#GITHUB": held}}
+	resolver := NewResolver(map[string]string{"GITHUB": "${secret}"}, store, "w")
+	if _, ok := resolver.Values()["GITHUB"]; ok {
+		t.Error("expected a sign-in left in the store not to be a secret's value")
+	}
+}

@@ -2,8 +2,6 @@ package openapi
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,16 +82,16 @@ func TestASuppliedSchemeIsNeverPickedForAnApp(t *testing.T) {
 
 func TestASignInIsRefusedWithoutAnAuthorizer(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
-	if _, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(nil, "https://api.github.com"); err == nil {
+	if _, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(nil, "https://api.github.com"); err == nil {
 		t.Error("expected a kaja with nowhere to keep a sign-in to refuse")
 	}
 }
 
 func TestASignInSaysWhenItHasNoToken(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
-	authorizer := oauth.NewAuthorizer(oauth.NewTokenStore(filepath.Join(t.TempDir(), "oauth.json")), nil)
-	_, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(authorizer, "https://api.github.com")
-	if err == nil || !strings.Contains(err.Error(), "not signed in") {
+	authorizer := oauth.NewAuthorizer(memoryStore{}, nil)
+	_, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(authorizer, "https://api.github.com")
+	if err == nil || !strings.Contains(err.Error(), "holds no sign-in") {
 		t.Errorf("err = %v, want it to say kaja is not signed in", err)
 	}
 }
@@ -103,7 +101,7 @@ func TestASignInSaysWhenItHasNoToken(t *testing.T) {
 func TestASignInIsNotSentToAnotherServer(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
 	authorizer := signedInAuthorizer(t, "https://api.github.com", "the-token")
-	_, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(authorizer, "https://github.example.com/api/v3")
+	_, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(authorizer, "https://github.example.com/api/v3")
 	if err == nil || !strings.Contains(err.Error(), "the sign-in is for") {
 		t.Errorf("err = %v, want the call refused", err)
 	}
@@ -112,7 +110,7 @@ func TestASignInIsNotSentToAnotherServer(t *testing.T) {
 func TestASignInSendsTheTokenKajaHolds(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
 	authorizer := signedInAuthorizer(t, "https://api.github.com", "the-token")
-	resolved, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(authorizer, "https://api.github.com")
+	resolved, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(authorizer, "https://api.github.com")
 	if err != nil {
 		t.Fatalf("withToken: %v", err)
 	}
@@ -127,10 +125,23 @@ func TestASignInSendsTheTokenKajaHolds(t *testing.T) {
 // the way a finished sign-in leaves it.
 func signedInAuthorizer(t *testing.T, resource, token string) *oauth.Authorizer {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "oauth.json")
-	held := `{"grants":{"` + resource + `":{"server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"` + token + `"}}}}`
-	if err := os.WriteFile(path, []byte(held), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return oauth.NewAuthorizer(oauth.NewTokenStore(path), nil)
+	held := `{"resource":"` + resource + `","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"` + token + `"}}`
+	return oauth.NewAuthorizer(memoryStore{"SIGNIN": held}, nil)
 }
+
+type memoryStore map[string]string
+
+func (m memoryStore) Available() bool { return true }
+func (m memoryStore) Load(name string) (string, bool) {
+	value, ok := m[name]
+	return value, ok
+}
+func (m memoryStore) Save(name string, value string) error {
+	m[name] = value
+	return nil
+}
+func (m memoryStore) Delete(name string) error {
+	delete(m, name)
+	return nil
+}
+

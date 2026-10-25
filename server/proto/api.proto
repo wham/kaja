@@ -348,8 +348,9 @@ enum McpProblemKind {
 
 // AuthorizeMcp signs kaja in to the server the app names, over the authorization
 // flow MCP defines: the server says which authorization server issues its tokens,
-// kaja registers itself where it has to, and the token it is given is kept for
-// that server alone. The app carries the same parameters it would be opened
+// kaja registers itself where it has to, and the token it is given is kept in the
+// "${signin}" variable the app's token names, for that server alone. A variable
+// kaja.json does not define yet is written into it once the sign-in finishes. The app carries the same parameters it would be opened
 // with, since a document behind a login is read with the app's own headers.
 message AuthorizeMcpRequest {
   McpApp mcp = 1;
@@ -371,9 +372,8 @@ message AuthorizeMcpResponse {
   McpProblem problem = 3;
 }
 
-// ForgetMcpAuthorization drops the token kaja holds for a server, which is what
-// signing out is. The client an authorization server registered kaja as stays:
-// it is this installation's record with that server rather than this sign-in's.
+// ForgetMcpAuthorization drops the sign-in the app's "${signin}" variable holds,
+// which is what signing out is. The variable stays, as where the next one goes.
 message ForgetMcpAuthorizationRequest {
   McpApp mcp = 1;
 }
@@ -483,9 +483,11 @@ message VariableStatus {
   string name = 1;
   VariableSource source = 2;
   // The environment variable consulted for this variable: the name inside
-  // ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
-  // written in kaja.json.
+  // ${env:...}, or KAJA_<NAME> for a "${secret}" or "${signin}" variable. Empty
+  // for a value written in kaja.json.
   string env_name = 3;
+  // The server a "${signin}" variable is signed in to, where it holds a sign-in.
+  string sign_in_resource = 4;
 }
 
 enum VariableSource {
@@ -497,6 +499,9 @@ enum VariableSource {
   VARIABLE_SOURCE_KEYCHAIN = 2;
   // The value came from an environment variable.
   VARIABLE_SOURCE_ENVIRONMENT = 3;
+  // The variable holds a sign-in kaja keeps in the OS keychain. Its token is sent
+  // by the app that names it and is never a value anything else is handed.
+  VARIABLE_SOURCE_SIGN_IN = 4;
 }
 
 // SetStoredValue writes a "${secret}" variable's value to the OS keychain. Only
@@ -698,8 +703,10 @@ message Workspace {
   // User-defined variables, referenced as `${NAME}` in app configuration and read
   // from scripts as `kaja.variables.<name>`. A value is either literal, or names
   // the source that holds it outside this file: "${secret}" (the OS keychain, or
-  // KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
-  // which may sit inside a longer value). Only literal values are ever sent to a
+  // KAJA_<NAME> in the environment), "${signin}" (a sign-in kaja keeps in the
+  // keychain for the app naming it as its credential, or a token in KAJA_<NAME>)
+  // or "${env:X}" (the environment variable X, which may sit inside a longer
+  // value). Only literal values are ever sent to a
   // remote browser.
   map<string, string> variables = 6;
   // Keyboard shortcut overrides, keyed by the action's own id ("run",
@@ -814,6 +821,8 @@ message TwirpApp {
 // overrides the upstream base URL derived from the spec's servers list.
 message OpenApiApp {
   string spec_url = 1;
+  // The credential for the chosen scheme. For a scheme kaja signs in to it is
+  // "${NAME}", naming the "${signin}" variable the sign-in is kept in.
   string token = 2;
   string username = 3;
   string password = 4;
@@ -874,7 +883,8 @@ message McpApp {
   // means bearer, which is what an MCP server behind a login nearly always
   // wants.
   string auth = 3;
-  // The bearer token, or the key for the "apikey" credential.
+  // The bearer token, or the key for the "apikey" credential. For "oauth" it is
+  // "${NAME}", naming the "${signin}" variable the sign-in is kept in.
   string token = 4;
   // Header the "apikey" credential is sent under. Empty means "X-API-Key".
   string api_key_name = 5;

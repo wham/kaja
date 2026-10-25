@@ -80,7 +80,7 @@ func Inspect(ctx context.Context, parameters map[string]string, authorizer *oaut
 	// Asked before the call rather than read out of the failure it would be: a
 	// server that has never been signed in to refuses the read with the same 401 a
 	// wrong token gets, and the answer to one is not the answer to the other.
-	if strings.TrimSpace(parameters["auth"]) == AuthOAuth && !authorizer.SignedIn(endpoint) {
+	if strings.TrimSpace(parameters["auth"]) == AuthOAuth && !authorizer.SignedIn(parameters["token"], endpoint) {
 		return nil, &Problem{Kind: ProblemSignIn, Message: "Sign in to read this server."}
 	}
 	client := NewClient(endpoint, credential, &http.Client{Timeout: inspectTimeout})

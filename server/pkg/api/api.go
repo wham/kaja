@@ -35,8 +35,9 @@ type ApiService struct {
 	canUpdateWorkspace bool
 	gitRef             string
 	buildNumber        string
-	// authorizer holds this installation's sign-ins. It is nil where there is
-	// nowhere to keep one, and the verbs that use it are then absent.
+	// authorizer runs the sign-ins, keeping each in the "${signin}" variable its app
+	// names. It is nil where the workspace is read-only, and the verbs that use it
+	// are then absent.
 	authorizer *oauth.Authorizer
 	apps       *apps.Manager
 	// compiled is every surface this process has compiled, so an app whose
@@ -64,35 +65,31 @@ type ApiService struct {
 func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
 	tempdir.StartCleanup()
 
-	// A sign-in is a write: it leaves a credential on the machine serving the
-	// workspace. So a kaja serving its workspace read-only has no authorizer, and
-	// the verbs that would use one say there is nothing to sign in with.
-	var authorizer *oauth.Authorizer
-	if canUpdateWorkspace {
-		opened, err := oauth.DefaultAuthorizer()
-		if err != nil {
-			slog.Warn("Signing in is unavailable", "error", err)
-		}
-		authorizer = opened
-	}
-
-	return &ApiService{
+	service := &ApiService{
 		workspaceFile:      workspaceFile,
 		canUpdateWorkspace: canUpdateWorkspace,
 		gitRef:             gitRef,
 		buildNumber:        buildNumber,
 		variableStore:      variableStore,
-		authorizer:         authorizer,
 		compiled:           newCompileCache(),
-		apps: apps.NewManager(map[string]apps.App{
-			"grpc":    rpc.New(),
-			"twirp":   twirp.New(),
-			"openapi": openapi.New().WithAuthorizer(authorizer),
-			"openai":  openai.New(),
-			"folder":  folder.New(),
-			"mcp":     mcp.New().WithAuthorizer(authorizer),
-		}),
 	}
+
+	// A sign-in is a write: it leaves a credential in the workspace. So a kaja
+	// serving its workspace read-only has no authorizer, and the verbs that would
+	// use one say there is nothing to sign in with.
+	if canUpdateWorkspace {
+		service.authorizer = oauth.NewAuthorizer(signInStore{service: service}, nil)
+	}
+
+	service.apps = apps.NewManager(map[string]apps.App{
+		"grpc":    rpc.New(),
+		"twirp":   twirp.New(),
+		"openapi": openapi.New().WithAuthorizer(service.authorizer),
+		"openai":  openai.New(),
+		"folder":  folder.New(),
+		"mcp":     mcp.New().WithAuthorizer(service.authorizer),
+	})
+	return service
 }
 
 // Apps returns the app manager, used by the request router to invoke methods on
@@ -183,12 +180,12 @@ func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byt
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			upstream.DurationMs = duration
-			upstream.RequestHeaders = resolver.Redact(upstream.RequestHeaders, headers)
+			upstream.RequestHeaders = s.redact(resolver, upstream.RequestHeaders, headers)
 		}
 		entry.write(duration, err)
 		return nil, err
 	}
-	return &timedStream{stream: stream, started: started, resolver: resolver, sent: headers, log: entry}, nil
+	return &timedStream{stream: stream, started: started, service: s, resolver: resolver, sent: headers, log: entry}, nil
 }
 
 // callLog is the one line the door writes about a call it carried. Everything else
@@ -249,6 +246,7 @@ func (l callLog) write(durationMs int64, err error) {
 type timedStream struct {
 	stream   apps.Stream
 	started  time.Time
+	service  *ApiService
 	resolver *Resolver
 	sent     map[string]string
 	log      callLog
@@ -272,7 +270,7 @@ func (s *timedStream) Report() *apps.Report {
 		report = &apps.Report{}
 	}
 	report.DurationMs = time.Since(s.started).Milliseconds()
-	report.RequestHeaders = s.resolver.Redact(report.RequestHeaders, s.sent)
+	report.RequestHeaders = s.service.redact(s.resolver, report.RequestHeaders, s.sent)
 	s.log.write(report.DurationMs, s.failure)
 	return report
 }
@@ -502,6 +500,10 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 		}})
 	}
 
+	name, err := s.signInVariable(req.Mcp.Token)
+	if err != nil {
+		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
+	}
 	prompt, done, err := s.authorizer.Begin(s.mcpAuthorization(req.Mcp))
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
@@ -518,10 +520,13 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 		}
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
+	if err := s.defineSignIn(name); err != nil {
+		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
+	}
 	return stream.Send(&AuthorizeMcpResponse{Authorized: true})
 }
 
-// ForgetMcpAuthorization drops the token kaja holds for a server.
+// ForgetMcpAuthorization drops the sign-in the app's variable holds.
 func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error) {
 	if req.Mcp == nil {
 		return nil, fmt.Errorf("mcp app is required")
@@ -529,7 +534,7 @@ func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpA
 	if s.authorizer == nil {
 		return &ForgetMcpAuthorizationResponse{}, nil
 	}
-	if err := s.authorizer.Forget(s.Variables().Expand(req.Mcp.Url)); err != nil {
+	if err := s.authorizer.Forget(req.Mcp.Token); err != nil {
 		return nil, err
 	}
 	return &ForgetMcpAuthorizationResponse{}, nil
@@ -555,10 +560,15 @@ func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.
 		}})
 	}
 
+	name, err := s.signInVariable(req.Openapi.Token)
+	if err != nil {
+		return failed(err)
+	}
 	authorization, err := openapi.SignInFor(stream.Context(), s.openApiParameters(req.Openapi))
 	if err != nil {
 		return failed(err)
 	}
+	authorization.Credential = req.Openapi.Token
 	prompt, done, err := s.authorizer.Begin(authorization)
 	if err != nil {
 		return failed(err)
@@ -573,10 +583,13 @@ func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.
 		}
 		return failed(err)
 	}
+	if err := s.defineSignIn(name); err != nil {
+		return failed(err)
+	}
 	return stream.Send(&AuthorizeOpenApiResponse{Authorized: true})
 }
 
-// ForgetOpenApiAuthorization drops the token kaja holds for the app's scheme.
+// ForgetOpenApiAuthorization drops the sign-in the app's variable holds.
 func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *ForgetOpenApiAuthorizationRequest) (*ForgetOpenApiAuthorizationResponse, error) {
 	if req.Openapi == nil {
 		return nil, fmt.Errorf("openapi app is required")
@@ -584,11 +597,7 @@ func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *Forget
 	if s.authorizer == nil {
 		return &ForgetOpenApiAuthorizationResponse{}, nil
 	}
-	authorization, err := openapi.SignInFor(ctx, s.openApiParameters(req.Openapi))
-	if err != nil {
-		return nil, err
-	}
-	if err := s.authorizer.Forget(authorization.Endpoint); err != nil {
+	if err := s.authorizer.Forget(req.Openapi.Token); err != nil {
 		return nil, err
 	}
 	return &ForgetOpenApiAuthorizationResponse{}, nil
@@ -608,10 +617,11 @@ func (s *ApiService) mcpAuthorization(app *McpApp) oauth.AppAuthorization {
 	resolver := s.Variables()
 	endpoint := resolver.Expand(app.Url)
 	return oauth.AppAuthorization{
-		Endpoint: endpoint,
-		Probe:    mcp.Probe(endpoint, resolver.ExpandAll(app.Headers)),
-		ClientID: resolver.Expand(app.ClientId),
-		Scope:    resolver.Expand(app.Scope),
+		Credential: app.Token,
+		Endpoint:   endpoint,
+		Probe:      mcp.Probe(endpoint, resolver.ExpandAll(app.Headers)),
+		ClientID:   resolver.Expand(app.ClientId),
+		Scope:      resolver.Expand(app.Scope),
 	}
 }
 

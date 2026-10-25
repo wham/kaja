@@ -16,7 +16,8 @@ import { KnownChip, KnownList } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
-import { SignInState, SignInStatus, followSignIn } from "./SignIn";
+import { SignInState, SignInStatus, SignInVariable, followSignIn } from "./SignIn";
+import { signInCredential, signsIn } from "./variableExpansion";
 
 type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; server: McpServer } | { status: "problem"; problem: McpProblem };
 
@@ -160,9 +161,12 @@ export function McpForm({
   }, []);
 
   const authorize = useCallback(async () => {
-    const call = getApiClient().authorizeMcp({ mcp: mcpApp(parametersRef.current) });
+    const credential = signInCredential(parametersRef.current.token ?? "", name, variables);
+    const parameters: Record<string, string> = { ...parametersRef.current, token: credential };
+    onParametersChange((previous) => ({ ...previous, token: credential }));
+    const call = getApiClient().authorizeMcp({ mcp: mcpApp(parameters) });
     if (await followSignIn(call.responses, setSignIn)) read({ fresh: true });
-  }, [read]);
+  }, [read, name, variables, onParametersChange]);
 
   const forget = useCallback(async () => {
     try {
@@ -346,7 +350,15 @@ export function McpForm({
           {showAuthentication && (
             <AuthenticationSection
               selected={auth}
-              onSelect={(value) => setParameter("auth", value)}
+              onSelect={(value) =>
+                onParametersChange((previous) => ({
+                  ...previous,
+                  auth: value,
+                  // The sign-in stays kept for when Sign in is chosen again; another
+                  // credential is typed, and a reference to a sign-in isn't one.
+                  ...(value !== AUTH_OAUTH && signsIn(previous.token ?? "", variables) ? { token: "" } : {}),
+                }))
+              }
               known={known}
               parameters={parameters}
               onParameterChange={setParameter}
@@ -531,6 +543,7 @@ function AuthenticationSection({
                   onBundled={known && own ? backToKaja : undefined}
                 />
               )}
+              <SignInVariable credential={parameters.token ?? ""} variables={variables} />
               {!bundled && (
                 <>
                   <VariableSuggestInput

@@ -6,6 +6,7 @@ import { Spinner } from "./components/spinner";
 import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { rpcErrorMessage } from "./rpcMessage";
+import { signsIn } from "./variableExpansion";
 import { isWailsEnvironment, openInBrowser } from "./wails";
 
 export interface SignInProblem {
@@ -142,5 +143,16 @@ export function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient
         </div>
       )}
     </div>
+  );
+}
+
+// SignInVariable says where the sign-in is kept, which is a variable like any other:
+// it is listed under Variables and travels with the workspace's stored values.
+export function SignInVariable({ credential, variables }: { credential: string; variables: { [key: string]: string } }) {
+  if (!signsIn(credential, variables)) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Kept in the <span className="font-mono text-foreground">{credential.trim().slice(2, -1)}</span> variable.
+    </p>
   );
 }

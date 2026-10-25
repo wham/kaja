@@ -36,16 +36,20 @@ export function variableReferences(value: string): string[] {
 // A variable's value either is the value, or names the source that holds it
 // outside kaja.json.
 export const SECRET_SOURCE = "${secret}";
+// A sign-in Kaja keeps for the app naming the variable as its credential. It is
+// written by signing in, never typed, and its token is never a value.
+export const SIGN_IN_SOURCE = "${signin}";
 
 const ENVIRONMENT_REFERENCE = /\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g;
 const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export type VariableKind = "value" | "stored" | "environment";
+export type VariableKind = "value" | "stored" | "signIn" | "environment";
 
 // variableKind classifies what a variable's configured value says: a value of
 // its own, the machine's store, or the environment.
 export function variableKind(value: string): VariableKind {
   if (value.trim() === SECRET_SOURCE) return "stored";
+  if (value.trim() === SIGN_IN_SOURCE) return "signIn";
   if (environmentReferences(value).length > 0) return "environment";
   return "value";
 }
@@ -74,8 +78,39 @@ export function variableNameError(name: string): string | undefined {
 // by the variable's own name, so ${secret} has nothing to say inside a longer
 // value.
 export function variableValueError(value: string): string | undefined {
-  if (value.includes(SECRET_SOURCE) && value.trim() !== SECRET_SOURCE) {
-    return `${SECRET_SOURCE} must be the whole value.`;
+  for (const source of [SECRET_SOURCE, SIGN_IN_SOURCE]) {
+    if (value.includes(source) && value.trim() !== source) {
+      return `${source} must be the whole value.`;
+    }
   }
   return undefined;
+}
+
+const WHOLE_REFERENCE = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+// signInCredential is what an app's credential is while it signs in: "${NAME}", NAME
+// being the variable the sign-in is kept in. A credential already naming one keeps it,
+// so signing in again replaces that sign-in; otherwise the variable is named after the
+// app, numbered past a name that already holds something else.
+export function signInCredential(credential: string, appName: string, variables: { [key: string]: string }): string {
+  const named = WHOLE_REFERENCE.exec(credential.trim())?.[1];
+  if (named && (!(named in variables) || variables[named].trim() === SIGN_IN_SOURCE)) return "${" + named + "}";
+
+  const base =
+    (appName
+      .trim()
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toUpperCase() || "APP") + "_SIGNIN";
+  const prefixed = /^[0-9]/.test(base) ? "_" + base : base;
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? prefixed : `${prefixed}_${n}`;
+    if (!(name in variables)) return "${" + name + "}";
+  }
+}
+
+// signsIn reports whether a credential names a variable holding a sign-in.
+export function signsIn(credential: string, variables: { [key: string]: string }): boolean {
+  const named = WHOLE_REFERENCE.exec(credential.trim())?.[1];
+  return Boolean(named && variables[named]?.trim() === SIGN_IN_SOURCE);
 }
