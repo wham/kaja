@@ -36,7 +36,11 @@ export function KnownList({ heading, note, entries, query, highlight, onHighligh
           key={entry.address}
           type="button"
           onMouseEnter={() => onHighlight(index)}
-          onClick={() => onPick(index)}
+          onClick={() => {
+            onPick(index);
+            // A tapped row is the field filled in, so a phone's keyboard has nothing left to type.
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+          }}
           className={cn("flex h-8 w-full items-center gap-2 px-3 text-left", index === highlight ? "bg-accent" : "hover:bg-accent/50")}
         >
           <span className="flex size-[18px] shrink-0 items-center justify-center text-foreground">
