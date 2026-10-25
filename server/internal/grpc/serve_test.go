@@ -414,3 +414,26 @@ func TestCutKeepsRunesWhole(t *testing.T) {
 		t.Error("cut produced invalid UTF-8")
 	}
 }
+
+// A trailer the request asked for is read when the call is over, on a failure too,
+// and left out where it has nothing to say.
+func TestServeWritesTheTrailerTheRequestAskedFor(t *testing.T) {
+	serve := func(value string, invoke Invoker) string {
+		r := httptest.NewRequest(http.MethodPost, "/app/svc/Method", bytes.NewReader(requestFrame(nil)))
+		r = r.WithContext(WithTrailer(r.Context(), "kaja-values", func() string { return value }))
+		w := httptest.NewRecorder()
+		Serve(w, r, "svc/Method", nil, invoke)
+		_, trailers := parseGRPCWebResponse(t, w.Body.Bytes())
+		return trailers
+	}
+
+	if got := trailerValue(t, serve(`{"a":1}`, answers(nil, nil)), "kaja-values"); got != `{"a":1}` {
+		t.Errorf("kaja-values = %q", got)
+	}
+	if got := trailerValue(t, serve(`{"a":1}`, fails(errors.New("refused"))), "kaja-values"); got != `{"a":1}` {
+		t.Errorf("kaja-values on a failure = %q", got)
+	}
+	if trailers := serve("", answers(nil, nil)); strings.Contains(trailers, "kaja-values") {
+		t.Errorf("trailers = %q, want no kaja-values", trailers)
+	}
+}

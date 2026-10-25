@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,46 +16,50 @@ type signInStore struct {
 	service *ApiService
 }
 
-func (s signInStore) Available() bool {
-	return s.service.variableStoreAvailable()
+func (s signInStore) Available(ctx context.Context) bool {
+	return s.service.variableStoreAvailable(ctx)
 }
 
-func (s signInStore) Load(name string) (string, bool) {
+func (s signInStore) Load(ctx context.Context, name string) (string, bool) {
 	workspaceID := s.service.snapshot().workspace.GetId()
-	if workspaceID == "" || !s.Available() {
+	if workspaceID == "" || !s.Available(ctx) {
 		return "", false
 	}
-	return s.service.valueStore().Get(workspaceID, name)
+	return s.service.valueStore(ctx).Get(workspaceID, name)
 }
 
-func (s signInStore) Save(name string, value string) error {
+func (s signInStore) Save(ctx context.Context, name string, value string) error {
 	workspaceID, err := s.service.EnsureWorkspaceID()
 	if err != nil {
 		return err
 	}
-	if err := s.service.valueStore().Set(workspaceID, name, value); err != nil {
+	if err := s.service.valueStore(ctx).Set(workspaceID, name, value); err != nil {
 		return err
 	}
-	s.service.storedValueChanged()
+	s.service.storedValueChanged(ctx)
 	return nil
 }
 
-func (s signInStore) Delete(name string) error {
+func (s signInStore) Delete(ctx context.Context, name string) error {
 	workspaceID := s.service.snapshot().workspace.GetId()
-	if workspaceID == "" || !s.Available() {
+	if workspaceID == "" || !s.Available(ctx) {
 		return nil
 	}
-	if err := s.service.valueStore().Delete(workspaceID, name); err != nil {
+	if err := s.service.valueStore(ctx).Delete(workspaceID, name); err != nil {
 		return err
 	}
-	s.service.storedValueChanged()
+	s.service.storedValueChanged(ctx)
 	return nil
 }
 
 // storedValueChanged tells every window watching the workspace that a variable's
 // status may have moved. A stored value is not in kaja.json, so the file's own
-// watcher has nothing to see.
-func (s *ApiService) storedValueChanged() {
+// watcher has nothing to see. A browser's value moved for that browser alone, which
+// hears it in the trailer and watches again.
+func (s *ApiService) storedValueChanged(ctx context.Context) {
+	if s.browserValues(ctx) != nil {
+		return
+	}
 	s.invalidateSnapshot()
 	s.watcherMu.Lock()
 	watcher := s.watcher

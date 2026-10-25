@@ -168,7 +168,7 @@ export function McpForm({
     const parameters: Record<string, string> = { ...parametersRef.current, token: credential };
     onParametersChange((previous) => ({ ...previous, token: credential }));
     const call = getApiClient().authorizeMcp({ mcp: mcpApp(parameters) });
-    if (await followSignIn(call.responses, setSignIn)) read({ fresh: true });
+    if (await followSignIn(call, setSignIn)) read({ fresh: true });
   }, [read, name, variables, onParametersChange]);
 
   const forget = useCallback(async () => {

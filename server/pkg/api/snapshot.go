@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
@@ -19,6 +20,8 @@ import (
 type workspaceSnapshot struct {
 	workspace *Workspace
 	logs      []*Log
+	raw       []byte
+	dir       string
 	resolver  *Resolver
 	// generation fingerprints the file's bytes and the variable statuses, so two
 	// readings of one state compare equal and a client can tell a change from a
@@ -45,9 +48,19 @@ func (s *ApiService) snapshot() *workspaceSnapshot {
 	if s.current != nil {
 		return s.current
 	}
-	s.current = buildSnapshot(s.workspaceFilePath(), s.valueStore())
+	s.current = buildSnapshot(s.workspaceFilePath(), s.variableStore)
 	s.ensureWatcher()
 	return s.current
+}
+
+// resolved is the snapshot as a request reads it: resolved against the values the
+// request brought where it brought any, and the snapshot itself where it didn't.
+func (s *ApiService) resolved(ctx context.Context) *workspaceSnapshot {
+	snapshot := s.snapshot()
+	if values := s.browserValues(ctx); values != nil {
+		return snapshot.with(values)
+	}
+	return snapshot
 }
 
 // invalidateSnapshot drops the current reading so the next call reads the file again.
@@ -64,22 +77,33 @@ func buildSnapshot(workspaceFile string, store VariableStore) *workspaceSnapshot
 	normalize(workspace, logger)
 	validateApps(workspace, logger)
 
-	resolver := NewResolver(workspace.Variables, store, workspace.Id)
-	snapshot := &workspaceSnapshot{
-		workspace:  workspace,
-		logs:       logger.logs,
-		resolver:   resolver,
-		generation: generationOf(raw, resolver.Statuses()),
-		apps:       make(map[string]*snapshotApp, len(workspace.Apps)),
-	}
+	snapshot := &workspaceSnapshot{workspace: workspace, logs: logger.logs, raw: raw, dir: workspaceDir(workspaceFile)}
+	snapshot.resolve(store)
+	slog.Debug("Read workspace", "path", workspaceFile, "generation", snapshot.generation)
+	return snapshot
+}
 
-	dir := workspaceDir(workspaceFile)
+// with is the same reading resolved against another store. That is a browser's, which
+// a request brings and takes away with it, so it is resolved per call rather than kept.
+func (snapshot *workspaceSnapshot) with(store VariableStore) *workspaceSnapshot {
+	resolved := &workspaceSnapshot{workspace: snapshot.workspace, logs: snapshot.logs, raw: snapshot.raw, dir: snapshot.dir}
+	resolved.resolve(store)
+	return resolved
+}
+
+func (snapshot *workspaceSnapshot) resolve(store VariableStore) {
+	workspace := snapshot.workspace
+	resolver := NewResolver(workspace.Variables, store, workspace.Id)
+	snapshot.resolver = resolver
+	snapshot.generation = generationOf(snapshot.raw, resolver.Statuses())
+	snapshot.apps = make(map[string]*snapshotApp, len(workspace.Apps))
+
 	for _, app := range workspace.Apps {
 		appType, parameters := flattenApp(app)
 		// Expanded quietly: a reference nothing defines is reported where the app is
 		// compiled, not on every call that happens to go through here.
 		expandAppParameters(parameters, resolver, NewLogger())
-		resolveWorkspacePaths(parameters, dir)
+		resolveWorkspacePaths(parameters, snapshot.dir)
 		entry := &snapshotApp{appType: appType, parameters: parameters}
 		if appType == "grpc" {
 			entry.metadata = rpc.Metadata(parameters)
@@ -87,8 +111,6 @@ func buildSnapshot(workspaceFile string, store VariableStore) *workspaceSnapshot
 		}
 		snapshot.apps[app.Name] = entry
 	}
-	slog.Debug("Read workspace", "path", workspaceFile, "generation", snapshot.generation)
-	return snapshot
 }
 
 // generationOf hashes what a workspace response is made of beyond the runtime: the

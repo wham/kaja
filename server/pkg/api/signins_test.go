@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"testing"
 )
 
@@ -13,7 +14,7 @@ func TestASignInIsKeptAsAVariable(t *testing.T) {
 	defer service.Close()
 
 	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"the-token"}}`
-	if err := (signInStore{service: service}).Save("GITHUB", held); err != nil {
+	if err := (signInStore{service: service}).Save(context.Background(), "GITHUB", held); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	name, err := service.signInVariable("${GITHUB}")
@@ -58,10 +59,10 @@ func TestASignedInTokenIsRedacted(t *testing.T) {
 	defer service.Close()
 
 	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"gho_the_token"}}`
-	if err := (signInStore{service: service}).Save("GITHUB", held); err != nil {
+	if err := (signInStore{service: service}).Save(context.Background(), "GITHUB", held); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	if _, err := service.authorizer.Token("${GITHUB}", "https://api.github.com"); err != nil {
+	if _, err := service.authorizer.Token(context.Background(), "${GITHUB}", "https://api.github.com"); err != nil {
 		t.Fatalf("Token: %v", err)
 	}
 	reported := service.redact(service.Variables(), map[string]string{"Authorization": "Bearer gho_the_token"}, nil)

@@ -71,7 +71,7 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	if call.Parameters != nil && in.spec != nil {
 		authentication = authFor(in.spec, call.Parameters)
 	}
-	authentication, err = authentication.withToken(in.authorizer, in.baseURL)
+	authentication, err = authentication.withToken(ctx, in.authorizer, in.baseURL)
 	if err != nil {
 		return nil, err
 	}

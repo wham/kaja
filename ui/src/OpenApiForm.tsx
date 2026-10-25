@@ -197,7 +197,7 @@ export function OpenApiForm({
     const parameters: Record<string, string> = { ...parametersRef.current, token: credential };
     onParametersChange((previous) => ({ ...previous, token: credential }));
     const call = getApiClient().authorizeOpenApi({ openapi: openApiApp(parameters) });
-    if (await followSignIn(call.responses, setSignIn)) recordSignIn(parameters.securityScheme ?? "", true);
+    if (await followSignIn(call, setSignIn)) recordSignIn(parameters.securityScheme ?? "", true);
   }, [recordSignIn, name, variables, onParametersChange]);
 
   const forget = useCallback(async () => {

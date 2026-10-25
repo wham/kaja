@@ -60,8 +60,8 @@ type ApiService struct {
 }
 
 // NewApiService builds the service. variableStore is where a "${secret}"
-// variable's value lives on this machine; the web server passes nil and those
-// variables come from the environment instead.
+// variable's value lives on this machine. The web server passes nil, and a value
+// lives in the browser that keeps it instead, or in the environment.
 func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
 	tempdir.StartCleanup()
 
@@ -104,8 +104,22 @@ func (s *ApiService) workspaceFilePath() string {
 	return s.workspaceFile
 }
 
-func (s *ApiService) valueStore() VariableStore {
+// valueStore is where a value lives for this request: the machine's store, or on a
+// kaja with none, the one the browser brought.
+func (s *ApiService) valueStore(ctx context.Context) VariableStore {
+	if values := s.browserValues(ctx); values != nil {
+		return values
+	}
 	return s.variableStore
+}
+
+// browserValues is the store the request brought, honoured only where the machine
+// has none: a desktop's values are the keychain's, whatever a request says.
+func (s *ApiService) browserValues(ctx context.Context) *BrowserValues {
+	if s.variableStore != nil {
+		return nil
+	}
+	return browserValuesOf(ctx)
 }
 
 func (s *ApiService) WorkspaceDir() string {
@@ -137,10 +151,14 @@ func (s *ApiService) Variables() *Resolver {
 	return s.snapshot().resolver
 }
 
-// variableStoreAvailable reports whether this machine can store a variable's
-// value outside kaja.json.
-func (s *ApiService) variableStoreAvailable() bool {
-	store := s.valueStore()
+func (s *ApiService) variables(ctx context.Context) *Resolver {
+	return s.resolved(ctx).resolver
+}
+
+// variableStoreAvailable reports whether the request has somewhere to store a
+// variable's value outside kaja.json.
+func (s *ApiService) variableStoreAvailable(ctx context.Context) bool {
+	store := s.valueStore(ctx)
 	return store != nil && store.Available()
 }
 
@@ -159,7 +177,7 @@ func (s *ApiService) variableStoreAvailable() bool {
 // fills one in itself.
 func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byte, headers map[string]string) (apps.Stream, error) {
 	name := apps.TakeAppName(headers)
-	snapshot := s.snapshot()
+	snapshot := s.resolved(ctx)
 	resolver := snapshot.resolver
 	connection := snapshot.connection(name)
 	expanded := resolver.ExpandAll(headers)
@@ -315,7 +333,7 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 
 	// Expand ${NAME} variable references in the creation parameters (URLs,
 	// tokens, ...) from the variables configured in kaja.json.
-	expandAppParameters(parameters, s.Variables(), logger)
+	expandAppParameters(parameters, s.variables(ctx), logger)
 	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
 	key := compileKey(appType, parameters)
@@ -408,7 +426,7 @@ func (s *ApiService) InspectGrpc(ctx context.Context, req *InspectGrpcRequest) (
 	}
 
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Grpc{Grpc: req.Grpc}})
-	expandAppParameters(parameters, s.Variables(), NewLogger())
+	expandAppParameters(parameters, s.variables(ctx), NewLogger())
 	resolveWorkspacePaths(parameters, s.WorkspaceDir())
 
 	server, problem := rpc.Inspect(parameters, func(message string) { slog.Info(message) })
@@ -469,7 +487,7 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	}
 
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Mcp{Mcp: req.Mcp}})
-	expandAppParameters(parameters, s.Variables(), NewLogger())
+	expandAppParameters(parameters, s.variables(ctx), NewLogger())
 
 	surface, problem := mcp.Inspect(ctx, parameters, s.authorizer)
 	if problem != nil {
@@ -504,7 +522,7 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
-	prompt, done, err := s.authorizer.Begin(s.mcpAuthorization(req.Mcp))
+	prompt, done, err := s.authorizer.Begin(stream.Context(), s.mcpAuthorization(stream.Context(), req.Mcp))
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
@@ -534,7 +552,7 @@ func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpA
 	if s.authorizer == nil {
 		return &ForgetMcpAuthorizationResponse{}, nil
 	}
-	if err := s.authorizer.Forget(req.Mcp.Token); err != nil {
+	if err := s.authorizer.Forget(ctx, req.Mcp.Token); err != nil {
 		return nil, err
 	}
 	return &ForgetMcpAuthorizationResponse{}, nil
@@ -564,12 +582,12 @@ func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.
 	if err != nil {
 		return failed(err)
 	}
-	authorization, err := openapi.SignInFor(stream.Context(), s.openApiParameters(req.Openapi))
+	authorization, err := openapi.SignInFor(stream.Context(), s.openApiParameters(stream.Context(), req.Openapi))
 	if err != nil {
 		return failed(err)
 	}
 	authorization.Credential = req.Openapi.Token
-	prompt, done, err := s.authorizer.Begin(authorization)
+	prompt, done, err := s.authorizer.Begin(stream.Context(), authorization)
 	if err != nil {
 		return failed(err)
 	}
@@ -597,24 +615,24 @@ func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *Forget
 	if s.authorizer == nil {
 		return &ForgetOpenApiAuthorizationResponse{}, nil
 	}
-	if err := s.authorizer.Forget(req.Openapi.Token); err != nil {
+	if err := s.authorizer.Forget(ctx, req.Openapi.Token); err != nil {
 		return nil, err
 	}
 	return &ForgetOpenApiAuthorizationResponse{}, nil
 }
 
 // openApiParameters is the app flattened and expanded the way it would be opened.
-func (s *ApiService) openApiParameters(app *OpenApiApp) map[string]string {
+func (s *ApiService) openApiParameters(ctx context.Context, app *OpenApiApp) map[string]string {
 	_, parameters := flattenApp(&WorkspaceApp{App: &WorkspaceApp_Openapi{Openapi: app}})
-	expandAppParameters(parameters, s.Variables(), NewLogger())
+	expandAppParameters(parameters, s.variables(ctx), NewLogger())
 	return parameters
 }
 
 // mcpAuthorization is the app's half of a sign-in, with its variables resolved:
 // the same endpoint and headers the app would be opened with, since a server
 // guarding its metadata guards it against an unconfigured request too.
-func (s *ApiService) mcpAuthorization(app *McpApp) oauth.AppAuthorization {
-	resolver := s.Variables()
+func (s *ApiService) mcpAuthorization(ctx context.Context, app *McpApp) oauth.AppAuthorization {
+	resolver := s.variables(ctx)
 	endpoint := resolver.Expand(app.Url)
 	return oauth.AppAuthorization{
 		Credential: app.Token,
@@ -681,7 +699,7 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 		return nil, fmt.Errorf("openapi app is required")
 	}
 
-	parameters := s.openApiParameters(req.Openapi)
+	parameters := s.openApiParameters(ctx, req.Openapi)
 
 	if req.Fresh {
 		ctx = apps.WithFresh(ctx)
@@ -766,7 +784,7 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 func (s *ApiService) GetWorkspace(ctx context.Context, req *GetWorkspaceRequest) (*GetWorkspaceResponse, error) {
 	slog.Debug("Getting workspace")
 
-	return s.workspaceResponse(), nil
+	return s.workspaceResponse(ctx), nil
 }
 
 // WatchWorkspace streams the workspace as it stands, one message per change carrying
@@ -787,7 +805,7 @@ func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.Serv
 	})
 	defer unsubscribe()
 
-	if err := stream.Send(s.workspaceResponse()); err != nil {
+	if err := stream.Send(s.workspaceResponse(stream.Context())); err != nil {
 		return err
 	}
 
@@ -798,7 +816,7 @@ func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.Serv
 		case <-closed:
 			return nil
 		case <-changed:
-			if err := stream.Send(s.workspaceResponse()); err != nil {
+			if err := stream.Send(s.workspaceResponse(stream.Context())); err != nil {
 				return err
 			}
 		}
@@ -809,14 +827,14 @@ func (s *ApiService) WatchWorkspace(req *WatchWorkspaceRequest, stream grpc.Serv
 // what both doors to the workspace answer with. The variables travel as kaja.json
 // writes them - a literal value, or the source that holds it ("${secret}", "${env:X}").
 // A value this machine resolved from a source is never part of the response.
-func (s *ApiService) workspaceResponse() *GetWorkspaceResponse {
-	response := s.snapshot().response()
+func (s *ApiService) workspaceResponse(ctx context.Context) *GetWorkspaceResponse {
+	response := s.resolved(ctx).response()
 
 	response.Runtime = &Runtime{
 		CanUpdateWorkspace:     s.canUpdateWorkspace,
 		GitRef:                 s.gitRef,
 		BuildNumber:            s.buildNumber,
-		VariableStoreAvailable: s.variableStoreAvailable(),
+		VariableStoreAvailable: s.variableStoreAvailable(ctx),
 		WorkspaceDir:           s.WorkspaceDir(),
 	}
 
@@ -899,7 +917,7 @@ func (s *ApiService) UpdateWorkspace(ctx context.Context, req *UpdateWorkspaceRe
 
 	return &UpdateWorkspaceResponse{
 		Workspace:      req.Workspace,
-		VariableStatus: s.Variables().Statuses(),
+		VariableStatus: s.variables(ctx).Statuses(),
 	}, nil
 }
 
@@ -937,7 +955,7 @@ func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequ
 	if err := s.checkStoredValueAllowed(req.Name); err != nil {
 		return nil, err
 	}
-	if !s.variableStoreAvailable() {
+	if !s.variableStoreAvailable(ctx) {
 		return nil, fmt.Errorf("this machine has nowhere to store a variable's value; set %s in the environment instead", storedEnvName(req.Name))
 	}
 	if req.Value == "" {
@@ -950,12 +968,12 @@ func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequ
 	if err != nil {
 		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
 	}
-	if err := s.valueStore().Set(workspaceID, req.Name, req.Value); err != nil {
+	if err := s.valueStore(ctx).Set(workspaceID, req.Name, req.Value); err != nil {
 		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
 	}
 	s.invalidateSnapshot()
 
-	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
+	return &StoredValueResponse{VariableStatus: s.variables(ctx).Statuses()}, nil
 }
 
 // ClearStoredValue removes a variable's value from this machine's store. With no
@@ -966,15 +984,15 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 		return nil, err
 	}
 
-	if workspaceID := s.snapshot().workspace.GetId(); workspaceID != "" && s.variableStoreAvailable() {
+	if workspaceID := s.snapshot().workspace.GetId(); workspaceID != "" && s.variableStoreAvailable(ctx) {
 		slog.Info("Clearing stored variable value", "name", req.Name)
-		if err := s.valueStore().Delete(workspaceID, req.Name); err != nil {
+		if err := s.valueStore(ctx).Delete(workspaceID, req.Name); err != nil {
 			return nil, fmt.Errorf("failed to clear the value for %q: %w", req.Name, err)
 		}
 		s.invalidateSnapshot()
 	}
 
-	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
+	return &StoredValueResponse{VariableStatus: s.variables(ctx).Statuses()}, nil
 }
 
 // EnsureWorkspaceID is the id the workspace's stored values are filed under, giving

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -47,7 +48,7 @@ func (a *auth) configured() bool {
 
 // withToken is the auth a call is sent with. A sign-in's token is read from the
 // store as the call is made, so one renewed between two calls reaches the second.
-func (a *auth) withToken(authorizer *oauth.Authorizer, baseURL string) (*auth, error) {
+func (a *auth) withToken(ctx context.Context, authorizer *oauth.Authorizer, baseURL string) (*auth, error) {
 	if a == nil || a.kind != authOAuth {
 		return a, nil
 	}
@@ -59,7 +60,7 @@ func (a *auth) withToken(authorizer *oauth.Authorizer, baseURL string) (*auth, e
 	if !sameServer(baseURL, a.signIn.resource) {
 		return nil, fmt.Errorf("the sign-in is for %s, and this app calls %s", a.signIn.resource, baseURL)
 	}
-	token, err := authorizer.Token(a.token, a.signIn.resource)
+	token, err := authorizer.Token(ctx, a.token, a.signIn.resource)
 	if err != nil {
 		return nil, err
 	}

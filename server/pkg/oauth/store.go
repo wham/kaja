@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -11,12 +12,15 @@ import (
 // "${signin}" variable an app names its credential by. So a sign-in is the
 // workspace's, kept wherever the workspace keeps the values kaja.json only names,
 // and two apps in one workspace can be two different people.
+//
+// Every method is handed the request it serves, because where the values are kept
+// can be the request's own: a browser carries its values on each call it makes.
 type Store interface {
 	// Available reports whether anything can be kept at all.
-	Available() bool
-	Load(name string) (string, bool)
-	Save(name string, value string) error
-	Delete(name string) error
+	Available(ctx context.Context) bool
+	Load(ctx context.Context, name string) (string, bool)
+	Save(ctx context.Context, name string, value string) error
+	Delete(ctx context.Context, name string) error
 }
 
 // grant is everything one sign-in needs to be used and renewed: the resource it
@@ -44,11 +48,11 @@ func (g *grant) audience() string {
 	return g.Resource
 }
 
-func readGrant(store Store, name string) *grant {
+func readGrant(ctx context.Context, store Store, name string) *grant {
 	if store == nil || name == "" {
 		return nil
 	}
-	value, ok := store.Load(name)
+	value, ok := store.Load(ctx, name)
 	if !ok {
 		return nil
 	}
@@ -59,12 +63,12 @@ func readGrant(store Store, name string) *grant {
 	return held
 }
 
-func writeGrant(store Store, name string, held *grant) error {
+func writeGrant(ctx context.Context, store Store, name string, held *grant) error {
 	payload, err := json.Marshal(held)
 	if err != nil {
 		return err
 	}
-	return store.Save(name, string(payload))
+	return store.Save(ctx, name, string(payload))
 }
 
 // GrantResource is the resource a kept sign-in is for, or "" where the value is

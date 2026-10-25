@@ -1,3 +1,4 @@
+import { setValuesWorkspace } from "./browserValues";
 import { rpcErrorMessage } from "./rpcMessage";
 import { GetWorkspaceResponse } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -15,7 +16,10 @@ let preloadedWorkspace: Promise<GetWorkspaceResponse> | undefined;
 function fetchWorkspace(): Promise<GetWorkspaceResponse> {
   return getApiClient()
     .getWorkspace({})
-    .then((call) => call.response);
+    .then((call) => {
+      setValuesWorkspace(call.response.workspace?.id ?? "");
+      return call.response;
+    });
 }
 
 export function preloadWorkspace(): void {

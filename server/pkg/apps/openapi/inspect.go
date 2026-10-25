@@ -110,7 +110,7 @@ func Inspect(ctx context.Context, parameters map[string]string, authorizer *oaut
 	document.ReadAt = readAt
 	for i, scheme := range document.SecuritySchemes {
 		if signIn := s.Components.SecuritySchemes.get(scheme.Key).signIn; signIn != nil && authorizer != nil {
-			document.SecuritySchemes[i].SignedIn = authorizer.SignedIn(parameters["token"], signIn.resource)
+			document.SecuritySchemes[i].SignedIn = authorizer.SignedIn(ctx, parameters["token"], signIn.resource)
 		}
 	}
 	return document, nil

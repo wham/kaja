@@ -35,7 +35,7 @@ type Client struct {
 	// request rather than held, because an OAuth token renews itself: a token
 	// replaced between two calls has to reach the second one without the app
 	// being opened again.
-	credential func() (map[string]string, error)
+	credential func(context.Context) (map[string]string, error)
 
 	mu sync.Mutex
 	// version is the protocol version settled on, legacy whether the handshake
@@ -53,9 +53,9 @@ type Client struct {
 
 // NewClient builds a client for an MCP endpoint. It performs no I/O: the era and
 // the protocol version are settled by the first call.
-func NewClient(endpoint string, credential func() (map[string]string, error), httpClient *http.Client) *Client {
+func NewClient(endpoint string, credential func(context.Context) (map[string]string, error), httpClient *http.Client) *Client {
 	if credential == nil {
-		credential = func() (map[string]string, error) { return nil, nil }
+		credential = noCredential
 	}
 	return &Client{endpoint: endpoint, http: httpClient, credential: credential, version: ProtocolVersion}
 }
@@ -103,7 +103,7 @@ func (c *Client) Close() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if request, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.endpoint, nil); err == nil {
-			if headers, err := c.credential(); err == nil {
+			if headers, err := c.credential(ctx); err == nil {
 				for name, value := range headers {
 					request.Header.Set(name, value)
 				}
@@ -350,7 +350,7 @@ func (c *Client) attempt(ctx context.Context, method string, params map[string]a
 	if err != nil {
 		return nil, nil, fmt.Errorf("building %s request: %w", method, err)
 	}
-	headers, err := c.credential()
+	headers, err := c.credential(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
