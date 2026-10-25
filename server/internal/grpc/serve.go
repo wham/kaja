@@ -18,6 +18,26 @@ import (
 // apps.Upstream object.
 const UpstreamTrailer = "kaja-upstream"
 
+// ownTrailer is a trailer of kaja's own that the request decided on before the call was
+// made, its value read when the call is over.
+type ownTrailer struct {
+	name  string
+	value func() string
+}
+
+type ownTrailerKey struct{}
+
+// WithTrailer asks Serve to end the call with one more trailer of kaja's own, whose
+// value is read once the call is over and left out where it is empty.
+func WithTrailer(ctx context.Context, name string, value func() string) context.Context {
+	return context.WithValue(ctx, ownTrailerKey{}, &ownTrailer{name: name, value: value})
+}
+
+func trailerOf(ctx context.Context) *ownTrailer {
+	own, _ := ctx.Value(ownTrailerKey{}).(*ownTrailer)
+	return own
+}
+
 // Invoker starts one call and hands back the stream its responses arrive on.
 type Invoker func(ctx context.Context, method string, message []byte, headers map[string]string) (apps.Stream, error)
 
@@ -40,11 +60,14 @@ func Serve(w http.ResponseWriter, r *http.Request, method string, headers map[st
 	stream, err := invoke(r.Context(), method, message, headers)
 	if err != nil {
 		slog.Error("Call failed", "method", method, "error", err)
-		writeFailure(newGRPCWebResponse(w), err)
+		response := newGRPCWebResponse(w)
+		response.own = trailerOf(r.Context())
+		writeFailure(response, err)
 		return
 	}
 
 	response := newGRPCWebResponse(w)
+	response.own = trailerOf(r.Context())
 	for {
 		received, err := stream.Recv()
 		if errors.Is(err, io.EOF) {

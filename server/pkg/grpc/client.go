@@ -200,13 +200,14 @@ const StatusDetails = "grpc-status-details-bin"
 // anything downstream can show. A kaja-upstream name is Kaja's own channel back to the
 // client, so an upstream may not write into it: a duration, an exchange and a failure
 // the client reads as this process's are exactly what a server must not be able to
-// state.
+// state. kaja-values is the same, a value a server wrote there being one the browser
+// would keep.
 func reservedMetadata(name string) bool {
 	switch name {
 	case "content-type", "grpc-status", "grpc-message", "grpc-encoding", "grpc-accept-encoding", "trailer":
 		return true
 	}
-	return strings.HasPrefix(name, ":") || strings.HasSuffix(name, "-bin") || strings.HasPrefix(name, "kaja-upstream")
+	return strings.HasPrefix(name, ":") || strings.HasSuffix(name, "-bin") || strings.HasPrefix(name, "kaja-upstream") || name == "kaja-values"
 }
 
 // ResponseMetadata flattens a call's header and trailer metadata into the headers the

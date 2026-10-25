@@ -1,4 +1,5 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
+import { browserValuesInterceptor } from "../browserValues";
 import { ApiClient } from "./api";
 
 /**
@@ -14,6 +15,7 @@ export function getApiClient(): ApiClient {
     new GrpcWebFetchTransport({
       baseUrl: getBaseUrlForApi(),
       format: GRPC_WEB_FORMAT,
+      interceptors: [browserValuesInterceptor],
     }),
   );
 }

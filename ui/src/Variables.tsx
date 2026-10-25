@@ -1,4 +1,5 @@
 import { Braces, Check, ChevronDown, CircleAlert, Copy, Plus, Search, Trash2 } from "lucide-react";
+import { storedLabel, storedWhere } from "./browserValues";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Script } from "./apps";
 import { copyText } from "./clipboard";
@@ -55,7 +56,7 @@ interface VariablesProps {
 
 const SOURCE_LABEL: Record<VariableKind, string> = {
   value: "Value",
-  stored: "Keychain",
+  stored: storedLabel(),
   signIn: "Sign-in",
   environment: "Environment",
 };
@@ -717,8 +718,8 @@ function SourcePicker({
         {kind === "signIn" && <SourceItem selected label="Sign-in" description="Kept by signing in from an app" onSelect={() => onSelect("signIn")} />}
         <SourceItem
           selected={kind === "stored"}
-          label="Keychain"
-          description={storeAvailable ? "Stored on this device" : `Read from ${storedEnvName(name || "NAME")}`}
+          label={SOURCE_LABEL.stored}
+          description={storeAvailable ? `Stored ${storedWhere()}` : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
         <SourceItem
@@ -766,7 +767,7 @@ function SignInCell({ storedEnv, status }: { storedEnv: string; status?: Variabl
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
       <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
-      <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not signed in on this device</span>
+      <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not signed in {storedWhere()}</span>
       <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover/value:text-foreground">Sign in…</span>
     </span>
   );
@@ -812,7 +813,7 @@ function StoredValueCell({ storedEnv, source, held, storeAvailable }: { storedEn
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-      <span className="truncate text-xs text-muted-foreground">Stored on this device</span>
+      <span className="truncate text-xs text-muted-foreground">Stored {storedWhere()}</span>
       {action}
     </span>
   );
@@ -851,7 +852,7 @@ function KeychainSheet({ name, onClose, onSubmit }: { name: string; onClose: () 
             }
           }}
         />
-        <p className="text-xs text-muted-foreground">Stored on this device.</p>
+        <p className="text-xs text-muted-foreground">Stored {storedWhere()}.</p>
       </div>
     </Dialog>
   );
@@ -879,7 +880,7 @@ function DeleteDialog({
         <span className="mt-3 flex items-center gap-2">
           <Checkbox checked={clearStored} onCheckedChange={(checked) => setClearStored(checked === true)} id="clear-stored" />
           <label htmlFor="clear-stored" className="cursor-pointer text-sm text-foreground">
-            Also clear the value stored on this device
+            Also clear the value stored {storedWhere()}
           </label>
         </span>
       )}
@@ -906,7 +907,7 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
             <code>{envName}</code> not set
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
-          <span className="text-muted-foreground">Stored on this device</span>
+          <span className="text-muted-foreground">Stored {storedWhere()}</span>
         ) : source === VariableSource.SIGN_IN ? (
           <span className="text-muted-foreground">Signed in to {resourceHost(status?.signInResource ?? "")}</span>
         ) : (

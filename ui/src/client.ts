@@ -8,6 +8,7 @@ import { TOOL_ERROR_CODE, ToolFailure, UPSTREAM_TRAILER, decodeTrailerValue, par
 import { Client, AppRef, Methods, Service } from "./apps";
 import { APP_OF } from "./rateLimit";
 import type { Reflection } from "./protoReflection";
+import { browserValuesInterceptor, VALUES_TRAILER } from "./browserValues";
 import { getBaseUrlForApp, GRPC_WEB_FORMAT } from "./server/connection";
 import { unsupportedReason, UNSUPPORTED_CODE } from "./streaming";
 import { uuidV4 } from "./uuid";
@@ -15,8 +16,10 @@ import { uuidV4 } from "./uuid";
 // absorbReserved routes the one kaja-upstream trailer onto the call. It is Kaja's own
 // out-of-band channel — what Kaja measured or exchanged upstream, never a header the
 // server sent — so it is consumed rather than shown as a response header. The failure
-// it may carry is left where it is: it is already the call's error.
+// it may carry is left where it is: it is already the call's error. kaja-values is the
+// browser's store, kept by the transport before the call gets here.
 function absorbReserved(methodCall: MethodCall, key: string, value: unknown): boolean {
+  if (key === VALUES_TRAILER) return true;
   if (key !== UPSTREAM_TRAILER) return false;
   const upstream = parseUpstream(value);
   if (upstream) {
@@ -74,7 +77,7 @@ export function createClient(
   service: Service,
   reflection: Reflection,
   appRef: AppRef,
-  transport: RpcTransport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp(), format: GRPC_WEB_FORMAT }),
+  transport: RpcTransport = new GrpcWebFetchTransport({ baseUrl: getBaseUrlForApp(), format: GRPC_WEB_FORMAT, interceptors: [browserValuesInterceptor] }),
 ): Client {
   const serviceType = reflection.services.get(service.typeName);
 

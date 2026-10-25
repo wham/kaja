@@ -31,14 +31,17 @@ interface SignInResponse {
 // followSignIn reads a sign-in's stream to its end: the first message is the page to
 // open, and the last one arrives once the person has finished there. It reports
 // whether the sign-in happened.
-export async function followSignIn(responses: AsyncIterable<SignInResponse>, setState: (state: SignInState) => void): Promise<boolean> {
+export async function followSignIn(
+  call: { responses: AsyncIterable<SignInResponse>; trailers: PromiseLike<unknown> },
+  setState: (state: SignInState) => void,
+): Promise<boolean> {
   setState({ status: "waiting", userCode: "" });
   const failed = (problem: SignInProblem) => {
     setState({ status: "problem", problem });
     return false;
   };
   try {
-    for await (const response of responses) {
+    for await (const response of call.responses) {
       if (response.authorizationUrl) {
         // The desktop's window is not a browser, and a page it navigated away from
         // would be the app gone.
@@ -49,6 +52,9 @@ export async function followSignIn(responses: AsyncIterable<SignInResponse>, set
       }
       if (response.problem) return failed(response.problem);
       if (response.authorized) {
+        // A browser keeps the sign-in from the trailer, which the read that follows
+        // has to carry.
+        await Promise.resolve(call.trailers).catch(() => undefined);
         setState({ status: "idle" });
         return true;
       }

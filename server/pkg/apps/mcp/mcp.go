@@ -101,7 +101,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 // call is made, because a token that renewed itself between two calls has to reach
 // the second one; every other credential is read off the call's parameters the
 // same way, by the instance.
-func credentialSource(parameters map[string]string, authorizer *oauth.Authorizer) (func() (map[string]string, error), bool, error) {
+func credentialSource(parameters map[string]string, authorizer *oauth.Authorizer) (func(context.Context) (map[string]string, error), bool, error) {
 	if strings.TrimSpace(parameters["auth"]) == AuthOAuth {
 		if authorizer == nil {
 			return nil, true, fmt.Errorf("this kaja cannot sign in to an MCP server")
@@ -109,10 +109,10 @@ func credentialSource(parameters map[string]string, authorizer *oauth.Authorizer
 		return authorizer.Credential(parameters["token"], strings.TrimSpace(parameters["url"])), true, nil
 	}
 	headers := Credential(parameters)
-	return func() (map[string]string, error) { return headers, nil }, false, nil
+	return func(context.Context) (map[string]string, error) { return headers, nil }, false, nil
 }
 
-func noCredential() (map[string]string, error) { return nil, nil }
+func noCredential(context.Context) (map[string]string, error) { return nil, nil }
 
 // AuthOAuth is the `auth` an app is configured with when its credential is one
 // kaja obtained by signing in, rather than one anybody typed.

@@ -89,7 +89,8 @@ import { mcpDotClass, mcpStatusOf, type McpControl } from "./mcpState";
 import { useWorkspaceChanges } from "./useWorkspaceChanges";
 import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
-import { setVariables } from "./variableExpansion";
+import { setVariables, variableKind } from "./variableExpansion";
+import { onBrowserValuesChanged, storedValues } from "./browserValues";
 import { appVariableUses, missingByApp, missingVariables } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
@@ -972,13 +973,18 @@ export function App() {
     setShortcutOverrides(effectiveShortcuts(workspace?.shortcuts, settings.shortcuts));
   }, [workspace?.shortcuts, settings.shortcuts]);
 
-  // What a script reads as kaja.variables. Desktop only: its UI runs inside the app's
-  // own process, so a resolved value is one it already holds. On the web the
-  // workspace's own text is all there is.
+  // What a script reads as kaja.variables. The desktop's UI runs inside the app's own
+  // process, so a resolved value is one it already holds. On the web it is the
+  // workspace's own text, with what this browser keeps for it.
   const readResolvedVariables = useCallback((variables: { [key: string]: string }) => {
     if (!hostRef.current) return;
     if (!isWailsEnvironment()) {
-      hostRef.current.variables = variables;
+      const kept = storedValues();
+      const resolved = { ...variables };
+      for (const [name, value] of Object.entries(variables)) {
+        if (variableKind(value) === "stored" && kept[name] !== undefined) resolved[name] = kept[name];
+      }
+      hostRef.current.variables = resolved;
       return;
     }
     desktop()
@@ -997,6 +1003,8 @@ export function App() {
     registerKajaModule(Object.keys(variables));
     readResolvedVariables(variables);
   }, [workspace?.variables, readResolvedVariables]);
+
+  useEffect(() => onBrowserValuesChanged(() => readResolvedVariables(workspaceRef.current?.variables ?? {})), [readResolvedVariables]);
 
   /**
    * What a stored value moving has to say for itself. The value lives on this machine

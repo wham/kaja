@@ -17,7 +17,7 @@ func TestTheAppsClientReadsThisServer(t *testing.T) {
 	endpoint := httptest.NewServer(NewServer(bridge, token, version))
 	t.Cleanup(endpoint.Close)
 
-	surface, err := client.NewClient(endpoint.URL, func() (map[string]string, error) {
+	surface, err := client.NewClient(endpoint.URL, func(context.Context) (map[string]string, error) {
 		return map[string]string{"Authorization": "Bearer " + token}, nil
 	}, endpoint.Client()).ReadSurface(context.Background(), nil)
 	if err != nil {

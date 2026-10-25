@@ -21,7 +21,7 @@ func Mount(mux *http.ServeMux, apiService *api.ApiService) {
 	// same handler: a service running in this process is a call that answers with a
 	// stream, and a unary method is the one that answers with a single message.
 	mux.HandleFunc("POST /Api/{method}", func(w http.ResponseWriter, r *http.Request) {
-		grpc.Serve(w, r, r.PathValue("method"), nil, apiService.Invoke)
+		grpc.Serve(w, withBrowserValues(r), r.PathValue("method"), nil, apiService.Invoke)
 	})
 
 	// Every call the client makes arrives here as gRPC-Web, whatever the app talks to
@@ -41,6 +41,17 @@ func Mount(mux *http.ServeMux, apiService *api.ApiService) {
 			}
 		}
 
-		grpc.Serve(w, r, r.PathValue("method"), forwardHeaders, apiService.InvokeApp)
+		grpc.Serve(w, withBrowserValues(r), r.PathValue("method"), forwardHeaders, apiService.InvokeApp)
 	})
+}
+
+// withBrowserValues hands the call the values the browser brought, and asks for what
+// the call wrote to them back in a trailer, since the browser is where they are kept.
+func withBrowserValues(r *http.Request) *http.Request {
+	values := api.ReadBrowserValues(r.Header.Get(api.ValuesHeader))
+	if values == nil {
+		return r
+	}
+	ctx := api.WithBrowserValues(r.Context(), values)
+	return r.WithContext(grpc.WithTrailer(ctx, api.ValuesTrailer, values.Written))
 }

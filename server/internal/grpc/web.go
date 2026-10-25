@@ -36,6 +36,9 @@ const maxTrailerBytes = 64 << 10
 type grpcWebResponse struct {
 	w       http.ResponseWriter
 	flusher http.Flusher
+	// own is a trailer the request asked for before the call was made, read once
+	// the call is over.
+	own *ownTrailer
 }
 
 func newGRPCWebResponse(w http.ResponseWriter) *grpcWebResponse {
@@ -74,6 +77,11 @@ func (r *grpcWebResponse) end(status int, grpcMessage string, upstream *apps.Ups
 	if upstream != nil {
 		if !write(UpstreamTrailer, upstream.JSON()) {
 			write(UpstreamTrailer, upstream.WithoutHeaders().JSON())
+		}
+	}
+	if r.own != nil {
+		if value := r.own.value(); value != "" {
+			write(r.own.name, value)
 		}
 	}
 	names := make([]string, 0, len(metadata))

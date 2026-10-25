@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Input } from "./components/input";
+import { keepsValues } from "./browserValues";
 import { cn } from "./cn";
 import { environmentReferences, variableKind } from "./variableExpansion";
 
@@ -10,7 +11,7 @@ import { environmentReferences, variableKind } from "./variableExpansion";
 function variableSummary(value: string): string {
   switch (variableKind(value)) {
     case "stored":
-      return "From the keychain";
+      return keepsValues() ? "From this browser" : "From the keychain";
     case "environment":
       return "From " + environmentReferences(value).join(", ");
     default:

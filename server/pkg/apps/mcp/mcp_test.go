@@ -1045,16 +1045,16 @@ func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
 
 type memoryStore map[string]string
 
-func (m memoryStore) Available() bool { return true }
-func (m memoryStore) Load(name string) (string, bool) {
+func (m memoryStore) Available(context.Context) bool { return true }
+func (m memoryStore) Load(_ context.Context, name string) (string, bool) {
 	value, ok := m[name]
 	return value, ok
 }
-func (m memoryStore) Save(name string, value string) error {
+func (m memoryStore) Save(_ context.Context, name string, value string) error {
 	m[name] = value
 	return nil
 }
-func (m memoryStore) Delete(name string) error {
+func (m memoryStore) Delete(_ context.Context, name string) error {
 	delete(m, name)
 	return nil
 }
