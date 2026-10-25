@@ -20,7 +20,6 @@ export type ShortcutAction =
   | "newFolder"
   | "saveAsFile"
   | "copyDeeplink"
-  | "editAsJson"
   | "run"
   | "runWithParameters"
   | "previousRun"
@@ -33,7 +32,7 @@ export type ShortcutGroup = "Window" | "Scripts" | "Running";
  * because the scope column is read down rather than across: two rows saying the same
  * thing in two wordings read as two different answers.
  */
-export type ShortcutScope = "Anywhere" | "In a run" | "In the console" | "In Files" | "On a draft" | "On a file" | "In app settings";
+export type ShortcutScope = "Anywhere" | "In a run" | "In the console" | "In Files" | "On a draft" | "On a file";
 
 export interface ShortcutDefinition {
   action: ShortcutAction;
@@ -69,7 +68,6 @@ export const SHORTCUTS: ShortcutDefinition[] = [
   { action: "newFolder", label: "New folder", group: "Scripts", defaults: ["Mod+Shift+N"], scope: "In Files", writesFiles: true },
   { action: "saveAsFile", label: "Save as file", group: "Scripts", defaults: ["Mod+S"], scope: "On a draft", writesFiles: true },
   { action: "copyDeeplink", label: "Copy deeplink", group: "Scripts", defaults: ["Mod+Shift+C"], scope: "On a file" },
-  { action: "editAsJson", label: "Edit as JSON", group: "Scripts", defaults: ["Mod+J"], scope: "In app settings" },
   { action: "run", label: "Run", group: "Running", defaults: ["Mod+Enter", "F5"], scope: "Anywhere" },
   { action: "runWithParameters", label: "Run with parameters", group: "Running", defaults: ["Mod+Shift+Enter"], scope: "Anywhere" },
   { action: "previousRun", label: "Previous run", group: "Running", defaults: ["Ctrl+ArrowUp"], scope: "Anywhere" },

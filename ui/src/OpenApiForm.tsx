@@ -30,6 +30,8 @@ import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import {
   NO_CREDENTIALS,
   credentialNote,
@@ -112,6 +114,7 @@ export function OpenApiForm({
   onSurfaceChange,
   onReadyChange,
 }: CustomFormProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => ((parameters.specContent ?? "").trim() ? "paste" : "url"));
   const [state, setState] = useState<ReadState>({ status: "idle" });
   const [signIn, setSignIn] = useState<SignInState>({ status: "idle" });
@@ -334,7 +337,7 @@ export function OpenApiForm({
   };
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-6">
+    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-foreground" htmlFor="openapi-source">
@@ -342,7 +345,13 @@ export function OpenApiForm({
           </label>
           <SegmentedControl aria-label="Document source">
             {(["url", "file", "paste"] as SourceMode[]).map((mode) => (
-              <SegmentedControl.Button key={mode} selected={sourceMode === mode} disabled={readOnly} onClick={() => switchSourceMode(mode)}>
+              <SegmentedControl.Button
+                key={mode}
+                selected={sourceMode === mode}
+                disabled={readOnly}
+                className={cn(phone && "px-2 py-0.5 text-xs")}
+                onClick={() => switchSourceMode(mode)}
+              >
                 {mode === "url" ? "URL" : mode === "file" ? "File" : "Paste"}
               </SegmentedControl.Button>
             ))}
@@ -457,7 +466,7 @@ export function OpenApiForm({
 
       {document && (
         <>
-          <div className="h-px bg-border" />
+          {!phone && <div className="h-px bg-border" />}
 
           <AppNameField
             id="openapi-name"
@@ -554,6 +563,7 @@ function SourceStatus({ state, parameters, variables, readOnly, onCancel, onRefr
 }
 
 function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDocument; readAt: number; onRefresh: () => void }) {
+  const phone = useMediaQuery(PHONE_QUERY);
   // A scheme Kaja supplied is one the document left out, which is still worth saying
   // the document left out: the rows below are Kaja's, not the API's.
   const declared = document.securitySchemes.filter((scheme) => !scheme.supplied).length;
@@ -561,6 +571,23 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
   const missing: string[] = [];
   if (document.servers.length === 0) missing.push("servers");
   if (declared === 0 && supplied === 0) missing.push("securitySchemes");
+
+  // The counts beyond the operations are what the sections below already show, so a
+  // phone says what was read in one line and leaves the box for a problem.
+  if (phone) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="min-w-0 truncate">
+            <span className="text-foreground">{document.title || "Untitled API"}</span> · {pluralCount(document.operationCount, "operation")}
+          </span>
+          <IconButton icon={RefreshCw} aria-label="Read the document again" variant="ghost" size="xs" className="ml-auto shrink-0" onClick={onRefresh} />
+        </div>
+        {missing.length > 0 && <MissingNote missing={missing} guessedBaseUrl={document.guessedBaseUrl} />}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -587,23 +614,27 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
           <IconButton icon={RefreshCw} aria-label="Read the document again" variant="ghost" size="xs" onClick={onRefresh} />
         </div>
       </div>
-      {missing.length > 0 && (
-        <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
-          <div className="pt-0.5 text-muted-foreground">
-            <Info size={15} />
-          </div>
-          <p className="text-xs leading-5 text-muted-foreground">
-            The document declares{" "}
-            {missing.map((field, index) => (
-              <span key={field}>
-                {index > 0 && " and "}no <span className="font-mono">{field}</span>
-              </span>
-            ))}
-            , so Kaja can't prefill {missing.length > 1 ? "those" : "that"}. {missing.length > 1 ? "Both are" : "It is"} a plain field below
-            {document.guessedBaseUrl ? ", with the base URL guessed from where the document was fetched" : ""}.
-          </p>
-        </div>
-      )}
+      {missing.length > 0 && <MissingNote missing={missing} guessedBaseUrl={document.guessedBaseUrl} />}
+    </div>
+  );
+}
+
+function MissingNote({ missing, guessedBaseUrl }: { missing: string[]; guessedBaseUrl?: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
+      <div className="pt-0.5 text-muted-foreground">
+        <Info size={15} />
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">
+        The document declares{" "}
+        {missing.map((field, index) => (
+          <span key={field}>
+            {index > 0 && " and "}no <span className="font-mono">{field}</span>
+          </span>
+        ))}
+        , so Kaja can't prefill {missing.length > 1 ? "those" : "that"}. {missing.length > 1 ? "Both are" : "It is"} a plain field below
+        {guessedBaseUrl ? ", with the base URL guessed from where the document was fetched" : ""}.
+      </p>
     </div>
   );
 }
@@ -717,6 +748,7 @@ function ServerSection({
   baseUrl,
   onBaseUrlChange,
 }: ServerSectionProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   if (document.servers.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -743,7 +775,7 @@ function ServerSection({
         <label className="text-sm font-medium text-foreground">Server</label>
         <div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2.5">
           <ServerIcon size={15} className="text-muted-foreground" />
-          <span className="truncate font-mono text-sm text-foreground">{document.servers[0].url}</span>
+          <span className={cn("truncate font-mono text-foreground", phone ? "text-[13px]" : "text-sm")}>{document.servers[0].url}</span>
           {!readOnly && (
             <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={() => onChoice("custom")}>
               Change
@@ -864,6 +896,7 @@ function AuthenticationSection({
   onSignIn,
   onSignOut,
 }: AuthenticationSectionProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   if (document.securitySchemes.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -895,18 +928,19 @@ function AuthenticationSection({
               <ChoiceRow selected={isSelected} disabled={readOnly || !supported} onSelect={() => onSelect(scheme.key)} icon={schemeIcon(scheme)}>
                 <span className={cn("shrink-0 text-sm", isSelected ? "text-foreground" : "text-muted-foreground")}>{schemeLabel(scheme)}</span>
                 {scheme.signIn ? (
-                  <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
+                  !phone && <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
                 ) : (
                   <span className="truncate font-mono text-xs text-muted-foreground">{schemeIdentity(scheme)}</span>
                 )}
                 {scheme.signIn ? (
-                  <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>
+                  !phone && <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>
                 ) : !supported ? (
                   <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Not yet supported</span>
                 ) : scheme.requiresOthers ? (
                   <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Needs another too</span>
                 ) : (
-                  document.perOperationSecurity && (
+                  document.perOperationSecurity &&
+                  !phone && (
                     <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                       {scheme.operationCount} of {document.operationCount} ops
                     </span>
@@ -917,7 +951,11 @@ function AuthenticationSection({
                 <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
                   {/* The verbs go where the workspace can't be written, as in the MCP form. */}
                   {!readOnly && <SignInStatus state={signIn} signedIn={scheme.signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
-                  {scheme.signedIn && <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>}
+                  {scheme.signedIn ? (
+                    <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>
+                  ) : (
+                    phone && <p className="text-xs text-muted-foreground">Kaja gets the token and keeps it renewed.</p>
+                  )}
                   <SignInVariable credential={parameters.token ?? ""} variables={variables} />
                 </div>
               )}

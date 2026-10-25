@@ -5,6 +5,8 @@ import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { AppSurface, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import {
   AUTH_APIKEY,
   AUTH_NONE,
@@ -47,6 +49,7 @@ export function OpenAiForm({
   onSurfaceChange,
   onReadyChange,
 }: CustomFormProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const [choice, setChoice] = useState(() => matchApiChoice(parameters.api ?? "", parameters.endpoint ?? ""));
   const [nameTouched, setNameTouched] = useState(() => Boolean(name.trim()));
   const takenRef = useRef(takenNames);
@@ -90,7 +93,7 @@ export function OpenAiForm({
   }, []);
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-6">
+    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-foreground">API</label>
         <div role="radiogroup" aria-label="API" className="flex flex-col gap-2">
@@ -130,7 +133,7 @@ export function OpenAiForm({
 
       {ready && (
         <>
-          <div className="h-px bg-border" />
+          {!phone && <div className="h-px bg-border" />}
 
           <AppNameField
             id="openai-name"

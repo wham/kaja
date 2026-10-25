@@ -59,8 +59,6 @@ export interface AppTypeDefinition {
   // parameter list is still the contract with the config: it says which fields the type
   // has, and the custom form supplies its own labels.
   customForm?: boolean;
-  // What one item of the app's surface is called in the footer's receipt.
-  surfaceNoun?: string;
   // Optional one-click demo that prefills the form.
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
@@ -77,7 +75,6 @@ export const appTypes: AppTypeDefinition[] = [
     icon: GrpcMark,
     // GrpcForm renders these: it reaches the server first and then offers what answered.
     customForm: true,
-    surfaceNoun: "method",
     requireOneOf: [["protoDir", "reflection"]],
     parameters: [
       { key: "url", label: "URL", type: "url", placeholder: "dns:example.com:443" },
@@ -102,7 +99,6 @@ export const appTypes: AppTypeDefinition[] = [
     icon: OpenApiMark,
     // OpenApiForm renders these: it reads the document first and then offers what it declares.
     customForm: true,
-    surfaceNoun: "operation",
     requireOneOf: [["specUrl", "specContent"]],
     parameters: [
       { key: "specUrl", label: "OpenAPI document URL", type: "url", optional: true },
@@ -123,7 +119,6 @@ export const appTypes: AppTypeDefinition[] = [
     icon: McpMark,
     // McpForm renders these: it reads the server first and then shows what it exposes.
     customForm: true,
-    surfaceNoun: "method",
     parameters: [
       { key: "url", label: "MCP endpoint", type: "url", placeholder: "https://example.com/mcp" },
       { key: "auth", label: "Authentication", type: "text", optional: true },
@@ -170,7 +165,6 @@ export const appTypes: AppTypeDefinition[] = [
     icon: Sparkles,
     // OpenAiForm renders these: which API it is decides the endpoint and the credential.
     customForm: true,
-    surfaceNoun: "method",
     parameters: [
       { key: "api", label: "API", type: "text", optional: true },
       { key: "endpoint", label: "Endpoint", type: "url" },

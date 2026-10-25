@@ -5,7 +5,6 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { cn } from "./cn";
-import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback, useMemo, type ComponentType } from "react";
 import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, parameterKey, typeForwardsHeaders } from "./appTypes";
 import { AppNameField } from "./AppNameField";
@@ -17,47 +16,11 @@ import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { AgentNotes } from "./scriptLink";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { WorkspaceApp } from "./server/api";
-import { formatJson } from "./formatter";
-import { codeFontSize } from "./monacoTheme";
-import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
-import { getVariables } from "./variableExpansion";
-import { pluralCount } from "./plural";
 import { desktop, isWailsEnvironment } from "./wails";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 
 const CUSTOM_FORMS: Record<string, ComponentType<CustomFormProps>> = { grpc: GrpcForm, openai: OpenAiForm, mcp: McpForm, openapi: OpenApiForm };
-
-type EditMode = "form" | "json";
-
-// Suggest ${NAME} variable references while editing the app JSON. Values are read
-// from the registry at completion time so the list is always current.
-monaco.languages.registerCompletionItemProvider("json", {
-  triggerCharacters: ["$", "{"],
-  provideCompletionItems: (model, position) => {
-    if (model.uri.path !== "/app-config.json") {
-      return { suggestions: [] };
-    }
-    const line = model.getValueInRange({
-      startLineNumber: position.lineNumber,
-      startColumn: 1,
-      endLineNumber: position.lineNumber,
-      endColumn: position.column,
-    });
-    const match = /\$\{?([A-Za-z0-9_]*)$/.exec(line);
-    if (!match) {
-      return { suggestions: [] };
-    }
-    const range = new monaco.Range(position.lineNumber, position.column - match[0].length, position.lineNumber, position.column);
-    return {
-      suggestions: Object.entries(getVariables()).map(([name, value]) => ({
-        label: "${" + name + "}",
-        kind: monaco.languages.CompletionItemKind.Variable,
-        detail: value,
-        insertText: "${" + name + "}",
-        range,
-      })),
-    };
-  },
-});
 
 // Kept as a list rather than a map so a name stays where it is while it is typed.
 interface HeaderEntry {
@@ -72,45 +35,22 @@ interface AppFormProps {
   // Usable in parameter values as ${NAME}, and offered when "${" is typed.
   variables: { [key: string]: string };
   readOnly?: boolean;
-  // The control that switches it lives in the command row, so the view owns the choice.
-  editMode: EditMode;
+  // A phone draws no footer: Save is handed to the header, where iOS keeps it.
+  onSaveControlChange?: (control: AppFormSaveControl | undefined) => void;
   onSubmit: (app: WorkspaceApp, originalName?: string) => void;
   onCancel: () => void;
-  // Whether the JSON parses, which decides if the view can be switched back.
-  onJsonValidChange: (valid: boolean) => void;
   // What the agent that opened the form read up on about the API.
   agentNotes?: AgentNotes;
 }
 
+export interface AppFormSaveControl {
+  label: string;
+  disabled: boolean;
+  onSave: () => void;
+}
+
 function createEmptyApp(): WorkspaceApp {
   return buildApp("", "grpc", {}, {});
-}
-
-// appToJson renders an app as the on-disk shape: { name, <type>: { ...params, headers } }.
-// A parameter the app doesn't set is left out rather than written as an empty string,
-// because that is what protojson does with it on the way to kaja.json.
-function appToJson(app: WorkspaceApp): object {
-  const kind = app.app.oneofKind;
-  const variant = (kind ? (app.app as Record<string, unknown>)[kind] : undefined) ?? {};
-  const set = Object.fromEntries(Object.entries(variant as Record<string, unknown>).filter(([, value]) => !isUnset(value)));
-  return { name: app.name, ...(kind ? { [kind]: set } : {}) };
-}
-
-function isUnset(value: unknown): boolean {
-  if (value === "" || value === false || value == null) return true;
-  return typeof value === "object" && Object.keys(value as object).length === 0;
-}
-
-// jsonToApp parses that shape back into a typed app, treating the one key that
-// isn't name as the app type and its object as the typed block.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function jsonToApp(json: any): WorkspaceApp {
-  const type = Object.keys(json ?? {}).find((key) => key !== "name") ?? "";
-  const variant = (json?.[type] as Record<string, unknown>) ?? {};
-  return {
-    name: json?.name || "",
-    app: type ? ({ oneofKind: type, [type]: variant } as unknown as WorkspaceApp["app"]) : { oneofKind: undefined },
-  };
 }
 
 // missingRequiredParameter returns the label of the first required parameter left
@@ -236,18 +176,8 @@ function AgentNotesPanel({ notes, type }: { notes: AgentNotes; type: string }) {
   );
 }
 
-export function AppForm({
-  mode,
-  initialData,
-  allApps,
-  variables,
-  readOnly = false,
-  editMode,
-  onSubmit,
-  onCancel,
-  onJsonValidChange,
-  agentNotes,
-}: AppFormProps) {
+export function AppForm({ mode, initialData, allApps, variables, readOnly = false, onSaveControlChange, onSubmit, onCancel, agentNotes }: AppFormProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
@@ -255,14 +185,9 @@ export function AppForm({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // The parameter value itself holds the file's text content.
   const [uploadNames, setUploadNames] = useState<Record<string, string>>({});
-  const [jsonError, setJsonError] = useState<string | null>(null);
-  // What a custom form last read, for the receipt in the footer, and whether it holds
-  // enough to create the app.
+  // What a custom form last read, and whether it holds enough to create the app.
   const [surface, setSurface] = useState<AppSurface | undefined>(undefined);
   const [customReady, setCustomReady] = useState(false);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const monacoModelRef = useRef<monaco.editor.ITextModel | null>(null);
 
   const getCurrentApp = useCallback((): WorkspaceApp => {
     const definition = getAppType(type);
@@ -309,144 +234,14 @@ export function AppForm({
     updateFormFromApp(initialData ?? createEmptyApp());
   }
 
-  const loadedAppNameRef = useRef<string | null>(null);
-
-  // The effect's cleanup closes over the editMode of the run it is cleaning up, which on
-  // the way out of the JSON view is still "json". The question it has to answer is which
-  // view is on screen now, so it reads that here.
-  const editModeRef = useRef(editMode);
-  editModeRef.current = editMode;
-
-  // The JSON editor opens on what the form currently holds, so switching between the
-  // two views doesn't drop what was filled in on either side.
-  const getJsonAppData = getCurrentApp;
-
-  useEffect(() => {
-    if (editMode === "json" && editorContainerRef.current) {
-      const appData = getJsonAppData();
-      const currentAppKey = mode === "edit" ? initialData?.name : "__new__";
-
-      if (!editorRef.current) {
-        loadedAppNameRef.current = currentAppKey ?? null;
-        const jsonStr = JSON.stringify(appToJson(appData), null, 2);
-
-        const modelUri = APP_CONFIG_JSON_URI;
-        const existingModel = monaco.editor.getModel(modelUri);
-        if (existingModel) {
-          existingModel.dispose();
-        }
-        monacoModelRef.current = monaco.editor.createModel(jsonStr, "json", modelUri);
-
-        editorRef.current = monaco.editor.create(editorContainerRef.current, {
-          model: monacoModelRef.current,
-          automaticLayout: true,
-          fontSize: codeFontSize(),
-          padding: { top: 16, bottom: 16 },
-          minimap: { enabled: false },
-          renderLineHighlight: "none",
-          formatOnPaste: true,
-          formatOnType: true,
-          tabSize: 2,
-          readOnly,
-        });
-
-        // The editor opens on what the form holds, so it parses; say so, in case another view
-        // left the shared flag reporting otherwise.
-        onJsonValidChange(true);
-
-        monacoModelRef.current.onDidChangeContent(() => {
-          const value = monacoModelRef.current?.getValue() ?? "";
-          let valid = true;
-          try {
-            JSON.parse(value);
-          } catch {
-            valid = false;
-          }
-          setJsonError(valid ? null : "Invalid JSON. Fix it to go back to the form or save.");
-          onJsonValidChange(valid);
-        });
-
-        formatJson(jsonStr).then((formatted) => {
-          if (monacoModelRef.current) {
-            monacoModelRef.current.setValue(formatted);
-          }
-        });
-      } else if (loadedAppNameRef.current !== currentAppKey) {
-        loadedAppNameRef.current = currentAppKey ?? null;
-        const jsonStr = JSON.stringify(appToJson(appData), null, 2);
-
-        formatJson(jsonStr).then((formatted) => {
-          if (monacoModelRef.current) {
-            monacoModelRef.current.setValue(formatted);
-          }
-        });
-      }
-    }
-
-    return () => {
-      if (editModeRef.current !== "json") {
-        editorRef.current?.dispose();
-        editorRef.current = null;
-        monacoModelRef.current?.dispose();
-        monacoModelRef.current = null;
-        loadedAppNameRef.current = null;
-        // Nothing to be invalid once the editor is gone.
-        onJsonValidChange(true);
-      }
-    };
-  }, [editMode, mode, initialData, getJsonAppData, readOnly, onJsonValidChange]);
-
-  // Leaving the JSON view carries what was typed there back into the fields. The
-  // control is disabled while the JSON is invalid, so only JSON that parses gets here.
-  const leavingJsonRef = useRef(false);
-  if (editMode === "form" && leavingJsonRef.current) {
-    leavingJsonRef.current = false;
-    const jsonValue = editorRef.current?.getValue();
-    if (jsonValue) {
-      try {
-        updateFormFromApp(jsonToApp(JSON.parse(jsonValue)));
-        setJsonError(null);
-      } catch {
-        setJsonError("Invalid JSON. The fields still hold what was there before.");
-      }
-    }
-  }
-  if (editMode === "json") {
-    leavingJsonRef.current = true;
-  }
-
   const handleSubmit = () => {
-    let appToSubmit: WorkspaceApp;
-
-    if (editMode === "json" && editorRef.current) {
-      const jsonValue = editorRef.current.getValue();
-      try {
-        const parsed = JSON.parse(jsonValue);
-        appToSubmit = jsonToApp(parsed);
-      } catch {
-        setJsonError("Invalid JSON. Please fix errors before saving.");
-        return;
-      }
-    } else {
-      appToSubmit = getCurrentApp();
-    }
-
-    if (appToSubmit.name && appType(appToSubmit)) {
-      editorRef.current?.dispose();
-      editorRef.current = null;
-      monacoModelRef.current?.dispose();
-      monacoModelRef.current = null;
-      onSubmit(appToSubmit, mode === "edit" ? initialData?.name : undefined);
-    }
+    const app = getCurrentApp();
+    if (app.name && appType(app)) onSubmit(app, mode === "edit" ? initialData?.name : undefined);
   };
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
 
-  const handleCancel = () => {
-    editorRef.current?.dispose();
-    editorRef.current = null;
-    monacoModelRef.current?.dispose();
-    monacoModelRef.current = null;
-    onCancel();
-  };
+  const handleCancel = () => onCancel();
 
   const submitLabel = mode === "edit" ? "Save" : "Add app";
 
@@ -458,8 +253,16 @@ export function AppForm({
   const customForm = Boolean(definition?.customForm);
   const CustomForm = CUSTOM_FORMS[type] ?? OpenApiForm;
 
-  const isValid =
-    editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady)) : !jsonError;
+  const isValid = Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady));
+
+  // Read rather than depended on: the caller hands a new function every render.
+  const onSaveControlChangeRef = useRef(onSaveControlChange);
+  onSaveControlChangeRef.current = onSaveControlChange;
+  useEffect(() => {
+    if (!phone || readOnly) return;
+    onSaveControlChangeRef.current?.({ label: submitLabel, disabled: !isValid, onSave: () => handleSubmitRef.current() });
+    return () => onSaveControlChangeRef.current?.(undefined);
+  }, [phone, readOnly, submitLabel, isValid]);
 
   const demo = definition?.demo;
 
@@ -473,146 +276,129 @@ export function AppForm({
     <div className="flex h-full flex-col bg-background">
       {readOnly && <ReadOnlyBanner>Apps are configured in kaja.json.</ReadOnlyBanner>}
 
-      {jsonError && <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{jsonError}</div>}
-
       <div className="min-h-0 flex-1 overflow-auto">
-        {editMode === "form" ? (
-          <div key="form" className="max-w-[640px] p-6">
-            <div className="flex flex-col gap-6">
-              {agentNotes && !readOnly && <AgentNotesPanel notes={agentNotes} type={type} />}
-              {customForm ? (
-                // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
-                // in the New dialog again, starts the form over rather than reading the next
-                // server behind the previous one's transport and credentials.
-                <CustomForm
-                  key={loaded?.generation}
-                  name={name}
-                  onNameChange={setName}
-                  duplicateName={duplicateName}
-                  takenNames={takenNames}
-                  parameters={parameters}
-                  onParametersChange={setParameters}
-                  variables={variables}
-                  readOnly={readOnly}
-                  onSurfaceChange={setSurface}
-                  onReadyChange={setCustomReady}
-                />
-              ) : (
-                <>
-                  <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
+        <div className={cn("max-w-[640px]", phone ? "px-4 py-5" : "p-6")}>
+          <div className={cn("flex flex-col", phone ? "gap-5" : "gap-6")}>
+            {agentNotes && !readOnly && <AgentNotesPanel notes={agentNotes} type={type} />}
+            {customForm ? (
+              // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
+              // in the New dialog again, starts the form over rather than reading the next
+              // server behind the previous one's transport and credentials.
+              <CustomForm
+                key={loaded?.generation}
+                name={name}
+                onNameChange={setName}
+                duplicateName={duplicateName}
+                takenNames={takenNames}
+                parameters={parameters}
+                onParametersChange={setParameters}
+                variables={variables}
+                readOnly={readOnly}
+                onSurfaceChange={setSurface}
+                onReadyChange={setCustomReady}
+              />
+            ) : (
+              <>
+                <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
 
-                  {(definition?.parameters ?? []).map((parameter) => {
-                    // A picked parameter names a folder outside the workspace, which the
-                    // desktop is granted by the picker alone, so there the field states
-                    // what was picked rather than taking a path on trust.
-                    const picked = isWailsEnvironment() ? parameter.picked : undefined;
-                    const pick = async () => {
-                      const app = await desktop();
-                      const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
-                      if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
-                    };
-                    const caption = picked?.caption ?? parameter.caption;
-                    return (
-                      <FormControl key={parameter.key}>
-                        <FormControl.Label>{parameter.label}</FormControl.Label>
-                        {parameter.type === "boolean" ? (
-                          <Checkbox
-                            checked={parameters[parameter.key] === "true"}
-                            disabled={readOnly}
-                            onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
-                          />
-                        ) : parameter.type === "upload" ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-                              <FileIcon size={16} />
-                              {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
-                              <input
-                                type="file"
-                                accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                                hidden
+                {(definition?.parameters ?? []).map((parameter) => {
+                  // A picked parameter names a folder outside the workspace, which the
+                  // desktop is granted by the picker alone, so there the field states
+                  // what was picked rather than taking a path on trust.
+                  const picked = isWailsEnvironment() ? parameter.picked : undefined;
+                  const pick = async () => {
+                    const app = await desktop();
+                    const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
+                    if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
+                  };
+                  const caption = picked?.caption ?? parameter.caption;
+                  return (
+                    <FormControl key={parameter.key}>
+                      <FormControl.Label>{parameter.label}</FormControl.Label>
+                      {parameter.type === "boolean" ? (
+                        <Checkbox
+                          checked={parameters[parameter.key] === "true"}
+                          disabled={readOnly}
+                          onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
+                        />
+                      ) : parameter.type === "upload" ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                            <FileIcon size={16} />
+                            {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                            <input
+                              type="file"
+                              accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                              hidden
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                handleUpload(parameter.key, e.target.files?.[0]);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          <span className="text-xs text-muted-foreground">
+                            {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
+                          </span>
+                        </div>
+                      ) : (
+                        <VariableSuggestInput
+                          value={parameters[parameter.key] ?? ""}
+                          onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
+                          variables={variables}
+                          placeholder={picked ? picked.placeholder : parameter.placeholder}
+                          disabled={readOnly}
+                          readOnly={!!picked}
+                          onClick={picked && !readOnly ? pick : undefined}
+                          trailingAction={
+                            (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
+                              <IconButton
+                                icon={parameter.type === "folder" ? Folder : FileIcon}
+                                aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
+                                variant="ghost"
+                                size="sm"
+                                tooltip="native"
+                                onClick={pick}
                                 disabled={readOnly}
-                                onChange={(e) => {
-                                  handleUpload(parameter.key, e.target.files?.[0]);
-                                  e.target.value = "";
-                                }}
                               />
-                            </label>
-                            <span className="text-xs text-muted-foreground">
-                              {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
-                            </span>
-                          </div>
-                        ) : (
-                          <VariableSuggestInput
-                            value={parameters[parameter.key] ?? ""}
-                            onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
-                            variables={variables}
-                            placeholder={picked ? picked.placeholder : parameter.placeholder}
-                            disabled={readOnly}
-                            readOnly={!!picked}
-                            onClick={picked && !readOnly ? pick : undefined}
-                            trailingAction={
-                              (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                                <IconButton
-                                  icon={parameter.type === "folder" ? Folder : FileIcon}
-                                  aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                                  variant="ghost"
-                                  size="sm"
-                                  tooltip="native"
-                                  onClick={pick}
-                                  disabled={readOnly}
-                                />
-                              ) : undefined
-                            }
-                          />
-                        )}
-                        {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
-                      </FormControl>
-                    );
-                  })}
+                            ) : undefined
+                          }
+                        />
+                      )}
+                      {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
+                    </FormControl>
+                  );
+                })}
 
-                  {demo && !readOnly && (
-                    <button
-                      type="button"
-                      onClick={fillDemo}
-                      className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
-                    >
-                      <Lightbulb size={12} />
-                      {demo.label}
-                    </button>
-                  )}
-                </>
-              )}
+                {demo && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={fillDemo}
+                    className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
+                  >
+                    <Lightbulb size={12} />
+                    {demo.label}
+                  </button>
+                )}
+              </>
+            )}
 
-              {typeForwardsHeaders(type) && (!customForm || surface) && (
-                <AdvancedSection
-                  open={advancedOpen}
-                  onOpenChange={setAdvancedOpen}
-                  headers={headers}
-                  onHeadersChange={setHeaders}
-                  variables={variables}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            {typeForwardsHeaders(type) && (!customForm || surface) && (
+              <AdvancedSection
+                open={advancedOpen}
+                onOpenChange={setAdvancedOpen}
+                headers={headers}
+                onHeadersChange={setHeaders}
+                variables={variables}
+                readOnly={readOnly}
+              />
+            )}
           </div>
-        ) : (
-          // Keyed apart from the form: both branches are a div in the same slot, so
-          // without it React reuses the node and the editor's own DOM, which React did
-          // not put there and will not take away, stays among the fields.
-          <div key="json" ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
-        )}
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-border p-4">
-        {/* The receipt: what clicking the button will add, counted from the document. */}
-        <p className="text-xs text-muted-foreground">
-          {surface && name.trim() && editMode === "form"
-            ? mode === "edit"
-              ? `${name.trim()} exposes ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")}.`
-              : `Adds ${pluralCount(surface.count, definition?.surfaceNoun ?? "method")}.`
-            : ""}
-        </p>
-        <div className="flex shrink-0 gap-2">
+      {!phone && (
+        <div className="flex items-center justify-end gap-2 border-t border-border p-4">
           <Button variant="outline" onClick={handleCancel}>
             {readOnly ? "Close" : "Cancel"}
           </Button>
@@ -622,7 +408,7 @@ export function AppForm({
             </Button>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
