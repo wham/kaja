@@ -39,7 +39,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/how-it-works.svg" alt="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks gRPC, OpenAPI, MCP and Twirp to your apps" width="840" />
+  <img src="docs/how-it-works.svg" alt="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks OpenAPI, MCP and gRPC to your apps" width="840" />
 </p>
 
 <p align="center">

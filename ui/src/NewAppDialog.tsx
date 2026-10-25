@@ -5,7 +5,7 @@ import { appTypes } from "./appTypes";
 import { PreviewPill } from "./PreviewPill";
 
 interface NewAppDialogProps {
-  // When the Apps feature preview is off, only gRPC/Twirp/OpenAPI/MCP are offered.
+  // When the Apps feature preview is off, only OpenAPI/MCP/gRPC/Twirp are offered.
   appsPreviewEnabled: boolean;
   onClose: () => void;
   // Called with the chosen app type; the app's parameters are filled in afterwards
@@ -13,11 +13,13 @@ interface NewAppDialogProps {
   onSelect: (type: string) => void;
 }
 
-// NewAppDialog picks the type of app to create (gRPC, Twirp, OpenAPI, MCP, or a
+// NewAppDialog picks the type of app to create (OpenAPI, MCP, gRPC, Twirp, or a
 // built-in integration). Experimental built-ins appear only when the Apps
 // preview is on and carry a "Preview" pill.
 export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDialogProps) {
   const availableTypes = appTypes.filter((type) => !type.preview || appsPreviewEnabled);
+  const rows = availableTypes.filter((type) => !type.minor);
+  const lines = availableTypes.filter((type) => type.minor);
 
   // Focus the first app option on open, so focus doesn't land on the header's
   // close button.
@@ -26,7 +28,7 @@ export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDi
   return (
     <Dialog title="New app" onClose={onClose} initialFocusRef={firstItemRef} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
       <ActionList>
-        {availableTypes.map((type, index) => {
+        {rows.map((type, index) => {
           const Icon = type.icon;
           return (
             <ActionList.Item key={type.type} ref={index === 0 ? firstItemRef : undefined} onSelect={() => onSelect(type.type)}>
@@ -44,6 +46,20 @@ export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDi
           );
         })}
       </ActionList>
+      {lines.map((type) => {
+        const Icon = type.icon;
+        return (
+          <button
+            key={type.type}
+            type="button"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-sm px-2 text-xs text-muted-foreground outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onSelect(type.type)}
+          >
+            <Icon size={13} />
+            Add a {type.label} app
+          </button>
+        );
+      })}
     </Dialog>
   );
 }

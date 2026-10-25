@@ -1,7 +1,7 @@
-import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
+import { GrpcMark, McpMark, OpenApiMark } from "./protocolMarks";
 
 /**
- * How Kaja works, drawn: an agent on the left, Kaja as a canvas in the middle, the four
+ * How Kaja works, drawn: an agent on the left, Kaja as a canvas in the middle, the three
  * protocols it speaks on the right.
  *
  * It is what the empty state shows under its heading, and it is drawn once: the two ends
@@ -18,13 +18,11 @@ import { GrpcMark, McpMark, OpenApiMark, TwirpMark } from "./protocolMarks";
  * agent's run looks like when it lands.
  */
 
-// The apps down the right-hand side, each with the one word its surface is read from,
-// in the order the New dialog offers them in (appTypes.ts).
+// The apps down the right-hand side, each with the one word its surface is read from.
 const PROTOCOLS = [
-  { mark: GrpcMark, name: "gRPC", source: ".proto", y: 40 },
-  { mark: OpenApiMark, name: "OpenAPI", source: "schema", y: 100 },
-  { mark: McpMark, name: "MCP", source: "tools", y: 160 },
-  { mark: TwirpMark, name: "Twirp", source: ".proto", y: 220 },
+  { mark: OpenApiMark, name: "OpenAPI", source: "schema", y: 68 },
+  { mark: McpMark, name: "MCP", source: "tools", y: 128 },
+  { mark: GrpcMark, name: "gRPC", source: ".proto", y: 188 },
 ];
 
 // Where the two ends of the map sit across its width, so an action drawn under the
@@ -38,26 +36,25 @@ export function KajaMap({ className }: { className?: string }) {
     <svg
       viewBox="0 0 880 300"
       role="img"
-      aria-label="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks gRPC, OpenAPI, MCP and Twirp to your apps."
+      aria-label="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks OpenAPI, MCP and gRPC to your apps."
       fill="none"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
       <g className="stroke-border" strokeWidth="1.5">
-        <path d="M540 150 C 600 150, 620 62, 680 62" />
-        <path d="M540 150 C 600 150, 620 122, 680 122" />
-        <path d="M540 150 C 600 150, 620 182, 680 182" />
-        <path d="M540 150 C 600 150, 620 242, 680 242" />
+        <path d="M540 150 C 600 150, 620 90, 680 90" />
+        <path d="M540 150 H 680" />
+        <path d="M540 150 C 600 150, 620 210, 680 210" />
         <path d="M220 150 H 340" />
       </g>
       <g className="stroke-muted-foreground" strokeWidth="1.5">
-        <path d="M334 146l6 4-6 4M674 58l6 4-6 4M674 118l6 4-6 4M674 178l6 4-6 4M674 238l6 4-6 4" />
+        <path d="M334 146l6 4-6 4M674 86l6 4-6 4M674 146l6 4-6 4M674 206l6 4-6 4" />
       </g>
       <text x="270" y="140" textAnchor="middle" fontSize="10.5" letterSpacing="1.2" className="fill-muted-foreground font-mono">
         MCP
       </text>
-      <text x="610" y="112" textAnchor="middle" fontSize="10.5" letterSpacing="1.2" className="fill-muted-foreground font-mono">
+      <text x="610" y="108" textAnchor="middle" fontSize="10.5" letterSpacing="1.2" className="fill-muted-foreground font-mono">
         CALLS
       </text>
 

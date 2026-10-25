@@ -55,6 +55,8 @@ export interface AppTypeDefinition {
   requireOneOf?: string[][];
   // Experimental built-ins are gated behind the Apps feature preview.
   preview?: boolean;
+  // Offered as a line under the New dialog's list rather than as a row in it.
+  minor?: boolean;
   // Types whose form is written by hand rather than rendered from `parameters`. The
   // parameter list is still the contract with the config: it says which fields the type
   // has, and the custom form supplies its own labels.
@@ -63,35 +65,9 @@ export interface AppTypeDefinition {
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
-// In the order shown in the New grid, which is the order the empty state's map lists
-// the protocols in (KajaMap.tsx): the dialog is opened from that screen, so a reader
-// meets the same four in the same places. Keep in sync with the app types registered
-// on the server (server/pkg/api/api.go).
+// In the order shown in the New dialog, most used first. Keep in sync with the app
+// types registered on the server (server/pkg/api/api.go).
 export const appTypes: AppTypeDefinition[] = [
-  {
-    type: "grpc",
-    label: "gRPC",
-    description: "Call a gRPC service from its proto files or via server reflection.",
-    icon: GrpcMark,
-    // GrpcForm renders these: it reaches the server first and then offers what answered.
-    customForm: true,
-    requireOneOf: [["protoDir", "reflection"]],
-    parameters: [
-      { key: "url", label: "URL", type: "url", placeholder: "dns:example.com:443" },
-      { key: "protoDir", label: "Proto directory", type: "folder", placeholder: "path/to/proto", optional: true },
-      { key: "reflection", label: "Use gRPC reflection", type: "boolean", optional: true },
-      { key: "tls", label: "Transport", type: "text", optional: true },
-      { key: "insecureSkipVerify", label: "Accept any certificate", type: "boolean", optional: true },
-      { key: "caFile", label: "Certificate authority", type: "file", optional: true },
-      { key: "clientCertFile", label: "Client certificate", type: "file", optional: true },
-      { key: "clientKeyFile", label: "Client key", type: "file", optional: true },
-      { key: "auth", label: "Authentication", type: "text", optional: true },
-      { key: "token", label: "Token or API key", type: "text", optional: true },
-      { key: "username", label: "Username", type: "text", optional: true },
-      { key: "password", label: "Password", type: "text", optional: true },
-      { key: "apiKeyName", label: "Metadata key", type: "text", optional: true },
-    ],
-  },
   {
     type: "openapi",
     label: "OpenAPI",
@@ -134,25 +110,27 @@ export const appTypes: AppTypeDefinition[] = [
     },
   },
   {
-    type: "twirp",
-    label: "Twirp",
-    description: "Call a Twirp service from its proto files.",
-    icon: TwirpMark,
+    type: "grpc",
+    label: "gRPC",
+    description: "Call a gRPC service from its proto files or via server reflection.",
+    icon: GrpcMark,
+    // GrpcForm renders these: it reaches the server first and then offers what answered.
+    customForm: true,
+    requireOneOf: [["protoDir", "reflection"]],
     parameters: [
-      {
-        key: "url",
-        label: "URL",
-        type: "url",
-        placeholder: "https://example.com/twirp",
-        caption: "Base URL of the Twirp server.",
-      },
-      {
-        key: "protoDir",
-        label: "Proto directory",
-        type: "folder",
-        placeholder: "path/to/proto",
-        caption: "Directory of .proto files (Twirp has no reflection).",
-      },
+      { key: "url", label: "URL", type: "url", placeholder: "dns:example.com:443" },
+      { key: "protoDir", label: "Proto directory", type: "folder", placeholder: "path/to/proto", optional: true },
+      { key: "reflection", label: "Use gRPC reflection", type: "boolean", optional: true },
+      { key: "tls", label: "Transport", type: "text", optional: true },
+      { key: "insecureSkipVerify", label: "Accept any certificate", type: "boolean", optional: true },
+      { key: "caFile", label: "Certificate authority", type: "file", optional: true },
+      { key: "clientCertFile", label: "Client certificate", type: "file", optional: true },
+      { key: "clientKeyFile", label: "Client key", type: "file", optional: true },
+      { key: "auth", label: "Authentication", type: "text", optional: true },
+      { key: "token", label: "Token or API key", type: "text", optional: true },
+      { key: "username", label: "Username", type: "text", optional: true },
+      { key: "password", label: "Password", type: "text", optional: true },
+      { key: "apiKeyName", label: "Metadata key", type: "text", optional: true },
     ],
   },
   {
@@ -187,6 +165,29 @@ export const appTypes: AppTypeDefinition[] = [
         placeholder: "/path/to/folder",
         caption: "Absolute path on the machine serving the workspace.",
         picked: { placeholder: "No folder picked", caption: "Picking the folder is what grants Kaja access to it." },
+      },
+    ],
+  },
+  {
+    type: "twirp",
+    minor: true,
+    label: "Twirp",
+    description: "Call a Twirp service from its proto files.",
+    icon: TwirpMark,
+    parameters: [
+      {
+        key: "url",
+        label: "URL",
+        type: "url",
+        placeholder: "https://example.com/twirp",
+        caption: "Base URL of the Twirp server.",
+      },
+      {
+        key: "protoDir",
+        label: "Proto directory",
+        type: "folder",
+        placeholder: "path/to/proto",
+        caption: "Directory of .proto files (Twirp has no reflection).",
       },
     ],
   },
