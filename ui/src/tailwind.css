@@ -2,36 +2,35 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* shadcn/ui's neutral theme, warmed: every surface carries a trace of hue 85, so
-   the window reads as paper and ink rather than as pure greys. */
+/* shadcn/ui — stock neutral theme */
 :root {
   --radius: 0.5rem;
 
-  --background: #faf9f6;
-  --foreground: #1f1d1a;
-  --card: #ffffff;
-  --card-foreground: #1f1d1a;
-  --popover: #ffffff;
-  --popover-foreground: #1f1d1a;
-  --primary: #2a2825;
-  --primary-foreground: #faf9f6;
-  --secondary: #efede8;
-  --secondary-foreground: #2a2825;
-  --muted: #efede8;
-  --muted-foreground: #78746c;
-  --accent: #e8e5df;
-  --accent-foreground: #2a2825;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: #faf9f6;
-  --border: #e6e3dc;
-  --input: #e0ddd5;
-  --ring: #a8a49c;
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 
   /* The frame around the content: the sidebar and the band behind the traffic
-     lights. The work area sits on --background, a step lighter, and the tone
-     step is the only thing separating the two — there is no border between
+     lights. The work area sits on --background, a step away from it, and the
+     tone step is the only thing separating the two — there is no border between
      them. */
-  --chrome: #f3f1ec;
+  --chrome: oklch(0.97 0 0);
 
   /* The two ends of the logo gradient, read by the mark's own stops. It is the
      same rust-to-violet in both themes, so these are defined once and never
@@ -41,40 +40,27 @@
 }
 
 .dark {
-  --background: #242320;
-  --foreground: #ece9e3;
-  --card: #2a2825;
-  --card-foreground: #ece9e3;
-  --popover: #2a2825;
-  --popover-foreground: #ece9e3;
-  --primary: #e6e2da;
-  --primary-foreground: #242320;
-  --secondary: #2e2c29;
-  --secondary-foreground: #ece9e3;
-  --muted: #2e2c29;
-  --muted-foreground: #8a867e;
-  --accent: #3d3a36;
-  --accent-foreground: #ece9e3;
-  --destructive: #e07a6c;
-  --destructive-foreground: #ece9e3;
-  --border: rgb(255 246 230 / 7%);
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #6f6b64;
+  --ring: oklch(0.556 0 0);
 
-  --chrome: #1b1a18;
-
-  /* Status is said in Tailwind's emerald and amber everywhere, and at their own
-     chroma they are the loudest thing on a warm dark surface. Re-pointing the
-     shades dark mode reads is what quiets every status at once; 600 and 700 are
-     the Run button's alone here, every other use being overridden by a dark:
-     variant. */
-  --color-emerald-400: #7fb88a;
-  --color-emerald-500: #7fb88a;
-  --color-emerald-600: #3f6f4c;
-  --color-emerald-700: #365f41;
-  --color-amber-300: #e6bf86;
-  --color-amber-400: #d9a55b;
-  --color-amber-500: #d9a55b;
+  --chrome: oklch(0.205 0 0);
 }
 
 @theme inline {
