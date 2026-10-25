@@ -16,9 +16,8 @@ interface CommandRowProps {
   // entirely once there is nothing to save — this is the pair you reach for
   // mid-edit, not a permanent fixture.
   fileActions?: React.ReactNode;
-  // What you do with the current file: Run for a script, the JSON toggle for a
-  // form. A file is never both, so they share the slot and the row keeps its
-  // shape.
+  // What you do with the current view: Run for a script, the view's own verb for
+  // anything else. Each view has at most one, so the row keeps its shape.
   action?: React.ReactNode;
   // Where the editor ends when the console sits beside it. The row splits at the
   // same x, so the action lands at the editor's own corner rather than the

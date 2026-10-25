@@ -53,9 +53,6 @@ export interface AppFormView extends ViewBase {
   mode: "create" | "edit";
   editingAppName?: string;
   initialData?: WorkspaceApp;
-  // Lives here rather than in the form because the command row owns the control that
-  // switches it.
-  editMode: "form" | "json";
   // Set where an agent opened the form and is waiting to hear whether it was saved.
   agentRequest?: string;
   agentNotes?: AgentNotes;
@@ -176,7 +173,7 @@ export function showAppForm(views: View[], mode: "create" | "edit", initialData?
   // A form an agent opened is refilled with what the agent sent, and a type picked in
   // the New dialog starts the new app over, whatever was being typed into the last one.
   if (existing && (agentRequest || mode === "create")) {
-    return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes, editMode: "form" }), existing.id);
+    return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes }), existing.id);
   }
   if (existing) return visit(views, existing.id);
 
@@ -186,7 +183,6 @@ export function showAppForm(views: View[], mode: "create" | "edit", initialData?
     mode,
     editingAppName: initialData?.name,
     initialData,
-    editMode: "form",
     agentRequest,
     agentNotes,
   });
@@ -214,10 +210,6 @@ export function showCompiler(views: View[]): View[] {
   const existing = views.find((view) => view.type === "compiler");
   if (existing) return visit(views, existing.id);
   return show(views, { ...nextView("compiler"), type: "compiler" });
-}
-
-export function setAppFormEditMode(views: View[], id: string, editMode: "form" | "json"): View[] {
-  return update<AppFormView>(views, id, "appForm", { editMode });
 }
 
 export interface ViewIdentity {

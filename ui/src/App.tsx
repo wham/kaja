@@ -9,7 +9,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, Code, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
+import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -52,7 +52,7 @@ import { NewAppDialog } from "./NewAppDialog";
 import { SidebarFoot, ColorMode } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
-import { AppForm } from "./AppForm";
+import { AppForm, type AppFormSaveControl } from "./AppForm";
 import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
@@ -68,7 +68,6 @@ import {
   PersistedViewState,
   restoreViews,
   serializeViews,
-  setAppFormEditMode,
   showAppForm,
   showCompiler,
   showDefinition,
@@ -225,10 +224,9 @@ function writeSourceModel(path: string, content: string): boolean {
 
 export function App() {
   const [workspace, setWorkspace] = useState<Workspace>();
-  // The two keys the command row names. Read as labels here so rebinding one
-  // redraws the row that states it.
+  // The key the command row names. Read as a label here so rebinding it redraws the
+  // row that states it.
   const saveAsFileLabel = useShortcutLabel("saveAsFile");
-  const editAsJsonLabel = useShortcutLabel("editAsJson");
   const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
@@ -402,14 +400,13 @@ export function App() {
     reject: (reason: unknown) => void;
   } | null>(null);
   const [newAppOpen, setNewAppOpen] = useState(false);
-  // Gates switching back to the app form, so it lives beside the control that switches.
-  const [viewJsonValid, setViewJsonValid] = useState(true);
+  // Each mounted app form's Save, which a phone draws in the header; keyed by view
+  // because the cache keeps several forms mounted at once.
+  const [appFormSaves, setAppFormSaves] = useState<{ [viewId: string]: AppFormSaveControl }>({});
   // What Reset all should do on the shortcuts screen, reported by the screen itself:
   // the button is the CommandRow's, like every other view-level verb, and undefined
   // is the state where there is nothing to reset.
   const [resetShortcuts, setResetShortcuts] = useState<ResetAllControl>();
-  const viewJsonValidRef = useRef(viewJsonValid);
-  viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal that a workspace write moved the modules a script imports: what
@@ -1139,11 +1136,6 @@ export function App() {
       if (matchesShortcut(e, "saveAsFile")) {
         e.preventDefault();
         onRequestSaveRef.current();
-        return;
-      }
-      if (matchesShortcut(e, "editAsJson")) {
-        e.preventDefault();
-        toggleJsonViewRef.current();
         return;
       }
       // A browser zooms itself on these keys, and better: taking them there would be
@@ -2165,18 +2157,9 @@ export function App() {
   );
 
   const currentView = views[0];
-  const jsonKey = editAsJsonLabel === "" ? "" : ` (${editAsJsonLabel})`;
-  const jsonView =
-    currentView?.type === "appForm" && currentView.mode === "edit" ? { showing: currentView.editMode === "json", back: `Edit as a form${jsonKey}` } : undefined;
-
-  const toggleJsonView = useCallback((): void => {
-    const view = viewsRef.current[0];
-    if (view?.type !== "appForm" || view.mode !== "edit") return;
-    if (view.editMode === "json" && !viewJsonValidRef.current) return;
-    applyViews((views) => setAppFormEditMode(views, view.id, view.editMode === "json" ? "form" : "json"));
-  }, [applyViews]);
-  const toggleJsonViewRef = useRef(toggleJsonView);
-  toggleJsonViewRef.current = toggleJsonView;
+  const reportAppFormSave = useCallback((viewId: string, control: AppFormSaveControl | undefined) => {
+    setAppFormSaves(({ [viewId]: _, ...others }) => (control ? { ...others, [viewId]: control } : others));
+  }, []);
   const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
   const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
   // Read rather than depended on: the keys move with the buffer, and Run is not a new
@@ -2779,20 +2762,13 @@ export function App() {
         Reset all
       </Button>
     ) : undefined;
-  const action =
-    runButton ??
-    resetAllButton ??
-    (jsonView ? (
-      <IconButton
-        icon={Code}
-        aria-label={jsonView.showing ? jsonView.back : `Edit as JSON${jsonKey}`}
-        variant="ghost"
-        size="sm"
-        className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
-        disabled={jsonView.showing && !viewJsonValid}
-        onClick={toggleJsonView}
-      />
-    ) : undefined);
+  const appFormSave = currentView?.type === "appForm" && isPhone ? appFormSaves[currentView.id] : undefined;
+  const appFormSaveButton = appFormSave ? (
+    <Button size="sm" disabled={appFormSave.disabled} onClick={appFormSave.onSave}>
+      {appFormSave.label}
+    </Button>
+  ) : undefined;
+  const action = runButton ?? resetAllButton ?? appFormSaveButton;
 
   // Bodies render in creation order, so bringing a file to the front never moves a
   // live editor in the DOM.
@@ -2854,10 +2830,9 @@ export function App() {
           allApps={workspace?.apps ?? []}
           variables={workspace?.variables ?? {}}
           readOnly={!runtime.canUpdateWorkspace}
-          editMode={view.editMode}
           onSubmit={onAppFormSubmit}
           onCancel={onAppFormCancel}
-          onJsonValidChange={setViewJsonValid}
+          onSaveControlChange={(control) => reportAppFormSave(view.id, control)}
           agentNotes={view.agentNotes}
         />
       )}
@@ -3009,6 +2984,7 @@ export function App() {
           action={action}
           script={phoneScript}
           onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
+          sheetHidden={currentView?.type === "appForm"}
           editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
           console={(phone) => (
             <Console

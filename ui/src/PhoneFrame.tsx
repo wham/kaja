@@ -28,6 +28,8 @@ interface PhoneFrameProps {
   script?: PhoneScript;
   // Set while that script is the view on screen, which is when the run is the body.
   onScript: boolean;
+  // An app form is about the app, so a script from elsewhere in the stack has no place over it.
+  sheetHidden?: boolean;
   // The mounted editors, whichever view is current; they live in the sheet.
   editor: React.ReactNode;
   console: (phone: PhoneConsole) => React.ReactNode;
@@ -41,7 +43,7 @@ interface PhoneFrameProps {
  * no splitter and no sidebar foot — what the sidebar said is said on the finder's
  * own rows.
  */
-export function PhoneFrame({ finder, action, script, onScript, editor, console: renderConsole, children }: PhoneFrameProps) {
+export function PhoneFrame({ finder, action, script, onScript, sheetHidden = false, editor, console: renderConsole, children }: PhoneFrameProps) {
   const [position, setPosition] = useState<SheetPosition>("rest");
   const [editing, setEditing] = useState(false);
   const fileId = script?.fileId;
@@ -84,7 +86,7 @@ export function PhoneFrame({ finder, action, script, onScript, editor, console: 
 
   const phone = useMemo<PhoneConsole>(() => ({ onShowRun: () => onPositionChange("rest") }), [onPositionChange]);
 
-  const up = position !== "rest";
+  const up = position !== "rest" && !sheetHidden;
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-background text-foreground" style={{ overscrollBehavior: "contain" }}>
@@ -102,21 +104,27 @@ export function PhoneFrame({ finder, action, script, onScript, editor, console: 
             {renderConsole(phone)}
           </div>
         )}
-        <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden", up && "opacity-40")} style={{ paddingBottom: CODE_SHEET_REST_HEIGHT }}>
+        <div
+          className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden", up && "opacity-40")}
+          style={{ paddingBottom: sheetHidden ? 0 : CODE_SHEET_REST_HEIGHT }}
+        >
           {children}
         </div>
         {/* What is behind a raised sheet is dimmed, and a tap on it is the way back. */}
         {up && <button type="button" aria-label="Put the code away" className="absolute inset-0 z-10" onClick={() => onPositionChange("rest")} />}
-        <CodeSheet
-          model={script?.model}
-          name={script?.name}
-          readOnly={script?.readOnly ?? true}
-          position={position}
-          onPositionChange={onPositionChange}
-          editing={editing}
-          onEditingChange={onEditingChange}
-          editor={editor}
-        />
+        {/* Hidden rather than unmounted: the editors the view cache holds live in it. */}
+        <div className={cn(sheetHidden && "hidden")}>
+          <CodeSheet
+            model={script?.model}
+            name={script?.name}
+            readOnly={script?.readOnly ?? true}
+            position={position}
+            onPositionChange={onPositionChange}
+            editing={editing}
+            onEditingChange={onEditingChange}
+            editor={editor}
+          />
+        </div>
       </div>
     </div>
   );

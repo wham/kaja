@@ -8,6 +8,8 @@ import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps, getAppType } from "./appTypes";
 import { cn } from "./cn";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, authNote, authSchemes, deriveAppName, eraLabel } from "./mcpServer";
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
@@ -96,6 +98,7 @@ export function McpForm({
   onSurfaceChange,
   onReadyChange,
 }: CustomFormProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const [state, setState] = useState<ReadState>({ status: "idle" });
   const [signIn, setSignIn] = useState<SignInState>({ status: "idle" });
   const parametersRef = useRef(parameters);
@@ -256,7 +259,7 @@ export function McpForm({
     problem?.kind === McpProblemKind.MCP_PROBLEM_FORBIDDEN;
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-6">
+    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="mcp-url">
           MCP endpoint
@@ -331,7 +334,7 @@ export function McpForm({
 
       {(server || unresolved || showAuthentication) && (
         <>
-          <div className="h-px bg-border" />
+          {!phone && <div className="h-px bg-border" />}
 
           {(server || unresolved) && (
             <AppNameField

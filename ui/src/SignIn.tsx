@@ -96,6 +96,12 @@ interface SignInStatusProps {
   onBundled?: () => void;
 }
 
+// A detail is often a Go error, which is lowercase by convention and reads as a broken
+// sentence under a capitalised one.
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 // One slot, like the source field's: the button, the browser it is waiting on, and
 // the way it can fail.
 export function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient, onBundled }: SignInStatusProps) {
@@ -115,7 +121,7 @@ export function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Button variant={signedIn ? "ghost" : "default"} size="sm" onClick={onSignIn}>
-          {signedIn ? "Sign in again" : "Sign in…"}
+          {signedIn ? "Sign in again" : state.status === "problem" ? "Try again" : "Sign in…"}
         </Button>
         {signedIn && (
           <Button variant="ghost" size="sm" onClick={onSignOut}>
@@ -138,7 +144,7 @@ export function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient
           <CircleX className="mt-px size-3.5 shrink-0" />
           <span className="min-w-0">
             {state.problem.message}
-            {state.problem.detail && <span className="block break-all text-muted-foreground">{state.problem.detail}</span>}
+            {state.problem.detail && <span className="block break-words text-muted-foreground">{sentence(state.problem.detail)}</span>}
           </span>
         </div>
       )}

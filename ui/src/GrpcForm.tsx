@@ -30,6 +30,8 @@ import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import {
   AUTH_APIKEY,
   AUTH_BASIC,
@@ -104,6 +106,7 @@ export function GrpcForm({
   onSurfaceChange,
   onReadyChange,
 }: CustomFormProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const [surfaceMode, setSurfaceMode] = useState<SurfaceMode>(() =>
     parameters.reflection === "true" || !(parameters.protoDir ?? "").trim() ? "reflection" : "protoDir",
   );
@@ -266,7 +269,7 @@ export function GrpcForm({
     Boolean(server) || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_UNAUTHENTICATED || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_PERMISSION_DENIED;
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-6">
+    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-foreground" htmlFor="grpc-url">
@@ -362,7 +365,7 @@ export function GrpcForm({
 
       {(server || showTransport || showAuthentication) && (
         <>
-          <div className="h-px bg-border" />
+          {!phone && <div className="h-px bg-border" />}
 
           {server && (
             <AppNameField
