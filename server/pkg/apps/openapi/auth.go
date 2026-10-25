@@ -59,7 +59,7 @@ func (a *auth) withToken(authorizer *oauth.Authorizer, baseURL string) (*auth, e
 	if !sameServer(baseURL, a.signIn.resource) {
 		return nil, fmt.Errorf("the sign-in is for %s, and this app calls %s", a.signIn.resource, baseURL)
 	}
-	token, err := authorizer.Token(a.signIn.resource)
+	token, err := authorizer.Token(a.token, a.signIn.resource)
 	if err != nil {
 		return nil, err
 	}

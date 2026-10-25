@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"os"
 	"regexp"
 	"sort"
@@ -25,6 +27,13 @@ type VariableStore interface {
 // for: the keychain, or KAJA_<NAME> in the environment.
 const SecretSource = "${secret}"
 
+// SignInSource is the whole value of a variable holding a sign-in: kept in the
+// store like a "${secret}" value, but written by signing in rather than typed,
+// and never a value anything is handed - the app naming it as its credential
+// reads the token itself, renewing it as it goes. KAJA_<NAME> in the environment
+// is a token used as it stands, for a kaja with nowhere to keep a sign-in.
+const SignInSource = "${signin}"
+
 // envSourcePattern matches a ${env:X} reference, which may sit inside a longer
 // value (e.g. "https://${env:HOST}/v1").
 var envSourcePattern = regexp.MustCompile(`\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}`)
@@ -39,7 +48,10 @@ func storedEnvName(name string) string {
 // expand to. It also keeps the values that did not come from kaja.json, so they
 // can be masked back out of anything reported to the UI.
 type Resolver struct {
-	values   map[string]string
+	values map[string]string
+	// signIns are the variables holding a sign-in on this machine. They resolve to
+	// no value, so a reference to one reaches the app that names it intact.
+	signIns  map[string]bool
 	hidden   []hiddenValue
 	statuses []*VariableStatus
 }
@@ -54,7 +66,7 @@ type hiddenValue struct {
 // NewResolver resolves every configured variable once, against what the store
 // holds for the workspace and the process environment.
 func NewResolver(variables map[string]string, store VariableStore, workspaceID string) *Resolver {
-	resolver := &Resolver{values: make(map[string]string, len(variables))}
+	resolver := &Resolver{values: make(map[string]string, len(variables)), signIns: map[string]bool{}}
 
 	names := make([]string, 0, len(variables))
 	for name := range variables {
@@ -65,6 +77,10 @@ func NewResolver(variables map[string]string, store VariableStore, workspaceID s
 	for _, name := range names {
 		value, status := resolveVariable(name, variables[name], store, workspaceID)
 		resolver.statuses = append(resolver.statuses, status)
+		if status.Source == VariableSource_VARIABLE_SOURCE_SIGN_IN {
+			resolver.signIns[name] = true
+			continue
+		}
 		// A variable whose source holds nothing is not defined at all: ${NAME}
 		// passes through literally, which is what the UI tells the user happens.
 		if status.Source == VariableSource_VARIABLE_SOURCE_UNSET {
@@ -88,11 +104,27 @@ func NewResolver(variables map[string]string, store VariableStore, workspaceID s
 // resolveVariable resolves one variable's configured value: literal, the value
 // this machine stores for it, or the environment variables it references.
 func resolveVariable(name string, configured string, store VariableStore, workspaceID string) (string, *VariableStatus) {
+	if strings.TrimSpace(configured) == SignInSource {
+		envName := storedEnvName(name)
+		if store != nil && store.Available() && workspaceID != "" {
+			if stored, ok := store.Get(workspaceID, name); ok {
+				if resource := oauth.GrantResource(stored); resource != "" {
+					return "", &VariableStatus{Name: name, Source: VariableSource_VARIABLE_SOURCE_SIGN_IN, EnvName: envName, SignInResource: resource}
+				}
+			}
+		}
+		if fromEnv, ok := os.LookupEnv(envName); ok {
+			return fromEnv, &VariableStatus{Name: name, Source: VariableSource_VARIABLE_SOURCE_ENVIRONMENT, EnvName: envName}
+		}
+		return "", &VariableStatus{Name: name, Source: VariableSource_VARIABLE_SOURCE_UNSET, EnvName: envName}
+	}
 	if strings.TrimSpace(configured) == SecretSource {
 		envName := storedEnvName(name)
 		// A workspace with no id has never had a value stored for it.
 		if store != nil && store.Available() && workspaceID != "" {
-			if stored, ok := store.Get(workspaceID, name); ok {
+			// A row switched from a sign-in leaves the sign-in behind until its clear
+			// lands, and a sign-in's tokens are no value to hand anything.
+			if stored, ok := store.Get(workspaceID, name); ok && oauth.GrantResource(stored) == "" {
 				return stored, &VariableStatus{Name: name, Source: VariableSource_VARIABLE_SOURCE_KEYCHAIN, EnvName: envName}
 			}
 		}
@@ -190,6 +222,12 @@ func (r *Resolver) Values() map[string]string {
 	return values
 }
 
+// SignsIn reports whether a variable holds a sign-in, which a reference to it is
+// left as so the app naming it can read it.
+func (r *Resolver) SignsIn(name string) bool {
+	return r.signIns[name]
+}
+
 // Statuses reports where each variable's value came from, in name order.
 func (r *Resolver) Statuses() []*VariableStatus {
 	return r.statuses
@@ -211,8 +249,10 @@ func validateVariables(variables map[string]string) error {
 			return fmt.Errorf("variable name %q must start with a letter or underscore and contain only letters, numbers and underscores", name)
 		}
 		value := variables[name]
-		if strings.Contains(value, SecretSource) && strings.TrimSpace(value) != SecretSource {
-			return fmt.Errorf("variable %q: %s must be the whole value", name, SecretSource)
+		for _, source := range []string{SecretSource, SignInSource} {
+			if strings.Contains(value, source) && strings.TrimSpace(value) != source {
+				return fmt.Errorf("variable %q: %s must be the whole value", name, source)
+			}
 		}
 	}
 	return nil

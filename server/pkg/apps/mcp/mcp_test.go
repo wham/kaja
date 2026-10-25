@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -464,8 +463,8 @@ func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
 	}))
 	defer server.Close()
 
-	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth}
-	_, problem := Inspect(context.Background(), parameters, oauth.NewAuthorizer(oauth.NewTokenStore(filepath.Join(t.TempDir(), "oauth.json")), nil))
+	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth, "token": "${SIGNIN}"}
+	_, problem := Inspect(context.Background(), parameters, oauth.NewAuthorizer(memoryStore{}, nil))
 	if problem == nil || problem.Kind != ProblemSignIn {
 		t.Fatalf("problem = %v, want signIn", problem)
 	}
@@ -1042,4 +1041,20 @@ func TestAnAppCannotSignInWithoutAnAuthorizer(t *testing.T) {
 	if _, _, err := credentialSource(map[string]string{"url": "https://example.com/mcp", "auth": AuthOAuth}, nil); err == nil {
 		t.Fatal("expected the app to refuse to open")
 	}
+}
+
+type memoryStore map[string]string
+
+func (m memoryStore) Available() bool { return true }
+func (m memoryStore) Load(name string) (string, bool) {
+	value, ok := m[name]
+	return value, ok
+}
+func (m memoryStore) Save(name string, value string) error {
+	m[name] = value
+	return nil
+}
+func (m memoryStore) Delete(name string) error {
+	delete(m, name)
+	return nil
 }

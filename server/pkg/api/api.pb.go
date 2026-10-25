@@ -387,6 +387,9 @@ const (
 	VariableSource_VARIABLE_SOURCE_KEYCHAIN VariableSource = 2
 	// The value came from an environment variable.
 	VariableSource_VARIABLE_SOURCE_ENVIRONMENT VariableSource = 3
+	// The variable holds a sign-in kaja keeps in the OS keychain. Its token is sent
+	// by the app that names it and is never a value anything else is handed.
+	VariableSource_VARIABLE_SOURCE_SIGN_IN VariableSource = 4
 )
 
 // Enum value maps for VariableSource.
@@ -396,12 +399,14 @@ var (
 		1: "VARIABLE_SOURCE_FILE",
 		2: "VARIABLE_SOURCE_KEYCHAIN",
 		3: "VARIABLE_SOURCE_ENVIRONMENT",
+		4: "VARIABLE_SOURCE_SIGN_IN",
 	}
 	VariableSource_value = map[string]int32{
 		"VARIABLE_SOURCE_UNSET":       0,
 		"VARIABLE_SOURCE_FILE":        1,
 		"VARIABLE_SOURCE_KEYCHAIN":    2,
 		"VARIABLE_SOURCE_ENVIRONMENT": 3,
+		"VARIABLE_SOURCE_SIGN_IN":     4,
 	}
 )
 
@@ -1805,8 +1810,9 @@ func (x *McpProblem) GetDetail() string {
 
 // AuthorizeMcp signs kaja in to the server the app names, over the authorization
 // flow MCP defines: the server says which authorization server issues its tokens,
-// kaja registers itself where it has to, and the token it is given is kept for
-// that server alone. The app carries the same parameters it would be opened
+// kaja registers itself where it has to, and the token it is given is kept in the
+// "${signin}" variable the app's token names, for that server alone. A variable
+// kaja.json does not define yet is written into it once the sign-in finishes. The app carries the same parameters it would be opened
 // with, since a document behind a login is read with the app's own headers.
 type AuthorizeMcpRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1929,9 +1935,8 @@ func (x *AuthorizeMcpResponse) GetProblem() *McpProblem {
 	return nil
 }
 
-// ForgetMcpAuthorization drops the token kaja holds for a server, which is what
-// signing out is. The client an authorization server registered kaja as stays:
-// it is this installation's record with that server rather than this sign-in's.
+// ForgetMcpAuthorization drops the sign-in the app's "${signin}" variable holds,
+// which is what signing out is. The variable stays, as where the next one goes.
 type ForgetMcpAuthorizationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mcp           *McpApp                `protobuf:"bytes,1,opt,name=mcp,proto3" json:"mcp,omitempty"`
@@ -2579,11 +2584,13 @@ type VariableStatus struct {
 	Name   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Source VariableSource         `protobuf:"varint,2,opt,name=source,proto3,enum=VariableSource" json:"source,omitempty"`
 	// The environment variable consulted for this variable: the name inside
-	// ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
-	// written in kaja.json.
-	EnvName       string `protobuf:"bytes,3,opt,name=env_name,json=envName,proto3" json:"env_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// ${env:...}, or KAJA_<NAME> for a "${secret}" or "${signin}" variable. Empty
+	// for a value written in kaja.json.
+	EnvName string `protobuf:"bytes,3,opt,name=env_name,json=envName,proto3" json:"env_name,omitempty"`
+	// The server a "${signin}" variable is signed in to, where it holds a sign-in.
+	SignInResource string `protobuf:"bytes,4,opt,name=sign_in_resource,json=signInResource,proto3" json:"sign_in_resource,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *VariableStatus) Reset() {
@@ -2633,6 +2640,13 @@ func (x *VariableStatus) GetSource() VariableSource {
 func (x *VariableStatus) GetEnvName() string {
 	if x != nil {
 		return x.EnvName
+	}
+	return ""
+}
+
+func (x *VariableStatus) GetSignInResource() string {
+	if x != nil {
+		return x.SignInResource
 	}
 	return ""
 }
@@ -4184,8 +4198,10 @@ type Workspace struct {
 	// User-defined variables, referenced as `${NAME}` in app configuration and read
 	// from scripts as `kaja.variables.<name>`. A value is either literal, or names
 	// the source that holds it outside this file: "${secret}" (the OS keychain, or
-	// KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
-	// which may sit inside a longer value). Only literal values are ever sent to a
+	// KAJA_<NAME> in the environment), "${signin}" (a sign-in kaja keeps in the
+	// keychain for the app naming it as its credential, or a token in KAJA_<NAME>)
+	// or "${env:X}" (the environment variable X, which may sit inside a longer
+	// value). Only literal values are ever sent to a
 	// remote browser.
 	Variables map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Keyboard shortcut overrides, keyed by the action's own id ("run",
@@ -4721,14 +4737,16 @@ func (x *TwirpApp) GetHeaders() map[string]string {
 // or YAML). Credentials are applied per the spec's security schemes. base_url
 // overrides the upstream base URL derived from the spec's servers list.
 type OpenApiApp struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	SpecUrl     string                 `protobuf:"bytes,1,opt,name=spec_url,json=specUrl,proto3" json:"spec_url,omitempty"`
-	Token       string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
-	Username    string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	Password    string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
-	Headers     map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	SpecContent string                 `protobuf:"bytes,6,opt,name=spec_content,json=specContent,proto3" json:"spec_content,omitempty"`
-	BaseUrl     string                 `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SpecUrl string                 `protobuf:"bytes,1,opt,name=spec_url,json=specUrl,proto3" json:"spec_url,omitempty"`
+	// The credential for the chosen scheme. For a scheme kaja signs in to it is
+	// "${NAME}", naming the "${signin}" variable the sign-in is kept in.
+	Token       string            `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Username    string            `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	Password    string            `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
+	Headers     map[string]string `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	SpecContent string            `protobuf:"bytes,6,opt,name=spec_content,json=specContent,proto3" json:"spec_content,omitempty"`
+	BaseUrl     string            `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	// Which of the document's security schemes the credentials belong to, by its
 	// name in components.securitySchemes. Empty picks a scheme from the document;
 	// "none" sends no credentials at all.
@@ -5001,7 +5019,8 @@ type McpApp struct {
 	// means bearer, which is what an MCP server behind a login nearly always
 	// wants.
 	Auth string `protobuf:"bytes,3,opt,name=auth,proto3" json:"auth,omitempty"`
-	// The bearer token, or the key for the "apikey" credential.
+	// The bearer token, or the key for the "apikey" credential. For "oauth" it is
+	// "${NAME}", naming the "${signin}" variable the sign-in is kept in.
 	Token string `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
 	// Header the "apikey" credential is sent under. Empty means "X-API-Key".
 	ApiKeyName string `protobuf:"bytes,5,opt,name=api_key_name,json=apiKeyName,proto3" json:"api_key_name,omitempty"`
@@ -5349,11 +5368,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
 	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
 	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\x12#\n" +
-	"\rworkspace_dir\x18\x05 \x01(\tR\fworkspaceDir\"h\n" +
+	"\rworkspace_dir\x18\x05 \x01(\tR\fworkspaceDir\"\x92\x01\n" +
 	"\x0eVariableStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
 	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
-	"\benv_name\x18\x03 \x01(\tR\aenvName\"A\n" +
+	"\benv_name\x18\x03 \x01(\tR\aenvName\x12(\n" +
+	"\x10sign_in_resource\x18\x04 \x01(\tR\x0esignInResource\"A\n" +
 	"\x15SetStoredValueRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"-\n" +
@@ -5582,12 +5602,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"LEVEL_INFO\x10\x01\x12\x0e\n" +
 	"\n" +
 	"LEVEL_WARN\x10\x02\x12\x0f\n" +
-	"\vLEVEL_ERROR\x10\x03*\x84\x01\n" +
+	"\vLEVEL_ERROR\x10\x03*\xa1\x01\n" +
 	"\x0eVariableSource\x12\x19\n" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xa0\x0e\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x03\x12\x1b\n" +
+	"\x17VARIABLE_SOURCE_SIGN_IN\x10\x042\xa0\x0e\n" +
 	"\x03Api\x12.\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x122\n" +
 	"\tRenameApp\x12\x11.RenameAppRequest\x1a\x12.RenameAppResponse\x12A\n" +

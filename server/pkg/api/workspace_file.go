@@ -236,6 +236,9 @@ func expandAppParameters(parameters map[string]string, resolver *Resolver, logge
 		expanded := resolver.Expand(value)
 		parameters[key] = expanded
 		for _, match := range variableReferencePattern.FindAllStringSubmatch(expanded, -1) {
+			if resolver.SignsIn(match[1]) {
+				continue
+			}
 			logger.info(fmt.Sprintf("No variable named %q is defined; leaving ${%s} in %q as-is", match[1], match[1], key))
 		}
 	}
