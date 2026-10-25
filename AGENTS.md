@@ -456,6 +456,17 @@ The one error surface in the chrome (`appErrors.ts`, `ErrorStatus.tsx`), in the 
 - **Resolution is per name, not per import statement**, because one import may reach into two modules. A name nothing declares binds nothing rather than failing — that is an interface imported for its type.
 - **The editor is told the same rule by a barrel** (`barrel`), a model re-exporting each module. `export *` drops a name two modules declare, so the editor refuses exactly what `resolve` calls ambiguous. The one exception is a service named like a message in another module: the service is re-exported as the value and the message as the type under the one name, which is what `resolve` already does, since a type binds nothing at run time.
 
+### Stories
+
+**A story is a script Kaja ships for an API it knows, and nothing else** (`ui/src/stories/`). A large API is too much to read as a tree, on a phone above all, so an app's page leads with what to do with it. A story has no format of its own: it is the text of a script, run the way a draft is.
+
+- **A collection belongs to the server an app calls, never to its name** (`collectionFor`): the form writes the server it read off the document as `base_url`, and an app without one is matched by the document Kaja knows describes it. The browser decides this alone, so there is no Go side to it.
+- **A story is written against the collection's import name and rewritten to the app's** (`instantiateStory`), on the splice a rename is followed by.
+- **A story is a draft once it is tapped, and the only place a story is offered is its app's page**: never the Scripts tab, never the workspace folder. One draft per story per app, found by `storyId` and kept per app because two apps on one API are two accounts. The draft is named after the story rather than its code, and is never a browsing buffer, so a method click cannot take one over. Reset story puts the shipped text back.
+- **A `kaja.run` in a story's draft reaches the other stories of its collection, after the workspace's files.** The editor is told the same through `setModelRunDestinations`, so the name is neither marked nor missing from completion. A deeplink cannot reach a story, a story having no file.
+- **The files are `.story`, bundled as text** (`with { type: "text" }`, which esbuild and bun both honour). TypeScript would compile a `.ts` imported that way, and a story imports an app no build of Kaja has; `stories.test.ts` is what holds them to parsing, importing only `kaja` and their app, and linking only within their collection. Whether the calls match the live document is not checked offline, so a story is type-checked against a compiled surface when it is written or the document moves.
+- **The page is a view, not a section of the tree** (`AppPage.tsx`). The name opens it and the chevron folds, in the sidebar and in the phone finder alike, and a new app lands on it. Stories are a swipe on a phone, where the next card peeking is the whole affordance, and a grid on a desktop, where a strip would hide cards from a mouse.
+
 ### Architecture
 
 - **The map** — [docs/network-stack.md](docs/network-stack.md) draws every hop and how headers flow, per protocol, then traces one real call through each lane. Its "What never crosses which line" is executable: `server/pkg/router/traces_test.go` runs the whole lane against an upstream and asserts one bullet per case, so the doc and the invariants move together.

@@ -11,15 +11,14 @@ function ago(iso: string): string {
 
 const { items: repos } = await Repos.ListForAuthenticatedUser({ sort: "pushed", direction: "desc", perPage: 30 });
 
-kaja.text("The repositories you can push to, by when anyone last did.");
+kaja.text("The repositories you can push to, by when anyone last did. Tap one for its week.");
 
-const table = kaja.table(["repo", "pushed", "open issues", "stars", ""]);
+const table = kaja.table(["repo", "pushed", "open issues", "stars"]);
 for (const repository of repos) {
   table.row(
-    repository.fullName,
+    kaja.run("repo-pulse", { repo: repository.fullName }, { label: repository.fullName }),
     repository.pushedAt ? ago(repository.pushedAt) : "",
     repository.openIssuesCount,
     repository.stargazersCount,
-    kaja.run("repo-pulse", { repo: repository.fullName }, { label: "Pulse" }),
   );
 }

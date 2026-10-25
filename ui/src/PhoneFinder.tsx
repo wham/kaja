@@ -27,6 +27,7 @@ interface PhoneFinderProps {
   apps: App[];
   onSelectMethod: (method: Method, service: Service, app: App) => void;
   onEditApp: (appName: string) => void;
+  onOpenApp: (appName: string) => void;
   missingVariables: Map<string, MissingVariable[]>;
   onRevealVariable: (name: string) => void;
   // Absent where the workspace can't be written.
@@ -51,6 +52,7 @@ export function PhoneFinder({
   apps,
   onSelectMethod,
   onEditApp,
+  onOpenApp,
   missingVariables,
   onRevealVariable,
   onNewApp,
@@ -94,6 +96,11 @@ export function PhoneFinder({
 
   const select = (destination: Destination) => {
     destination.go();
+    onOpenChange(false);
+  };
+
+  const openApp = (name: string) => {
+    onOpenApp(name);
     onOpenChange(false);
   };
 
@@ -196,15 +203,9 @@ export function PhoneFinder({
                   {results.map((destination, index) => (
                     <ResultRow key={destination.key} destination={destination} query={query} first={index === 0} onSelect={() => select(destination)} />
                   ))}
-                  {/* An app is not a place to go, so picking one opens its tree here. */}
+                  {/* An app is a place to go: its page. */}
                   {matchingApps.map((app) => (
-                    <Row
-                      key={`app:${app.configuration.name}`}
-                      onClick={() => {
-                        setQuery("");
-                        setExpanded(new Set([app.configuration.name]));
-                      }}
-                    >
+                    <Row key={`app:${app.configuration.name}`} onClick={() => openApp(app.configuration.name)}>
                       <span className="w-4 shrink-0" />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
                         <Matched text={app.configuration.name} query={query} />
@@ -241,15 +242,29 @@ export function PhoneFinder({
                     const missing = missingVariables.get(name);
                     return (
                       <div key={name}>
-                        <Row onClick={() => toggleApp(name)} aria-expanded={isExpanded}>
-                          {isExpanded ? (
-                            <ChevronDown size={16} className="shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
-                          )}
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-                          <AppDetail app={app} missing={missing} />
-                        </Row>
+                        <div className="flex h-11 w-full items-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleApp(name)}
+                            aria-expanded={isExpanded}
+                            aria-label={`${isExpanded ? "Fold" : "Unfold"} ${name}`}
+                            className="flex h-full w-11 shrink-0 items-center justify-center active:bg-accent"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown size={16} className="text-muted-foreground" />
+                            ) : (
+                              <ChevronRight size={16} className="text-muted-foreground" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openApp(name)}
+                            className="flex h-full min-w-0 flex-1 items-center gap-3 pr-4 text-left active:bg-accent"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+                            <AppDetail app={app} missing={missing} />
+                          </button>
+                        </div>
                         {isExpanded &&
                           missing?.map((variable) => (
                             <Row

@@ -254,6 +254,21 @@ export function setRunDestinations(names: string[] | undefined): void {
   for (const model of monaco.editor.getModels()) markRuns(model);
 }
 
+// What one buffer reaches beyond the folder: a story's draft reaches the other stories
+// of its collection, which are files of nobody's.
+let modelDestinations: (model: monaco.editor.ITextModel) => string[] = () => [];
+
+export function setModelRunDestinations(read: (model: monaco.editor.ITextModel) => string[]): void {
+  modelDestinations = read;
+  for (const model of monaco.editor.getModels()) markRuns(model);
+}
+
+function destinationsFor(model: monaco.editor.ITextModel): string[] | undefined {
+  if (!runDestinations) return undefined;
+  const extra = modelDestinations(model);
+  return extra.length === 0 ? runDestinations : [...runDestinations, ...extra];
+}
+
 const RUN_MARKER_OWNER = "kaja.run";
 
 const RUN_MARK_MS = 300;
@@ -279,7 +294,8 @@ export function markRuns(model: monaco.editor.ITextModel): void {
   // is the one pass that has read them. What comes back rewrites the declaration the
   // editor checks a `kaja.run`'s input against.
   if (references.length > 0) void demandScriptParameters(references.map((reference) => reference.name));
-  const unresolved = runDestinations ? unresolvedIn(references, runDestinations) : [];
+  const destinations = destinationsFor(model);
+  const unresolved = destinations ? unresolvedIn(references, destinations) : [];
   monaco.editor.setModelMarkers(
     model,
     RUN_MARKER_OWNER,
@@ -304,7 +320,7 @@ export function markRuns(model: monaco.editor.ITextModel): void {
 monaco.languages.registerCompletionItemProvider("typescript", {
   triggerCharacters: ['"', "'", "/"],
   provideCompletionItems(model, position) {
-    const destinations = runDestinations;
+    const destinations = destinationsFor(model);
     if (!destinations || destinations.length === 0) {
       return { suggestions: [] };
     }

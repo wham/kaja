@@ -14,16 +14,15 @@ const pageSize = 50;
 kaja.text("Your notifications, unread marked. Type in the box to filter what has loaded.");
 
 const inbox = kaja.table(
-  ["", "repo", "subject", "kind", "reason", "updated"],
+  ["", "subject", "why", "repo", "updated"],
   async function* () {
     for (let page = 1; ; page++) {
       const { items } = await Activity.ListNotificationsForAuthenticatedUser({ all: true, perPage: pageSize, page });
       yield* items.map((thread) => [
         thread.unread ? "●" : "",
-        thread.repository.fullName,
-        thread.subject.title,
-        thread.subject.type,
+        thread.subject?.title ?? "",
         thread.reason.replaceAll("_", " "),
+        thread.repository?.fullName ?? "",
         ago(thread.updatedAt),
       ]);
       if (items.length < pageSize) return;
