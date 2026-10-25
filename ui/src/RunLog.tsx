@@ -10,7 +10,6 @@ import { fetchRequestLine } from "./fetchCall";
 import { splitRequestLine } from "./requestLine";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
-import { KajaTrace } from "./KajaTrace";
 import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
@@ -441,12 +440,9 @@ const TailBar = function ({
         </>
       )}
       {state === "failed" && <span className="text-destructive">Script failed</span>}
-      {/* The one place the mark is the running indicator. The row exists only
-          while the run does, so nothing here is aligned to a glyph that is about
-          to change width. */}
       {state === "running" && (
         <>
-          <KajaTrace running />
+          <Spinner className="size-3" />
           <span className="text-muted-foreground">
             {calls === 1 ? "1 call" : `${calls} calls`} · {formatElapsed(elapsedMs)}
           </span>
