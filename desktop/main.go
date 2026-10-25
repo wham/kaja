@@ -340,6 +340,12 @@ func (a *App) ShowFileInFinder(path string) {
 	}
 }
 
+// OpenInBrowser hands a URL to the system browser, the webview being no place to
+// navigate away to.
+func (a *App) OpenInBrowser(url string) error {
+	return a.openInBrowser(url)
+}
+
 // revealTarget is the path Finder is pointed at: the one asked for, or the nearest
 // ancestor that answers for itself. Empty where there is nothing to reveal.
 func revealTarget(path string) string {
