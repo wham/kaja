@@ -32,13 +32,7 @@ export function KajaTrace({ width = 16, height = 10, strokeWidth = 4.5, classNam
       data-testid="kaja-trace"
       className={cn("shrink-0", className)}
     >
-      <path
-        d={TRACE_PATH}
-        stroke={`url(#${gradientId})`}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d={TRACE_PATH} stroke={`url(#${gradientId})`} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
       <defs>
         <linearGradient id={gradientId} x1="2" y1="0" x2="46" y2="0" gradientUnits="userSpaceOnUse">
           <stop stopColor="var(--brand-rust)" />
