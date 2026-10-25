@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-label="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks gRPC, OpenAPI, MCP and Twirp to your apps." fill="none" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-label="An agent writes and runs a script over MCP; every call it makes lands on Kaja's canvas, and Kaja speaks OpenAPI, MCP and gRPC to your apps." fill="none" stroke-linecap="round" stroke-linejoin="round">
   <style>
     .node { fill: #fafafa; stroke: #737373; }
     .frame { stroke: #737373; }
@@ -21,17 +21,16 @@
   </style>
 
   <g class="wire" stroke-width="1.5">
-    <path d="M540 150 C 600 150, 620 62, 680 62" />
-    <path d="M540 150 C 600 150, 620 122, 680 122" />
-    <path d="M540 150 C 600 150, 620 182, 680 182" />
-    <path d="M540 150 C 600 150, 620 242, 680 242" />
+    <path d="M540 150 C 600 150, 620 90, 680 90" />
+    <path d="M540 150 H 680" />
+    <path d="M540 150 C 600 150, 620 210, 680 210" />
     <path d="M220 150 H 340" />
   </g>
   <g class="frame" stroke-width="1.5">
-    <path d="M334 146l6 4-6 4M674 58l6 4-6 4M674 118l6 4-6 4M674 178l6 4-6 4M674 238l6 4-6 4" />
+    <path d="M334 146l6 4-6 4M674 86l6 4-6 4M674 146l6 4-6 4M674 206l6 4-6 4" />
   </g>
   <text class="said-wire" x="270" y="140" text-anchor="middle">MCP</text>
-  <text class="said-wire" x="610" y="112" text-anchor="middle">CALLS</text>
+  <text class="said-wire" x="610" y="108" text-anchor="middle">CALLS</text>
 
   <rect class="node" x="20" y="110" width="200" height="80" rx="8" stroke-width="1.5" />
   <g class="ink" stroke-width="2" transform="translate(40 134)">
@@ -60,40 +59,31 @@
   </g>
   <text class="said" x="440" y="270" text-anchor="middle">every request stays visible and inspectable</text>
 
-  <rect class="node" x="680" y="40" width="176" height="44" rx="8" stroke-width="1.5" />
-  <g class="ink" stroke-width="2" transform="translate(694 52) scale(0.8333)">
-    <circle cx="6" cy="12" r="2.5" />
-    <circle cx="18" cy="12" r="2.5" />
-    <path d="M8.5 9.5h7M8.5 14.5h7" />
-  </g>
-  <text class="name" x="724" y="66">gRPC</text>
-  <text class="kind" x="842" y="66" text-anchor="end">.proto</text>
-
-  <rect class="node" x="680" y="100" width="176" height="44" rx="8" stroke-width="1.5" />
-  <g class="ink" stroke-width="2" transform="translate(694 112) scale(0.8333)">
+  <rect class="node" x="680" y="68" width="176" height="44" rx="8" stroke-width="1.5" />
+  <g class="ink" stroke-width="2" transform="translate(694 80) scale(0.8333)">
     <circle cx="6" cy="12" r="2.5" />
     <path d="M8.5 12h6M8.3 10.8 16 6M8.3 13.2 16 18" />
     <circle cx="18" cy="12" r="1.25" />
     <circle cx="18" cy="5" r="1.25" />
     <circle cx="18" cy="19" r="1.25" />
   </g>
-  <text class="name" x="724" y="126">OpenAPI</text>
-  <text class="kind" x="842" y="126" text-anchor="end">schema</text>
+  <text class="name" x="724" y="94">OpenAPI</text>
+  <text class="kind" x="842" y="94" text-anchor="end">schema</text>
 
-  <rect class="node" x="680" y="160" width="176" height="44" rx="8" stroke-width="1.5" />
-  <g class="ink" stroke-width="2" transform="translate(694 172) scale(0.8333)">
+  <rect class="node" x="680" y="128" width="176" height="44" rx="8" stroke-width="1.5" />
+  <g class="ink" stroke-width="2" transform="translate(694 140) scale(0.8333)">
     <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />
     <circle cx="12" cy="12" r="2.5" />
   </g>
-  <text class="name" x="724" y="186">MCP</text>
-  <text class="kind" x="842" y="186" text-anchor="end">tools</text>
+  <text class="name" x="724" y="154">MCP</text>
+  <text class="kind" x="842" y="154" text-anchor="end">tools</text>
 
-  <rect class="node" x="680" y="220" width="176" height="44" rx="8" stroke-width="1.5" />
-  <g class="ink" stroke-width="2" transform="translate(694 232) scale(0.8333)">
+  <rect class="node" x="680" y="188" width="176" height="44" rx="8" stroke-width="1.5" />
+  <g class="ink" stroke-width="2" transform="translate(694 200) scale(0.8333)">
     <circle cx="6" cy="12" r="2.5" />
-    <path d="M8.5 12H15" />
-    <rect x="15" y="8.5" width="5" height="7" rx="1" />
+    <circle cx="18" cy="12" r="2.5" />
+    <path d="M8.5 9.5h7M8.5 14.5h7" />
   </g>
-  <text class="name" x="724" y="246">Twirp</text>
-  <text class="kind" x="842" y="246" text-anchor="end">.proto</text>
+  <text class="name" x="724" y="214">gRPC</text>
+  <text class="kind" x="842" y="214" text-anchor="end">.proto</text>
 </svg>
