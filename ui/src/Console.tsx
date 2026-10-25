@@ -679,8 +679,8 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
           data-testid="console-call-select"
           className={cn(
             "flex min-w-0 items-center gap-2",
-            compact ? "h-[28px] shrink" : "h-[26px] rounded-md border bg-card px-2.5 hover:bg-accent",
-            !compact && (summary?.waiting ? "border-amber-500/60" : "border-border"),
+            compact ? "h-[28px] shrink" : "h-[26px] rounded-md border bg-muted px-2.5 hover:bg-accent",
+            !compact && (summary?.waiting ? "border-amber-500/60" : "border-transparent"),
           )}
           title={summary?.name}
         >

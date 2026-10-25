@@ -9,9 +9,12 @@ interface SplitterProps {
   orientation: "vertical" | "horizontal";
   onResize: (delta: number) => void;
   hitAreaSize?: number;
+  // Nothing drawn at rest, for a seam the two sides' tones already show: the line
+  // appears only under the pointer and while dragging.
+  quiet?: boolean;
 }
 
-export function Splitter({ orientation, onResize, hitAreaSize }: SplitterProps) {
+export function Splitter({ orientation, onResize, hitAreaSize, quiet }: SplitterProps) {
   const [isResizing, setIsResizing] = useState(false);
   const isVertical = orientation === "vertical";
 
@@ -39,7 +42,7 @@ export function Splitter({ orientation, onResize, hitAreaSize }: SplitterProps) 
   const hitArea = hitAreaSize ?? HIT_AREA;
 
   return (
-    <div className={cn("relative shrink-0 bg-border", isVertical ? "h-full w-px" : "h-px w-full")}>
+    <div className={cn("relative shrink-0", !quiet && "bg-border", isVertical ? "h-full w-px" : "h-px w-full")}>
       <div
         className={cn("group absolute z-[2]", isVertical ? "top-0 h-full cursor-col-resize" : "left-0 w-full cursor-row-resize")}
         style={isVertical ? { width: hitArea, left: -OVERLAP } : { height: hitArea, top: -OVERLAP }}

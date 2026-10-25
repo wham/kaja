@@ -40,7 +40,7 @@ export interface Destination {
   // The one word the phone's finder puts beside a method: what calling it does.
   tag?: MethodTag;
   // A dot and a word for a row that reports on something — Kaja's own MCP server, the
-  // compilation — where the phone has no status bar to say it in.
+  // compilation — where the phone has no sidebar to say it in.
   status?: { dot?: string; note?: string };
   go: () => void;
 }
@@ -134,9 +134,9 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           className={cn(
             // It gives up room before anything else in the row does — a label that truncates is
             // read; a button that shrinks is one drawn over the button next to it.
-            "relative flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            "relative flex h-7 min-w-0 items-center gap-2 rounded-[7px] border bg-muted px-2.5 hover:bg-accent",
             open && "bg-accent",
-            errorCount > 0 ? "border-destructive" : "border-border",
+            errorCount > 0 ? "border-destructive" : "border-transparent",
           )}
           style={{ maxWidth: TRIGGER_MAX_WIDTH }}
         >

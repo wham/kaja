@@ -71,8 +71,8 @@ export function RunButton({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-stretch overflow-hidden rounded-md",
-        large ? "h-[36px]" : "h-[26px]",
+        "flex shrink-0 items-stretch overflow-hidden",
+        large ? "h-[36px] rounded-md" : "h-7 rounded-[7px]",
         running ? "border border-border bg-secondary text-secondary-foreground" : "bg-emerald-600 text-white",
         disabled && "opacity-45",
       )}

@@ -38,7 +38,7 @@ interface PhoneFrameProps {
 /**
  * The window under 640px: a header that is the finder and Run, the view under it, and
  * the script as an overlay that can be raised over any of them. There is no sidebar,
- * no splitter and no status bar — what the status bar said is said on the finder's
+ * no splitter and no sidebar foot — what the sidebar said is said on the finder's
  * own rows.
  */
 export function PhoneFrame({ finder, action, script, onScript, editor, console: renderConsole, children }: PhoneFrameProps) {

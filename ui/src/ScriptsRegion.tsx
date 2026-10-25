@@ -87,8 +87,9 @@ const RENAME_CLICK_MS = 450;
 // without letting go.
 const SPRING_MS = 600;
 
-const GROUP_HEADER = "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
-const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-2 text-[13px] outline-none focus-visible:bg-accent/50";
+const GROUP_HEADER =
+  "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
+const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-[13px] outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -795,7 +796,7 @@ function DraftRow({
       <div
         tabIndex={0}
         style={{ paddingLeft: ROW_INDENT }}
-        className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50")}
+        className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40")}
         onClick={onSelect}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -872,7 +873,7 @@ function AgentRow({
       <div
         tabIndex={0}
         style={{ paddingLeft: ROW_INDENT }}
-        className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50")}
+        className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40")}
         onClick={onSelect}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
@@ -1292,7 +1293,7 @@ function FileRow({
         tabIndex={0}
         draggable={draggable}
         style={{ paddingLeft: indent }}
-        className={cn(ROW, current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50", dragging && "opacity-40")}
+        className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40", dragging && "opacity-40")}
         onClick={onSelect}
         onDragStart={onDragStart}
         onDragOver={onDragOver}

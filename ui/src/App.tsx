@@ -49,7 +49,7 @@ import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
 import { NewAppDialog } from "./NewAppDialog";
-import { StatusBar, ColorMode } from "./StatusBar";
+import { SidebarFoot, ColorMode } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
@@ -2653,7 +2653,7 @@ export function App() {
     onOpenWorkspace,
   ]);
 
-  // Kaja's own views on the phone's finder, each wearing the state the status bar
+  // Kaja's own views on the phone's finder, each wearing the state the Apps tab
   // and the sidebar's band would have shown.
   const phoneWorkspace = useMemo<Destination[]>(() => {
     const rows: Destination[] = [
@@ -2730,7 +2730,7 @@ export function App() {
           <button
             type="button"
             onClick={onRequestSave}
-            className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
+            className="flex h-7 items-center gap-1.5 rounded-[7px] bg-muted px-2.5 text-xs text-foreground hover:bg-accent"
           >
             <SaveIcon size={12} />
             Save as file
@@ -3033,7 +3033,7 @@ export function App() {
         </PhoneFrame>
       ) : (
         <div
-          className="fixed inset-0 flex flex-col bg-background text-foreground"
+          className="fixed inset-0 flex flex-col bg-chrome text-foreground"
           style={{
             overflow,
             WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
@@ -3059,6 +3059,7 @@ export function App() {
                   onTabChange={setSidebarTab}
                   canUpdateWorkspace={runtime.canUpdateWorkspace}
                   onSelect={onMethodSelect}
+                  workspaceLoaded={workspaceLoaded}
                   onShowCompileLog={onShowCompileLog}
                   onRecompileApp={onRecompile}
                   onNewAppClick={onNewAppClick}
@@ -3076,10 +3077,25 @@ export function App() {
                   onDeleteApp={onDeleteApp}
                   scriptsRegion={scriptsRegion}
                 />
+                <SidebarFoot
+                  colorMode={colorMode}
+                  onToggleColorMode={onToggleColorMode}
+                  zoom={zoom}
+                  onResetZoom={onResetZoom}
+                  gitRef={runtime.gitRef}
+                  featurePreviews={featurePreviews}
+                  onToggleFeaturePreview={onToggleFeaturePreview}
+                  onShowShortcuts={onShortcutsClick}
+                />
               </div>
             )}
-            <Splitter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+            <Splitter orientation="vertical" quiet onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
+            {/* The work area is a sheet laid on the frame: rounded where it meets the
+                sidebar, and set apart from it by tone alone. */}
+            <div
+              className={cn("overflow-hidden bg-background", !sidebarCollapsed && "rounded-l-[10px]")}
+              style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}
+            >
               <CommandRow
                 leftInset={commandRowInset}
                 sidebarCollapsed={sidebarCollapsed}
@@ -3155,21 +3171,6 @@ export function App() {
               </div>
             </div>
           </div>
-          <StatusBar
-            colorMode={colorMode}
-            onToggleColorMode={onToggleColorMode}
-            zoom={zoom}
-            onResetZoom={onResetZoom}
-            gitRef={runtime.gitRef}
-            buildNumber={runtime.buildNumber}
-            featurePreviews={featurePreviews}
-            onToggleFeaturePreview={onToggleFeaturePreview}
-            apps={apps}
-            workspaceLoaded={workspaceLoaded}
-            onShowCompileLog={onShowCompileLog}
-            onRecompile={onRecompile}
-            onShowShortcuts={onShortcutsClick}
-          />
         </div>
       )}
       {/* Naming a draft is what moves it into Files, so the sheet asks for the
