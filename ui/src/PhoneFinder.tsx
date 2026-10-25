@@ -150,7 +150,8 @@ export function PhoneFinder({
             id="phone-finder"
             aria-label="Go to a file, call or view"
             initialFocus={touch ? false : inputRef}
-            className="fixed inset-x-0 bottom-0 top-10 z-50 flex flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
+            style={{ top: "calc(env(safe-area-inset-top) + 40px)" }}
+            className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           >
             <div className="flex shrink-0 justify-center pb-1 pt-2">
               <div className="h-1 w-9 rounded-full bg-muted-foreground/40" />

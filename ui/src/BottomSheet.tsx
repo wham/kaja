@@ -27,7 +27,9 @@ const DRAG_SLOP = 4;
  */
 export function BottomSheet({ position, onPositionChange, restHeight, topInset, chrome, hidden, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const insetRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
+  const [inset, setInset] = useState(0);
   const [drag, setDrag] = useState<number>();
   const gesture = useRef<
     { pointerId: number; startY: number; startOffset: number; from: SheetPosition; moved: boolean; samples: { y: number; t: number }[] } | undefined
@@ -36,14 +38,19 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
   useLayoutEffect(() => {
     const element = sheetRef.current;
     if (!element) return;
-    const measure = () => setHeight(element.clientHeight);
+    const measure = () => {
+      setHeight(element.clientHeight);
+      setInset(insetRef.current?.offsetHeight ?? 0);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    if (insetRef.current) observer.observe(insetRef.current);
     return () => observer.disconnect();
   }, []);
 
-  const restOffset = Math.max(0, height - restHeight);
+  // At rest the grabber sits above the home indicator rather than under it.
+  const restOffset = Math.max(0, height - restHeight - inset);
   const stops = useMemo(() => sheetStops(restOffset), [restOffset]);
   const offset = drag ?? stops.find((stop) => stop.position === position)?.offset ?? restOffset;
 
@@ -119,8 +126,10 @@ export function BottomSheet({ position, onPositionChange, restHeight, topInset, 
         <div className="flex h-[24px] items-center justify-center">
           <div className="h-1 w-9 rounded-full bg-muted-foreground/40" />
         </div>
+        {position === "rest" && <div style={{ height: inset }} />}
         {position !== "rest" && chrome}
       </div>
+      <div ref={insetRef} aria-hidden className="pointer-events-none invisible absolute w-0" style={{ height: "env(safe-area-inset-bottom)" }} />
       <div className="flex min-h-0 flex-1 flex-col" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {children}
       </div>

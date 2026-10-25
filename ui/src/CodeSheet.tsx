@@ -14,10 +14,10 @@ export const CODE_SHEET_REST_HEIGHT = 24;
 export const CODE_SHEET_TOP_INSET = 68;
 
 interface CodeSheetProps {
-  // Absent until some script has been opened; the sheet is then hidden rather than
-  // unmounted, so the editors it holds stay where they are.
+  // Absent anywhere but on a script; the sheet is then hidden rather than unmounted,
+  // so the editors it holds stay where they are.
   model?: monaco.editor.ITextModel;
-  // The nearest script in the view stack, which is what this sheet is showing.
+  // The script on screen, which is what this sheet is showing.
   name?: string;
   // A file the server can't write, or an agent's draft: read and run, never Edit.
   readOnly: boolean;
@@ -30,10 +30,9 @@ interface CodeSheetProps {
 }
 
 /**
- * The script on a phone, as an overlay over whatever is on screen rather than a page
- * of the run: a swipe up from the bottom edge brings it over a run, a definition or
- * Variables alike, and it shows the nearest script in the view stack. At rest it is
- * the grabber and nothing else. The code is printed rather than edited until Edit is
+ * The script on a phone, as an overlay over its run rather than a page of it: a swipe
+ * up from the bottom edge brings it over the run. At rest it is the grabber and
+ * nothing else. The code is printed rather than edited until Edit is
  * pressed, because a page that opens a keyboard is a page you cannot read.
  */
 export function CodeSheet({ model, name, readOnly, position, onPositionChange, editing, onEditingChange, editor }: CodeSheetProps) {
