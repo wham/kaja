@@ -6,9 +6,11 @@
   <sub><b>macOS · Docker</b></sub>
 </p>
 
-<h3 align="center">The API client built for you and your agents.</h3>
+<h3 align="center">API Stories</h3>
 
 <p align="center">
+  The API client for people and agents.
+  <br/>
   Connect gRPC, OpenAPI, or MCP. Explore APIs yourself, or let an agent write and run typed scripts.
   <br/>
   Every request stays visible and inspectable.
@@ -65,21 +67,17 @@ and pointing an agent at it are all documented on the website.
 
 ## Development
 
-The development scripts require [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh).
+Needs [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/); the scripts offer to install them via [Homebrew](https://brew.sh).
 
-- Run in local server: `scripts/server` (pass `--editable` to edit `workspace/kaja.json` from the UI, or `--workspace <folder>` to serve another folder's kaja.json)
-- Run in Docker: `scripts/docker`
-- Run the desktop app: `scripts/desktop`. It builds the bundle from `desktop/Taskfile.yml`; `wails3 task --list` in `desktop/` names the steps, and `scripts/desktop-build` makes the one that ships.
-- Run on iOS: `scripts/ios` puts it on a booted simulator, `scripts/ios device` on a connected iPhone. `scripts/ios logs` streams the simulator's log and `scripts/ios xcode` opens the generated project. Needs macOS with full Xcode, not just the command line tools; a device also needs an Apple Development identity and a profile covering the bundle identifier.
-- Test UI: `(cd ui && bun test)`
-- TSC UI: `(cd ui && bun run tsc)`
-- Test server: `(cd server && go test ./... -tags development -v)`. The `development` tag is the one `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
-- Update demo protos: `scripts/demo-protos` refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo services themselves live in [kaja-tools/website](https://github.com/kaja-tools/website).
-- App Store screenshots: `scripts/demo` walks the installed `/Applications/Kaja.app` through its own story — empty workspace, new app, the tree, a drafted call, a run, the canvas, a performance test, variables, the MCP page — and photographs each at 1440×900 into `desktop/build/screenshots`. It stages a workspace in the app's sandbox container and puts yours back on the way out. The terminal running it needs Accessibility, Automation (for System Events) and Screen Recording access.
+- Server: `scripts/server` (add `--editable` to edit the workspace from the UI)
+- Desktop: `scripts/desktop`
+- iOS: `scripts/ios` for the simulator, `scripts/ios device` for an iPhone (needs full Xcode)
+- Docker: `scripts/docker`
+- Test: `(cd ui && bun test)` and `(cd server && go test ./... -tags development)`
 
 ### Releases
 
-Releases are cut from GitHub, so no local build is needed. Every push to `main` uploads a new macOS and iOS build to TestFlight. To ship a version, run the **release** workflow (Actions → Run workflow):
+Every push to `main` uploads a macOS and iOS build to TestFlight. To ship, run the **release** workflow from GitHub Actions:
 
-- `open` (with `patch`/`minor`/`major`) bumps the version on a branch and opens a PR. **Merge it yourself**: `main` is protected, so the bump has to arrive as a PR and pass the `test` check. TestFlight builds carry the new version from then on.
-- `ship` tags the commit and publishes a GitHub Release for it, with notes covering the whole cycle. Run it when you promote one of those TestFlight builds to the App Store.
+1. `open` with `patch`, `minor` or `major` opens a version bump PR. Merge it.
+2. `ship` tags the release and publishes it on GitHub. Run it when a TestFlight build goes to the App Store.
