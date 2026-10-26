@@ -14,19 +14,19 @@ const days = await kaja.askInt("From how many days back?");
 const since = new Date(Date.now() - days * 86_400_000).toISOString();
 const columns = schema.fieldDefinitions.filter((field) => !field.archiveRecord);
 
+const results = kaja.pages((nextToken) =>
+  AssayResults.ListAssayResults({ schemaId: schema.id, createdAtGte: since, sort: "createdAt:desc", pageSize: 100, nextToken }),
+);
+
 kaja.table(
-  ["created", "by", ...columns.map((field) => (field.unit ? `${field.name} (${field.unit.symbol})` : field.name)), "reviewed"],
-  async function* () {
-    for (let nextToken = ""; ; ) {
-      const page = await AssayResults.ListAssayResults({ schemaId: schema.id, createdAtGte: since, sort: "createdAt:desc", pageSize: 100, nextToken });
-      yield* page.assayResults.map((result) => [
-        new Date(result.createdAt).toLocaleString(),
-        result.creator?.name ?? "",
-        ...columns.map((field) => result.fields[field.name]?.displayValue ?? ""),
-        result.isReviewed ? "yes" : "",
-      ]);
-      if (!(nextToken = page.nextToken)) return;
-    }
-  },
-  { pageSize: 25 },
+  results,
+  (result) => ({
+    created: result.createdAt,
+    by: result.creator?.name ?? "",
+    ...Object.fromEntries(
+      columns.map((field) => [field.unit ? `${field.name} (${field.unit.symbol})` : field.name, result.fields[field.name]?.displayValue ?? ""]),
+    ),
+    reviewed: result.isReviewed ? "yes" : "",
+  }),
+  { title: schema.name, pageSize: 25 },
 );

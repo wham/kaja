@@ -209,8 +209,14 @@ type KajaRunInput<Script extends string> = Script extends keyof KajaScripts ? Ka
  * adds a column, and the rows already drawn leave it blank.
  *
  *   { name: user.name, "last seen": user.lastSeen, history: kaja.run("audit", { id: user.id }) }
+ *
+ * JavaScript puts an object's keys that look like whole numbers ("1", "2") ahead
+ * of the rest, so a row with columns named that way is a Map, which keeps the
+ * order it was written in:
+ *
+ *   new Map([["row", "A"], ["1", a1], ["2", a2]])
  */
-export type RowObject = { [column: string]: Cell };
+export type RowObject = { [column: string]: Cell } | ReadonlyMap<string, Cell>;
 
 /** A table being filled in on the run's canvas. */
 export interface Table {

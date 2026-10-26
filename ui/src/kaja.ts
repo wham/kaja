@@ -190,7 +190,10 @@ export interface Row {
 export type Cell = unknown | PromiseLike<unknown> | (() => unknown) | RunCell;
 
 // A row's keys are its columns, so a header is never matched to a value by counting.
-export type RowObject = { [column: string]: Cell };
+// A Map is the same row for columns named like numbers, which an object puts first.
+export type RowObject = { [column: string]: Cell } | ReadonlyMap<string, Cell>;
+
+type RowCells = [column: string, cell: Cell][];
 
 export type Rows<T = unknown> = Iterable<T> | AsyncIterable<T>;
 
@@ -230,7 +233,7 @@ interface LiveTable {
   open?: (search: string) => Rows;
   iterator?: Iterator<unknown> | AsyncIterator<unknown>;
   // Turns what the source yields into a row.
-  toRow: (item: unknown) => RowObject;
+  toRow: (item: unknown) => RowCells;
   // Where each column sits, so a row naming its columns in another order, or a column
   // nobody has named yet, lands where it belongs.
   columns: Map<string, number>;
@@ -296,23 +299,24 @@ const ROW_SHAPE = "a row is an object whose keys are its columns: { name: user.n
 
 // An array is refused rather than read as columns "0", "1", …: it is a row written
 // the way tables here used to take one, and a header of indices says nothing.
-function rowObject(row: unknown): RowObject {
+function rowCells(row: unknown): RowCells {
+  if (row instanceof Map) return [...row].map(([column, cell]) => [String(column), cell]);
   if (row === null || typeof row !== "object" || Array.isArray(row)) {
     throw new Error(`kaja.table: ${ROW_SHAPE}, not ${Array.isArray(row) ? "an array" : (JSON.stringify(row) ?? String(row))}`);
   }
-  return row as RowObject;
+  return Object.entries(row);
 }
 
-function rowMaker(columns: Columns | undefined): (item: unknown) => RowObject {
-  if (typeof columns === "function") return (item) => rowObject(columns(item));
+function rowMaker(columns: Columns | undefined): (item: unknown) => RowCells {
+  if (typeof columns === "function") return (item) => rowCells(columns(item));
   if (Array.isArray(columns)) {
     const keys = columns as readonly string[];
     return (item) => {
-      const source = rowObject(item) as { [key: string]: unknown };
-      return Object.fromEntries(keys.map((key) => [key, source[key]]));
+      const source = new Map(rowCells(item));
+      return keys.map((key) => [key, source.get(key)]);
     };
   }
-  return rowObject;
+  return rowCells;
 }
 
 // A Call is one of these, so a method handed straight to a table is a cell the
@@ -849,7 +853,7 @@ export class Kaja {
     return {
       row: (cells: RowObject): Row => {
         const index = block.rows.length;
-        const row = this.#writeRow(blockId, table, index, rowObject(cells), false);
+        const row = this.#writeRow(blockId, table, index, rowCells(cells), false);
         block.rows = [...block.rows, row];
         this.#onBlockUpdate(blockId, { ...block });
         return {
@@ -857,7 +861,7 @@ export class Kaja {
             // The row a handle points at can be gone — a restarted source dropped the rows it
             // had — so nothing happens rather than the script ending on someone else's search.
             if (index >= block.rows.length) return;
-            const row = this.#writeRow(blockId, table, index, rowObject(cells), true);
+            const row = this.#writeRow(blockId, table, index, rowCells(cells), true);
             // A new array each time, at both levels: the canvas compares what it was handed
             // against what it holds, and a push or splice into the same array is invisible.
             block.rows = block.rows.map((current, at) => (at === index ? row : current));
@@ -902,7 +906,7 @@ export class Kaja {
    * update starts from the row as drawn, so only the columns it names are rewritten —
    * and whatever was on its way to those answered the row as it was.
    */
-  #writeRow(blockId: string, table: LiveTable, index: number, cells: RowObject, update: boolean): string[] {
+  #writeRow(blockId: string, table: LiveTable, index: number, cells: RowCells, update: boolean): string[] {
     const block = table.block;
     if (!update) {
       table.cells.delete(index);
@@ -910,7 +914,7 @@ export class Kaja {
       block.runs = withoutRowRuns(block, index);
     }
     const written = new Map<number, string>();
-    for (const [name, cell] of Object.entries(cells)) {
+    for (const [name, cell] of cells) {
       const column = this.#column(table, name);
       table.cells.get(index)?.delete(column);
       block.cells = withCellStatus(block, index, column, undefined);

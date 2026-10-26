@@ -136,6 +136,22 @@ describe("kaja.table", () => {
     expect(only().rows[0]).toEqual(["1", "failed"]);
   });
 
+  // An object puts keys that look like whole numbers first, which a Map doesn't.
+  it("keeps the order a Map row was written in", () => {
+    const { kaja, only } = draw();
+    kaja.table(
+      ["A"],
+      (letter: string) =>
+        new Map([
+          ["row", letter],
+          ["1", `${letter}1`],
+          ["2", `${letter}2`],
+        ]),
+    );
+    expect(only().columns).toEqual(["row", "1", "2"]);
+    expect(only().rows).toEqual([["A", "A1", "A2"]]);
+  });
+
   // Keys are matched by name, so a row naming them in another order lands in
   // the same columns.
   it("places a cell by its column, not its position", () => {

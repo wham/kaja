@@ -21,5 +21,4 @@ const plasmid = await kaja.approve(DNASequences.CreateDNASequence({ name, bases,
 
 kaja.text(`${plasmid.name} is in Benchling: ${plasmid.length.toLocaleString()} bp, circular. ${plasmid.webUrl}`);
 
-const annotated = kaja.table(["next", ""]);
-annotated.row("See what Benchling made of it", kaja.run("sequence", { id: plasmid.id }, { label: "Open" }));
+kaja.table([{ next: "See what Benchling made of it", open: kaja.run("sequence", { id: plasmid.id }) }]);

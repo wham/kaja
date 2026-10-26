@@ -12,27 +12,30 @@ const gc = [...sequence.bases.toUpperCase()].filter((base) => base === "G" || ba
 kaja.text(`GC content ${((gc / Math.max(sequence.bases.length, 1)) * 100).toFixed(1)}%.`);
 
 if (Object.keys(sequence.fields).length) {
-  const fields = kaja.table(["field", "value"]);
-  for (const [name, field] of Object.entries(sequence.fields)) fields.row(name, field.displayValue);
+  kaja.table(Object.entries(sequence.fields), ([field, value]) => ({ field, value: value.displayValue }));
 }
 
 if (sequence.annotations.length) {
-  const annotations = kaja.table(["feature", "type", "start", "end", "strand", "length"]);
-  for (const annotation of [...sequence.annotations].sort((a, b) => a.start - b.start)) {
-    annotations.row(
-      annotation.name,
-      annotation.type,
-      annotation.start + 1,
-      annotation.end,
-      annotation.strand < 0 ? "−" : "+",
-      `${annotation.end - annotation.start} bp`,
-    );
-  }
+  kaja.table(
+    [...sequence.annotations].sort((a, b) => a.start - b.start),
+    (annotation) => ({
+      feature: annotation.name,
+      type: annotation.type,
+      start: annotation.start + 1,
+      end: annotation.end,
+      strand: annotation.strand < 0 ? "−" : "+",
+      length: `${annotation.end - annotation.start} bp`,
+    }),
+    { title: "Annotations" },
+  );
 }
 
 if (sequence.primers.length) {
-  const primers = kaja.table(["primer", "bases", "binds at", "strand"]);
-  for (const primer of sequence.primers) primers.row(primer.name, primer.bases, primer.bindPosition, primer.strand < 0 ? "−" : "+");
+  kaja.table(
+    sequence.primers,
+    (primer) => ({ primer: primer.name, bases: primer.bases, "binds at": primer.bindPosition, strand: primer.strand < 0 ? "−" : "+" }),
+    { title: "Primers" },
+  );
 }
 
 for (const translation of sequence.translations) {
