@@ -1,13 +1,12 @@
-import { Braces, FileCode } from "lucide-react";
+import { Braces } from "lucide-react";
 import { App, isReady } from "./apps";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { appParameters, appType, appTypeLabel } from "./appTypes";
 import { cn } from "./cn";
 import { countMethods, isCompiling } from "./compileSummary";
-import { IconButton } from "./components/icon-button";
-import { Spinner } from "./components/spinner";
 import { endpointLabel } from "./knownServers";
-import { Story, StoryCollection, storyServices } from "./stories";
+import { Story, StoryCollection } from "./stories";
+import { StoryGrid } from "./StoryCards";
 import { MissingVariable, missingVariableSentence } from "./variableUsage";
 
 interface AppPageProps {
@@ -19,13 +18,12 @@ interface AppPageProps {
   running: Set<string>;
   missing?: MissingVariable[];
   phone: boolean;
-  onRunStory: (story: Story) => void;
   onOpenStory: (story: Story) => void;
   onShowCompileLog: (appName: string) => void;
   onRevealVariable: (name: string) => void;
 }
 
-export function AppPage({ appName, app, collection, running, missing, phone, onRunStory, onOpenStory, onShowCompileLog, onRevealVariable }: AppPageProps) {
+export function AppPage({ appName, app, collection, running, missing, phone, onOpenStory, onShowCompileLog, onRevealVariable }: AppPageProps) {
   if (!app) {
     return <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">No app named {appName}.</div>;
   }
@@ -57,26 +55,7 @@ export function AppPage({ appName, app, collection, running, missing, phone, onR
             <h2 className="m-0 text-xs font-semibold text-foreground">Stories</h2>
             {!ready && <span className="text-xs text-muted-foreground">{isCompiling(app) ? "ready once the app compiles" : "the app didn't compile"}</span>}
           </div>
-          <div
-            className={cn(
-              phone
-                ? "-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                : "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3",
-            )}
-          >
-            {collection.stories.map((story) => (
-              <StoryCard
-                key={story.name}
-                story={story}
-                services={storyServices(collection, story)}
-                disabled={!ready}
-                running={running.has(story.name)}
-                phone={phone}
-                onRun={() => onRunStory(story)}
-                onOpen={() => onOpenStory(story)}
-              />
-            ))}
-          </div>
+          <StoryGrid collection={collection} running={running} phone={phone} onOpenStory={onOpenStory} />
         </section>
       </div>
     </div>
@@ -105,57 +84,6 @@ function Header({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appNam
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-function StoryCard({
-  story,
-  services,
-  disabled,
-  running,
-  phone,
-  onRun,
-  onOpen,
-}: {
-  story: Story;
-  services: string[];
-  disabled: boolean;
-  running: boolean;
-  phone: boolean;
-  onRun: () => void;
-  onOpen: () => void;
-}) {
-  return (
-    <div className={cn("relative flex", phone && "w-[80%] shrink-0 snap-start")}>
-      <button
-        type="button"
-        onClick={onRun}
-        disabled={disabled}
-        aria-label={`Run ${story.title}`}
-        className="flex min-h-[112px] w-full flex-col gap-1 rounded-lg border border-border bg-card p-3 text-left outline-none hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-      >
-        <span className="flex items-center gap-2 pr-7">
-          <span className="truncate text-sm font-medium text-foreground">{story.title}</span>
-          {running && <Spinner size="sm" className="shrink-0 text-muted-foreground" />}
-        </span>
-        <span className="line-clamp-2 text-xs text-muted-foreground">{story.summary}</span>
-        <span className="mt-auto flex flex-wrap gap-1 pt-2">
-          {services.map((service) => (
-            <span key={service} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-              {service}
-            </span>
-          ))}
-        </span>
-      </button>
-      <IconButton
-        icon={FileCode}
-        aria-label={`Open ${story.title} without running it`}
-        variant="ghost"
-        size="sm"
-        className="absolute right-1.5 top-1.5"
-        onClick={onOpen}
-      />
     </div>
   );
 }
