@@ -388,7 +388,15 @@ func readSpec(body []byte, contentType string) (*spec, *problem) {
 	}
 
 	var s spec
-	if err := yaml.Unmarshal(body, &s); err != nil {
+	// JSON is YAML too, but sigs.k8s.io/yaml builds a node tree of the whole document
+	// before converting it, which for a large API was the bulk of a compile's memory.
+	var err error
+	if trimmed := bytes.TrimSpace(body); len(trimmed) > 0 && trimmed[0] == '{' {
+		err = json.Unmarshal(body, &s)
+	} else {
+		err = yaml.Unmarshal(body, &s)
+	}
+	if err != nil {
 		return nil, &problem{Kind: problemMalformed, Message: "Couldn't parse the document", Detail: err.Error()}
 	}
 

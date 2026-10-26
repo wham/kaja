@@ -43,6 +43,8 @@ type ApiService struct {
 	// compiled is every surface this process has compiled, so an app whose
 	// parameters have not moved is reopened without reading its upstream again.
 	compiled *compileCache
+	// reopenMu serializes opening an app a call named before anything compiled it.
+	reopenMu sync.Mutex
 
 	// current is the workspace as last read, nil until something asks. Guarded by
 	// snapshotMu.
@@ -193,6 +195,9 @@ func (s *ApiService) InvokeApp(ctx context.Context, method string, message []byt
 
 	started := time.Now()
 	stream, err := s.apps.Invoke(ctx, name, call)
+	if errors.Is(err, apps.ErrNotOpen) && s.reopen(ctx, name, snapshot) {
+		stream, err = s.apps.Invoke(ctx, name, call)
+	}
 	if err != nil {
 		duration := time.Since(started).Milliseconds()
 		var upstream *apps.UpstreamError
