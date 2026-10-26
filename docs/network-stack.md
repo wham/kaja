@@ -31,9 +31,9 @@ onto the call (`absorbReserved`) and never shows it as a response header.
 
 ```
 ┌─────────────── browser tab · desktop webview ───────────────────────────┐
-│  script ── Shows.ListShows({ pageSize: 25 })                            │
+│  script ── Repos.Get({ owner: "wham", repo: "kaja" })                   │
 │    └─► protobuf-ts client   (gRPC-Web fetch)                            │
-│          X-Header-X-Kaja-App: shows                                     │
+│          X-Header-X-Kaja-App: github                                    │
 │          X-Header-<name>:     <value — ${NAME} travels unexpanded>      │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │  POST /app/{pkg.Service/Method}
@@ -244,10 +244,10 @@ Every app call — traces 1 to 5 — shares one spine, on both builds:
 
 What differs is hop 4: who talks to the API, and how.
 
-### 1. gRPC — `Seating.GetSeatMap({ showId: "apollo-13@the-lantern" })`
+### 1. gRPC — `HelloService.SayHello({ greeting: "kaja" })`
 
 The grpc app forwards rather than transcodes: it opens `OpenServerStream` at
-**`seating.kaja.tools:443`**, `/seating.Seating/GetSeatMap`, and the request
+**`grpcb.in:9000`**, `/hello.HelloService/SayHello`, and the request
 the browser framed is the request the server gets — every call, unary or not.
 Response frames are forwarded as they arrive, and the server's own metadata
 comes back in the trailer under its own names: this lane is a bridge rather
@@ -255,14 +255,14 @@ than a hop, so what the server answered with **is** the call's response
 headers, on a refusal as well as a success. `kaja-upstream` carries the
 duration alone — there is no second exchange to report.
 
-### 2. OpenAPI — `Theatre.ListShows({ city: "Chicago", limit: 25, … })`
+### 2. OpenAPI — `Repos.Get({ owner: "wham", repo: "kaja" })`
 
-Title *Theatre*, no tags, so the method path is
-`openapi.theatre.Theatre/ListShows`. The app transcodes: protobuf →
-`protojson` → `transcode`, which reads the path (`/shows`) and query
-parameters off the marked fields and layers headers in order — spec auth,
-then app headers, then per-call header params. Then
-**`GET https://theatre.kaja.tools/shows?city=Chicago&limit=25`, made by Go**;
+GitHub's document titles itself *GitHub v3 REST API* and tags the operation
+`repos`, so the method path is `openapi.git_hub_v3_rest_api.Repos/Get`. The
+app transcodes: protobuf → `protojson` → `transcode`, which reads the path
+(`/repos/{owner}/{repo}`) and query parameters off the marked fields and
+layers headers in order — spec auth, then app headers, then per-call header
+params. Then **`GET https://api.github.com/repos/wham/kaja`, made by Go**;
 the JSON answer comes back through `protojson`, strict first, then with
 unreadable members pruned. `kaja-upstream` reports the whole exchange —
 duration, the request line and the status it was answered with, request and

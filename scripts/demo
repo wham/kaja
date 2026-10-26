@@ -1,5 +1,5 @@
 #!/bin/bash
-# Walk the installed Kaja through its own story and photograph each screen, at
+# Walk the installed Kaja through its paces and photograph each screen, at
 # the size the Mac App Store takes.
 #
 #   scripts/demo [--out DIR] [--app PATH] [--keep] [--slow N] [--zoom PERCENT]
@@ -34,8 +34,8 @@
 # The finder's highlight starts on the *previous* place, so ⌘P⏎ is "back". It
 # only falls to the first row when the query has narrowed the list to one. Every
 # query below is therefore chosen to match exactly one destination — a filename
-# is written with its extension for that reason, since bare "movies" is also
-# inside "ListMovies".
+# is written with its extension for that reason, since a bare word is as likely
+# to be inside one of GitHub's thousand method names.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -77,9 +77,9 @@ ZOOM_STEPS=(50 67 75 80 90 100 110 125 150 175 200 250 300)
 WAIT_UI=0.6        # a menu opening, a popover fading in, a view swapping
 WAIT_FINDER=1.5    # ⌘P until the finder has taken the keyboard (see go_to)
 WAIT_LAUNCH=20     # cold launch, until there is a window to talk to
-WAIT_COMPILE=25    # three remote apps opened and compiled
+WAIT_COMPILE=40    # GitHub's document read and compiled, which is most of it
 WAIT_RUN=12        # one call, there and back
-WAIT_PERF=45       # kaja.perfTest's own schedule, plus its ramps
+WAIT_PERF=20       # kaja.perfTest's two hundred calls
 
 usage() {
     cat >&2 <<USAGE
@@ -465,42 +465,38 @@ press 'key code 53'
 # -- The apps arrive -----------------------------------------------------------
 
 # Written under the running app rather than before it started, so the first shot
-# is of a workspace that genuinely had nothing in it. All three are reached over
-# the wire and none needs a proto file on disk, which is what keeps the staged
-# workspace to this one file plus the scripts beside it.
+# is of a workspace that genuinely had nothing in it. They are the public demo's
+# apps less the exercise one, and every GitHub call the scripts make is one GitHub
+# answers without a token, so nothing here needs signing in to.
 cat > "$KAJA_HOME/workspace/kaja.json" <<'WORKSPACE'
 {
   "apps": [
     {
-      "name": "theatre",
+      "name": "github",
       "openapi": {
-        "spec_url": "${THEATRE_URL}/openapi.yaml"
+        "spec_url": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
+        "base_url": "${GITHUB_API}",
+        "security_scheme": "none"
       }
     },
     {
-      "name": "seating",
+      "name": "grpcb.in",
       "grpc": {
-        "url": "${SEATING_HOST}",
-        "reflection": true
-      }
-    },
-    {
-      "name": "concierge",
-      "mcp": {
-        "url": "https://concierge.kaja.tools/mcp"
+        "url": "${GRPCBIN_HOST}",
+        "proto_dir": "grpcbin/proto"
       }
     }
   ],
   "variables": {
-    "THEATRE_URL": "https://theatre.kaja.tools",
-    "SEATING_HOST": "dns:seating.kaja.tools:443",
-    "CONCIERGE_TOKEN": "${secret}",
-    "HOME_CITY": "${env:HOME_CITY}"
+    "GITHUB_API": "https://api.github.com",
+    "GRPCBIN_HOST": "grpc://grpcb.in:9000",
+    "GITHUB_TOKEN": "${secret}"
   }
 }
 WORKSPACE
 
 cp "$REPO_ROOT"/workspace/*.ts "$KAJA_HOME/workspace/"
+cp -R "$REPO_ROOT/workspace/grpcbin" "$KAJA_HOME/workspace/"
 
 say "Reloading, and waiting for the apps to compile"
 # The configuration is watched, but the scripts are read once at load, so
@@ -508,15 +504,15 @@ say "Reloading, and waiting for the apps to compile"
 press 'keystroke "r" using command down'
 pause "$WAIT_COMPILE"
 
-# -- 03  The API as a tree of calls --------------------------------------------
+# -- 03  The API as a tree of calls, and the scripts written against it --------
 
-say "03  Apps"
+say "03  Apps, and Start's scripts"
 shot 03-apps
 
 # -- 04  A call, as a script ---------------------------------------------------
 
 say "04  A call drafted into a script"
-go_to "ListMovies" "ListMovies - $PRODUCT_NAME"
+go_to "GetAllCommonlyUsed" "GetAllCommonlyUsed - $PRODUCT_NAME"
 shot 04-draft
 
 # -- 05  Running it ------------------------------------------------------------
@@ -529,7 +525,7 @@ shot 05-run
 # -- 06  What a script drew ----------------------------------------------------
 
 say "06  The canvas"
-go_to "movies.ts" "movies.ts - $PRODUCT_NAME"
+go_to "trending.ts" "trending.ts - $PRODUCT_NAME"
 run_script
 pause "$WAIT_RUN"
 full_screen
