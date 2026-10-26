@@ -628,7 +628,7 @@ function TabRow({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-7 shrink-0 items-center pr-4 pl-2.5">
+    <div className="flex h-7 shrink-0 items-center pr-5 pl-2.5">
       <div
         role="tablist"
         aria-label="Sidebar"
@@ -732,7 +732,7 @@ function TabPane({
       onScroll={(event) => {
         paneScroll.current[tab] = event.currentTarget.scrollTop;
       }}
-      className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-2"
+      className="min-h-0 flex-1 overflow-y-auto py-2 pr-3 pl-2"
     >
       {children}
     </div>
