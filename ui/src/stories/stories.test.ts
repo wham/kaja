@@ -7,6 +7,7 @@ import { parseScript, walk } from "../scriptSyntax";
 import { collectionFor, collections, instantiateStory, linkedStory, storyById, storyId, storyServices } from "./index";
 
 const github = collections.find((collection) => collection.id === "github")!;
+const benchling = collections.find((collection) => collection.id === "benchling")!;
 
 function runCalls(code: string): { name: string; keys: string[] }[] {
   const calls: { name: string; keys: string[] }[] = [];
@@ -79,8 +80,13 @@ describe("collectionFor", () => {
     expect(collectionFor(openapi({ specUrl: github.document, baseUrl: "" }))).toBe(github);
   });
 
-  it("goes by the server rather than the document when both are named", () => {
-    expect(collectionFor(openapi({ specUrl: github.document, baseUrl: "https://github.example.com/api/v3" }))).toBeUndefined();
+  it("goes by the document whatever server the app calls", () => {
+    expect(collectionFor(openapi({ specUrl: benchling.document, baseUrl: "https://acme.benchling.com/api/v3" }))).toBe(benchling);
+    expect(collectionFor(openapi({ specUrl: github.document, baseUrl: "https://github.example.com/api/v3" }))).toBe(github);
+  });
+
+  it("is not reached through a server it doesn't name", () => {
+    expect(collectionFor(openapi({ specUrl: "https://example.com/spec.json", baseUrl: "https://acme.benchling.com/api/v3" }))).toBeUndefined();
   });
 
   it("is not fooled by the name", () => {
