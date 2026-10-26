@@ -10,7 +10,7 @@ const screening = shows[0];
 
 const limit = kaja.rateLimit(Seating, { reserve: 0 });
 
-const reads = kaja.table(["read", "remaining", "resets in", "elapsed"]);
+const reads = kaja.table({ title: "Seat map reads" });
 let issued = 0;
 let house: SeatMap | undefined;
 
@@ -22,7 +22,12 @@ await Promise.all(
       const { response, headers } = await Seating.GetSeatMap({ showId: screening.id }).withHeaders();
       house = response?.seatMap ?? house;
       const reset = headers["ratelimit-reset"];
-      reads.row(read, headers["ratelimit-remaining"] ?? "—", reset ? `${reset}s` : "—", `${Date.now() - started} ms`);
+      reads.row({
+        read,
+        remaining: headers["ratelimit-remaining"] ?? "—",
+        "resets in": reset ? `${reset}s` : "—",
+        elapsed: `${Date.now() - started} ms`,
+      });
     }
   }),
 );
@@ -42,7 +47,6 @@ const free = house.sections
 
 const booking = await kaja.approve(Seating.BookSeats({ showId: screening.id, seatIds: free.map((seat) => seat.id) }));
 
-const tickets = kaja.table(["seat", "section", "row", "price"]);
-for (const seat of booking.seats) {
-  tickets.row(seat.id, Section[seat.section], seat.row, `$${(seat.priceCents / 100).toFixed(2)}`);
-}
+kaja.table(booking.seats, (seat) => ({ seat: seat.id, section: Section[seat.section], row: seat.row, price: `$${(seat.priceCents / 100).toFixed(2)}` }), {
+  title: "Your tickets",
+});

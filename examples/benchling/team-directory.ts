@@ -7,25 +7,19 @@ const teamId = await kaja.askSelect(
   teams.map((team) => ({ label: team.organization ? `${team.name} · ${team.organization.name}` : team.name, value: team.id })),
 );
 
-const members = kaja.table(["name", "handle", "role", "last seen"]);
+const team = teams.find((team) => team.id === teamId)?.name ?? "";
+const members = kaja.table({ title: team });
 let count = 0;
 
-for (let nextToken = ""; ; ) {
-  const page = await Teams.ListTeamMemberships({ teamId, pageSize: 100, nextToken });
-  for (const membership of page.memberships) {
-    const user = membership.user;
-    if (!user) continue;
-    count++;
-    members.row(user.name, `@${user.handle}`, membership.role.toLowerCase(), () => lastSeen(user.id));
-  }
-  if (!(nextToken = page.nextToken)) break;
+for await (const { user, role } of kaja.pages((nextToken) => Teams.ListTeamMemberships({ teamId, pageSize: 100, nextToken }))) {
+  if (!user) continue;
+  count++;
+  members.row({
+    name: user.name,
+    handle: `@${user.handle}`,
+    role: role.toLowerCase(),
+    "last seen": async () => (await Users.GetUserActivity({ userId: user.id })).lastSeen || "never",
+  });
 }
 
-kaja.text(`${count} ${count === 1 ? "person" : "people"} on ${teams.find((team) => team.id === teamId)?.name}.`);
-
-async function lastSeen(userId: string) {
-  const activity = await Users.GetUserActivity({ userId });
-  if (!activity.lastSeen) return "never";
-  const days = Math.floor((Date.now() - new Date(activity.lastSeen).getTime()) / 86_400_000);
-  return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
-}
+kaja.text(`${count} ${count === 1 ? "person" : "people"} on ${team}.`);

@@ -36,20 +36,20 @@ if (!seatMap) throw new Error(`No seat map for ${screening.id}`);
 const film = films.get(screening.movieId);
 kaja.text(`${film?.title ?? screening.movieId} at ${house.name} — ${seatMap.available} free, ${seatMap.held} held, ${seatMap.sold} sold.`);
 
-const table = kaja.table(["section", "row", "free", "held", "sold", "seats"]);
-for (const section of seatMap.sections) {
-  for (const row of section.rows) {
+kaja.table(
+  seatMap.sections.flatMap((section) => section.rows.map((row) => ({ section, row }))),
+  ({ section, row }) => {
     const count = (status: SeatStatus) => row.seats.filter((seat) => seat.status === status).length;
-    table.row(
-      Section[section.section],
-      row.letter,
-      count(SeatStatus.AVAILABLE),
-      count(SeatStatus.HELD),
-      count(SeatStatus.SOLD),
-      row.seats
+    return {
+      section: Section[section.section],
+      row: row.letter,
+      free: count(SeatStatus.AVAILABLE),
+      held: count(SeatStatus.HELD),
+      sold: count(SeatStatus.SOLD),
+      seats: row.seats
         .filter((seat) => seat.status === SeatStatus.AVAILABLE)
         .map((seat) => seat.number)
         .join(" "),
-    );
-  }
-}
+    };
+  },
+);

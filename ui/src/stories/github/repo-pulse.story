@@ -1,14 +1,6 @@
 import { kaja } from "kaja";
 import { Actions, Pulls, Repos } from "github";
 
-function ago(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
 function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
@@ -34,18 +26,25 @@ for (const entry of commits.items) {
   byAuthor.set(who, (byAuthor.get(who) ?? 0) + 1);
 }
 if (byAuthor.size > 0) {
-  const week = kaja.table(["author", "commits this week"]);
-  for (const [who, n] of [...byAuthor].sort((a, b) => b[1] - a[1])) week.row(who, n);
+  kaja.table(
+    [...byAuthor].sort((a, b) => b[1] - a[1]),
+    ([author, commits]) => ({ author, "commits this week": commits }),
+  );
 }
 
 if (runs.workflowRuns.length > 0) {
-  const ci = kaja.table(["workflow", "result", "branch", "when"]);
-  for (const run of runs.workflowRuns) {
-    ci.row(run.name ?? "", run.conclusion ?? run.status ?? "", run.headBranch ?? "", ago(run.updatedAt));
-  }
+  kaja.table(runs.workflowRuns, (run) => ({
+    workflow: run.name ?? "",
+    result: run.conclusion ?? run.status ?? "",
+    branch: run.headBranch ?? "",
+    when: run.updatedAt,
+  }));
 }
 
 if (pulls.items.length > 0) {
-  const open = kaja.table(["pull request", "author", "updated"]);
-  for (const pr of pulls.items) open.row(`#${pr.number} ${pr.draft ? "Draft: " : ""}${pr.title}`, pr.user?.login ?? "", ago(pr.updatedAt));
+  kaja.table(pulls.items, (pr) => ({
+    "pull request": `#${pr.number} ${pr.draft ? "Draft: " : ""}${pr.title}`,
+    author: pr.user?.login ?? "",
+    updated: pr.updatedAt,
+  }));
 }

@@ -1,15 +1,18 @@
 import { kaja } from "kaja";
 import { Theatre } from "theatre/service";
 
-const catalog = kaja.table(
-  ["id", "title", "director", "year", "runs", "genre", "language"],
-  async function* () {
-    for (let cursor = ""; ; ) {
-      const page = await Theatre.ListMovies({ ids: [], genre: "", limit: 100, cursor });
-      catalog.total(page.total);
-      yield* page.movies.map((movie) => [movie.id, movie.title, movie.director, movie.year, `${movie.runtimeMinutes} min`, movie.genre, movie.language]);
-      if (!(cursor = page.nextCursor)) return;
-    }
-  },
-  { pageSize: 100 },
+const movies = kaja.pages((cursor) => Theatre.ListMovies({ limit: 100, cursor }));
+
+kaja.table(
+  movies,
+  (movie) => ({
+    id: movie.id,
+    title: movie.title,
+    director: movie.director,
+    year: movie.year,
+    runs: `${movie.runtimeMinutes} min`,
+    genre: movie.genre,
+    language: movie.language,
+  }),
+  { title: "Now showing", pageSize: 100 },
 );

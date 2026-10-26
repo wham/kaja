@@ -156,7 +156,7 @@ describe("scripts that draw", () => {
   // kaja is imported like a service and called like one, but `kaja.table(...)`
   // is the script drawing rather than a call it made.
   it("is not named after the canvas verbs", () => {
-    const code = `import { kaja } from "kaja";\nkaja.text("hello");\nkaja.table(["id"]);\nkaja.code("SELECT 1", "sql");`;
+    const code = `import { kaja } from "kaja";\nkaja.text("hello");\nkaja.table({ title: "Shows" });\nkaja.code("SELECT 1", "sql");`;
     expect(deriveDraftTitle(code)).toBeUndefined();
   });
 

@@ -13,25 +13,24 @@ const location =
         locations.map((location) => ({ label: location.barcode ? `${location.name} (${location.barcode})` : location.name, value: location })),
       );
 
-const boxes = kaja.table(["box", "barcode", "filled", "free", "empty tubes", ""]);
+const boxes = kaja.pages((nextToken) =>
+  Boxes.ListBoxes({ ancestorStorageId: location.id, archiveReason: "NOT_ARCHIVED", sort: "name:asc", pageSize: 50, nextToken }),
+);
+
+const table = kaja.table({ title: location.name });
 let free = 0;
 let total = 0;
 
-for (let nextToken = ""; ; ) {
-  const page = await Boxes.ListBoxes({ ancestorStorageId: location.id, archiveReason: "NOT_ARCHIVED", sort: "name:asc", pageSize: 50, nextToken });
-  for (const box of page.boxes) {
-    free += box.emptyPositions;
-    total += box.size;
-    boxes.row(
-      box.name,
-      box.barcode,
-      `${box.filledPositions} of ${box.size}`,
-      box.emptyPositions,
-      box.emptyContainers,
-      kaja.run("box", { id: box.id }, { label: "Map" }),
-    );
-  }
-  if (!(nextToken = page.nextToken)) break;
+for await (const box of boxes) {
+  free += box.emptyPositions;
+  total += box.size;
+  table.row({
+    box: kaja.run("box", { id: box.id }, { label: box.name }),
+    barcode: box.barcode,
+    filled: `${box.filledPositions} of ${box.size}`,
+    free: box.emptyPositions,
+    "empty tubes": box.emptyContainers,
+  });
 }
 
 kaja.text(

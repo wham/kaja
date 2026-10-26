@@ -863,7 +863,7 @@ func TestRunScriptCorrectsAReturnedValue(t *testing.T) {
 	contains(t, tool(t, srv, "run_script", map[string]string{"code": "return table"}),
 		"returned a value, which does nothing",
 		"will not run one with a top-level `return`",
-		"kaja.table(columns).row(...)",
+		"kaja.table(rows, (item) => ({ ... }))",
 	)
 }
 

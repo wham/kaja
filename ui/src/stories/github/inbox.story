@@ -1,32 +1,18 @@
 import { kaja } from "kaja";
 import { Activity } from "github";
 
-function ago(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
-const pageSize = 50;
+const threads = kaja.pages((page) => Activity.ListNotificationsForAuthenticatedUser({ all: true, perPage: 50, page }), { page: 1 });
 
 kaja.text("Your notifications, unread marked. Type in the box to filter what has loaded.");
 
-const inbox = kaja.table(
-  ["", "subject", "why", "repo", "updated"],
-  async function* () {
-    for (let page = 1; ; page++) {
-      const { items } = await Activity.ListNotificationsForAuthenticatedUser({ all: true, perPage: pageSize, page });
-      yield* items.map((thread) => [
-        thread.unread ? "●" : "",
-        thread.subject?.title ?? "",
-        thread.reason.replaceAll("_", " "),
-        thread.repository?.fullName ?? "",
-        ago(thread.updatedAt),
-      ]);
-      if (items.length < pageSize) return;
-    }
-  },
-  { pageSize },
+kaja.table(
+  threads,
+  (thread) => ({
+    unread: thread.unread ? "●" : "",
+    subject: thread.subject?.title ?? "",
+    why: thread.reason.replaceAll("_", " "),
+    repo: thread.repository?.fullName ?? "",
+    updated: thread.updatedAt,
+  }),
+  { pageSize: 50 },
 );

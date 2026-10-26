@@ -17,15 +17,17 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
 	"A run reports the script's type errors, checked against the same declarations describe_method prints: a script is transpiled rather than compiled, " +
 	"so a type error does not stop a run - but it is red in the file the person whose Kaja this is opens. " +
-	"It draws what it produced instead: `kaja.text(...)`, `kaja.code(...)` and `kaja.table(columns).row(...)` draw on the run's canvas, " +
+	"It draws what it produced instead: `kaja.text(...)`, `kaja.code(...)` and `kaja.table(rows, (item) => ({ column: item.field }))` draw on the run's canvas, " +
 	"which is the output the person who opens the script sees, and is how a script renders a table (never build one out of Markdown). " +
 	"`console.log(...)` writes the log back to you - use it to probe while you work, and leave it out of a script " +
 	"you keep; every call's request and response is reported to you without it. Every level is recorded as itself (debug/log/info/warn/error), " +
 	"every other console method goes to devtools only, and there is no `kaja.log` - the standard console is the logging API. " +
 	commentsNote + " " +
-	"A table can also be handed its rows - `kaja.table(columns, rows)` for an array, or an async generator that yields rows, " +
-	"which the table pulls a page at a time as the reader pages through it (declare a `search` parameter and it is restarted for each search). " +
-	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with an ordinary loop if you need it. " +
+	"A row is an object whose keys are the column names. A paged method is read with `kaja.pages((cursor) => Service.List({ pageToken: cursor }))`, " +
+	"or `kaja.pages((page) => Service.List({ page }), { page: 1 })` where it is paged by number (`{ offset: 0 }` by offset), " +
+	"never a cursor loop of your own; handed to `kaja.table`, it is pulled a page at a time as the reader pages through it " +
+	"(a source that is a function of a `search` parameter is restarted for each search). " +
+	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with `for await` over `kaja.pages` if you need it. " +
 	"Get the runtime's full declaration with describe_type \"kaja\"; it comes from `import { kaja } from \"kaja\";`. " +
 	"A method hands back a `Call`, not a promise: it is sent when you await it, and `await Service.Method({…})` is unchanged by that. " +
 	"The call is where headers are said, either way round: `Service.Method(request, { headers: { \"Idempotency-Key\": id } })` sends one for that call alone, " +

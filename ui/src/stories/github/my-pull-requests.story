@@ -1,14 +1,6 @@
 import { kaja } from "kaja";
 import { Pulls, Search } from "github";
 
-function ago(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
 const found = await Search.IssuesAndPullRequests({
   q: "is:pr is:open author:@me archived:false",
   sort: "updated",
@@ -20,12 +12,11 @@ if (found.items.length === 0) {
   kaja.text("You have no open pull requests.");
 } else {
   kaja.text(`${found.totalCount} open pull requests of yours, most recently touched first.`);
-  const table = kaja.table(["pull request", "reviews", "repo", "updated"]);
-  for (const pr of found.items) {
+  kaja.table(found.items, (pr) => {
     const [owner, repo] = pr.repositoryUrl.split("/").slice(-2);
-    table.row(
-      pr.draft ? `Draft: ${pr.title}` : pr.title,
-      async () => {
+    return {
+      "pull request": pr.draft ? `Draft: ${pr.title}` : pr.title,
+      reviews: async () => {
         const { items: reviews } = await Pulls.ListReviews({ owner, repo, pullNumber: pr.number });
         const latest = new Map<string, string>();
         for (const review of reviews) {
@@ -37,8 +28,8 @@ if (found.items.length === 0) {
         const changes = verdicts.filter((state) => state === "CHANGES_REQUESTED").length;
         return [approved && `${approved} approved`, changes && `${changes} want changes`].filter(Boolean).join(", ");
       },
-      `${owner}/${repo}#${pr.number}`,
-      ago(pr.updatedAt),
-    );
-  }
+      repo: `${owner}/${repo}#${pr.number}`,
+      updated: pr.updatedAt,
+    };
+  });
 }

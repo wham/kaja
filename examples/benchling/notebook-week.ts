@@ -4,26 +4,24 @@ import { Entries } from "benchling";
 const days = Number(kaja.input.days ?? 7);
 const since = new Date(Date.now() - days * 86_400_000);
 
-const entries = kaja.table(["entry", "title", "authors", "review", "modified", ""]);
+const entries = kaja.pages((nextToken) => Entries.ListEntries({ modifiedAt: `> ${since.toISOString()}`, sort: "modifiedAt:desc", pageSize: 50, nextToken }));
+
+const table = kaja.table({ title: `The notebook, last ${days} days` });
 const byStatus = new Map<string, number>();
 const byAuthor = new Map<string, number>();
 
-for (let nextToken = ""; ; ) {
-  const page = await Entries.ListEntries({ modifiedAt: `> ${since.toISOString()}`, sort: "modifiedAt:desc", pageSize: 50, nextToken });
-  for (const entry of page.entries) {
-    const status = entry.reviewRecord?.status ?? "IN_PROGRESS";
-    byStatus.set(status, (byStatus.get(status) ?? 0) + 1);
-    for (const author of entry.authors) byAuthor.set(author.name, (byAuthor.get(author.name) ?? 0) + 1);
-    entries.row(
-      entry.displayId,
-      entry.name,
-      entry.authors.map((author) => author.name).join(", "),
-      status.toLowerCase().replace(/_/g, " "),
-      new Date(entry.modifiedAt).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }),
-      entry.webUrl,
-    );
-  }
-  if (!(nextToken = page.nextToken)) break;
+for await (const entry of entries) {
+  const status = entry.reviewRecord?.status ?? "IN_PROGRESS";
+  byStatus.set(status, (byStatus.get(status) ?? 0) + 1);
+  for (const author of entry.authors) byAuthor.set(author.name, (byAuthor.get(author.name) ?? 0) + 1);
+  table.row({
+    entry: entry.displayId,
+    title: entry.name,
+    authors: entry.authors.map((author) => author.name).join(", "),
+    review: status.toLowerCase().replace(/_/g, " "),
+    modified: entry.modifiedAt,
+    link: entry.webUrl,
+  });
 }
 
 const total = [...byStatus.values()].reduce((sum, n) => sum + n, 0);
@@ -34,9 +32,13 @@ kaja.text(
 );
 
 if (total) {
-  const writers = kaja.table(["author", "entries"]);
-  for (const [author, n] of [...byAuthor].sort((a, b) => b[1] - a[1])) writers.row(author, n);
+  kaja.table(
+    [...byAuthor].sort((a, b) => b[1] - a[1]),
+    ([author, entries]) => ({ author, entries }),
+  );
 
-  const review = kaja.table(["review status", "entries"]);
-  for (const [status, n] of [...byStatus].sort((a, b) => b[1] - a[1])) review.row(status.toLowerCase().replace(/_/g, " "), n);
+  kaja.table(
+    [...byStatus].sort((a, b) => b[1] - a[1]),
+    ([status, entries]) => ({ "review status": status.toLowerCase().replace(/_/g, " "), entries }),
+  );
 }
