@@ -48,3 +48,8 @@ primary_region = "sjc"
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+# Go lets its heap reach twice what is live before collecting, which on 512mb
+# got a large API's compile killed mid-stream.
+[env]
+  GOMEMLIMIT = "400MiB"

@@ -13,6 +13,9 @@ type schema struct {
 	files  []*descriptorpb.FileDescriptorProto
 	byName map[string]*descriptorpb.FileDescriptorProto
 	types  map[string]*typeInfo
+	// extensions is buildExtensionMap's answer per extendee. Every field asks it, and
+	// walking every message for each one was gigabytes of garbage on a large API.
+	extensions map[string]map[int32]extInfo
 }
 
 type typeInfo struct {
@@ -32,7 +35,7 @@ func (t *typeInfo) isMapEntry() bool {
 }
 
 func newSchema(files []*descriptorpb.FileDescriptorProto) *schema {
-	s := &schema{files: files, byName: map[string]*descriptorpb.FileDescriptorProto{}, types: map[string]*typeInfo{}}
+	s := &schema{files: files, byName: map[string]*descriptorpb.FileDescriptorProto{}, types: map[string]*typeInfo{}, extensions: map[string]map[int32]extInfo{}}
 	for _, file := range files {
 		s.byName[file.GetName()] = file
 		s.index(file)

@@ -34,6 +34,9 @@ type extInfo struct {
 
 // buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
 func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
+	if cached, ok := g.schema.extensions[extendeeName]; ok {
+		return cached
+	}
 	extensionMap := make(map[int32]extInfo)
 	order := 0
 
@@ -73,6 +76,7 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 		collectFromFile(f)
 	}
 
+	g.schema.extensions[extendeeName] = extensionMap
 	return extensionMap
 }
 
