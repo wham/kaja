@@ -279,8 +279,8 @@ export interface TableOptions {
 }
 
 /**
- * The items of a list method paged by cursor, from kaja.pages. Iterate it, or
- * hand it to kaja.table, which pulls a page only when paging needs one.
+ * The items of a paged list method, from kaja.pages. Iterate it, or hand it to
+ * kaja.table, which pulls a page only when paging needs one.
  */
 export interface Pages<T> extends AsyncIterable<T> {}
 
@@ -297,6 +297,27 @@ export interface PagesOptions<P, T> {
   /** How many items there are in all. Read off totalSize, totalCount or total where nothing says. */
   total?: (page: P) => number | undefined;
 }
+
+/** How kaja.pages counts through a list paged by number rather than by cursor. */
+export type PageNumbering = (
+  | {
+      /** The first page's number: 1 for a list numbered from one, 0 from zero. Each page asks for the next. */
+      page: number;
+      offset?: never;
+    }
+  | {
+      /** The first item's offset, usually 0. Each page moves it on by the items it held. */
+      offset: number;
+      page?: never;
+    }
+) & {
+  /**
+   * Where the list ends. "short", the default, is the first page holding fewer
+   * items than the first page did, or none. "empty" asks until a page holds
+   * none, for an API whose pages can come back short before the end.
+   */
+  until?: "short" | "empty";
+};
 
 // What kaja.pages reads off a page that it isn't told about. A page short of either
 // is a call that has to say, so it is the editor that asks rather than the run.
@@ -484,9 +505,9 @@ export declare const kaja: {
   table(rows: RowSource<object>, options?: TableOptions): Table;
   table(options?: TableOptions): Table;
   /**
-   * Read a list method paged by cursor as the items it lists. Write the call as
-   * a function of the cursor; the first page is asked for with "", and the
-   * pages stop at an empty cursor or a failed call.
+   * Read a paged list method as the items it lists. Write the call as a
+   * function of the cursor; the first page is asked for with "", and the pages
+   * stop at an empty cursor or a failed call.
    *
    *   const users = kaja.pages((cursor) => Users.ListUsers({ pageSize: 50, pageToken: cursor }));
    *   for await (const user of users) { … }
@@ -498,9 +519,20 @@ export declare const kaja: {
    *
    *   kaja.pages((cursor) => Shows.ListShows({ cursor }), { items: (page) => page.shows, next: (page) => page.after });
    *
+   * A list paged by number says where it starts, and the call is handed the
+   * page's number — or, with offset, the first item's — instead of a cursor:
+   *
+   *   kaja.pages((page) => Issues.List({ perPage: 50, page }), { page: 1 });
+   *   kaja.pages((offset) => Orders.ListOrders({ limit: 100, offset }), { offset: 0 });
+   *
+   * There is no cursor to say where it ends, so it ends at a page shorter than
+   * the first, or an empty one; { until: "empty" } asks until a page is empty.
+   *
    * A pages is read lazily, so handed to kaja.table it fetches a page only when
    * the table is paged to it.
    */
+  pages<P, T>(fetch: (page: number) => PromiseLike<P>, options: PageNumbering & Omit<PagesOptions<P, T>, "next"> & { items: (page: P) => Iterable<T> }): Pages<T>;
+  pages<P>(fetch: (page: number) => PromiseLike<P & OneList<P>>, options: PageNumbering & Omit<PagesOptions<P, PageItem<P>>, "next">): Pages<PageItem<P>>;
   pages<P, T>(fetch: (cursor: string) => PromiseLike<P>, options: PagesOptions<P, T> & { items: (page: P) => Iterable<T>; next: PageNext<P> }): Pages<T>;
   pages<P, T>(fetch: (cursor: string) => PromiseLike<P & CursorPage>, options: PagesOptions<P, T> & { items: (page: P) => Iterable<T> }): Pages<T>;
   pages<P>(fetch: (cursor: string) => PromiseLike<P & OneList<P>>, options: PagesOptions<P, PageItem<P>> & { next: PageNext<P> }): Pages<PageItem<P>>;

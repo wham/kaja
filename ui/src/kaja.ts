@@ -1152,7 +1152,7 @@ export class Kaja {
     }
   }
 
-  pages<T>(fetch: (cursor: string) => PromiseLike<unknown>, options?: PagesOptions<any, T>): Pages<T> {
+  pages<T>(fetch: (position: any) => PromiseLike<unknown>, options?: PagesOptions<any, T>): Pages<T> {
     return new Pages<T>(fetch, options);
   }
 

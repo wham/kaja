@@ -23,7 +23,8 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"you keep; every call's request and response is reported to you without it. Every level is recorded as itself (debug/log/info/warn/error), " +
 	"every other console method goes to devtools only, and there is no `kaja.log` - the standard console is the logging API. " +
 	commentsNote + " " +
-	"A row is an object whose keys are the column names. A cursor-paged method is read with `kaja.pages((cursor) => Service.List({ pageToken: cursor }))`, " +
+	"A row is an object whose keys are the column names. A paged method is read with `kaja.pages((cursor) => Service.List({ pageToken: cursor }))`, " +
+	"or `kaja.pages((page) => Service.List({ page }), { page: 1 })` where it is paged by number (`{ offset: 0 }` by offset), " +
 	"never a cursor loop of your own; handed to `kaja.table`, it is pulled a page at a time as the reader pages through it " +
 	"(a source that is a function of a `search` parameter is restarted for each search). " +
 	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with `for await` over `kaja.pages` if you need it. " +

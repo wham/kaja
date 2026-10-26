@@ -1,18 +1,29 @@
 /**
- * `kaja.pages`: a cursor-paged list method read as the items it lists. The loop every
- * paging script wrote — the cursor, the failed call, the stop — is written once here,
- * so what is left in the script is the call.
+ * `kaja.pages`: a paged list method read as the items it lists. The loop every paging
+ * script wrote — the cursor, the failed call, the stop — is written once here, so what
+ * is left in the script is the call.
  *
  * Where the items and the next cursor are is read off the page when the script
  * doesn't say: the one list on it, and the first cursor field kaja knows by name. The
  * declaration asks for `items` or `next` exactly where that would be a guess, so a
  * page this can't read is an error in the editor rather than one page and a stop.
+ *
+ * `page` or `offset` makes the position a number the script's call is handed, with
+ * nothing on the page to read it from. The list then ends at an empty page, or at one
+ * shorter than the first: the first is measured rather than the size asked for,
+ * because an API that caps its page size answers a request for 200 with 100 a page.
  */
 
 export interface PagesOptions<P = any, T = unknown> {
   items?: (page: P) => Iterable<T>;
   next?: (page: P) => string | undefined | null;
   total?: (page: P) => number | undefined;
+  // The first page's number, which is all that tells pages numbered by 1 from by 0.
+  page?: number;
+  // The first item's offset; each page moves it on by the items it held.
+  offset?: number;
+  // A short page is the last unless an API drops items from a page after paging it.
+  until?: "short" | "empty";
 }
 
 // In the order they are tried, which only matters for a page naming two.
@@ -58,41 +69,67 @@ function readTotal(page: any, options: PagesOptions): number | undefined {
 export class PageIterator<T> implements AsyncIterator<T> {
   // A table reads the total off the pages it pulls through this.
   onTotal?: (count: number) => void;
-  #cursor = "";
+  #position: string | number;
+  #size?: number;
   #buffer: T[] = [];
   #done = false;
 
   constructor(
-    private readonly fetch: (cursor: string) => PromiseLike<unknown>,
+    private readonly fetch: (position: any) => PromiseLike<unknown>,
     private readonly options: PagesOptions,
-  ) {}
+  ) {
+    this.#position = options.page ?? options.offset ?? "";
+  }
 
   async next(): Promise<IteratorResult<T>> {
     while (this.#buffer.length === 0) {
       if (this.#done) return { done: true, value: undefined };
-      const page = await this.fetch(this.#cursor);
+      // The position moves only once a page has landed, so asking again after a
+      // failure asks for the same page.
+      const page = await this.fetch(this.#position);
       // A failed call hands back undefined rather than throwing. The call is a row in
       // the log already; this says the pages stopped there.
       if (page === undefined || page === null) throw new Error("A page failed to load, so the list stops here. The call is in the log.");
       const total = readTotal(page, this.options);
       if (total !== undefined) this.onTotal?.(total);
       this.#buffer = [...readItems(page, this.options)] as T[];
-      const next = readNext(page, this.options);
-      // The same cursor twice is an API that would page forever.
-      if (!next || next === this.#cursor) this.#done = true;
-      else this.#cursor = next;
+      if (typeof this.#position === "number") this.#advance(this.#buffer.length);
+      else this.#follow(readNext(page, this.options));
     }
     return { done: false, value: this.#buffer.shift()! };
+  }
+
+  #advance(count: number): void {
+    this.#size ??= count;
+    const short = this.options.until !== "empty" && count < this.#size;
+    if (count === 0 || short) this.#done = true;
+    else this.#position = (this.#position as number) + (this.options.offset === undefined ? 1 : count);
+  }
+
+  #follow(next: string | undefined): void {
+    // The same cursor twice is an API that would page forever.
+    if (!next || next === this.#position) this.#done = true;
+    else this.#position = next;
   }
 }
 
 export class Pages<T> implements AsyncIterable<T> {
   constructor(
-    private readonly fetch: (cursor: string) => PromiseLike<unknown>,
+    private readonly fetch: (position: any) => PromiseLike<unknown>,
     private readonly options: PagesOptions = {},
   ) {
     if (typeof fetch !== "function") {
       throw new Error("kaja.pages: pass the call as a function of the cursor: kaja.pages((cursor) => Users.List({ pageToken: cursor }))");
+    }
+    if (options.page !== undefined && options.offset !== undefined) {
+      throw new Error("kaja.pages: a list is paged by page or by offset, not both");
+    }
+    const numbered = options.page !== undefined || options.offset !== undefined;
+    if (numbered && options.next !== undefined) {
+      throw new Error("kaja.pages: a numbered list has no cursor to read, so it takes no next");
+    }
+    if (!numbered && options.until !== undefined) {
+      throw new Error("kaja.pages: a cursor says where the list ends, so until is for page and offset");
     }
   }
 

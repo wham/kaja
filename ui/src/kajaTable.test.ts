@@ -708,6 +708,26 @@ describe("kaja.table over kaja.pages", () => {
   });
 });
 
+describe("kaja.table over kaja.pages by number", () => {
+  it("asks for the next page number only when the table is paged to it", async () => {
+    const { kaja, only, id } = draw();
+    const asked: number[] = [];
+    const list = (page: number) => {
+      asked.push(page);
+      const start = (page - 1) * 10;
+      return Promise.resolve({ items: Array.from({ length: Math.max(0, Math.min(10, 25 - start)) }, (_, at) => ({ n: start + at })) });
+    };
+    kaja.table(kaja.pages(list, { page: 1 }), ["n"], { pageSize: 10 });
+    await kaja.settleTables();
+    expect(asked).toEqual([1]);
+
+    await kaja.pullTable(id(), "", 30);
+    expect(asked).toEqual([1, 2, 3]);
+    expect(only().rows).toHaveLength(25);
+    expect(only().exhausted).toBe(true);
+  });
+});
+
 describe("LiveTables", () => {
   it("lets go of the tables whose rows are gone, and the owner with them", () => {
     const tables = new LiveTables();

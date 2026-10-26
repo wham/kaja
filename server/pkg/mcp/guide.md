@@ -204,13 +204,16 @@ showing as they are, name them instead: `kaja.table(shows, ["id", "title"])`.
 Pass a timestamp as the API sent it — the table draws an instant as how long ago
 it was — rather than formatting it yourself.
 
-**`kaja.pages` is how a cursor-paged method is read**, and the table pages and
+**`kaja.pages` is how a paged method is read**, and the table pages and
 searches it for the person who opens the script, a page at a time, without
 running anything. Write the call as a function of the cursor and nothing else:
 the items, the next cursor and the total are read off the page, and where a page
 can't say (two lists, or a cursor under another name) the editor asks for
-`items` or `next` rather than guessing. Never write the cursor loop yourself. A
-source that is a function of the search text is restarted for each search:
+`items` or `next` rather than guessing. A list paged by number says where it
+starts, and the call is handed the number instead:
+`kaja.pages((page) => Issues.List({ perPage: 50, page }), { page: 1 })`, or
+`{ offset: 0 }` for an offset. Never write the paging loop yourself. A source
+that is a function of the search text is restarted for each search:
 
 ```ts
 kaja.table(
@@ -366,8 +369,8 @@ What each member is for:
   handle that rows are added to and rewritten through; a cell can be a promise the
   table waits for, and rows handed over as a source are paged and searched by the
   table itself. `options.title` heads it. See above, and the declaration.
-- `kaja.pages(fetch, options?)` — a cursor-paged list method as the items it
-  lists, fetched a page at a time as they are read.
+- `kaja.pages(fetch, options?)` — a paged list method, by cursor, page number or
+  offset, as the items it lists, fetched a page at a time as they are read.
 - `kaja.run(script, input?, options?)` — a cell that runs another script with those
   values when it is clicked. The script is named as a deeplink names one, the cell
   says its column's name unless `options.label` says otherwise, and the values are
