@@ -23,7 +23,7 @@ describe("nameFromHost", () => {
   const noise = new Set(["api", "mcp"]);
 
   test("names a host by the first label that isn't noise", () => {
-    expect(nameFromHost("seating.kaja.tools", noise)).toBe("seating");
+    expect(nameFromHost("quirks.kaja.tools", noise)).toBe("quirks");
     expect(nameFromHost("api.example.com", noise)).toBe("example");
     expect(nameFromHost("www.api.example.com", noise)).toBe("example");
   });
@@ -43,7 +43,7 @@ describe("nameFromHost", () => {
 
 describe("uniqueAppName", () => {
   test("leaves a free name alone", () => {
-    expect(uniqueAppName("Petstore", ["theatre"])).toBe("Petstore");
+    expect(uniqueAppName("Petstore", ["github"])).toBe("Petstore");
   });
 
   test("numbers a taken one without introducing a space", () => {

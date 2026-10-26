@@ -29,7 +29,7 @@ function namesTheMachine(host: string): boolean {
   return /^[\d.]+$/.test(host) || host.includes(":");
 }
 
-// nameFromHost names an app after its host: "seating.kaja.tools" by its first label,
+// nameFromHost names an app after its host: "quirks.kaja.tools" by its first label,
 // "api.example.com" by the one after the label `noise` says is only where it is
 // deployed, and a two-label host as written, since it is already a handle.
 export function nameFromHost(host: string, noise: Set<string>): string {

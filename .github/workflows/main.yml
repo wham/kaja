@@ -52,10 +52,10 @@ jobs:
       # the way to the build - one kaja.json in the repository, and nothing in
       # kaja that knows a deployment can hide an app - so a preview and a
       # developer still get every one of them.
-      - name: Leave the exercise apps out of the demo workspace
+      - name: Leave the exercise app out of the demo workspace
         run: |
           set -euo pipefail
-          hidden='["grpcb.in", "quirks"]'
+          hidden='["quirks"]'
           for name in $(echo "$hidden" | jq -r '.[]'); do
             if ! jq -e --arg name "$name" 'any(.apps[]; .name == $name)' workspace/kaja.json > /dev/null; then
               echo "::error::No app in workspace/kaja.json is called '$name'"

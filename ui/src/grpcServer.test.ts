@@ -35,9 +35,9 @@ function server(fields: Partial<GrpcServer> = {}): GrpcServer {
 
 describe("targetHost", () => {
   test("reads the host out of every spelling of a gRPC address", () => {
-    expect(targetHost("dns:seating.kaja.tools:443")).toBe("seating.kaja.tools");
-    expect(targetHost("dns:///seating.kaja.tools:443")).toBe("seating.kaja.tools");
-    expect(targetHost("grpcs://seating.kaja.tools")).toBe("seating.kaja.tools");
+    expect(targetHost("dns:grpcb.in:9000")).toBe("grpcb.in");
+    expect(targetHost("dns:///grpcb.in:9000")).toBe("grpcb.in");
+    expect(targetHost("grpcs://greeter.example.com")).toBe("greeter.example.com");
     expect(targetHost("grpcb.in:9000")).toBe("grpcb.in");
     expect(targetHost("https://example.com/twirp")).toBe("example.com");
     expect(targetHost("  localhost:50051  ")).toBe("localhost");
@@ -54,21 +54,21 @@ describe("targetHost", () => {
 
 describe("isDialableTarget", () => {
   test("asks only for a host", () => {
-    expect(isDialableTarget("dns:seating.kaja.tools:443")).toBe(true);
+    expect(isDialableTarget("dns:grpcb.in:9000")).toBe(true);
     expect(isDialableTarget("localhost:50051")).toBe(true);
     expect(isDialableTarget("")).toBe(false);
     expect(isDialableTarget("   ")).toBe(false);
   });
 
   test("takes an address that reads a variable on trust", () => {
-    expect(isDialableTarget("${SEATING_URL}")).toBe(true);
+    expect(isDialableTarget("${GRPCBIN_URL}")).toBe(true);
     expect(isDialableTarget("dns:${HOST}:443")).toBe(true);
   });
 });
 
 describe("deriveAppName", () => {
   test("names an app after the subdomain that identifies it", () => {
-    expect(deriveAppName("dns:seating.kaja.tools:443", [])).toBe("seating");
+    expect(deriveAppName("dns:greeter.example.com:443", [])).toBe("greeter");
   });
 
   test("keeps a two-label host as written, since it is already a handle", () => {
@@ -81,7 +81,7 @@ describe("deriveAppName", () => {
   });
 
   test("falls back to the services when the host names the machine", () => {
-    expect(deriveAppName("localhost:50051", ["seating.Seating"])).toBe("seating");
+    expect(deriveAppName("localhost:50051", ["hello.HelloService"])).toBe("hello");
     expect(deriveAppName("127.0.0.1:50051", ["grpcbin.GRPCBin"])).toBe("grpcbin");
     expect(deriveAppName("[::1]:50051", ["Health"])).toBe("Health");
   });
@@ -94,7 +94,7 @@ describe("deriveAppName", () => {
 
 describe("nameFromAddress", () => {
   test("is the half of the name the address can answer", () => {
-    expect(nameFromAddress("dns:seating.kaja.tools:443")).toBe("seating");
+    expect(nameFromAddress("dns:greeter.example.com:443")).toBe("greeter");
     expect(nameFromAddress("grpcb.in:9000")).toBe("grpcb.in");
   });
 

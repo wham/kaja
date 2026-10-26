@@ -11,9 +11,9 @@ lists no tool that writes a file.
 
 1. `list_services` — the index of what is callable, one TypeScript signature per
    method. Filter with `app`, `service` or `search` on a large API.
-2. `describe_method "Shows.ListShows"` — the declarations of every type that
+2. `describe_method "Issues.ListForRepo"` — the declarations of every type that
    method's signature names, whether the call reads or writes, and a call to
-   start from, carrying the required fields alone. `describe_type "Show"` looks
+   start from, carrying the required fields alone. `describe_type "Issue"` looks
    one type up on its own, and `describe_type "kaja"` is the runtime a script
    writes its output with.
 3. `run_script` with `code` to try it, then `create_script` to keep it — where
@@ -109,15 +109,11 @@ one you were not asked for.
 
 ```ts
 import { kaja } from "kaja";
-import { Seating } from "seating";
-import { BoxOffice } from "boxoffice";
+import { Issues, Repos } from "github";
 
-const { seatMap } = await Seating.GetSeatMap({ performanceId: "matinee-1" });
-const { reservation } = await BoxOffice.Reserve({
-  performanceId: "matinee-1",
-  seatIds: ["F7", "F8"],
-});
-kaja.text(`Reserved ${reservation.seatIds.join(", ")} — ${reservation.id}`);
+const about = await Repos.Get({ owner: "wham", repo: "kaja" });
+const { items: issues } = await Issues.ListForRepo({ owner: "wham", repo: "kaja", state: "open", perPage: 5 });
+kaja.text(`${about.fullName} has ${about.openIssuesCount} open issues. Newest: ${issues.map((issue) => `#${issue.number}`).join(", ")}`);
 ```
 
 Rules that matter:
@@ -183,15 +179,15 @@ the run's Calls view, so they are not private — but they are not output either
 
 ```ts
 import { kaja } from "kaja";
-import { Shows } from "theatre";
+import { Issues } from "github";
 
-const shows = kaja.pages((pageToken) => Shows.ListShows({ pageSize: 50, pageToken }));
+const issues = kaja.pages((page) => Issues.ListForRepo({ owner: "wham", repo: "kaja", perPage: 50, page }), { page: 1 });
 
-kaja.table(shows, (show) => ({
-  id: show.id,
-  title: show.title,
-  seats: show.seatsAvailable,
-  opened: show.openedAt,
+kaja.table(issues, (issue) => ({
+  number: issue.number,
+  title: issue.title,
+  author: issue.user?.login,
+  opened: issue.createdAt,
 }));
 ```
 
@@ -200,26 +196,27 @@ call; the table is handed those rows and a function turning each one into a row,
 whose **keys are the columns** — so a header sits beside its value rather than
 being matched to it by position. A key is a column's name as the person reads it,
 so write `"last seen": user.lastSeen`, not `lastSeen`. Where the fields are worth
-showing as they are, name them instead: `kaja.table(shows, ["id", "title"])`.
+showing as they are, name them instead: `kaja.table(issues, ["number", "title"])`.
 Pass a timestamp as the API sent it — the table draws an instant as how long ago
 it was — rather than formatting it yourself.
 
 **`kaja.pages` is how a paged method is read**, and the table pages and
 searches it for the person who opens the script, a page at a time, without
-running anything. Write the call as a function of the cursor and nothing else:
-the items, the next cursor and the total are read off the page, and where a page
-can't say (two lists, or a cursor under another name) the editor asks for
-`items` or `next` rather than guessing. A list paged by number says where it
-starts, and the call is handed the number instead:
-`kaja.pages((page) => Issues.List({ perPage: 50, page }), { page: 1 })`, or
-`{ offset: 0 }` for an offset. Never write the paging loop yourself. A source
-that is a function of the search text is restarted for each search:
+running anything. Write the call as a function of where the page starts and
+nothing else: the items, the next cursor and the total are read off the page,
+and where a page can't say (two lists, or a cursor under another name) the
+editor asks for `items` or `next` rather than guessing. A list paged by number
+says where it starts, as `{ page: 1 }` does above, and the call is handed the
+number; `{ offset: 0 }` pages by offset, and a list paged by cursor takes no
+second argument and is handed the cursor the last page named. Never write the
+paging loop yourself. A source that is a function of the search text is
+restarted for each search:
 
 ```ts
 kaja.table(
-  (search) => kaja.pages((pageToken) => Shows.ListShows({ query: search, pageToken })),
-  (show) => ({ id: show.id, title: show.title }),
-  { title: "Shows" },
+  (search) => kaja.pages((page) => Search.Repos({ q: search, perPage: 50, page }), { page: 1 }),
+  (repository) => ({ repo: repository.fullName, stars: repository.stargazersCount }),
+  { title: "Repositories" },
 );
 ```
 
@@ -233,12 +230,13 @@ summary table is built: write the row when the work starts and update it when it
 finishes, rather than waiting until the end and drawing the table once.
 
 ```ts
-const table = kaja.table({ title: "Availability" });
+const table = kaja.table({ title: "Latest releases" });
 await Promise.all(
-  shows.map(async (show) => {
-    const row = table.row({ show: show.title, seats: show.seatsAvailable, status: "checking…" });
-    const seating = await Seating.GetAvailability({ showId: show.id });
-    row.update({ seats: seating.available, status: seating.available > 0 ? "on sale" : "sold out" });
+  ["wham/kaja", "torvalds/linux"].map(async (name) => {
+    const [owner, repo] = name.split("/");
+    const row = table.row({ repo: name, release: "checking…" });
+    const { items: releases } = await Repos.ListReleases({ owner, repo, perPage: 1 });
+    row.update({ release: releases[0]?.tagName ?? "none", published: releases[0]?.publishedAt });
   }),
 );
 ```
@@ -257,7 +255,7 @@ Two things about a table are this page's rather than the declaration's:
 - **Nobody is paging your run.** A source draws its first page and `run_script`
   reports `more: true`; a function cell past that page is never called in your
   run. Use a promise rather than a function for a value that has to be in the
-  run you are reporting, and `for await (const show of kaja.pages(…))` if you need
+  run you are reporting, and `for await (const issue of kaja.pages(…))` if you need
   the whole set.
 - **`kaja.run(...)` runs nothing in your run.** It is the action a row invites,
   for the person reading the table.
@@ -278,7 +276,7 @@ which is the one thing Stats cannot say. Draw that sentence, or draw nothing:
 
 ```ts
 const report = await kaja.perfTest(
-  ({ iteration }) => Shows.GetShow({ showId: ids[iteration % ids.length] }),
+  ({ iteration }) => HelloService.SayHello({ greeting: `call ${iteration}` }),
   { duration: "30s", concurrency: 10, warmup: "2s", rampUp: "5s", rampDown: "2s" },
 );
 const p99 = Math.round(report.latency.p99 ?? 0);
@@ -299,7 +297,7 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
   `kaja.approve()` how it holds a call back until someone says yes; all park the
   run on a human — only reach for one when a person is at the app.
 - **A method hands back a `Call`, not a promise.** It is sent when you await it,
-  so `await Shows.ListShows({})` is exactly what it always was. The gap is what
+  so `await Repos.Get({ owner, repo })` is exactly what it always was. The gap is what
   lets `kaja.approve` hold a call back before it goes out.
 - **Headers are the call's, both ways.** A second argument sends them, over the
   ones the app is configured with and matched by name whatever the case. The app's
@@ -310,10 +308,11 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
   ordinary call changes. Header names are lowercase.
 
   ```ts
-  const { response, headers } = await Shows.CreateShow(
-    { title: "Vera Lune" },
-    { headers: { "Idempotency-Key": kaja.uuidV4() } },
+  const { response, headers } = await Issues.Create(
+    { owner: "wham", repo: "kaja", title: "Flaky test on main" },
+    { headers: { "X-GitHub-Api-Version": "2022-11-28" } },
   ).withHeaders();
+  kaja.text(`Opened #${response.number}, ${headers["x-ratelimit-remaining"]} calls left this hour.`);
   ```
 - **Server streaming is called like any other method**, and hands back the last
   message; all of them are in the run's log. **Client and bidirectional streaming
@@ -383,7 +382,7 @@ What each member is for:
   or one of a list; each blocks on a human and hands back the kind of thing it
   asked for, so never ask for text and parse it yourself.
 - `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
-  `await kaja.approve(Shows.CreateShow({ … }))`. The call goes inside the
+  `await kaja.approve(Issues.Create({ owner, repo, title }))`. The call goes inside the
   parentheses, and not approving stops the script. Blocks on a human — though
   they can press **Approve all**, which settles every later call to the same
   method in that run without asking again. So wrapping each call of a loop is
@@ -405,12 +404,14 @@ What each member is for:
 
 ```ts
 import { kaja } from "kaja";
-import { Seating } from "seating";
+import { Actions } from "github";
 
-await Seating.Annotate({
-  performanceId: "matinee-1",
-  note: kaja.value("held for the box office"),
-  attributes: kaja.struct({ rows: ["F", "G"], accessible: true, holds: 2 }),
+await Actions.CreateWorkflowDispatch({
+  owner: "wham",
+  repo: "kaja",
+  workflowId: kaja.value("deploy.yml"),
+  ref: "main",
+  inputs: kaja.struct({ environment: "staging", regions: ["us", "eu"], dryRun: true }),
 });
 ```
 

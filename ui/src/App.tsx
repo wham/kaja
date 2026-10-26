@@ -31,20 +31,7 @@ import { appType, buildApp, getAppType, parameterKey } from "./appTypes";
 import { createPendingApp, isReady, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import { appStore } from "./appStore";
 import { forgetManifests, moveManifest, readStoredManifests } from "./manifestCache";
-import {
-  appendCall,
-  createDraft,
-  createStoryDraft,
-  findStoryDraft,
-  findUntouched,
-  isAgentDraft,
-  isUntouched,
-  markRun,
-  reopen,
-  Draft,
-  takeOver,
-  withCode,
-} from "./drafts";
+import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
 import { deriveDraftTitle, draftTitleText, proposeFileName } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
@@ -65,10 +52,7 @@ import { SidebarFoot, ColorMode } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm, type AppFormSaveControl } from "./AppForm";
-import { Editor, registerKajaModule, setModelRunDestinations, setRunDestinations, setValueCompletionApps } from "./Editor";
-import { AppPage } from "./AppPage";
-import { runningStories } from "./StoryCards";
-import { collectionFor, instantiateStory, linkedStory, Story, StoryCollection, storyById, storyId } from "./stories";
+import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
@@ -79,13 +63,10 @@ import { Workspace, WorkspaceApp, GetWorkspaceResponse, LogLevel, Runtime, Varia
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
-  dropAppPage,
   dropView,
-  followAppPages,
   PersistedViewState,
   restoreViews,
   serializeViews,
-  showApp,
   showAppForm,
   showCompiler,
   showDefinition,
@@ -109,7 +90,7 @@ import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
 import { setVariables, variableKind } from "./variableExpansion";
 import { onBrowserValuesChanged, storedValues } from "./browserValues";
-import { appVariableUses, missingByApp, MissingVariable, missingVariables } from "./variableUsage";
+import { appVariableUses, missingByApp, missingVariables } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
 import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowBackground, setWindowTitle } from "./wails";
@@ -926,7 +907,6 @@ export function App() {
           return { ...draft, code, generatedCode, originAppName };
         }),
       );
-      applyViews((views) => followAppPages(views, renames));
 
       await rewriteScripts(remap);
     },
@@ -1504,32 +1484,6 @@ export function App() {
     [apps, applyViews, showFileError, reportScriptError, beginRun, markSettled],
   );
 
-  // A story is code calling the person's own account, so opening one never runs it;
-  // only a clicked cell does, and that run is presented the way any cell's is.
-  const openStory = useCallback(
-    (appName: string, collection: StoryCollection, story: Story, options: { run: boolean; input?: { [key: string]: string }; fullScreen?: boolean }) => {
-      const id = storyId(collection, story);
-      const now = Date.now();
-      const held = findStoryDraft(draftsRef.current, id, appName);
-      const draft = held ?? createStoryDraft(instantiateStory(collection, story, appName), story.title, appName, id, now);
-      const opened = options.run ? markRun(draft, draft.code, now) : reopen(draft, now);
-      applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === opened.id ? opened : candidate)) : [opened, ...list]));
-      applyViews((views) => showDraft(views, opened));
-      if (!options.run) return;
-
-      const given = options.input && Object.keys(options.input).length > 0 ? options.input : undefined;
-      const carried = given ?? repeatInput(lastRunInput(opened.id), readInputKeys(opened.code) ?? []);
-      if (carried) rememberRunInput(opened.id, carried);
-      const controller = new AbortController();
-      const { run, kaja } = beginRun(opened.title, opened.id, controller, carried ? { input: carried } : undefined);
-      setPresent({ runId: run.id, screen: "keep", fullScreen: options.fullScreen ?? false });
-      runScript(opened.code, kaja, apps, reportScriptError(run), controller.signal)
-        .then(() => kaja.settleTables())
-        .finally(() => markSettled(run.id));
-    },
-    [apps, applyDrafts, applyViews, beginRun, reportScriptError, markSettled],
-  );
-
   /**
    * A table cell naming another script, clicked. The same door a deeplink goes
    * through, minus the sheet and minus the screen: that one asks first because what is
@@ -1549,33 +1503,14 @@ export function App() {
         void runLinkedScript(script, run.input ?? {}, { open: true, screen: "keep", fullScreen });
         return;
       }
-      // A story's cell reaches the other stories of its collection, after the folder.
-      // The cell is in the console on screen, so the draft on screen is the story it is in.
-      const view = viewsRef.current[0];
-      const draft = view?.type === "draft" ? draftsRef.current.find((candidate) => candidate.id === view.draftId) : undefined;
-      const from = draft?.storyId ? storyById(draft.storyId) : undefined;
-      const story = from && linkedStory(from.collection, run.script);
-      if (from && story && draft?.originAppName) {
-        openStory(draft.originAppName, from.collection, story, { run: true, input: run.input ?? {}, fullScreen });
-        return;
-      }
       showFileError(noSuchScript(run.script));
     },
-    [runLinkedScript, openStory, showFileError],
+    [runLinkedScript, showFileError],
   );
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     return onWailsEvent<string>("link:open", (link) => openLinkRef.current(link));
-  }, []);
-
-  useEffect(() => {
-    setModelRunDestinations((model) => {
-      const draftId = model.uri.path.replace(/^\//, "").replace(/\.ts$/, "");
-      const draft = draftsRef.current.find((candidate) => candidate.id === draftId);
-      const from = draft?.storyId ? storyById(draft.storyId) : undefined;
-      return from ? from.collection.stories.map((story) => story.name) : [];
-    });
   }, []);
 
   const linksReadyRef = useRef(false);
@@ -2257,8 +2192,7 @@ export function App() {
       }
       const code = editor.getValue();
       const controller = new AbortController();
-      const storyTitle = view.type === "draft" ? draftsRef.current.find((draft) => draft.id === view.draftId && draft.storyId)?.title : undefined;
-      const title = view.type === "script" ? view.script.name : (storyTitle ?? deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
+      const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
       const fileId = view.type === "script" ? view.script.path : view.draftId;
       // The sheet's values where it asked, and otherwise the last run's: Run repeats
       // what the file last ran with, whichever door wrote it.
@@ -2454,17 +2388,6 @@ export function App() {
     applyViews((views) => showAppForm(views, "create", buildApp("", type, {}, {})));
   };
 
-  // Only an app with stories has a page: everything else on it is the sidebar's.
-  const storyApps = useMemo(() => new Set(apps.filter((app) => collectionFor(app.configuration)).map((app) => app.configuration.name)), [apps]);
-
-  const onOpenApp = useCallback(
-    (appName: string) => {
-      const app = appStore.app(appName);
-      if (app && collectionFor(app.configuration)) applyViews((views) => showApp(views, appName, appType(app.configuration)));
-    },
-    [applyViews],
-  );
-
   const onEditApp = useCallback(
     (appName: string) => {
       const app = appStore.app(appName);
@@ -2506,7 +2429,6 @@ export function App() {
 
     if (isNewApp) {
       setAutoExpandApp({ name: app.name });
-      if (collectionFor(app)) applyViews((views) => showApp(views, app.name, appType(app)));
     }
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: true, name: app.name });
   };
@@ -2609,9 +2531,8 @@ export function App() {
       if (response.workspace) {
         applyWorkspace(response.workspace);
       }
-      applyViews((views) => dropAppPage(views, appName));
     },
-    [applyWorkspace, applyViews],
+    [applyWorkspace],
   );
 
   const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
@@ -2689,14 +2610,6 @@ export function App() {
       });
     }
 
-    const shownApps = new Set(views.flatMap((view) => (view.type === "app" ? [view.appName] : [])));
-    for (const app of apps) {
-      const name = app.configuration.name;
-      if (shownApps.has(name) || !collectionFor(app.configuration)) continue;
-      const mark = getAppType(appType(app.configuration))?.icon ?? FileCode;
-      destinations.push({ key: `app:${name}`, name, path: "Apps", origin: "", icon: mark, go: () => onOpenApp(name) });
-    }
-
     for (const app of apps) {
       const packages = hasMultiplePackages(app.services);
       // The mark is the only thing in a finder row that says what kind of app the
@@ -2739,7 +2652,6 @@ export function App() {
     onShowCompileLog,
     workspaces,
     onOpenWorkspace,
-    onOpenApp,
   ]);
 
   // Kaja's own views on the phone's finder, each wearing the state the Apps tab
@@ -2796,17 +2708,6 @@ export function App() {
   // one draft with no way to a file: the sheet would ask you to name what somebody
   // else wrote.
   const savableDraft = currentDraft && !isAgentDraft(currentDraft) ? currentDraft : undefined;
-  // A story's draft is the person's copy, so the shipped text is one gesture away.
-  const currentStory = currentDraft?.storyId ? storyById(currentDraft.storyId) : undefined;
-  const shippedStory =
-    currentStory && currentDraft?.originAppName ? instantiateStory(currentStory.collection, currentStory.story, currentDraft.originAppName) : undefined;
-  const onResetStory =
-    currentView?.type === "draft" && currentDraft && shippedStory !== undefined && shippedStory !== currentDraft.code
-      ? () => {
-          currentView.model.setValue(shippedStory);
-          updateDraft(currentDraft.id, (draft) => withCode(draft, shippedStory, Date.now()));
-        }
-      : undefined;
   const fileActions =
     currentDraft && canWriteFiles ? (
       <div className="flex shrink-0 items-center gap-1">
@@ -2849,7 +2750,6 @@ export function App() {
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
       onSaveAsFile={savableDraft && canWriteFiles ? onRequestSave : undefined}
-      onResetStory={onResetStory}
       onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
       onDuplicateAsDraft={currentView?.type === "script" && !canWriteFiles ? onDuplicateAsDraft : undefined}
     />
@@ -2870,13 +2770,7 @@ export function App() {
       {appFormSave.label}
     </Button>
   ) : undefined;
-  const pageApp = currentView?.type === "app" ? appStore.app(currentView.appName) : undefined;
-  const appSettingsButton = pageApp ? (
-    <Button variant="ghost" size="sm" onClick={() => onEditApp(pageApp.configuration.name)}>
-      Settings
-    </Button>
-  ) : undefined;
-  const action = runButton ?? resetAllButton ?? appFormSaveButton ?? appSettingsButton;
+  const action = runButton ?? resetAllButton ?? appFormSaveButton;
 
   // Bodies render in creation order, so bringing a file to the front never moves a
   // live editor in the DOM.
@@ -2928,19 +2822,6 @@ export function App() {
           />
         </div>
       )}
-      {view.type === "app" && (
-        <AppPageBody
-          appName={view.appName}
-          apps={apps}
-          drafts={drafts}
-          runningFiles={runningFiles}
-          missing={missingApps.get(view.appName)}
-          phone={isPhone}
-          onOpenStory={(appName, collection, story) => openStory(appName, collection, story, { run: false })}
-          onShowCompileLog={onShowCompileLog}
-          onRevealVariable={onRevealVariable}
-        />
-      )}
       {view.type === "definition" && (
         <Definition model={view.model} onGoToDefinition={onGoToDefinition} startLineNumber={view.startLineNumber} startColumn={view.startColumn} />
       )}
@@ -2967,9 +2848,10 @@ export function App() {
           onOpenFinder={() => setFinder("first")}
           onNewDraft={onNewDraft}
           apps={apps}
-          drafts={drafts}
+          scripts={scripts}
           runningFiles={runningFiles}
-          onOpenStory={(appName, collection, story) => openStory(appName, collection, story, { run: false })}
+          active={view.id === currentView?.id}
+          onOpenScript={(script) => void onScriptSelect(script)}
           phone={isPhone}
         />
       )}
@@ -3094,8 +2976,6 @@ export function App() {
               apps={apps}
               onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
               onEditApp={onEditApp}
-              onOpenApp={onOpenApp}
-              storyApps={storyApps}
               missingVariables={missingApps}
               onRevealVariable={onRevealVariable}
               onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
@@ -3172,8 +3052,6 @@ export function App() {
                   reserveTrafficLights={isDesktopMac}
                   workspace={workspaceControl}
                   onEditApp={onEditApp}
-                  onOpenApp={onOpenApp}
-                  storyApps={storyApps}
                   onDeleteApp={onDeleteApp}
                   scriptsRegion={scriptsRegion}
                 />
@@ -3468,48 +3346,6 @@ export function App() {
         </div>
       )}
     </>
-  );
-}
-
-function AppPageBody({
-  appName,
-  apps,
-  drafts,
-  runningFiles,
-  missing,
-  phone,
-  onOpenStory,
-  onShowCompileLog,
-  onRevealVariable,
-}: {
-  appName: string;
-  apps: AppModel[];
-  drafts: Draft[];
-  runningFiles: Set<string>;
-  missing?: MissingVariable[];
-  phone: boolean;
-  onOpenStory: (appName: string, collection: StoryCollection, story: Story) => void;
-  onShowCompileLog: (appName: string) => void;
-  onRevealVariable: (name: string) => void;
-}) {
-  const app = apps.find((candidate) => candidate.configuration.name === appName);
-  const collection = app ? collectionFor(app.configuration) : undefined;
-  if (!collection) {
-    return <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">No stories for {appName}.</div>;
-  }
-  const running = runningStories(collection, appName, drafts, runningFiles);
-  return (
-    <AppPage
-      appName={appName}
-      app={app}
-      collection={collection}
-      running={running}
-      missing={missing}
-      phone={phone}
-      onOpenStory={(story) => onOpenStory(appName, collection, story)}
-      onShowCompileLog={onShowCompileLog}
-      onRevealVariable={onRevealVariable}
-    />
   );
 }
 

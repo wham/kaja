@@ -90,7 +90,7 @@ message InspectGrpcResponse {
 message GrpcServer {
   // Where the surface came from: "reflection" or "proto_dir".
   string source = 1;
-  // The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+  // The gRPC target that answered, e.g. "dns:grpcb.in:9000". Empty for
   // the proto_dir source, which reaches no server.
   string target = 2;
   // Whether the connection that answered used TLS. When the app leaves the
@@ -114,7 +114,7 @@ message GrpcServer {
 }
 
 message GrpcService {
-  // Fully qualified name, e.g. "seating.Seating".
+  // Fully qualified name, e.g. "hello.HelloService".
   string name = 1;
   int32 method_count = 2;
   // Methods that stream from the client, bidirectional ones included. Neither

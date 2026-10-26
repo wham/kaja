@@ -31,7 +31,7 @@ func TestScanCountsBothSpellings(t *testing.T) {
 	response := scan(t, map[string]string{
 		"one.ts": `const key = kaja.variables.TOKEN;
 const other = kaja.variables["TOKEN"];
-await Shows.ListShows({}, { headers: { Authorization: "Bearer ${TOKEN}" } });`,
+await Repos.ListForUser({ username: "octocat" }, { headers: { Authorization: "Bearer ${TOKEN}" } });`,
 	}, "TOKEN")
 
 	found := references(t, response, "TOKEN")

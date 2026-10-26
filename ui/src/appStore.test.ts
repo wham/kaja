@@ -13,12 +13,12 @@ function manifest(method: string): Manifest {
     version: 2,
     modules: [
       {
-        path: "proto/theatre.ts",
+        path: "proto/github.ts",
         editorText: "",
-        messages: [{ name: "Empty", typeName: "theatre.Empty", fields: [] }],
+        messages: [{ name: "Empty", typeName: "github.Empty", fields: [] }],
         enums: [],
         services: [
-          { name: "Shows", typeName: "theatre.Shows", methods: [{ name: method, input: "Empty", output: "Empty", I: "theatre.Empty", O: "theatre.Empty" }] },
+          { name: "Repos", typeName: "github.Repos", methods: [{ name: method, input: "Empty", output: "Empty", I: "github.Empty", O: "github.Empty" }] },
         ],
         declarations: [{ name: "Empty", text: "export interface Empty {}", references: [] }],
       },
@@ -26,7 +26,7 @@ function manifest(method: string): Manifest {
   };
 }
 
-const theatre = { name: "theatre", app: { oneofKind: "openapi", openapi: { specUrl: "https://example.com/openapi.json" } } } as unknown as WorkspaceApp;
+const github = { name: "github", app: { oneofKind: "openapi", openapi: { specUrl: "https://example.com/openapi.json" } } } as unknown as WorkspaceApp;
 
 // A compiler whose stream the test feeds by hand, so a log line and a verdict are each
 // one step.
@@ -92,7 +92,7 @@ describe("the two subscriptions", () => {
     store.subscribe(() => surface++);
     store.subscribeProgress(() => progress++);
 
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
     const afterStart = { surface, progress };
 
@@ -102,33 +102,33 @@ describe("the two subscriptions", () => {
 
     expect(progress).toBeGreaterThan(afterStart.progress);
     expect(surface).toBe(afterStart.surface);
-    expect(store.progressOf("theatre").logs.map((log) => log.message)).toEqual(["Reading the document", "Writing the protos"]);
+    expect(store.progressOf("github").logs.map((log) => log.message)).toEqual(["Reading the document", "Writing the protos"]);
     expect(store.getSnapshot()[0].compilation.status).toBe("running");
   });
 
   it("moves the surface once, when the manifest lands", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
     let surface = 0;
     store.subscribe(() => surface++);
 
     compiler.log("Compiling");
-    compiler.ready(JSON.stringify(manifest("ListShows")));
+    compiler.ready(JSON.stringify(manifest("ListForUser")));
     await tick();
 
     expect(surface).toBe(1);
     const app = store.getSnapshot()[0];
     expect(app.compilation.status).toBe("success");
-    expect(app.services.map((service) => service.methods.map((method) => method.name))).toEqual([["ListShows"]]);
-    expect(store.progressOf("theatre").running).toBe(false);
+    expect(app.services.map((service) => service.methods.map((method) => method.name))).toEqual([["ListForUser"]]);
+    expect(store.progressOf("github").running).toBe(false);
   });
 
   it("keeps the log lines off the surface", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
     compiler.log("a line");
     compiler.send({ status: CompileStatus.STATUS_RUNNING, logs: [{ level: LogLevel.LEVEL_WARN, message: "deprecated" }], manifest: "" });
-    compiler.ready(JSON.stringify(manifest("ListShows")));
+    compiler.ready(JSON.stringify(manifest("ListForUser")));
     await tick();
 
     const app = store.getSnapshot()[0];
@@ -139,24 +139,24 @@ describe("the two subscriptions", () => {
 
 describe("what the compiler is asked", () => {
   it("compiles every pending app, each once, and asks for nothing fresh", async () => {
-    const seating = { ...theatre, name: "seating" };
-    store.replace([createPendingApp(theatre), createPendingApp(seating)]);
+    const work = { ...github, name: "github-work" };
+    store.replace([createPendingApp(github), createPendingApp(work)]);
     store.update((apps) => [...apps]);
     await tick();
 
     expect(compiler.requests.map((request) => [request.app?.name, request.fresh])).toEqual([
-      ["theatre", false],
-      ["seating", false],
+      ["github", false],
+      ["github-work", false],
     ]);
   });
 
   it("asks for a fresh compile on the Recompile gesture alone", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
-    compiler.ready(JSON.stringify(manifest("ListShows")));
+    compiler.ready(JSON.stringify(manifest("ListForUser")));
     await tick();
 
-    store.recompile("theatre");
+    store.recompile("github");
     await tick();
 
     expect(compiler.requests.map((request) => request.fresh)).toEqual([false, true]);
@@ -164,7 +164,7 @@ describe("what the compiler is asked", () => {
   });
 
   it("states a failure on the surface with the line that says why", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
     compiler.error("unknown type Foo");
     await tick();
@@ -174,25 +174,25 @@ describe("what the compiler is asked", () => {
 });
 
 describe("a surface read back from the last session", () => {
-  const stored = new Map([["theatre", { fingerprint: manifestFingerprint(theatre), manifest: JSON.stringify(manifest("ListShows")) }]]);
+  const stored = new Map([["github", { fingerprint: manifestFingerprint(github), manifest: JSON.stringify(manifest("ListForUser")) }]]);
 
   it("opens ready and is still compiled underneath", async () => {
-    store.open([theatre], stored);
+    store.open([github], stored);
     const app = store.getSnapshot()[0];
     expect(app.compilation.status).toBe("cached");
     expect(app.services).toHaveLength(1);
 
     await tick();
     expect(compiler.requests).toHaveLength(1);
-    expect(store.progressOf("theatre").running).toBe(true);
+    expect(store.progressOf("github").running).toBe(true);
     expect(store.getSnapshot()[0].compilation.status).toBe("cached");
   });
 
   it("keeps its surface when the server answers with the same manifest", async () => {
-    store.open([theatre], stored);
+    store.open([github], stored);
     await tick();
     const before = store.getSnapshot()[0];
-    compiler.ready(stored.get("theatre")!.manifest);
+    compiler.ready(stored.get("github")!.manifest);
     await tick();
 
     const after = store.getSnapshot()[0];
@@ -201,19 +201,19 @@ describe("a surface read back from the last session", () => {
   });
 
   it("is replaced when the server answers with another", async () => {
-    store.open([theatre], stored);
+    store.open([github], stored);
     await tick();
     const before = store.getSnapshot()[0];
-    compiler.ready(JSON.stringify(manifest("GetShow")));
+    compiler.ready(JSON.stringify(manifest("Get")));
     await tick();
 
     const after = store.getSnapshot()[0];
     expect(after.sources).not.toBe(before.sources);
-    expect(after.services[0].methods[0].name).toBe("GetShow");
+    expect(after.services[0].methods[0].name).toBe("Get");
   });
 
   it("starts pending where the stored manifest describes another configuration", () => {
-    const moved = { ...theatre, app: { oneofKind: "openapi", openapi: { specUrl: "https://example.com/v2.json" } } } as unknown as WorkspaceApp;
+    const moved = { ...github, app: { oneofKind: "openapi", openapi: { specUrl: "https://example.com/v2.json" } } } as unknown as WorkspaceApp;
     store.open([moved], stored);
 
     expect(store.getSnapshot()[0].compilation.status).toBe("pending");
@@ -222,33 +222,33 @@ describe("a surface read back from the last session", () => {
 
 describe("replace", () => {
   it("follows a rename into what it holds and lets go of what left", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
-    compiler.ready(JSON.stringify(manifest("ListShows")));
+    compiler.ready(JSON.stringify(manifest("ListForUser")));
     await tick();
     const compiled = store.getSnapshot()[0];
 
-    store.replace([{ ...compiled, configuration: { ...theatre, name: "stage" } }], new Map([["theatre", "stage"]]));
+    store.replace([{ ...compiled, configuration: { ...github, name: "gh" } }], new Map([["github", "gh"]]));
     await tick();
     expect(compiler.requests).toHaveLength(1);
-    expect(store.progressOf("stage").logs).toBe(store.progressOf("stage").logs);
+    expect(store.progressOf("gh").logs).toBe(store.progressOf("gh").logs);
 
     store.replace([]);
-    expect(store.progressOf("stage").logs).toHaveLength(0);
+    expect(store.progressOf("gh").logs).toHaveLength(0);
   });
 
   it("starts a rename over where its compile was still streaming", async () => {
-    store.replace([createPendingApp(theatre)]);
+    store.replace([createPendingApp(github)]);
     await tick();
     compiler.log("Compiling");
     await tick();
 
     const running = store.getSnapshot()[0];
-    store.replace([{ ...running, configuration: { ...theatre, name: "stage" } }], new Map([["theatre", "stage"]]));
+    store.replace([{ ...running, configuration: { ...github, name: "gh" } }], new Map([["github", "gh"]]));
     await tick();
 
-    expect(compiler.requests.map((request) => request.app?.name)).toEqual(["theatre", "stage"]);
-    expect(store.progressOf("theatre").logs).toHaveLength(0);
-    expect(store.progressOf("stage").running).toBe(true);
+    expect(compiler.requests.map((request) => request.app?.name)).toEqual(["github", "gh"]);
+    expect(store.progressOf("github").logs).toHaveLength(0);
+    expect(store.progressOf("gh").running).toBe(true);
   });
 });

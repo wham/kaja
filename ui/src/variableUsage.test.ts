@@ -9,30 +9,30 @@ function grpcApp(name: string, url: string, headers: { [key: string]: string } =
 
 describe("appVariableUses", () => {
   it("names the parameter a reference sits in", () => {
-    const uses = appVariableUses([grpcApp("theatre", "${HOST}")]);
-    expect(uses.get("HOST")).toEqual([{ app: "theatre", field: "url" }]);
+    const uses = appVariableUses([grpcApp("grpcbin", "${HOST}")]);
+    expect(uses.get("HOST")).toEqual([{ app: "grpcbin", field: "url" }]);
   });
 
   it("calls a header reference a header, whichever header it is", () => {
-    const uses = appVariableUses([grpcApp("theatre", "localhost:9000", { Authorization: "Bearer ${TOKEN}" })]);
-    expect(uses.get("TOKEN")).toEqual([{ app: "theatre", field: "header" }]);
+    const uses = appVariableUses([grpcApp("grpcbin", "localhost:9000", { Authorization: "Bearer ${TOKEN}" })]);
+    expect(uses.get("TOKEN")).toEqual([{ app: "grpcbin", field: "header" }]);
   });
 
   it("counts one app naming a variable twice in one field once", () => {
-    const uses = appVariableUses([grpcApp("theatre", "${HOST}/${HOST}")]);
+    const uses = appVariableUses([grpcApp("grpcbin", "${HOST}/${HOST}")]);
     expect(uses.get("HOST")).toHaveLength(1);
   });
 
   it("lists an app once per field that names the variable", () => {
-    const uses = appVariableUses([grpcApp("theatre", "${TOKEN}", { Authorization: "${TOKEN}" })]);
+    const uses = appVariableUses([grpcApp("grpcbin", "${TOKEN}", { Authorization: "${TOKEN}" })]);
     expect(uses.get("TOKEN")).toEqual([
-      { app: "theatre", field: "url" },
-      { app: "theatre", field: "header" },
+      { app: "grpcbin", field: "url" },
+      { app: "grpcbin", field: "header" },
     ]);
   });
 
   it("holds a name no variable defines, which is how the screen reports one", () => {
-    const uses = appVariableUses([grpcApp("theatre", "${MISSING}")]);
+    const uses = appVariableUses([grpcApp("grpcbin", "${MISSING}")]);
     expect([...uses.keys()]).toEqual(["MISSING"]);
   });
 });
@@ -72,7 +72,7 @@ describe("scannedAgo", () => {
 });
 
 describe("missingVariables", () => {
-  const apps = [grpcApp("theatre", "${HOST}", { Authorization: "Bearer ${TOKEN}" }), grpcApp("box", "${HOST}")];
+  const apps = [grpcApp("grpcbin", "${HOST}", { Authorization: "Bearer ${TOKEN}" }), grpcApp("box", "${HOST}")];
   const uses = appVariableUses(apps);
 
   it("names a variable kaja.json defines and this machine holds nothing for", () => {
@@ -80,12 +80,12 @@ describe("missingVariables", () => {
       { name: "HOST", source: VariableSource.FILE, envName: "", signInResource: "" },
       { name: "TOKEN", source: VariableSource.UNSET, envName: "KAJA_TOKEN", signInResource: "" },
     ];
-    expect(missingVariables({ HOST: "localhost", TOKEN: "${secret}" }, status, uses)).toEqual([{ name: "TOKEN", defined: true, apps: ["theatre"] }]);
+    expect(missingVariables({ HOST: "localhost", TOKEN: "${secret}" }, status, uses)).toEqual([{ name: "TOKEN", defined: true, apps: ["grpcbin"] }]);
   });
 
   it("names a reference no variable defines", () => {
     const status = [{ name: "HOST", source: VariableSource.FILE, envName: "", signInResource: "" }];
-    expect(missingVariables({ HOST: "localhost" }, status, uses)).toEqual([{ name: "TOKEN", defined: false, apps: ["theatre"] }]);
+    expect(missingVariables({ HOST: "localhost" }, status, uses)).toEqual([{ name: "TOKEN", defined: false, apps: ["grpcbin"] }]);
   });
 
   it("says nothing about a defined variable whose status hasn't arrived", () => {
@@ -100,7 +100,7 @@ describe("missingVariables", () => {
   it("lists each app once, and every app using it", () => {
     const status = [{ name: "HOST", source: VariableSource.UNSET, envName: "HOST", signInResource: "" }];
     const missing = missingVariables({ HOST: "${env:HOST}", TOKEN: "t" }, status, uses);
-    expect(missing).toEqual([{ name: "HOST", defined: true, apps: ["theatre", "box"] }]);
+    expect(missing).toEqual([{ name: "HOST", defined: true, apps: ["grpcbin", "box"] }]);
     expect(
       missingByApp(missing)
         .get("box")

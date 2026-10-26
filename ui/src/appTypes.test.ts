@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { APP_HEADER, appTypes, isAppHeader, mergeHeaders, transportHeaders } from "./appTypes";
 import { WorkspaceApp } from "./server/api";
 
-const app = { name: "theatre" } as WorkspaceApp;
+const app = { name: "github" } as WorkspaceApp;
 
 describe("mergeHeaders", () => {
   it("keeps the app's headers when a call adds to them", () => {
@@ -30,7 +30,7 @@ describe("transportHeaders", () => {
   it("names the app the call belongs to alongside what it sends", () => {
     expect(transportHeaders(app, { "X-Tenant": "acme" })).toEqual({
       "X-Tenant": "acme",
-      [APP_HEADER]: "theatre",
+      [APP_HEADER]: "github",
     });
   });
 });

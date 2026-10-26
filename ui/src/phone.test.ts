@@ -43,33 +43,33 @@ describe("tapSheet", () => {
 
 describe("methodTag", () => {
   it("reads write off the HTTP verb and says nothing without one", () => {
-    expect(methodTag({ name: "CreateShow", http: "POST /shows" })).toBe("write");
-    expect(methodTag({ name: "DeleteShow", http: "delete /shows/{id}" })).toBe("write");
-    expect(methodTag({ name: "ListShows", http: "GET /shows" })).toBeUndefined();
-    expect(methodTag({ name: "CreateShow" })).toBeUndefined();
+    expect(methodTag({ name: "Create", http: "POST /repos/{owner}/{repo}/issues" })).toBe("write");
+    expect(methodTag({ name: "Delete", http: "delete /repos/{owner}/{repo}" })).toBe("write");
+    expect(methodTag({ name: "ListForUser", http: "GET /users/{username}/repos" })).toBeUndefined();
+    expect(methodTag({ name: "Create" })).toBeUndefined();
   });
 
   it("names a stream over a verb", () => {
-    expect(methodTag({ name: "WatchShows", serverStreaming: true, http: "GET /shows/watch" })).toBe("stream");
+    expect(methodTag({ name: "WatchEvents", serverStreaming: true, http: "GET /events" })).toBe("stream");
     expect(methodTag({ name: "Upload", clientStreaming: true })).toBe("stream");
   });
 });
 
 describe("matchParts", () => {
   it("splits the name around the first occurrence, whatever the case", () => {
-    expect(matchParts("GetSeatMap", "seat")).toEqual([
-      { text: "Get", match: false },
-      { text: "Seat", match: true },
-      { text: "Map", match: false },
+    expect(matchParts("GetByUsername", "user")).toEqual([
+      { text: "GetBy", match: false },
+      { text: "User", match: true },
+      { text: "name", match: false },
     ]);
-    expect(matchParts("seating", "seat")).toEqual([
-      { text: "seat", match: true },
-      { text: "ing", match: false },
+    expect(matchParts("users", "user")).toEqual([
+      { text: "user", match: true },
+      { text: "s", match: false },
     ]);
   });
 
   it("is one part where nothing matched or nothing was asked", () => {
-    expect(matchParts("movies.ts", "seat")).toEqual([{ text: "movies.ts", match: false }]);
-    expect(matchParts("movies.ts", "  ")).toEqual([{ text: "movies.ts", match: false }]);
+    expect(matchParts("issues.ts", "user")).toEqual([{ text: "issues.ts", match: false }]);
+    expect(matchParts("issues.ts", "  ")).toEqual([{ text: "issues.ts", match: false }]);
   });
 });

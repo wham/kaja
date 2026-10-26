@@ -29,11 +29,11 @@ function methods(prefix: string, count: number): string[] {
   return Array.from({ length: count }, (_, index) => `${prefix}${index + 1}`);
 }
 
-const tiny: TreeApp = { name: "tiny", services: [service("Shows", "theatre", ["ListShows", "GetShow"])] };
+const tiny: TreeApp = { name: "tiny", services: [service("Repos", "github", ["ListForUser", "Get"])] };
 
 const medium: TreeApp = {
   name: "medium",
-  services: [service("Shows", "theatre", methods("M", 6)), service("Seats", "theatre", methods("N", 6)), service("Venues", "theatre", methods("O", 6))],
+  services: [service("Repos", "github", methods("M", 6)), service("Issues", "github", methods("N", 6)), service("Pulls", "github", methods("O", 6))],
 };
 
 const huge: TreeApp = {
@@ -43,7 +43,7 @@ const huge: TreeApp = {
 
 const packaged: TreeApp = {
   name: "packaged",
-  services: [service("Shows", "theatre", ["ListShows"]), service("Seats", "seating", ["Reserve"])],
+  services: [service("Repos", "github", ["ListForUser"]), service("HelloService", "hello", ["SayHello"])],
 };
 
 const use = (app: string, pkg: string, svc: string, method: string): MethodUse => ({ app, package: pkg, service: svc, method });
@@ -65,8 +65,8 @@ describe("autoOpenNodes", () => {
   test("counts packages as their own level", () => {
     expect(autoOpenNodes(packaged)).toEqual([
       appNodeId("packaged"),
-      packageNodeId("packaged", "theatre"),
-      packageNodeId("packaged", "seating"),
+      packageNodeId("packaged", "github"),
+      packageNodeId("packaged", "hello"),
       serviceNodeId("packaged", packaged.services[0]),
       serviceNodeId("packaged", packaged.services[1]),
     ]);
@@ -80,21 +80,21 @@ describe("autoOpenNodes", () => {
 
 describe("usePath", () => {
   test("resolves to the nodes between the app and the service", () => {
-    expect(usePath(packaged, use("packaged", "seating", "Seats", "Reserve"))).toEqual([
+    expect(usePath(packaged, use("packaged", "hello", "HelloService", "SayHello"))).toEqual([
       appNodeId("packaged"),
-      packageNodeId("packaged", "seating"),
+      packageNodeId("packaged", "hello"),
       serviceNodeId("packaged", packaged.services[1]),
     ]);
   });
 
   test("omits the package level when there is only one package", () => {
-    expect(usePath(tiny, use("tiny", "theatre", "Shows", "GetShow"))).toEqual([appNodeId("tiny"), serviceNodeId("tiny", tiny.services[0])]);
+    expect(usePath(tiny, use("tiny", "github", "Repos", "Get"))).toEqual([appNodeId("tiny"), serviceNodeId("tiny", tiny.services[0])]);
   });
 
   test("does not resolve a call the proto no longer has", () => {
-    expect(usePath(tiny, use("tiny", "theatre", "Shows", "DeleteShow"))).toBeUndefined();
-    expect(usePath(tiny, use("tiny", "theatre", "Gone", "GetShow"))).toBeUndefined();
-    expect(usePath(tiny, use("tiny", "elsewhere", "Shows", "GetShow"))).toBeUndefined();
+    expect(usePath(tiny, use("tiny", "github", "Repos", "Delete"))).toBeUndefined();
+    expect(usePath(tiny, use("tiny", "github", "Gone", "Get"))).toBeUndefined();
+    expect(usePath(tiny, use("tiny", "elsewhere", "Repos", "Get"))).toBeUndefined();
   });
 });
 
@@ -113,7 +113,7 @@ describe("seedFolds", () => {
 
   test("with a history, the recent calls decide", () => {
     const apps = [tiny, medium];
-    const ledger = [use("medium", "theatre", "Venues", "O1")];
+    const ledger = [use("medium", "github", "Pulls", "O1")];
     const folds = seedFolds(apps, all(apps), {}, ledger, none);
     expect(folds[appNodeId("medium")]).toBe("open");
     expect(folds[serviceNodeId("medium", medium.services[2])]).toBe("open");
@@ -121,7 +121,7 @@ describe("seedFolds", () => {
 
   test("an app no recent call names stays shut", () => {
     const apps = [tiny, medium];
-    const folds = seedFolds(apps, all(apps), {}, [use("medium", "theatre", "Venues", "O1")], none);
+    const folds = seedFolds(apps, all(apps), {}, [use("medium", "github", "Pulls", "O1")], none);
     expect(folds[appNodeId("tiny")]).toBeUndefined();
   });
 
@@ -142,13 +142,13 @@ describe("seedFolds", () => {
 
   test("a ledger that resolves to nothing at all is a cold start", () => {
     const apps = [tiny];
-    const folds = seedFolds(apps, all(apps), {}, [use("deleted-app", "theatre", "Shows", "GetShow")], none);
+    const folds = seedFolds(apps, all(apps), {}, [use("deleted-app", "github", "Repos", "Get")], none);
     expect(folds[serviceNodeId("tiny", tiny.services[0])]).toBe("open");
   });
 
   test("a new app goes by size even when there is a history", () => {
     const apps = [tiny, medium];
-    const ledger = [use("medium", "theatre", "Venues", "O1")];
+    const ledger = [use("medium", "github", "Pulls", "O1")];
     const folds = seedFolds(apps, all(apps), {}, ledger, new Set(["tiny"]));
     expect(folds[serviceNodeId("tiny", tiny.services[0])]).toBe("open");
   });
@@ -157,13 +157,13 @@ describe("seedFolds", () => {
     const apps = [tiny];
     const shut: FoldMap = { [serviceNodeId("tiny", tiny.services[0])]: "shut" };
     expect(seedFolds(apps, all(apps), shut, [], none)[serviceNodeId("tiny", tiny.services[0])]).toBe("shut");
-    const ledger = [use("tiny", "theatre", "Shows", "GetShow")];
+    const ledger = [use("tiny", "github", "Repos", "Get")];
     expect(seedFolds(apps, all(apps), shut, ledger, none)[serviceNodeId("tiny", tiny.services[0])]).toBe("shut");
   });
 
   test("seeds only its targets, but spends the budget on every app", () => {
     const apps = [tiny, medium];
-    const ledger = [use("tiny", "theatre", "Shows", "GetShow"), use("medium", "theatre", "Venues", "O1")];
+    const ledger = [use("tiny", "github", "Repos", "Get"), use("medium", "github", "Pulls", "O1")];
     const folds = seedFolds(apps, new Set(["medium"]), {}, ledger, none);
     expect(folds[appNodeId("tiny")]).toBeUndefined();
     expect(folds[serviceNodeId("medium", medium.services[2])]).toBe("open");
@@ -175,7 +175,7 @@ describe("pruneFolds", () => {
     const folds: FoldMap = {
       [appNodeId("tiny")]: "open",
       [serviceNodeId("tiny", tiny.services[0])]: "open",
-      [serviceNodeId("tiny", service("Removed", "theatre", []))]: "shut",
+      [serviceNodeId("tiny", service("Removed", "github", []))]: "shut",
       [appNodeId("deleted")]: "open",
     };
     const pruned = pruneFolds(folds, [tiny], new Set());
@@ -190,7 +190,7 @@ describe("pruneFolds", () => {
   });
 
   test("still drops a service its app no longer compiles", () => {
-    const folds: FoldMap = { [serviceNodeId("tiny", service("Removed", "theatre", []))]: "shut" };
+    const folds: FoldMap = { [serviceNodeId("tiny", service("Removed", "github", []))]: "shut" };
     expect(pruneFolds(folds, [tiny], new Set())).toEqual({});
   });
 
@@ -203,15 +203,15 @@ describe("pruneFolds", () => {
 describe("subtreeNodes", () => {
   test("an app takes its packages and its services", () => {
     expect(subtreeNodes(packaged, appNodeId("packaged"))).toEqual([
-      packageNodeId("packaged", "theatre"),
-      packageNodeId("packaged", "seating"),
+      packageNodeId("packaged", "github"),
+      packageNodeId("packaged", "hello"),
       serviceNodeId("packaged", packaged.services[0]),
       serviceNodeId("packaged", packaged.services[1]),
     ]);
   });
 
   test("a package takes only its own services", () => {
-    expect(subtreeNodes(packaged, packageNodeId("packaged", "seating"))).toEqual([serviceNodeId("packaged", packaged.services[1])]);
+    expect(subtreeNodes(packaged, packageNodeId("packaged", "hello"))).toEqual([serviceNodeId("packaged", packaged.services[1])]);
   });
 
   test("a service has nothing under it but leaves", () => {

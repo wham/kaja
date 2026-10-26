@@ -52,33 +52,33 @@ describe("two runs at once", () => {
     const a = run(host, "a");
     const b = run(host, "b");
 
-    // A grants "every CreateShow this run".
-    const first = stub("Shows.CreateShow");
+    // A grants "every Issues.Create this run".
+    const first = stub("Issues.Create");
     await a.kaja.approve(first.call);
-    expect(a.asked).toEqual(["a:Shows.CreateShow"]);
+    expect(a.asked).toEqual(["a:Issues.Create"]);
 
     // B's call to the same method is B's to decide, and must be asked about.
-    const second = stub("Shows.CreateShow");
+    const second = stub("Issues.Create");
     await b.kaja.approve(second.call);
-    expect(b.asked).toEqual(["b:Shows.CreateShow"]);
+    expect(b.asked).toEqual(["b:Issues.Create"]);
 
     // And A's own second call still rides its standing approval.
-    const third = stub("Shows.CreateShow");
+    const third = stub("Issues.Create");
     await a.kaja.approve(third.call);
-    expect(a.asked).toEqual(["a:Shows.CreateShow"]);
+    expect(a.asked).toEqual(["a:Issues.Create"]);
   });
 
   it("does not let a run starting revoke an approval another run was given", async () => {
     const host = new KajaHost();
     const a = run(host, "a");
 
-    await a.kaja.approve(stub("Shows.CreateShow").call);
+    await a.kaja.approve(stub("Issues.Create").call);
     // Starting a second run is what used to clear the shared set out from under
     // the first one, so its loop began asking again halfway through.
     run(host, "b");
 
-    await a.kaja.approve(stub("Shows.CreateShow").call);
-    expect(a.asked).toEqual(["a:Shows.CreateShow"]);
+    await a.kaja.approve(stub("Issues.Create").call);
+    expect(a.asked).toEqual(["a:Issues.Create"]);
   });
 
   it("keeps each run's blocks and printed lines to itself", () => {
@@ -146,9 +146,9 @@ describe("a table outlives the run that drew it", () => {
         for (let i = 0; i < 100; i++) {
           await a.kaja._internal.methodCallUpdate({
             id: `call-${i}`,
-            appName: "shows",
-            service: { name: "Shows" },
-            method: { name: "ListShows" },
+            appName: "github",
+            service: { name: "Issues" },
+            method: { name: "ListForRepo" },
             input: {},
             timestamp: 0,
           } as never);
@@ -237,7 +237,7 @@ function sink() {
 // makes the approval tests above about approval rather than about timing.
 describe("the tick", () => {
   it("still sends an unclaimed call", async () => {
-    const stubbed = stub("Shows.Ping");
+    const stubbed = stub("Repos.Get");
     await tick();
     expect(stubbed.sends).toBe(1);
   });

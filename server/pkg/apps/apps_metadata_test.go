@@ -3,9 +3,9 @@ package apps
 import "testing"
 
 func TestTakeAppName(t *testing.T) {
-	headers := map[string]string{"X-Kaja-App": "seating", "X-Tenant": "acme"}
-	if name := TakeAppName(headers); name != "seating" {
-		t.Errorf("TakeAppName() = %q, want %q", name, "seating")
+	headers := map[string]string{"X-Kaja-App": "grpcb.in", "X-Tenant": "acme"}
+	if name := TakeAppName(headers); name != "grpcb.in" {
+		t.Errorf("TakeAppName() = %q, want %q", name, "grpcb.in")
 	}
 	if _, still := headers["X-Kaja-App"]; still {
 		t.Error("the reserved header stayed in the map; it must never reach the wire")

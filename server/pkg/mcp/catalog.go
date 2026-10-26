@@ -9,8 +9,8 @@ import (
 // and it is TypeScript, because that is what a script is.
 //
 // Every Kaja app compiles to generated TypeScript, and what an author writes against
-// is the result: `Shows.ListShows({ pageSize: 25 })` against an interface named
-// ListShowsRequest. Nothing they write is protobuf, so the answers here are
+// is the result: `Issues.ListForRepo({ owner, repo })` against an interface named
+// IssuesListForRepoRequest. Nothing they write is protobuf, so the answers here are
 // declarations lifted out of that generated code rather than a description of the wire
 // format behind it — a declaration can't disagree with the code a script is checked
 // against; a second model of it can, and did.
@@ -57,7 +57,7 @@ type CatalogService struct {
 type CatalogMethod struct {
 	Name string `json:"name"`
 	// The TypeScript a script writes, e.g.
-	// "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>".
+	// "ListForRepo(input: IssuesListForRepoRequest): Promise<IssuesListForRepoResponse>".
 	Signature string `json:"signature"`
 	Input     string `json:"input"`
 	Output    string `json:"output"`
@@ -150,7 +150,7 @@ func (a CatalogApp) declarationsFor(names ...string) []Declaration {
 
 // readingNamePrefixes are the verbs an API uses for a method that only reads. A
 // prefix counts only when it ends the name or is followed by an upper-case letter, so
-// "Get" matches "GetShow" and "Get", not "Generate".
+// "Get" matches "GetUser" and "Get", not "Generate".
 var readingNamePrefixes = []string{
 	"Get", "List", "Read", "Fetch", "Search", "Query", "Find", "Lookup",
 	"Describe", "Count", "Check", "Watch", "Export", "Download", "Resolve",
@@ -183,9 +183,9 @@ func (c Catalog) methods() []resolvedMethod {
 	return out
 }
 
-// findMethod resolves the name an agent writes. "Shows.ListShows" is the usual form;
-// "theatre/Shows.ListShows" disambiguates when two apps expose the same service, and a
-// bare "ListShows" is accepted when only one method answers to it. An ambiguous name
+// findMethod resolves the name an agent writes. "Issues.ListForRepo" is the usual form;
+// "github/Issues.ListForRepo" disambiguates when two apps expose the same service, and a
+// bare "ListForRepo" is accepted when only one method answers to it. An ambiguous name
 // comes back as a list of the candidates rather than a pick.
 func (c Catalog) findMethod(name string) (resolvedMethod, []string, bool) {
 	name = strings.TrimSpace(name)

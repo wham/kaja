@@ -271,6 +271,11 @@ export function pruneArchive(archive: RunArchive, now: number): RunArchive {
   return pruned;
 }
 
+// When each file still held was last run, keyed like the archive.
+export function lastRunTimes(now = Date.now()): Map<string, number> {
+  return new Map(Object.entries(pruneArchive(readArchive(), now)).map(([fileId, stored]) => [fileId, lastRunAt(stored)]));
+}
+
 function lastRunAt(stored: StoredFile): number {
   return stored.runs[stored.runs.length - 1]?.run.startedAt ?? 0;
 }

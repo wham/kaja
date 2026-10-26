@@ -101,13 +101,13 @@ has no caption field, so a caption is drawn into the image.
 
 | # | Caption | What's on screen |
 | --- | --- | --- |
-| 1 | Connect. Run. Inspect. | The whole window: the tree with the three apps expanded, `whats-on.ts` in the editor, the canvas underneath showing the listings table mid-run. |
+| 1 | Connect. Run. Inspect. | The whole window: the GitHub tree expanded, `trending.ts` in the editor, the canvas underneath showing this week's most-starred repositories. |
 | 2 | Let an agent write the script | An agent's draft at the top of Drafts, the script it wrote in the editor, and its run in the Calls log. |
 | 3 | Connect your API | The New app dialog listing gRPC, OpenAPI, MCP and Twirp. |
-| 4 | Click a method, get a typed script | A drafted `ListMovies` call with the completion list open on a request field. |
+| 4 | Click a method, get a typed script | A drafted GitHub `Licenses.GetAllCommonlyUsed` call with the completion list open on a request field. |
 | 5 | See exactly what happened | The Calls log with the response JSON and the status, duration and size strip. |
-| 6 | Tables, not JSON | Full-screen canvas: the `movies.ts` table paging through 1,283 rows, with search. |
-| 7 | Approve before it's sent | `a-night-out.ts` waiting on its approve block, with the `BookSeats` request, Approve and Stop. |
-| 8 | Load test with one call | Full-screen Stats for `how-fast.ts`. |
-| 9 | Secrets stay out of your files | The Variables table with a Keychain row, an environment row and plain values. |
+| 6 | Tables, not JSON | Full-screen canvas: the `good-first-issues.ts` table paging through GitHub's search, a page at a time. |
+| 7 | Scripts that ask | `good-first-issues.ts` paused on its question, which language to look in. |
+| 8 | Load test with one call | Full-screen Stats for `how-fast.ts` against grpcb.in. |
+| 9 | Secrets stay out of your files | The Variables table with a Keychain row beside plain values. |
 | 10 | Works with the agent you already use | The MCP server page switched on, with Claude Code's command shown. |

@@ -28,9 +28,6 @@ export interface Draft {
   // What an agent calls itself, on the one draft it writes in. It is what pins the row
   // above your own drafts and outside the count.
   agentName?: string;
-  // The story this draft is the person's copy of. It names the draft instead of its
-  // code, and the next tap on the story opens this draft rather than another.
-  storyId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -53,20 +50,6 @@ export function createDraft(code: string, originAppName: string | undefined, now
     createdAt: now,
     updatedAt: now,
   };
-}
-
-// An empty `generatedCode` keeps it from ever being a browsing buffer, so a method click
-// can't take over a story that was opened to read rather than run.
-export function createStoryDraft(code: string, title: string, originAppName: string, storyId: string, now: number): Draft {
-  return { ...createDraft(code, originAppName, now), title, storyId, generatedCode: "" };
-}
-
-export function findStoryDraft(drafts: Draft[], storyId: string, originAppName: string): Draft | undefined {
-  return drafts.find((draft) => draft.storyId === storyId && draft.originAppName === originAppName);
-}
-
-function titleFor(draft: Draft, code: string): string {
-  return draft.storyId !== undefined ? draft.title : (deriveDraftTitle(code) ?? draft.title);
 }
 
 // The dimming says the row holds nothing of yours; what it leaves open is what
@@ -106,7 +89,7 @@ export function takeOver(draft: Draft, code: string, originAppName: string | und
 // Adding a call is as deliberate as running one, so it settles the title the same
 // way. Typing does not — that would rename the row under the cursor.
 export function withCode(draft: Draft, code: string, now: number): Draft {
-  return { ...draft, code, title: titleFor(draft, code), updatedAt: now };
+  return { ...draft, code, title: deriveDraftTitle(code) ?? draft.title, updatedAt: now };
 }
 
 // A run is the punctuation that settles a draft. Doing it on every keystroke would
@@ -115,7 +98,7 @@ export function markRun(draft: Draft, code: string, now: number): Draft {
   return {
     ...draft,
     code,
-    title: titleFor(draft, code),
+    title: deriveDraftTitle(code) ?? draft.title,
     ran: true,
     updatedAt: now,
   };

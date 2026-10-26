@@ -12,46 +12,47 @@ const manifest: Manifest = {
   version: 2,
   modules: [
     {
-      path: "proto/theatre.ts",
+      path: "proto/github.ts",
       editorText: "",
       messages: [
         {
-          name: "Show",
-          typeName: "theatre.Show",
+          name: "Repo",
+          typeName: "github.Repo",
           fields: [
-            { no: 1, name: "id", kind: "scalar", T: 9, options: { "kaja.http_required": true } },
-            { no: 2, name: "venue", kind: "message", T: "theatre.Venue" },
+            { no: 1, name: "full_name", kind: "scalar", T: 9, options: { "kaja.http_required": true } },
+            { no: 2, name: "owner", kind: "message", T: "github.Owner" },
             { no: 3, name: "extras", kind: "message", T: "google.protobuf.Value" },
           ],
         },
-        { name: "Venue", typeName: "theatre.Venue", fields: [{ no: 1, name: "name", kind: "scalar", T: 9 }] },
+        { name: "Owner", typeName: "github.Owner", fields: [{ no: 1, name: "login", kind: "scalar", T: 9 }] },
         {
-          name: "ListShowsRequest",
-          typeName: "theatre.ListShowsRequest",
+          name: "ReposListForAuthenticatedUserRequest",
+          typeName: "github.ReposListForAuthenticatedUserRequest",
           fields: [
-            { no: 1, name: "page_size", kind: "scalar", T: 5, options: { "kaja.http_in": "query" } },
-            { no: 2, name: "sort", kind: "enum", T: "theatre.Sort" },
+            { no: 1, name: "per_page", kind: "scalar", T: 5, options: { "kaja.http_in": "query" } },
+            { no: 2, name: "sort", kind: "enum", T: "github.Sort" },
           ],
         },
         {
-          name: "ListShowsResponse",
-          typeName: "theatre.ListShowsResponse",
-          fields: [{ no: 1, name: "items", kind: "message", repeat: 2, T: "theatre.Show", options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }],
+          name: "ReposListForAuthenticatedUserResponse",
+          typeName: "github.ReposListForAuthenticatedUserResponse",
+          fields: [{ no: 1, name: "items", kind: "message", repeat: 2, T: "github.Repo", options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }],
         },
         {
-          name: "GetShowRequest",
-          typeName: "theatre.GetShowRequest",
+          name: "ReposGetRequest",
+          typeName: "github.ReposGetRequest",
           fields: [
-            { no: 1, name: "show_id", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
-            { no: 2, name: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } },
-            { no: 3, name: "status", kind: "scalar", T: 9, options: { "kaja.enum_values": ["onSale", "cancelled"] } },
+            { no: 1, name: "owner", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
+            { no: 2, name: "repo", kind: "scalar", T: 9, options: { "kaja.http_in": "path", "kaja.http_required": true } },
+            { no: 3, name: "fields", kind: "scalar", repeat: 2, T: 9, options: { "kaja.http_in": "query" } },
+            { no: 4, name: "visibility", kind: "scalar", T: 9, options: { "kaja.enum_values": ["public", "private"] } },
           ],
         },
       ],
       enums: [
         {
           name: "Sort",
-          typeName: "theatre.Sort",
+          typeName: "github.Sort",
           values: [
             ["UNSPECIFIED", 0],
             ["NEWEST", 1],
@@ -61,47 +62,55 @@ const manifest: Manifest = {
       ],
       services: [
         {
-          name: "Shows",
-          typeName: "theatre.Shows",
+          name: "Repos",
+          typeName: "github.Repos",
           methods: [
             {
-              name: "ListShows",
-              input: "ListShowsRequest",
-              output: "ListShowsResponse",
-              I: "theatre.ListShowsRequest",
-              O: "theatre.ListShowsResponse",
-              options: { "kaja.http_request": "GET /shows" },
-              doc: "Lists the shows on sale.",
+              name: "ListForAuthenticatedUser",
+              input: "ReposListForAuthenticatedUserRequest",
+              output: "ReposListForAuthenticatedUserResponse",
+              I: "github.ReposListForAuthenticatedUserRequest",
+              O: "github.ReposListForAuthenticatedUserResponse",
+              options: { "kaja.http_request": "GET /user/repos" },
+              doc: "Lists the repositories the authenticated user can reach.",
             },
             {
-              name: "GetShow",
-              input: "GetShowRequest",
-              output: "Show",
-              I: "theatre.GetShowRequest",
-              O: "theatre.Show",
-              options: { "kaja.http_request": "GET /shows/{showId}" },
+              name: "Get",
+              input: "ReposGetRequest",
+              output: "Repo",
+              I: "github.ReposGetRequest",
+              O: "github.Repo",
+              options: { "kaja.http_request": "GET /repos/{owner}/{repo}" },
             },
           ],
         },
       ],
       declarations: [
         {
-          name: "Show",
+          name: "Repo",
           text: [
-            "/** A show in the catalog. */",
-            "export interface Show {",
-            "    /** Unique slug of the show. [required] */",
-            "    id: string;",
-            "    venue?: Venue;",
+            "/** A repository on GitHub. */",
+            "export interface Repo {",
+            "    /** The repository's owner/name. [required] */",
+            "    fullName: string;",
+            "    owner?: Owner;",
             "    extras?: Value;",
             "}",
           ].join("\n"),
-          references: ["Venue", "Value"],
+          references: ["Owner", "Value"],
         },
-        { name: "Venue", text: "export interface Venue {\n    name: string;\n}", references: [] },
-        { name: "ListShowsRequest", text: "export interface ListShowsRequest {\n    pageSize: number;\n    sort: Sort;\n}", references: ["Sort"] },
-        { name: "ListShowsResponse", text: "export interface ListShowsResponse {\n    items: Show[];\n}", references: ["Show"] },
-        { name: "GetShowRequest", text: "export interface GetShowRequest {\n    showId: string;\n}", references: [] },
+        { name: "Owner", text: "export interface Owner {\n    login: string;\n}", references: [] },
+        {
+          name: "ReposListForAuthenticatedUserRequest",
+          text: "export interface ReposListForAuthenticatedUserRequest {\n    perPage: number;\n    sort: Sort;\n}",
+          references: ["Sort"],
+        },
+        {
+          name: "ReposListForAuthenticatedUserResponse",
+          text: "export interface ReposListForAuthenticatedUserResponse {\n    items: Repo[];\n}",
+          references: ["Repo"],
+        },
+        { name: "ReposGetRequest", text: "export interface ReposGetRequest {\n    owner: string;\n    repo: string;\n}", references: [] },
         { name: "Sort", text: "export enum Sort {\n    UNSPECIFIED = 0,\n    NEWEST = 1,\n}", references: [] },
       ],
     },
@@ -116,14 +125,14 @@ const manifest: Manifest = {
   ],
 };
 
-async function loadTheatre(status: "success" | "pending" = "success") {
-  const app = await loadApp(manifest, { name: "theatre", app: { oneofKind: "openapi" } } as any);
+async function loadGitHub(status: "success" | "pending" = "success") {
+  const app = await loadApp(manifest, { name: "github", app: { oneofKind: "openapi" } } as any);
   app.compilation.status = status;
   return app;
 }
 
 async function catalog() {
-  return buildMcpCatalog([await loadTheatre()]);
+  return buildMcpCatalog([await loadGitHub()]);
 }
 
 describe("buildMcpCatalog", () => {
@@ -131,32 +140,39 @@ describe("buildMcpCatalog", () => {
     const built = await catalog();
 
     expect(built.apps).toHaveLength(1);
-    expect(built.apps[0].name).toBe("theatre");
+    expect(built.apps[0].name).toBe("github");
     expect(built.apps[0].type).toBe("openapi");
 
     const service = built.apps[0].services[0];
-    expect(service.name).toBe("Shows");
-    // The app declares Shows once, so the app is the whole import.
-    expect(service.importPath).toBe("theatre");
+    expect(service.name).toBe("Repos");
+    // The app declares Repos once, so the app is the whole import.
+    expect(service.importPath).toBe("github");
 
     const method = service.methods[0];
-    expect(method.name).toBe("ListShows");
+    expect(method.name).toBe("ListForAuthenticatedUser");
     // Input<T> is the request with every field optional, which is what the call the
     // agent is handed leans on.
-    expect(method.signature).toBe("ListShows(input: Input<ListShowsRequest>): Call<ListShowsResponse>");
-    expect(method.input).toBe("ListShowsRequest");
-    expect(method.output).toBe("ListShowsResponse");
-    expect(method.doc).toBe("Lists the shows on sale.");
+    expect(method.signature).toBe("ListForAuthenticatedUser(input: Input<ReposListForAuthenticatedUserRequest>): Call<ReposListForAuthenticatedUserResponse>");
+    expect(method.input).toBe("ReposListForAuthenticatedUserRequest");
+    expect(method.output).toBe("ReposListForAuthenticatedUserResponse");
+    expect(method.doc).toBe("Lists the repositories the authenticated user can reach.");
     // The HTTP request is what says the method reads rather than writes.
-    expect(method.http).toBe("GET /shows");
+    expect(method.http).toBe("GET /user/repos");
   });
 
   it("carries the declarations the app was generated with", async () => {
     const built = await catalog();
     const declarations = built.apps[0].declarations;
 
-    expect(Object.keys(declarations).sort()).toEqual(["GetShowRequest", "ListShowsRequest", "ListShowsResponse", "Show", "Sort", "Venue"]);
-    expect(declarations["Show"]).toEqual(manifest.modules[0].declarations[0]);
+    expect(Object.keys(declarations).sort()).toEqual([
+      "Owner",
+      "Repo",
+      "ReposGetRequest",
+      "ReposListForAuthenticatedUserRequest",
+      "ReposListForAuthenticatedUserResponse",
+      "Sort",
+    ]);
+    expect(declarations["Repo"]).toEqual(manifest.modules[0].declarations[0]);
   });
 
   // The call Kaja writes into a draft spells out every field, because that is where
@@ -165,22 +181,23 @@ describe("buildMcpCatalog", () => {
   // as values being sent — only the fields the API insists on are written out.
   it("carries the call Kaja itself writes for the method, required fields only", async () => {
     const built = await catalog();
-    const [listShows, getShow] = built.apps[0].services[0].methods;
+    const [listRepos, getRepo] = built.apps[0].services[0].methods;
 
-    expect(listShows.example).toContain('import { Shows } from "theatre"');
-    expect(listShows.example).toContain("Shows.ListShows({})");
+    expect(listRepos.example).toContain('import { Repos } from "github"');
+    expect(listRepos.example).toContain("Repos.ListForAuthenticatedUser({})");
     // Nothing in this request is required, so nothing is written out — including the
     // enum, whose import goes with it.
-    expect(listShows.example).not.toContain("pageSize");
-    expect(listShows.example).not.toContain("Sort");
+    expect(listRepos.example).not.toContain("perPage");
+    expect(listRepos.example).not.toContain("Sort");
 
-    expect(getShow.example).toContain("Shows.GetShow(");
-    expect(getShow.example).toContain('showId: ""');
-    expect(getShow.example).not.toContain("fields");
+    expect(getRepo.example).toContain("Repos.Get(");
+    expect(getRepo.example).toContain('owner: ""');
+    expect(getRepo.example).toContain('repo: ""');
+    expect(getRepo.example).not.toContain("fields");
   });
 
   it("leaves out an app that has not compiled", async () => {
-    expect(buildMcpCatalog([await loadTheatre("pending")]).apps).toHaveLength(0);
+    expect(buildMcpCatalog([await loadGitHub("pending")]).apps).toHaveLength(0);
   });
 
   // The kaja module is the other half of what a script is written against, and

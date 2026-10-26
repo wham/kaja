@@ -53,70 +53,70 @@ func newFakeBridge() *fakeBridge {
 		catalog: Catalog{
 			Apps: []CatalogApp{
 				{
-					Name: "theatre",
+					Name: "github",
 					Type: "openapi",
 					Services: []CatalogService{{
-						Name:       "Shows",
-						ImportPath: "theatre/proto/theatre",
+						Name:       "Issues",
+						ImportPath: "github/service",
 						Methods: []CatalogMethod{
 							{
-								Name:      "ListShows",
-								Signature: "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>",
-								Input:     "ListShowsRequest",
-								Output:    "ListShowsResponse",
-								HTTP:      "GET /shows",
-								Doc:       "Lists the shows on sale.",
-								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.ListShows({\n  pageSize: 0,\n});",
+								Name:      "ListForRepo",
+								Signature: "ListForRepo(input: IssuesListForRepoRequest): Promise<IssuesListForRepoResponse>",
+								Input:     "IssuesListForRepoRequest",
+								Output:    "IssuesListForRepoResponse",
+								HTTP:      "GET /repos/{owner}/{repo}/issues",
+								Doc:       "Lists the issues in a repository.",
+								Example:   "import { Issues } from \"github/service\";\n\nIssues.ListForRepo({\n  perPage: 0,\n});",
 							},
 							{
-								Name:      "CreateShow",
-								Signature: "CreateShow(input: Show): Promise<Show>",
-								Input:     "Show",
-								Output:    "Show",
-								HTTP:      "POST /shows",
-								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.CreateShow({\n  id: \"\",\n});",
+								Name:      "Create",
+								Signature: "Create(input: Issue): Promise<Issue>",
+								Input:     "Issue",
+								Output:    "Issue",
+								HTTP:      "POST /repos/{owner}/{repo}/issues",
+								Example:   "import { Issues } from \"github/service\";\n\nIssues.Create({\n  title: \"\",\n});",
 							},
 						},
 					}},
 					Declarations: map[string]Declaration{
-						"ListShowsRequest": {Name: "ListShowsRequest", Text: "export interface ListShowsRequest {\n    /** How many shows to return. [query parameter] */\n    pageSize: number;\n}"},
-						"ListShowsResponse": {
-							Name:       "ListShowsResponse",
-							Text:       "export interface ListShowsResponse {\n    /** [carries the HTTP payload] */\n    items: Show[];\n}",
-							References: []string{"Show"},
+						"IssuesListForRepoRequest": {Name: "IssuesListForRepoRequest", Text: "export interface IssuesListForRepoRequest {\n    /** How many issues to return per page. [query parameter] */\n    perPage: number;\n}"},
+						"IssuesListForRepoResponse": {
+							Name:       "IssuesListForRepoResponse",
+							Text:       "export interface IssuesListForRepoResponse {\n    /** [carries the HTTP payload] */\n    items: Issue[];\n}",
+							References: []string{"Issue"},
 						},
-						"Show": {
-							Name:       "Show",
-							Text:       "/** A show in the catalog. */\nexport interface Show {\n    /** Unique slug of the show. [required] */\n    id: string;\n    venue?: Venue;\n}",
-							References: []string{"Venue"},
+						"Issue": {
+							Name:       "Issue",
+							Text:       "/** An issue in a repository. */\nexport interface Issue {\n    /** Title of the issue. [required] */\n    title: string;\n    repository?: Repository;\n}",
+							References: []string{"Repository"},
 						},
-						// Venue reaches itself; the closure has to terminate on it.
-						"Venue": {Name: "Venue", Text: "export interface Venue {\n    name: string;\n    parent?: Venue;\n}", References: []string{"Venue"}},
+						// Repository reaches itself; the closure has to terminate on it.
+						"Repository": {Name: "Repository", Text: "export interface Repository {\n    fullName: string;\n    parent?: Repository;\n}", References: []string{"Repository"}},
 					},
 				},
 				{
-					Name: "seating",
+					Name: "grpcb.in",
 					Type: "grpc",
 					Services: []CatalogService{{
-						Name:       "Seating",
-						ImportPath: "seating/proto/seating",
+						Name:       "HelloService",
+						ImportPath: "grpcb.in",
 						Methods: []CatalogMethod{
-							{Name: "GetSeatMap", Signature: "GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>", Input: "GetSeatMapRequest", Output: "SeatMap"},
+							{Name: "SayHello", Signature: "SayHello(input: HelloRequest): Promise<HelloResponse>", Input: "HelloRequest", Output: "HelloResponse"},
 							{
-								Name:      "Annotate",
-								Signature: "Annotate(input: AnnotateRequest): Promise<AnnotateResponse>",
-								Input:     "AnnotateRequest",
-								Output:    "AnnotateResponse",
-								Example:   "import { kaja } from \"kaja\";\nimport { Seating } from \"seating/proto/seating\";\n\nSeating.Annotate({\n  note: kaja.value(null),\n});",
+								Name:      "ListGreetings",
+								Signature: "ListGreetings(input: ListGreetingsRequest): Promise<ListGreetingsResponse>",
+								Input:     "ListGreetingsRequest",
+								Output:    "ListGreetingsResponse",
+								Example:   "import { kaja } from \"kaja\";\nimport { HelloService } from \"grpcb.in\";\n\nHelloService.ListGreetings({\n  filter: kaja.value(null),\n});",
 							},
 						},
 					}},
 					Declarations: map[string]Declaration{
-						"GetSeatMapRequest": {Name: "GetSeatMapRequest", Text: "export interface GetSeatMapRequest {\n    performanceId: string;\n}"},
-						"SeatMap":           {Name: "SeatMap", Text: "export interface SeatMap {\n}"},
-						"AnnotateRequest":   {Name: "AnnotateRequest", Text: "export interface AnnotateRequest {\n    note?: Value;\n}", References: []string{"Value"}},
-						"AnnotateResponse":  {Name: "AnnotateResponse", Text: "export interface AnnotateResponse {\n}"},
-						"Value":             {Name: "Value", Text: "export interface Value {\n}"},
+						"HelloRequest":          {Name: "HelloRequest", Text: "export interface HelloRequest {\n    greeting: string;\n}"},
+						"HelloResponse":         {Name: "HelloResponse", Text: "export interface HelloResponse {\n}"},
+						"ListGreetingsRequest":  {Name: "ListGreetingsRequest", Text: "export interface ListGreetingsRequest {\n    filter?: Value;\n}", References: []string{"Value"}},
+						"ListGreetingsResponse": {Name: "ListGreetingsResponse", Text: "export interface ListGreetingsResponse {\n}"},
+						"Value":                 {Name: "Value", Text: "export interface Value {\n}"},
 					},
 				},
 			},
@@ -460,14 +460,14 @@ func TestListServicesIsAnIndex(t *testing.T) {
 
 	contains(t, text,
 		"2 app(s), 2 service(s), 4 method(s).",
-		`import { Shows } from "theatre/proto/theatre";`,
+		`import { Issues } from "github/service";`,
 		// Each method is listed as the TypeScript a script writes, plus its effect.
-		"read   ListShows(input: ListShowsRequest): Promise<ListShowsResponse>  [GET /shows]",
-		"write  CreateShow(input: Show): Promise<Show>  [POST /shows]",
-		"Lists the shows on sale.",
+		"read   ListForRepo(input: IssuesListForRepoRequest): Promise<IssuesListForRepoResponse>  [GET /repos/{owner}/{repo}/issues]",
+		"write  Create(input: Issue): Promise<Issue>  [POST /repos/{owner}/{repo}/issues]",
+		"Lists the issues in a repository.",
 		// Without an HTTP verb the effect is read off the name, and says so.
-		"read?  GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>",
-		"write? Annotate(input: AnnotateRequest): Promise<AnnotateResponse>",
+		"write? SayHello(input: HelloRequest): Promise<HelloResponse>",
+		"read?  ListGreetings(input: ListGreetingsRequest): Promise<ListGreetingsResponse>",
 	)
 
 	// The index never carries declarations: that is what overflowed a caller's
@@ -482,15 +482,15 @@ func TestListServicesFilters(t *testing.T) {
 
 	// The header counts what the list holds, not what the catalog does: naming the
 	// whole catalog over a filtered list said the app had five times what follows.
-	byApp := tool(t, srv, "list_services", map[string]string{"app": "theatre"})
-	contains(t, byApp, "ListShows", "1 app(s), 1 service(s), 2 method(s).")
-	if strings.Contains(byApp, "GetSeatMap") {
+	byApp := tool(t, srv, "list_services", map[string]string{"app": "github"})
+	contains(t, byApp, "ListForRepo", "1 app(s), 1 service(s), 2 method(s).")
+	if strings.Contains(byApp, "SayHello") {
 		t.Errorf("app filter leaked another app:\n%s", byApp)
 	}
 
-	bySearch := tool(t, srv, "list_services", map[string]string{"search": "seat"})
-	contains(t, bySearch, "GetSeatMap", "1 app(s), 1 service(s), 2 method(s).")
-	if strings.Contains(bySearch, "ListShows") {
+	bySearch := tool(t, srv, "list_services", map[string]string{"search": "hello"})
+	contains(t, bySearch, "SayHello", "1 app(s), 1 service(s), 2 method(s).")
+	if strings.Contains(bySearch, "ListForRepo") {
 		t.Errorf("search leaked an unmatched method:\n%s", bySearch)
 	}
 
@@ -499,22 +499,22 @@ func TestListServicesFilters(t *testing.T) {
 
 func TestDescribeMethod(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
-	text := tool(t, srv, "describe_method", map[string]string{"method": "Shows.CreateShow"})
+	text := tool(t, srv, "describe_method", map[string]string{"method": "Issues.Create"})
 
 	contains(t, text,
-		"theatre · Shows.CreateShow",
-		"writes - calling it changes data (POST /shows)",
+		"github · Issues.Create",
+		"writes - calling it changes data (POST /repos/{owner}/{repo}/issues)",
 		// The import line and the signature are the two things a call needs.
-		`import { Shows } from "theatre/proto/theatre";`,
-		"Shows.CreateShow(input: Show): Promise<Show>",
+		`import { Issues } from "github/service";`,
+		"Issues.Create(input: Issue): Promise<Issue>",
 		// The declaration itself, as the script is checked against it.
-		"export interface Show {",
-		"/** Unique slug of the show. [required] */",
-		"    id: string;",
+		"export interface Issue {",
+		"/** Title of the issue. [required] */",
+		"    title: string;",
 		// A type the request reaches is declared too, so nothing needs a second call.
-		"export interface Venue {",
+		"export interface Repository {",
 		// And a call to start from.
-		"Shows.CreateShow({",
+		"Issues.Create({",
 	)
 
 	// Nothing about the wire format reaches a reader: a script is TypeScript.
@@ -525,15 +525,15 @@ func TestDescribeMethod(t *testing.T) {
 
 func TestDescribeMethodReadOnly(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
-	text := tool(t, srv, "describe_method", map[string]string{"method": "ListShows"})
+	text := tool(t, srv, "describe_method", map[string]string{"method": "ListForRepo"})
 
 	contains(t, text,
-		"read-only (GET /shows)",
-		"Lists the shows on sale.",
-		"/** How many shows to return. [query parameter] */",
+		"read-only (GET /repos/{owner}/{repo}/issues)",
+		"Lists the issues in a repository.",
+		"/** How many issues to return per page. [query parameter] */",
 		// The response envelope says it is one.
 		"[carries the HTTP payload]",
-		"pageSize: 0,",
+		"perPage: 0,",
 	)
 }
 
@@ -541,12 +541,12 @@ func TestDescribeMethodReadOnly(t *testing.T) {
 // hand, so the builder has to be named where the field is met.
 func TestDescribeMethodNamesTheKajaBuilders(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
-	text := tool(t, srv, "describe_method", map[string]string{"method": "Seating.Annotate"})
+	text := tool(t, srv, "describe_method", map[string]string{"method": "HelloService.ListGreetings"})
 
 	contains(t, text,
-		"note?: Value;",
+		"filter?: Value;",
 		"kaja.value(json)",
-		"note: kaja.value(null),",
+		"filter: kaja.value(null),",
 		`import { kaja } from "kaja";`,
 		"Never write the `kind` oneof by hand.",
 	)
@@ -559,21 +559,21 @@ func TestDescribeMethodNamesTheKajaBuilders(t *testing.T) {
 // A type that reaches itself must not send the closure round forever.
 func TestDescribeMethodClosesOverRecursiveTypes(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
-	text := tool(t, srv, "describe_method", map[string]string{"method": "CreateShow"})
-	if got := strings.Count(text, "export interface Venue {"); got != 1 {
-		t.Errorf("Venue declared %d times, want once:\n%s", got, text)
+	text := tool(t, srv, "describe_method", map[string]string{"method": "Create"})
+	if got := strings.Count(text, "export interface Repository {"); got != 1 {
+		t.Errorf("Repository declared %d times, want once:\n%s", got, text)
 	}
 }
 
 func TestDescribeType(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
 
-	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show"}),
-		"theatre · Show", "export interface Show {", "export interface Venue {")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Issue"}),
+		"github · Issue", "export interface Issue {", "export interface Repository {")
 
 	// A miss names the nearest thing rather than only saying no.
-	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Shw"}), "no type")
-	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Venu"}), "Closest: Venue")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Isue"}), "no type")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Repositor"}), "Closest: Repository")
 	contains(t, tool(t, srv, "describe_type", nil), "provide name")
 }
 
@@ -607,18 +607,18 @@ func TestDescribeTypeWithoutARuntime(t *testing.T) {
 
 func TestDescribeTypeDisambiguates(t *testing.T) {
 	bridge := newFakeBridge()
-	bridge.catalog.Apps[1].Declarations["Show"] = Declaration{Name: "Show", Text: "export interface Show {\n}"}
+	bridge.catalog.Apps[1].Declarations["Issue"] = Declaration{Name: "Issue", Text: "export interface Issue {\n}"}
 	srv := NewServer(bridge, token, version)
 
-	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show"}), "more than one app", "theatre", "seating")
-	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show", "app": "seating"}), "seating · Show")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Issue"}), "more than one app", "github", "grpcb.in")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Issue", "app": "grpcb.in"}), "grpcb.in · Issue")
 }
 
 func TestDescribeMethodMisses(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
 
 	// An unknown name names the nearest things rather than only saying no.
-	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Shows.ListShow"}), "Closest: Shows.ListShows")
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Issues.ListForRep"}), "Closest: Issues.ListForRepo")
 	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Nope.Nope"}), "list_services")
 	contains(t, tool(t, srv, "describe_method", nil), "provide method")
 }
@@ -627,17 +627,17 @@ func TestDescribeMethodDisambiguates(t *testing.T) {
 	bridge := newFakeBridge()
 	// A second app exposing the same service and method name.
 	bridge.catalog.Apps = append(bridge.catalog.Apps, CatalogApp{
-		Name: "rehearsal", Type: "grpc",
-		Services: []CatalogService{{Name: "Shows", ImportPath: "rehearsal/proto/shows", Methods: []CatalogMethod{
-			{Name: "ListShows", Signature: "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>", Input: "ListShowsRequest", Output: "ListShowsResponse"},
+		Name: "github-enterprise", Type: "grpc",
+		Services: []CatalogService{{Name: "Issues", ImportPath: "github-enterprise", Methods: []CatalogMethod{
+			{Name: "ListForRepo", Signature: "ListForRepo(input: IssuesListForRepoRequest): Promise<IssuesListForRepoResponse>", Input: "IssuesListForRepoRequest", Output: "IssuesListForRepoResponse"},
 		}}},
 	})
 	srv := NewServer(bridge, token, version)
 
-	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Shows.ListShows"}),
-		"more than one app", "rehearsal/Shows.ListShows", "theatre/Shows.ListShows")
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "Issues.ListForRepo"}),
+		"more than one app", "github-enterprise/Issues.ListForRepo", "github/Issues.ListForRepo")
 	// Naming the app settles it.
-	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "theatre/Shows.ListShows"}), "read-only (GET /shows)")
+	contains(t, tool(t, srv, "describe_method", map[string]string{"method": "github/Issues.ListForRepo"}), "read-only (GET /repos/{owner}/{repo}/issues)")
 }
 
 func TestCallTool_CRUD(t *testing.T) {
@@ -748,8 +748,8 @@ func TestRunScriptReport(t *testing.T) {
 	bridge.runValue = RunResult{
 		Console: []string{"hi"},
 		MethodCalls: []MethodCallLog{
-			{Service: "Shows", Method: "ListShows", DurationMs: 120, Input: json.RawMessage(`{"pageSize": 1}`), Output: json.RawMessage(`{"items":[]}`)},
-			{Service: "Shows", Method: "GetShow", Failure: &CallFailure{Kind: "TRANSPORT", Message: "decoding response JSON: proto: syntax error"}},
+			{Service: "Issues", Method: "ListForRepo", DurationMs: 120, Input: json.RawMessage(`{"perPage": 1}`), Output: json.RawMessage(`{"items":[]}`)},
+			{Service: "Issues", Method: "Get", Failure: &CallFailure{Kind: "TRANSPORT", Message: "decoding response JSON: proto: syntax error"}},
 		},
 		Error: "decoding response JSON: proto: syntax error",
 	}
@@ -762,15 +762,15 @@ func TestRunScriptReport(t *testing.T) {
 	contains(t, text,
 		"2 call(s), 1 failed",
 		"hi",
-		"1. Shows.ListShows  ok  120 ms",
+		"1. Issues.ListForRepo  ok  120 ms",
 		// The failure kind is what tells a caller not to retry with other values.
-		"2. Shows.GetShow  TRANSPORT",
+		"2. Issues.Get  TRANSPORT",
 		"Sending different parameters will not help.",
 		// A script that stopped says so, rather than looking like it finished.
 		"the script stopped here",
 		"This is the script failing, not a call being rejected",
 		// The request payload stays on one line.
-		`request  {"pageSize":1}`,
+		`request  {"perPage":1}`,
 	)
 
 	// run with neither path nor code is a tool error
@@ -786,7 +786,7 @@ func TestRunScriptReportsMissingVariables(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.runValue = RunResult{
 		MethodCalls: []MethodCallLog{
-			{Service: "Shows", Method: "ListShows", Failure: &CallFailure{Kind: "UNAUTHORIZED", Message: "unauthorized", Status: 401, MissingVariables: []string{"TOKEN"}}},
+			{Service: "Issues", Method: "ListForRepo", Failure: &CallFailure{Kind: "UNAUTHORIZED", Message: "unauthorized", Status: 401, MissingVariables: []string{"TOKEN"}}},
 		},
 	}
 	srv := NewServer(bridge, token, version)
@@ -820,13 +820,13 @@ func TestRunScriptReportsTypeErrors(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.runValue = RunResult{
 		Diagnostics: []Diagnostic{
-			{Line: 4, Column: 3, Message: "Object literal may only specify known properties, but 'pagesize' does not exist in type 'Input<ListShowsRequest>'. Did you mean to write 'pageSize'?"},
+			{Line: 4, Column: 3, Message: "Object literal may only specify known properties, but 'perpage' does not exist in type 'Input<IssuesListForRepoRequest>'. Did you mean to write 'perPage'?"},
 		},
-		MethodCalls: []MethodCallLog{{Service: "Shows", Method: "ListShows", Output: json.RawMessage(`{"items":[]}`)}},
+		MethodCalls: []MethodCallLog{{Service: "Issues", Method: "ListForRepo", Output: json.RawMessage(`{"items":[]}`)}},
 	}
 	srv := NewServer(bridge, token, version)
 
-	contains(t, tool(t, srv, "run_script", map[string]string{"code": "Shows.ListShows({ pagesize: 1 })"}),
+	contains(t, tool(t, srv, "run_script", map[string]string{"code": "Issues.ListForRepo({ perpage: 1 })"}),
 		"type errors",
 		"4:3  Object literal may only specify known properties",
 		// The run happened, so the section has to say the errors are not why anything
@@ -841,13 +841,13 @@ func TestRunScriptReportsTypeErrors(t *testing.T) {
 func TestTypeErrorsAreBounded(t *testing.T) {
 	bridge := newFakeBridge()
 	for i := 0; i < maxDiagnostics+5; i++ {
-		bridge.runValue.Diagnostics = append(bridge.runValue.Diagnostics, Diagnostic{Line: i + 1, Column: 1, Message: fmt.Sprintf("Cannot find name 'Shows' (%d)", i)})
+		bridge.runValue.Diagnostics = append(bridge.runValue.Diagnostics, Diagnostic{Line: i + 1, Column: 1, Message: fmt.Sprintf("Cannot find name 'Issues' (%d)", i)})
 	}
 	srv := NewServer(bridge, token, version)
 
 	text := tool(t, srv, "run_script", map[string]string{"code": "x"})
-	contains(t, text, "Cannot find name 'Shows' (19)", "… 5 more")
-	if strings.Contains(text, "Cannot find name 'Shows' (20)") {
+	contains(t, text, "Cannot find name 'Issues' (19)", "… 5 more")
+	if strings.Contains(text, "Cannot find name 'Issues' (20)") {
 		t.Errorf("listed past the cap:\n%s", text)
 	}
 }
@@ -993,7 +993,7 @@ func TestUnknownMethod(t *testing.T) {
 
 func TestReadOnlyFromName(t *testing.T) {
 	cases := map[string]bool{
-		"GetShow": true, "ListShows": true, "SearchShows": true, "Get": true,
+		"GetUser": true, "ListRepos": true, "SearchIssues": true, "Get": true,
 		"Generate": false, "IngestEvents": false, "Islands": false, "Delete": false,
 	}
 	for name, want := range cases {
@@ -1014,12 +1014,12 @@ func TestAnswersAreBounded(t *testing.T) {
 		fmt.Fprintf(&wide, "    field%d: string;\n", i)
 	}
 	wide.WriteString("}")
-	theatre := bridge.catalog.Apps[0]
-	theatre.Declarations["Wide"] = Declaration{Name: "Wide", Text: wide.String()}
-	theatre.Declarations["ListShowsResponse"] = Declaration{Name: "ListShowsResponse", Text: "export interface ListShowsResponse {\n    wide: Wide;\n}", References: []string{"Wide"}}
+	github := bridge.catalog.Apps[0]
+	github.Declarations["Wide"] = Declaration{Name: "Wide", Text: wide.String()}
+	github.Declarations["IssuesListForRepoResponse"] = Declaration{Name: "IssuesListForRepoResponse", Text: "export interface IssuesListForRepoResponse {\n    wide: Wide;\n}", References: []string{"Wide"}}
 	srv := NewServer(bridge, token, version)
 
-	text := tool(t, srv, "describe_method", map[string]string{"method": "ListShows"})
+	text := tool(t, srv, "describe_method", map[string]string{"method": "ListForRepo"})
 	// The cut says what to ask for next rather than just stopping.
 	contains(t, text, "cut off here", `describe_type "Wide"`)
 	if lines := strings.Count(text, "\n"); lines > 320 {
@@ -1027,7 +1027,7 @@ func TestAnswersAreBounded(t *testing.T) {
 	}
 
 	bridge.runValue = RunResult{MethodCalls: []MethodCallLog{
-		{Service: "Shows", Method: "ListShows", Output: json.RawMessage(`"` + strings.Repeat("é", 4000) + `"`)},
+		{Service: "Issues", Method: "ListForRepo", Output: json.RawMessage(`"` + strings.Repeat("é", 4000) + `"`)},
 	}}
 	report := tool(t, srv, "run_script", map[string]string{"code": "x"})
 	contains(t, report, "truncated,")
@@ -1219,7 +1219,7 @@ func TestRunScriptReportsStructuredContent(t *testing.T) {
 	bridge.runValue = RunResult{
 		Console: []string{"probing"},
 		MethodCalls: []MethodCallLog{
-			{App: "theatre", Service: "Shows", Method: "ListShows", DurationMs: 12, Input: json.RawMessage(`{"pageSize":2}`), Output: json.RawMessage(`{"items":[]}`)},
+			{App: "github", Service: "Issues", Method: "ListForRepo", DurationMs: 12, Input: json.RawMessage(`{"perPage":2}`), Output: json.RawMessage(`{"items":[]}`)},
 			{Http: "GET https://api.example.com/health", Failure: &CallFailure{Kind: "NOT_FOUND", Message: "no such route", Status: 404}},
 		},
 		Blocks:      []BlockLog{{Kind: "table", Columns: []string{"id"}, Rows: 2}},
@@ -1245,7 +1245,7 @@ func TestRunScriptReportsStructuredContent(t *testing.T) {
 	if len(report.Calls) != 2 {
 		t.Fatalf("calls = %d, want 2", len(report.Calls))
 	}
-	if report.Calls[0].Label != "theatre Shows.ListShows" || string(report.Calls[0].Response) != `{"items":[]}` {
+	if report.Calls[0].Label != "github Issues.ListForRepo" || string(report.Calls[0].Response) != `{"items":[]}` {
 		t.Errorf("first call = %+v", report.Calls[0])
 	}
 	// A fetch is named by the request it made, and a failure carries what to do about it.
@@ -1268,7 +1268,7 @@ func TestRunScriptReportsStructuredContent(t *testing.T) {
 func TestStructuredPayloadsStayParseable(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.runValue = RunResult{MethodCalls: []MethodCallLog{{
-		Service: "Shows", Method: "ListShows",
+		Service: "Issues", Method: "ListForRepo",
 		Output: json.RawMessage(`{"items":"` + strings.Repeat("x", maxPayload) + `"}`),
 	}}}
 	srv := NewServer(bridge, token, version)

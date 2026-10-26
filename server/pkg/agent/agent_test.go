@@ -102,13 +102,13 @@ func (f *fakeApps) Add(_ context.Context, draft mcp.AppDraft) error {
 }
 
 func newRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}}, &fakeApps{}, Streamed, "test")
+	return NewRegistry(&fakeScripts{files: map[string]string{"releases.ts": "// releases"}}, &fakeApps{}, Streamed, "test")
 }
 
 // newOwnedRegistry is the desktop's half: a process that owns the workspace it opened,
 // answering an agent with nothing in front of it.
 func newOwnedRegistry() *Registry {
-	return NewRegistry(&fakeScripts{files: map[string]string{"seat-map.ts": "// seats"}, writable: true}, &fakeApps{}, Direct, "test")
+	return NewRegistry(&fakeScripts{files: map[string]string{"releases.ts": "// releases"}, writable: true}, &fakeApps{}, Direct, "test")
 }
 
 // next reads the next message a window is sent, failing rather than hanging.
@@ -231,7 +231,7 @@ func TestARunIsForwardedToTheWindow(t *testing.T) {
 	session, _ := registry.Session(token)
 	go func() {
 		message := drain(t, stream, "run")
-		session.Result(message.RunID, mcp.RunResult{Console: []string{"[INFO] 2 seats"}})
+		session.Result(message.RunID, mcp.RunResult{Console: []string{"[INFO] 2 issues"}})
 	}()
 
 	text, isError := toolText(t, call(t, registry, "tools/call", map[string]any{
@@ -241,7 +241,7 @@ func TestARunIsForwardedToTheWindow(t *testing.T) {
 	if isError {
 		t.Fatalf("expected the run to be reported, got a failure: %s", text)
 	}
-	if !strings.Contains(text, "2 seats") {
+	if !strings.Contains(text, "2 issues") {
 		t.Errorf("expected the window's console in the report, got %q", text)
 	}
 }
@@ -267,16 +267,16 @@ func TestASavedScriptIsReadByTheServer(t *testing.T) {
 
 	call(t, registry, "tools/call", map[string]any{
 		"name":      "run_script",
-		"arguments": map[string]string{"path": "seat-map.ts"},
+		"arguments": map[string]string{"path": "releases.ts"},
 	})
 
 	message := <-sent
-	if message.Code != "// seats" {
+	if message.Code != "// releases" {
 		t.Errorf("expected the file's contents to reach the window, got %q", message.Code)
 	}
 	// The window is handed its own name for the file, whatever the agent called it:
 	// a console, a history and a sidebar row are all keyed on that one.
-	if message.Path != "/w/scripts/seat-map.ts" {
+	if message.Path != "/w/scripts/releases.ts" {
 		t.Errorf("expected the path to travel with it, got %q", message.Path)
 	}
 }
@@ -293,7 +293,7 @@ func TestAnAgentIsGivenNamesRatherThanPlacesOnDisk(t *testing.T) {
 	defer stream.Detach()
 
 	listed, _ := toolText(t, call(t, registry, "tools/call", map[string]any{"name": "list_scripts"}))
-	if !strings.Contains(listed, `"path": "seat-map.ts"`) {
+	if !strings.Contains(listed, `"path": "releases.ts"`) {
 		t.Errorf("expected the script named under the scripts root, got %s", listed)
 	}
 	if strings.Contains(listed, scriptsRoot) {
@@ -407,12 +407,12 @@ func TestTheCatalogSurvivesTheWindow(t *testing.T) {
 	}
 	session, _ := registry.Session(token)
 	session.SetCatalog(mcp.Catalog{Apps: []mcp.CatalogApp{{
-		Name: "seating",
+		Name: "grpcb.in",
 		Type: "grpc",
 		Services: []mcp.CatalogService{{
-			Name:       "Seating",
-			ImportPath: "seating/proto/seating",
-			Methods:    []mcp.CatalogMethod{{Name: "GetSeatMap", Signature: "GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>"}},
+			Name:       "HelloService",
+			ImportPath: "grpcb.in/hello",
+			Methods:    []mcp.CatalogMethod{{Name: "SayHello", Signature: "SayHello(input: HelloRequest): Promise<HelloResponse>"}},
 		}},
 	}}})
 	stream.Detach()
@@ -421,7 +421,7 @@ func TestTheCatalogSurvivesTheWindow(t *testing.T) {
 	if isError {
 		t.Fatalf("expected the catalog to answer, got a failure: %s", text)
 	}
-	if !strings.Contains(text, "GetSeatMap") {
+	if !strings.Contains(text, "SayHello") {
 		t.Errorf("expected the catalog the window pushed, got %q", text)
 	}
 }
@@ -435,7 +435,7 @@ func TestDisconnectingForgetsTheToken(t *testing.T) {
 		t.Fatalf("attach: %v", err)
 	}
 	session, _ := registry.Session(token)
-	session.SetCatalog(mcp.Catalog{Apps: []mcp.CatalogApp{{Name: "seating"}}})
+	session.SetCatalog(mcp.Catalog{Apps: []mcp.CatalogApp{{Name: "grpcb.in"}}})
 	stream.Detach()
 
 	request := httptest.NewRequest(http.MethodPost, "/agent-session/detach", nil)

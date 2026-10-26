@@ -61,7 +61,7 @@ export interface GrpcServer {
      */
     source: string;
     /**
-     * The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+     * The gRPC target that answered, e.g. "dns:grpcb.in:9000". Empty for
      * the proto_dir source, which reaches no server.
      */
     target: string;
@@ -97,7 +97,7 @@ export interface GrpcServer {
 
 export interface GrpcService {
     /**
-     * Fully qualified name, e.g. "seating.Seating".
+     * Fully qualified name, e.g. "hello.HelloService".
      */
     name: string;
     methodCount: number;

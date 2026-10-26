@@ -9,34 +9,34 @@ import "google/protobuf/struct.proto";
 
 option go_package = "example.com/fidelity/v1";
 
-// A ticket, as the API describes one.
-message Ticket {
-  // What the API calls the ticket.
+// An issue, as the API describes one.
+message Issue {
+  // What the API calls the issue.
   string id = 1;
   optional string note = 2;
   repeated string tags = 3;
   map<string, string> labels = 4;
-  Seat seat = 5;
+  Position position = 5;
   Status status = 6;
-  google.protobuf.Timestamp issued_at = 7;
+  google.protobuf.Timestamp opened_at = 7;
   google.protobuf.Struct extras = 8;
   bytes signature = 9;
-  oneof payment {
-    string card = 10;
-    string voucher = 11;
+  oneof assignee {
+    string user = 10;
+    string team = 11;
   }
   reserved 20, 21;
   reserved "old_name";
 
-  message Seat {
-    int32 row = 1;
-    string letter = 2;
+  message Position {
+    int32 line = 1;
+    string path = 2;
   }
 
   enum Status {
     STATUS_UNSPECIFIED = 0;
-    STATUS_ISSUED = 1;
-    STATUS_VOID = 2 [deprecated = true];
+    STATUS_OPEN = 1;
+    STATUS_LOCKED = 2 [deprecated = true];
   }
 }
 
@@ -53,11 +53,11 @@ message Rounding {
 
 message Empty {}
 
-service Tickets {
-  // Reads one ticket.
-  rpc GetTicket(Ticket) returns (Ticket);
+service Issues {
+  // Reads one issue.
+  rpc GetIssue(Issue) returns (Issue);
 
-  rpc ListTickets(Empty) returns (stream Ticket);
+  rpc ListIssues(Empty) returns (stream Issue);
 
   rpc OldWay(Empty) returns (Empty) {
     option deprecated = true;

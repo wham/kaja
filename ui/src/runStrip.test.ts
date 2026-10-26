@@ -11,7 +11,7 @@ function call(method: string, changes: Partial<MethodCall> = {}): ConsoleItem {
   const methodCall = {
     id: `call-${items}`,
     appName: "app",
-    service: { name: "Shows" },
+    service: { name: "Issues" },
     method: { name: method },
     input: {},
     output: {},
@@ -22,7 +22,7 @@ function call(method: string, changes: Partial<MethodCall> = {}): ConsoleItem {
   return { id: `item-${items}`, runId: "run-1", timestamp: methodCall.timestamp, call: methodCall };
 }
 
-function filled(count: number, method = "GetShow"): RunStrip {
+function filled(count: number, method = "Get"): RunStrip {
   const strip = new RunStrip();
   for (let index = 0; index < count; index++) strip.add(call(method));
   return strip;
@@ -74,9 +74,9 @@ describe("ticks and bars", () => {
   });
 
   it("names the method a single call was, and only then", () => {
-    const strip = filled(3, "ListShows");
+    const strip = filled(3, "ListForRepo");
 
-    expect(strip.view(MAX_SLOTS).slots[0].method).toBe("Shows.ListShows");
+    expect(strip.view(MAX_SLOTS).slots[0].method).toBe("Issues.ListForRepo");
     expect(strip.view(1).slots[0].method).toBeUndefined();
   });
 });
@@ -84,7 +84,7 @@ describe("ticks and bars", () => {
 describe("what the strip counts", () => {
   it("counts a call once however many times it arrives", () => {
     const strip = new RunStrip();
-    const item = call("GetShow", { durationMs: undefined, output: undefined });
+    const item = call("Get", { durationMs: undefined, output: undefined });
     strip.add(item);
     item.call!.durationMs = 40;
     item.call!.error = { code: "NOT_FOUND" };
@@ -97,8 +97,8 @@ describe("what the strip counts", () => {
 
   it("carries a failure into the bucket it was merged into", () => {
     const strip = new RunStrip();
-    strip.add(call("GetShow", { error: { code: "NOT_FOUND" } }));
-    for (let index = 0; index < 500; index++) strip.add(call("GetShow"));
+    strip.add(call("Get", { error: { code: "NOT_FOUND" } }));
+    for (let index = 0; index < 500; index++) strip.add(call("Get"));
 
     const view = strip.view(48);
     expect(strip.failures).toBe(1);
@@ -107,11 +107,11 @@ describe("what the strip counts", () => {
 
   it("names the two methods it called most, with counts", () => {
     const strip = new RunStrip();
-    for (let index = 0; index < 42; index++) strip.add(call("Post"));
-    strip.add(call("List"));
-    strip.add(call("Delete"));
+    for (let index = 0; index < 42; index++) strip.add(call("Create"));
+    strip.add(call("ListForRepo"));
+    strip.add(call("Get"));
 
-    expect(strip.methodLabel).toBe("Shows.Post ×42 · Shows.List");
+    expect(strip.methodLabel).toBe("Issues.Create ×42 · Issues.ListForRepo");
   });
 
   it("says nothing about a run that has made no calls", () => {

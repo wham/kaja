@@ -18,7 +18,7 @@ const LIST_MAX_HEIGHT = 420;
 export interface Destination {
   key: string;
   name: string;
-  // Where it sits: "theatre / Shows", "Scripts", "Workspace", "Settings".
+  // Where it sits: "github / Repos", "Scripts", "Workspace", "Settings".
   path: string;
   // Empty where the name is already the whole answer.
   origin: string;

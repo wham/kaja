@@ -39,7 +39,7 @@ export interface McpService {
 export interface McpMethod {
   name: string;
   // The TypeScript a script writes, e.g.
-  // "ListShows(input: Input<ListShowsRequest>): Call<ListShowsResponse>" — a Call
+  // "ListForRepo(input: Input<IssuesListForRepoRequest>): Call<IssuesListForRepoResponse>" — a Call
   // is awaited like a promise, and is what kaja.approve holds back, and an Input
   // is the request with every field optional.
   signature: string;

@@ -121,7 +121,7 @@ struct DescribeMethod: AppIntent {
     static var description = IntentDescription("How to call one method: its signature, the types it names, and a call to start from.")
     static var openAppWhenRun = true
 
-    @Parameter(title: "Method", description: "The method's name, e.g. ListShows or Shows.ListShows.")
+    @Parameter(title: "Method", description: "The method's name, e.g. ListForRepo or Issues.ListForRepo.")
     var method: String
 
     static var parameterSummary: some ParameterSummary {

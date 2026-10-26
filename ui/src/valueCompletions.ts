@@ -10,7 +10,7 @@ import { recallValues, RememberedValue } from "./typeMemory";
 // A scalar value position inside a request literal, resolved back to the proto
 // field it fills in.
 export interface ValuePosition {
-  // Message type holding the field, e.g. "movies.v1.GetMovieRequest".
+  // Message type holding the field, e.g. "github.types.IssuesCreateRequest".
   typeName: string;
   fieldName: string;
   scalarType: ScalarType;
@@ -82,7 +82,7 @@ export function resolveValuePosition(code: string, offset: number, apps: App[]):
 }
 
 // Walk out of the node under the cursor to the call it is an argument of,
-// collecting the property names passed on the way, e.g. ["movie", "title"].
+// collecting the property names passed on the way, e.g. ["issue", "title"].
 function enclosingCall(nodes: Node[], offset: number): { call: CallExpression | OptionalCallExpression; path: string[] } | undefined {
   const path: string[] = [];
 

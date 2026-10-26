@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { drawnText, printJson } from "./payloadText";
 
 test("prints a payload the way the pane shows it", () => {
-  expect(printJson({ id: "show-1", seats: [1, 2] })).toEqual(`{\n  "id": "show-1",\n  "seats": [\n    1,\n    2\n  ]\n}`);
+  expect(printJson({ id: "issue-1", labels: [1, 2] })).toEqual(`{\n  "id": "issue-1",\n  "labels": [\n    1,\n    2\n  ]\n}`);
 });
 
 test("prints a 64-bit field rather than throwing on it", () => {

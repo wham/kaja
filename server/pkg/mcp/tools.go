@@ -155,7 +155,7 @@ func allToolDefinitions() []map[string]interface{} {
 				"names (transitively), whether the call reads or writes, and a call to start from. " +
 				"This is the generated code a script is checked against, so it is the whole answer - there is nothing else to read.",
 			"inputSchema": obj(map[string]interface{}{
-				"method": str("\"<Service>.<Method>\", e.g. \"Shows.ListShows\". Prefix with \"<app>/\" when two apps share a service name."),
+				"method": str("\"<Service>.<Method>\", e.g. \"Issues.ListForRepo\". Prefix with \"<app>/\" when two apps share a service name."),
 			}, "method"),
 		},
 		{
@@ -443,7 +443,7 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 // nearest matches. A miss that only says no costs a whole extra round trip.
 func (s *Server) describeMethod(name string) map[string]interface{} {
 	if strings.TrimSpace(name) == "" {
-		return errorToolResult(fmt.Errorf("provide method, e.g. \"Shows.ListShows\""))
+		return errorToolResult(fmt.Errorf("provide method, e.g. \"Issues.ListForRepo\""))
 	}
 	catalog := s.bridge.Catalog()
 	resolved, ambiguous, ok := catalog.findMethod(name)

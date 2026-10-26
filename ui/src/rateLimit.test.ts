@@ -17,7 +17,7 @@ function fakeClock(startedAt = 1_700_000_000_000) {
 
 function limiter(options = {}, clock = fakeClock()) {
   let draws = 0;
-  const it = new RateLimiter("theatre", options, { onChange: () => draws++, now: clock.now, sleep: clock.sleep });
+  const it = new RateLimiter("github", options, { onChange: () => draws++, now: clock.now, sleep: clock.sleep });
   return { limiter: it, clock, draws: () => draws };
 }
 

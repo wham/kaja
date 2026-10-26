@@ -94,7 +94,7 @@ export class Call<T> implements PromiseLike<T> {
    * message declaring its own `headers` or `response` field is untouched.
    *
    * Asked of the call rather than of the answer, so it works written inline
-   * (`await Shows.ListShows({}).withHeaders()`) and on a call already named and sent —
+   * (`await Repos.Get({ owner, repo }).withHeaders()`) and on a call already named and sent —
    * starting is idempotent, so the second is a re-read.
    */
   withHeaders(): Promise<{ response: T; headers: MethodCallHeaders }> {

@@ -23,14 +23,14 @@ func TestACallInTheProcessRunsAsTheNamedClient(t *testing.T) {
 	go func() {
 		message := drain(t, stream, "run")
 		clients <- message.Client
-		session.Result(message.RunID, mcp.RunResult{Console: []string{"[INFO] 2 seats"}})
+		session.Result(message.RunID, mcp.RunResult{Console: []string{"[INFO] 2 issues"}})
 	}()
 
 	result, err := session.Call(context.Background(), "Siri", "run_script", map[string]any{"code": "kaja.text('hi')"})
 	if err != nil {
 		t.Fatalf("call: %v", err)
 	}
-	if result.IsError || !strings.Contains(result.Text, "2 seats") {
+	if result.IsError || !strings.Contains(result.Text, "2 issues") {
 		t.Errorf("expected the window's report, got %+v", result)
 	}
 	if client := <-clients; client != "Siri" {

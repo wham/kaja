@@ -23,26 +23,22 @@ describe("remapEditorCode", () => {
   });
 
   it("leaves the app's name where it is not a module", () => {
-    const code = 'import { Shows } from "theatre";\nconst label = "theatre";\n// theatre\nawait Shows.theatre({});\n';
-    expect(remapEditorCode(code, "theatre", "playhouse")).toBe(
-      'import { Shows } from "playhouse";\nconst label = "theatre";\n// theatre\nawait Shows.theatre({});\n',
-    );
+    const code = 'import { Repos } from "github";\nconst label = "github";\n// github\nawait Repos.github({});\n';
+    expect(remapEditorCode(code, "github", "gh")).toBe('import { Repos } from "gh";\nconst label = "github";\n// github\nawait Repos.github({});\n');
   });
 
   it("keeps the author's quote style and the text around the import", () => {
-    const code = "import   { Shows }   from 'theatre' ;\n";
-    expect(remapEditorCode(code, "theatre", "playhouse")).toBe("import   { Shows }   from 'playhouse' ;\n");
+    const code = "import   { Repos }   from 'github' ;\n";
+    expect(remapEditorCode(code, "github", "gh")).toBe("import   { Repos }   from 'gh' ;\n");
   });
 
   it("follows a type-only import, a re-export and a dynamic one", () => {
-    const code = 'import type { Show } from "theatre";\nexport { Shows } from "theatre";\nconst m = await import("theatre/service");\n';
-    expect(remapEditorCode(code, "theatre", "playhouse")).toBe(
-      'import type { Show } from "playhouse";\nexport { Shows } from "playhouse";\nconst m = await import("playhouse/service");\n',
-    );
+    const code = 'import type { Repo } from "github";\nexport { Repos } from "github";\nconst m = await import("github/service");\n';
+    expect(remapEditorCode(code, "github", "gh")).toBe('import type { Repo } from "gh";\nexport { Repos } from "gh";\nconst m = await import("gh/service");\n');
   });
 
   it("leaves a script naming no app alone", () => {
     const code = 'import { kaja } from "kaja";\nkaja.text("hello");\n';
-    expect(remapEditorCode(code, "theatre", "playhouse")).toBe(code);
+    expect(remapEditorCode(code, "github", "gh")).toBe(code);
   });
 });

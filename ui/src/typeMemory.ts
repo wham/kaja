@@ -23,14 +23,14 @@ export type ScalarValue = string | number | boolean;
 export type ValueOrigin = "request" | "response";
 
 export interface ValueSource {
-  // Method the value passed through, e.g. "MoviesService.ListMovies".
+  // Method the value passed through, e.g. "Repos.ListForUser".
   method: string;
   origin: ValueOrigin;
 }
 
 export interface RememberedValue extends ValueSource {
   value: ScalarValue;
-  // Message type the value was seen on, e.g. "movies.v1.Movie".
+  // Message type the value was seen on, e.g. "github.types.Repository".
   typeName: string;
   fieldName: string;
   t: number;
