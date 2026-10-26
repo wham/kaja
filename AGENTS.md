@@ -61,7 +61,6 @@ protoc-gen-kaja/  Protoc plugin for TypeScript codegen (Go, own go.mod)
 server/           Backend (Go) — serves both web and desktop
 ui/               Frontend (React/TypeScript)
 workspace/        Demo workspace, also what both public deployments serve
-examples/         Workspaces for real APIs, opened as they are; nothing builds or deploys them
 scripts/          Build and development scripts
 docs/
 ```
