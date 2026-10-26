@@ -192,7 +192,7 @@ describe("buildMcpCatalog", () => {
 
     expect(built.apps).toHaveLength(0);
     expect(built.runtime).toContain("export declare const kaja: {");
-    expect(built.runtime).toContain("table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;");
+    expect(built.runtime).toContain("table(options?: TableOptions): Table;");
     // Including the verbs on the handle it hands back — the total is a number
     // only the script's source has, so an agent has to be able to read that it
     // is wanted.

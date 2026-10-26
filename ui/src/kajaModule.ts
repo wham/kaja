@@ -203,44 +203,35 @@ export interface RunCell {
  */
 type KajaRunInput<Script extends string> = Script extends keyof KajaScripts ? KajaScripts[Script] : { [key: string]: unknown };
 
+/**
+ * A row: its keys are the columns, in the order they are written, so a header is
+ * never matched to its value by counting. A key a row names for the first time
+ * adds a column, and the rows already drawn leave it blank.
+ *
+ *   { name: user.name, "last seen": user.lastSeen, history: kaja.run("audit", { id: user.id }) }
+ */
+export type RowObject = { [column: string]: Cell };
+
 /** A table being filled in on the run's canvas. */
 export interface Table {
   /**
-   * Append a row. It appears at once, so a loop paints as it runs. Fewer cells
-   * than there are columns leaves the rest blank, so a row can be written before
-   * the work that fills it is done — the handle it hands back is how you finish
-   * it.
+   * Append a row. It appears at once, so a loop paints as it runs, and the
+   * handle it hands back is how you finish it.
    *
    * A cell that isn't a value yet is a promise or a function (see Cell), which
    * is how a row is drawn from what you already have while the rest of it is
    * fetched:
    *
    *   for (const show of shows) {
-   *     table.row(show.id, show.title, () => Ratings.GetRating({ id: show.id }));
+   *     table.row({ id: show.id, title: show.title, rating: () => Ratings.GetRating({ id: show.id }) });
    *   }
    */
-  row(...cells: Cell[]): Row;
-  /**
-   * Add a column, once the run knows it needs one. The rows already drawn grow a
-   * blank cell for it.
-   */
-  column(name: string): void;
+  row(cells: RowObject): Row;
   /**
    * State how many rows there are in the whole result set — the count an API
    * reports beside a page, which is the only place it can come from. Say it as
    * you learn it; the last word wins, and a new search starts the question over.
-   *
-   *   const customers = kaja.table(["key", "name"], async function* (search) {
-   *     for (let page = 1; ; page++) {
-   *       const result = await Customers.ListCustomers({ page, search });
-   *       customers.total(result.totalCount);
-   *       yield* result.items.map((customer) => [customer.key, customer.name]);
-   *     }
-   *   });
-   *
-   * A source paging a cursor has nothing to say here and says nothing: the table
-   * then reports how many rows it has loaded and that there are more, rather
-   * than passing that count off as the total.
+   * kaja.pages says it for you when the page carries one.
    */
   total(count: number | undefined): void;
 }
@@ -248,25 +239,23 @@ export interface Table {
 /** A row already on the canvas, which the run can keep up to date. */
 export interface Row {
   /**
-   * Rewrite the row: the same cells in the same order row() took them. A row is
-   * only ever the whole of itself, so pass every cell, not just the one that
-   * changed.
+   * Rewrite the columns you name and leave the rest as they are.
    *
-   *   const row = table.row(account.id, "checking…");
-   *   row.update(account.id, await check(account));
+   *   const row = table.row({ id: account.id, status: "checking…" });
+   *   row.update({ status: await check(account) });
    *
-   * Cells that were still on their way when a row is rewritten are dropped: they
+   * A cell that was still on its way in a column you rewrite is dropped: it
    * answered the row as it was.
    */
-  update(...cells: Cell[]): void;
+  update(cells: RowObject): void;
 }
 
 /**
- * Rows a table draws. An array is an iterable; so is an async generator, and one
- * of those only runs when something pulls it — which is what makes paging fetch
- * a page and nothing else.
+ * What a table draws its rows from. An array is an iterable; so is an async
+ * generator and so is kaja.pages, and those only run when something pulls them —
+ * which is what makes paging fetch a page and nothing else.
  */
-export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
+export type Rows<T> = Iterable<T> | AsyncIterable<T>;
 
 /**
  * …or a function returning one, which is what a search that reaches the server
@@ -274,7 +263,44 @@ export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
  * the text in hand. Declare the parameter and the search box goes to your
  * source; leave it out and the box filters the rows already loaded.
  */
-export type RowSource = Rows | ((search: string) => Rows);
+export type RowSource<T> = Rows<T> | ((search: string) => Rows<T>);
+
+export interface TableOptions {
+  /** A heading drawn above the table, saying what it is. */
+  title?: string;
+  /** How many rows a page shows. 50 where nothing says. */
+  pageSize?: number;
+}
+
+/**
+ * The items of a list method paged by cursor, from kaja.pages. Iterate it, or
+ * hand it to kaja.table, which pulls a page only when paging needs one.
+ */
+export interface Pages<T> extends AsyncIterable<T> {}
+
+/** Where kaja.pages finds what it needs on a page, when the page can't say. */
+export interface PagesOptions<P, T> {
+  /** The items on a page. Read off the page's one list where nothing says. */
+  items?: (page: P) => Iterable<T>;
+  /**
+   * The cursor the next page is asked for with; empty or missing is the last
+   * page. Read off nextPageToken, nextToken, nextCursor or endCursor
+   * where nothing says.
+   */
+  next?: (page: P) => string | undefined | null;
+  /** How many items there are in all. Read off totalSize, totalCount or total where nothing says. */
+  total?: (page: P) => number | undefined;
+}
+
+// What kaja.pages reads off a page that it isn't told about. A page short of either
+// is a call that has to say, so it is the editor that asks rather than the run.
+type PageCursorKey = "nextPageToken" | "nextToken" | "nextCursor" | "endCursor";
+type CursorPage = { [K in PageCursorKey]: { [_ in K]: string | undefined | null } }[PageCursorKey];
+type PageListKey<P> = { [K in keyof P]-?: NonNullable<P[K]> extends readonly unknown[] ? K : never }[keyof P];
+type IsOne<K, All = K> = [K] extends [never] ? false : K extends unknown ? ([All] extends [K] ? true : false) : false;
+type OneList<P> = IsOne<PageListKey<P>> extends true ? unknown : { "kaja.pages: say which list holds the items": never };
+type PageItem<P> = IsOne<PageListKey<P>> extends true ? (NonNullable<P[PageListKey<P>]> extends readonly (infer E)[] ? E : never) : never;
+type PageNext<P> = (page: P) => string | undefined | null;
 
 /** An option kaja.askSelect offers when the label isn't the value. */
 export interface Choice<V> {
@@ -366,12 +392,13 @@ export declare const kaja: {
    * give it. The same script, the same parameters and the same grammar as a
    * deeplink; this is that link said inside the window.
    *
-   *   kaja.table(
-   *     ["show", "sold", ""],
-   *     shows.map((show) => [show.title, show.sold, kaja.run("show-detail", { id: show.id })]),
-   *   );
+   *   kaja.table(shows, (show) => ({
+   *     show: show.title,
+   *     sold: show.sold,
+   *     detail: kaja.run("show-detail", { id: show.id }),
+   *   }));
    *
-   * The cell says the script's own name unless you give it a label:
+   * The cell says its column's name unless you give it a label:
    *
    *   kaja.run("orders/refund", { order: order.id }, { label: "Refund" });
    *
@@ -391,57 +418,87 @@ export declare const kaja: {
    */
   run<Script extends string>(script: Script, input?: KajaRunInput<Script>, options?: { label?: string }): RunCell;
   /**
-   * Draw a table on the run's canvas and hand back a handle to fill it. Rows
-   * appear as they are added, so a loop paints rather than reporting at the end.
-   * This is how a script renders a table: never build one out of Markdown or
-   * ASCII, and never return it.
+   * Draw a table on the run's canvas. This is how a script renders a table:
+   * never build one out of Markdown or ASCII, and never return it.
    *
-   *   const table = kaja.table(["id", "name", "status"]);
-   *   for (const account of accounts) {
-   *     table.row(account.id, account.name, await check(account));
-   *   }
+   * Hand it the rows and say what each one shows. Each item becomes a row
+   * through the function, whose keys are the columns:
    *
-   * A row hands back a handle, so a table can keep saying what is true while the
-   * run goes on: write the row when the work starts, update it when it ends.
+   *   kaja.table(users, (user) => ({
+   *     name: user.name,
+   *     email: user.email,
+   *     "last seen": user.lastSeen,
+   *     history: kaja.run("admin/audit-log", { userId: user.id }),
+   *   }));
+   *
+   * Or name the fields to show as they are:
+   *
+   *   kaja.table(users, ["name", "email", "lastSeen"]);
+   *
+   * A cell holding a timestamp (an ISO string or a Date) draws as how long ago
+   * it was, with the time itself on hover, so pass it as it came.
+   *
+   * The rows can be a source the table pages through — kaja.pages, or an async
+   * generator. It is pulled only when paging asks for rows it hasn't got, so
+   * the second page costs a call and the tenth costs one only if you go there.
+   * The table searches and pages either way.
+   *
+   *   const users = kaja.pages((cursor) => Users.ListUsers({ pageSize: 50, pageToken: cursor }));
+   *   kaja.table(users, (user) => ({ name: user.name, email: user.email }), { title: "Users" });
+   *
+   * A source that is a function of the search text is started again for each
+   * search, which is how the box reaches the server:
+   *
+   *   kaja.table(
+   *     (search) => kaja.pages((cursor) => Shows.ListShows({ query: search, pageToken: cursor })),
+   *     (show) => ({ id: show.id, title: show.title }),
+   *   );
+   *
+   * Without rows, the table is filled through the handle it hands back, a row
+   * at a time, so a loop paints rather than reporting at the end. A row hands
+   * back a handle too: write it when the work starts, update it when it ends.
    * This is how a summary table is built — never redraw the whole table.
    *
+   *   const table = kaja.table({ title: "Accounts" });
    *   const rows = accounts.map((account) => ({
    *     account,
-   *     row: table.row(account.id, account.name, "checking…"),
+   *     row: table.row({ id: account.id, name: account.name, status: "checking…" }),
    *   }));
    *   for (const { account, row } of rows) {
-   *     row.update(account.id, account.name, await check(account));
+   *     row.update({ status: await check(account) });
    *   }
    *
    * A cell whose value comes from somewhere else can be handed over as a promise
-   * or a function instead, and draws as loading until it lands. The rows appear
-   * with everything they already have:
+   * or a function instead, and draws as loading until it lands:
    *
    *   const ratings = Ratings.GetRatings({ ids });
-   *   for (const show of shows) {
-   *     table.row(show.id, show.title, ratings.then((r) => r.byId[show.id]));
-   *   }
-   *
-   * The rows can be given instead — an array, or a source that yields them as
-   * the table is paged through. A source is only pulled when paging asks for
-   * rows it hasn't got, so the second page costs a call and the tenth costs one
-   * only if you go there. The table searches and pages either way.
-   *
-   *   kaja.table(["id", "title"], shows.map((show) => [show.id, show.title]));
-   *
-   *   kaja.table(["id", "title"], async function* (search) {
-   *     for (let pageToken = ""; ; ) {
-   *       const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
-   *       yield* page.shows.map((show) => [show.id, show.title]);
-   *       if (!(pageToken = page.nextPageToken)) return;
-   *     }
-   *   });
-   *
-   * The table counts the rows it has. An API that reports how many there are in
-   * total is the only thing that knows, so hand that on with the handle's
-   * total() as the pages arrive.
+   *   kaja.table(shows, (show) => ({ title: show.title, rating: ratings.then((r) => r.byId[show.id]) }));
    */
-  table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
+  table<T>(rows: RowSource<T>, columns: ((item: T) => RowObject) | readonly (keyof T & string)[], options?: TableOptions): Table;
+  table(rows: RowSource<object>, options?: TableOptions): Table;
+  table(options?: TableOptions): Table;
+  /**
+   * Read a list method paged by cursor as the items it lists. Write the call as
+   * a function of the cursor; the first page is asked for with "", and the
+   * pages stop at an empty cursor or a failed call.
+   *
+   *   const users = kaja.pages((cursor) => Users.ListUsers({ pageSize: 50, pageToken: cursor }));
+   *   for await (const user of users) { … }
+   *
+   * The items are the page's one list, the cursor is nextPageToken, nextToken,
+   * nextCursor or endCursor, and a totalSize, totalCount or total is handed to
+   * the table drawing it. Where a page has none of those, or more than one
+   * list, say where they are:
+   *
+   *   kaja.pages((cursor) => Shows.ListShows({ cursor }), { items: (page) => page.shows, next: (page) => page.after });
+   *
+   * A pages is read lazily, so handed to kaja.table it fetches a page only when
+   * the table is paged to it.
+   */
+  pages<P, T>(fetch: (cursor: string) => PromiseLike<P>, options: PagesOptions<P, T> & { items: (page: P) => Iterable<T>; next: PageNext<P> }): Pages<T>;
+  pages<P, T>(fetch: (cursor: string) => PromiseLike<P & CursorPage>, options: PagesOptions<P, T> & { items: (page: P) => Iterable<T> }): Pages<T>;
+  pages<P>(fetch: (cursor: string) => PromiseLike<P & OneList<P>>, options: PagesOptions<P, PageItem<P>> & { next: PageNext<P> }): Pages<PageItem<P>>;
+  pages<P>(fetch: (cursor: string) => PromiseLike<P & CursorPage & OneList<P>>, options?: PagesOptions<P, PageItem<P>>): Pages<PageItem<P>>;
   /**
    * Run a body over and over on a schedule, and give the run's Stats page a shape
    * worth charting. The body is one iteration: \`concurrency\` virtual users each

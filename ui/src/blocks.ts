@@ -57,6 +57,8 @@ export class RunCell {
   constructor(
     readonly label: string,
     readonly run: CellRun,
+    // Whether the script named it. A cell it didn't is labelled by its column.
+    readonly labelled = false,
   ) {}
 
   toString(): string {
@@ -85,6 +87,8 @@ export interface TableBlock {
   // The source is gone — read back from an earlier session, or its closure let go.
   // Expiry is a stated state, not a Next that leads nowhere.
   expired?: boolean;
+  // What the script called the table, drawn above it.
+  title?: string;
   // Absent means the default.
   pageSize?: number;
   // As the script reported it, which nothing else here could know. Absent is the
@@ -225,11 +229,16 @@ export function withoutRowStatus(block: TableBlock, row: number): TableBlock["ce
   return Object.keys(cells).length === 0 ? undefined : cells;
 }
 
-/** The destinations with one cell's set, on the same rules as the statuses above. */
-export function withCellRun(block: TableBlock, row: number, column: number, run: CellRun): TableBlock["runs"] {
+/** The destinations with one cell's set or cleared, on the same rules as the statuses above. */
+export function withCellRun(block: TableBlock, row: number, column: number, run: CellRun | undefined): TableBlock["runs"] {
+  if (run === undefined && block.runs?.[row]?.[column] === undefined) return block.runs;
   const runs = { ...(block.runs ?? {}) };
-  runs[row] = { ...(runs[row] ?? {}), [column]: run };
-  return runs;
+  const inRow = { ...(runs[row] ?? {}) };
+  if (run === undefined) delete inRow[column];
+  else inRow[column] = run;
+  if (Object.keys(inRow).length === 0) delete runs[row];
+  else runs[row] = inRow;
+  return Object.keys(runs).length === 0 ? undefined : runs;
 }
 
 /** …and with a whole row's cleared, which is what rewriting a row does. */

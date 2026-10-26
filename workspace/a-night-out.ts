@@ -18,11 +18,9 @@ if (!pick) throw new Error(suggestion.content[0]?.text ?? "The concierge had not
 
 kaja.text(pick.why);
 
-const shortlist = kaja.table(["", "film", "where", "why"]);
-shortlist.row("●", pick.title, pick.theater, pick.why);
-for (const other of pick.runnersUp) {
-  shortlist.row("○", other.title, other.theater, other.why);
-}
+kaja.table([pick, ...pick.runnersUp], (film) => ({ pick: film === pick ? "●" : "○", film: film.title, where: film.theater, why: film.why }), {
+  title: "The shortlist",
+});
 
 const best = await Concierge.BestSeats({ showId: pick.showId, party });
 const seats = best.structuredContent;
@@ -32,10 +30,9 @@ kaja.text(`${pick.theater} — ${seats.section} row ${seats.row}, ${seats.seatId
 
 const booking = await kaja.approve(Seating.BookSeats({ showId: pick.showId, seatIds: seats.seatIds }));
 
-const tickets = kaja.table(["seat", "section", "row", "price"]);
-for (const seat of booking.seats) {
-  tickets.row(seat.id, Section[seat.section], seat.row, `$${(seat.priceCents / 100).toFixed(2)}`);
-}
+kaja.table(booking.seats, (seat) => ({ seat: seat.id, section: Section[seat.section], row: seat.row, price: `$${(seat.priceCents / 100).toFixed(2)}` }), {
+  title: "Your tickets",
+});
 
 const receipt = await Concierge.WriteConfirmation({
   showId: pick.showId,

@@ -7,7 +7,7 @@ const IMPORT = 'import { kaja } from "kaja";\n';
 
 describe("readRunReferences", () => {
   it("reads the name a cell runs", () => {
-    const code = `${IMPORT}kaja.table(["a"], [[kaja.run("reports/churn", { id: 7 })]]);`;
+    const code = `${IMPORT}kaja.table([{ churn: kaja.run("reports/churn", { id: 7 }) }]);`;
     expect(readRunReferences(code)!.map((reference) => reference.name)).toEqual(["reports/churn"]);
   });
 

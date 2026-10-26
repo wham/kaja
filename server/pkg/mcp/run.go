@@ -129,7 +129,7 @@ func renderRun(label string, result RunResult) string {
 		b.WriteString("\nthis script returned a value, which does nothing\n")
 		b.WriteString(indent(truncate(string(result.Result)), "  "))
 		b.WriteString("  A script is a body of statements, not a function - Kaja will not run one with a top-level `return`.\n")
-		b.WriteString("  Draw what you produced instead: kaja.table(columns).row(...) for a table, kaja.text/kaja.code for prose\n")
+		b.WriteString("  Draw what you produced instead: kaja.table(rows, (item) => ({ ... })) for a table, kaja.text/kaja.code for prose\n")
 		b.WriteString("  and snippets. describe_type \"kaja\" has the rest.\n")
 	}
 

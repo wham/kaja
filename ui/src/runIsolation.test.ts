@@ -142,7 +142,6 @@ describe("a table outlives the run that drew it", () => {
     // a call, and it must be recorded against A whenever the reader pages —
     // which is long after A has finished.
     a.kaja.table(
-      ["id"],
       async function* () {
         for (let i = 0; i < 100; i++) {
           await a.kaja._internal.methodCallUpdate({
@@ -153,7 +152,7 @@ describe("a table outlives the run that drew it", () => {
             input: {},
             timestamp: 0,
           } as never);
-          yield [String(i)];
+          yield { id: String(i) };
         }
       },
       { pageSize: 2 },
@@ -180,15 +179,15 @@ describe("a table outlives the run that drew it", () => {
 
     let released = false;
     // B's source never finishes until the test lets it.
-    b.kaja.table(["id"], async function* () {
+    b.kaja.table(async function* () {
       await new Promise<void>((resolve) => {
         const wait = () => (released ? resolve() : setTimeout(wait, 1));
         wait();
       });
-      yield ["b"];
+      yield { id: "b" };
     });
 
-    a.kaja.table(["id"], [["a"]]);
+    a.kaja.table([{ id: "a" }]);
     // A's settle must not be held open by a table B is still filling.
     await a.kaja.settleTables();
 
@@ -207,8 +206,8 @@ describe("a table outlives the run that drew it", () => {
     for (let i = 0; i < 3; i++) {
       const each = run(host, `r${i}`);
       for (let j = 0; j < 10; j++) {
-        each.kaja.table(["id"], async function* () {
-          yield ["row"];
+        each.kaja.table(async function* () {
+          yield { id: "row" };
         });
       }
       await each.kaja.settleTables();

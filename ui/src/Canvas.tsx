@@ -19,6 +19,7 @@ import {
 import { RateLimitState } from "./rateLimit";
 import { formatBytes, formatDuration } from "./callFormat";
 import { copyText } from "./clipboard";
+import { readInstant, timeAgo } from "./cellTime";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
@@ -551,8 +552,14 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
           you have to go looking for, and on a canvas of several blocks it is
           hard to tell which table it belongs to. Everything in it is 28px,
           which is what a pointer wants and what a 12px glyph never was. */}
+      {block.title !== undefined && !controls && (
+        <div className="flex h-10 items-center border-b border-border bg-card px-3 font-medium text-foreground">
+          <span className="min-w-0 truncate">{block.title}</span>
+        </div>
+      )}
       {controls && (
         <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2">
+          {block.title !== undefined && <span className="min-w-0 shrink truncate pl-1 font-medium text-foreground">{block.title}</span>}
           <div
             className={cn(
               "flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring",
@@ -790,6 +797,14 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
   }
 
   if (status === undefined) {
+    const instant = readInstant(cell);
+    if (instant !== undefined) {
+      return (
+        <td onContextMenu={onContextMenu} className={className} title={instant.toLocaleString()}>
+          {timeAgo(instant, Date.now())}
+        </td>
+      );
+    }
     return (
       <td onContextMenu={onContextMenu} className={className} title={cell.length > 48 ? cell : undefined}>
         {cell}

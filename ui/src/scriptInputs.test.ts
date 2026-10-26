@@ -64,7 +64,7 @@ describe("readInputKeys", () => {
   });
 
   it("reads a key deep inside the script", () => {
-    const code = script(`async function main() {\n  const rows = kaja.table(["a"]);\n  rows.row(kaja.input.since);\n}\nawait main();`);
+    const code = script(`async function main() {\n  const rows = kaja.table();\n  rows.row({ since: kaja.input.since });\n}\nawait main();`);
     expect(readInputKeys(code)).toEqual(["since"]);
   });
 

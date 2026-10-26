@@ -42,6 +42,7 @@ import { RunMetrics } from "./runStats";
 import { LogSink } from "./scriptConsole";
 import { baseName, linkName } from "./scriptLink";
 import { CellRef, pageSizeOf } from "./tableView";
+import { PageIterator, Pages, PagesOptions } from "./pages";
 import { rememberValues } from "./typeMemory";
 import { uuidV4 } from "./uuid";
 import type { MissingVariable } from "./variableUsage";
@@ -168,17 +169,16 @@ export interface RateLimit {
 
 // Rows land one at a time so the canvas repaints as the loop runs.
 export interface Table {
-  row(...cells: Cell[]): Row;
-  column(name: string): void;
+  row(cells: RowObject): Row;
   total(count: number | undefined): void;
 }
 
 /**
- * A row already on the canvas. Updating one is writing it again — the same cells in
- * the same order `row` took them.
+ * A row already on the canvas. An update names the columns it changes and leaves the
+ * rest as they are.
  */
 export interface Row {
-  update(...cells: Cell[]): void;
+  update(cells: RowObject): void;
 }
 
 /**
@@ -189,18 +189,26 @@ export interface Row {
  */
 export type Cell = unknown | PromiseLike<unknown> | (() => unknown) | RunCell;
 
-export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
+// A row's keys are its columns, so a header is never matched to a value by counting.
+export type RowObject = { [column: string]: Cell };
+
+export type Rows<T = unknown> = Iterable<T> | AsyncIterable<T>;
 
 // A source that declares the search parameter is restarted for each new search;
 // one that doesn't never sees it, and the box filters what is already loaded.
-export type RowSource = Rows | ((search: string) => Rows);
+export type RowSource<T = unknown> = Rows<T> | ((search: string) => Rows<T>);
+
+// How an item a source yields becomes a row: a function writing it out, or the keys
+// to pick off it. Absent, the item is the row.
+export type Columns<T = unknown> = ((item: T) => RowObject) | readonly string[];
 
 export interface TableOptions {
+  title?: string;
   pageSize?: number;
 }
 
 export interface RunOptions {
-  /** What the cell says. The script's own name where nothing else is given. */
+  /** What the cell says. Its column's name where nothing else is given. */
   label?: string;
 }
 
@@ -211,9 +219,6 @@ interface LiveCell {
   // running when the script handed it over, and can't be run again.
   open?: () => unknown;
   running?: Promise<void>;
-  // The row's revision when this cell was declared. A row rewritten since is not
-  // the row this answers, so the answer is dropped rather than written over it.
-  revision: number;
 }
 
 // The closure beside the block, held on the Kaja instance because that outlives any
@@ -223,7 +228,12 @@ interface LiveTable {
   // Absent on a table handed its rows outright. Such a table is held here anyway once
   // it has a cell that isn't a value: what is kept is the closures.
   open?: (search: string) => Rows;
-  iterator?: Iterator<unknown[]> | AsyncIterator<unknown[]>;
+  iterator?: Iterator<unknown> | AsyncIterator<unknown>;
+  // Turns what the source yields into a row.
+  toRow: (item: unknown) => RowObject;
+  // Where each column sits, so a row naming its columns in another order, or a column
+  // nobody has named yet, lands where it belongs.
+  columns: Map<string, number>;
   // A function can be started again; an iterable already running cannot, so it has
   // neither a server search nor a retry that gets anywhere.
   restartable: boolean;
@@ -238,13 +248,10 @@ interface LiveTable {
   // Held apart from `pulling` because it settles before that one is set, and the run
   // waits for both.
   first?: Promise<void>;
-  // The cells that aren't values, by row and then column, so rewriting a row
-  // lets go of everything that was answering it in one move.
+  // The cells that aren't values, by row and then column. An answer lands only while
+  // its cell is still the one held here, so one that was rewritten or restarted away
+  // is dropped rather than written over what replaced it.
   cells: Map<number, Map<number, LiveCell>>;
-  // Never reset: a revision that started over would let a cell declared before a
-  // restart answer the row that replaced it.
-  revision: number;
-  rowRevision: number[];
   running: Set<Promise<void>>;
   // Two sets rather than a count: a cell waiting for a slot is outstanding but not in
   // flight, and racing a set that holds the waiters is a race nobody wins.
@@ -268,22 +275,44 @@ const SAMPLED_CALLS_PER_METHOD = 5;
 // rather than on every tick of the supervisor or every call that lands.
 const PERF_DRAW_MS = 250;
 
-function isAsyncIterable(value: any): value is AsyncIterable<unknown[]> {
+function isAsyncIterable(value: any): value is AsyncIterable<unknown> {
   return value != null && typeof value[Symbol.asyncIterator] === "function";
 }
 
-function isIterable(value: any): value is Iterable<unknown[]> {
+function isIterable(value: any): value is Iterable<unknown> {
   return value != null && typeof value[Symbol.iterator] === "function";
 }
 
-function openIterator(rows: Rows): Iterator<unknown[]> | AsyncIterator<unknown[]> {
+function openIterator(rows: Rows): Iterator<unknown> | AsyncIterator<unknown> {
   if (isAsyncIterable(rows)) return rows[Symbol.asyncIterator]();
-  return (rows as Iterable<unknown[]>)[Symbol.iterator]();
+  return (rows as Iterable<unknown>)[Symbol.iterator]();
 }
 
-// Anything a source yields that isn't an array is one cell rather than an error.
-function toCells(row: unknown): unknown[] {
-  return Array.isArray(row) ? row : [row];
+function isRowSource(value: unknown): value is RowSource {
+  return typeof value === "function" || isAsyncIterable(value) || isIterable(value);
+}
+
+const ROW_SHAPE = "a row is an object whose keys are its columns: { name: user.name, email: user.email }";
+
+// An array is refused rather than read as columns "0", "1", …: it is a row written
+// the way tables here used to take one, and a header of indices says nothing.
+function rowObject(row: unknown): RowObject {
+  if (row === null || typeof row !== "object" || Array.isArray(row)) {
+    throw new Error(`kaja.table: ${ROW_SHAPE}, not ${Array.isArray(row) ? "an array" : (JSON.stringify(row) ?? String(row))}`);
+  }
+  return row as RowObject;
+}
+
+function rowMaker(columns: Columns | undefined): (item: unknown) => RowObject {
+  if (typeof columns === "function") return (item) => rowObject(columns(item));
+  if (Array.isArray(columns)) {
+    const keys = columns as readonly string[];
+    return (item) => {
+      const source = rowObject(item) as { [key: string]: unknown };
+      return Object.fromEntries(keys.map((key) => [key, source[key]]));
+    };
+  }
+  return rowObject;
 }
 
 // A Call is one of these, so a method handed straight to a table is a cell the
@@ -296,8 +325,7 @@ function cellFailure(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Fewer cells than columns draws blanks rather than a ragged edge, which is what
-// lets a row be written before the work that fills it is done; extra are kept.
+// A row that doesn't name every column draws blanks rather than a ragged edge.
 function padCells(cells: string[], width: number): string[] {
   return cells.length >= width ? cells : [...cells, ...new Array(width - cells.length).fill("")];
 }
@@ -747,38 +775,66 @@ export class Kaja {
     // without the caller having to spell the conversion out.
     const entries = Object.entries(input ?? {}).map(([key, value]) => [key, formatCell(value)]);
     const cell: CellRun = { script: named, input: entries.length === 0 ? undefined : Object.fromEntries(entries) };
-    return new RunCell(options?.label ?? baseName(named), cell);
+    return new RunCell(options?.label ?? baseName(named), cell, options?.label !== undefined);
   }
 
-  table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
+  /**
+   * Three shapes, told apart by what is passed: `table(options?)` is a table filled
+   * through its handle, `table(rows, options?)` draws rows that are already objects,
+   * and `table(rows, columns, options?)` turns each item into one.
+   */
+  table(...args: unknown[]): Table {
+    let rows: RowSource | undefined;
+    let columns: Columns | undefined;
+    let options: TableOptions | undefined;
+    if (args[0] === undefined || isRowSource(args[0])) {
+      rows = args[0] as RowSource | undefined;
+      const second = args[1];
+      if (typeof second === "function" || Array.isArray(second)) {
+        columns = second as Columns;
+        options = args[2] as TableOptions | undefined;
+      } else {
+        options = second as TableOptions | undefined;
+      }
+    } else if (typeof args[0] === "object" && !Array.isArray(args[0])) {
+      options = args[0] as TableOptions;
+    } else {
+      throw new Error("kaja.table: the rows must be an array, an iterable, or a function returning one");
+    }
+
     const blockId = newBlockId();
-    const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
+    const block: TableBlock = {
+      kind: "table",
+      columns: [],
+      rows: [],
+      title: options?.title === undefined ? undefined : formatCell(options.title),
+      pageSize: options?.pageSize,
+    };
     const table: LiveTable = {
       block,
+      toRow: rowMaker(columns),
+      columns: new Map(),
       restartable: false,
       search: "",
       generation: 0,
-      revision: 0,
-      rowRevision: [],
       cells: new Map(),
       running: new Set(),
       inFlight: new Set(),
     };
+    // Picked keys are the header before there is a row to read one off.
+    if (Array.isArray(columns)) for (const key of columns as readonly string[]) this.#column(table, key);
     let live = false;
 
     if (Array.isArray(rows)) {
-      block.rows = rows.map((row, index) => this.#declareRow(blockId, table, index, toCells(row)));
+      for (const item of rows) block.rows = [...block.rows, this.#writeRow(blockId, table, block.rows.length, table.toRow(item), false)];
     } else if (rows !== undefined) {
-      if (typeof rows !== "function" && !isAsyncIterable(rows) && !isIterable(rows)) {
-        throw new Error("kaja.table: rows must be an array, an iterable of rows, or a function returning one");
-      }
       // Declaring the parameter is what asks for the search text: a source that ignores it
       // would otherwise be restarted on every keystroke to fetch the same page back.
-      const restartable = typeof rows === "function";
-      table.restartable = restartable;
-      table.open = restartable ? rows : () => rows;
+      const source = rows;
+      table.restartable = typeof source === "function";
+      table.open = typeof source === "function" ? source : () => source;
       block.live = true;
-      block.serverSearch = restartable && rows.length > 0;
+      block.serverSearch = typeof source === "function" && source.length > 0;
       block.loadedSearch = "";
       live = true;
       this.#openTable(blockId, table);
@@ -790,41 +846,47 @@ export class Kaja {
     // now would run the loop while the name is still in its dead zone.
     if (live) table.first = Promise.resolve().then(() => void this.pullTable(blockId, "", pageSizeOf(block)));
 
-    // A new array each time, at both levels: the canvas compares what it was handed
-    // against what it holds, and a push or splice into the same array is invisible.
-    const write = (index: number, cells: unknown[]) => {
-      const row = this.#declareRow(blockId, table, index, cells);
-      block.rows = block.rows.map((current, at) => (at === index ? row : current));
-      this.#onBlockUpdate(blockId, { ...block });
-    };
-
     return {
-      row: (...cells: unknown[]): Row => {
+      row: (cells: RowObject): Row => {
         const index = block.rows.length;
-        block.rows = [...block.rows, this.#declareRow(blockId, table, index, cells)];
+        const row = this.#writeRow(blockId, table, index, rowObject(cells), false);
+        block.rows = [...block.rows, row];
         this.#onBlockUpdate(blockId, { ...block });
         return {
-          update: (...cells: unknown[]) => {
+          update: (cells: RowObject) => {
             // The row a handle points at can be gone — a restarted source dropped the rows it
             // had — so nothing happens rather than the script ending on someone else's search.
-            if (index < block.rows.length) write(index, cells);
+            if (index >= block.rows.length) return;
+            const row = this.#writeRow(blockId, table, index, rowObject(cells), true);
+            // A new array each time, at both levels: the canvas compares what it was handed
+            // against what it holds, and a push or splice into the same array is invisible.
+            block.rows = block.rows.map((current, at) => (at === index ? row : current));
+            this.#onBlockUpdate(blockId, { ...block });
           },
         };
       },
-      column: (name: string) => {
-        // Widening the table widens the rows already drawn, so header and rows can never
-        // disagree about how many columns there are.
-        block.columns = [...block.columns, formatCell(name)];
-        block.rows = block.rows.map((row) => padCells(row, block.columns.length));
-        this.#onBlockUpdate(blockId, { ...block });
-      },
-      total: (count: number | undefined) => {
-        // A total is a claim about the whole set, so anything that isn't a count says
-        // nothing rather than something wrong.
-        block.total = typeof count === "number" && Number.isFinite(count) && count >= 0 ? Math.floor(count) : undefined;
-        this.#onBlockUpdate(blockId, { ...block });
-      },
+      total: (count: number | undefined) => this.#total(blockId, block, count),
     };
+  }
+
+  #total(blockId: string, block: TableBlock, count: number | undefined): void {
+    // A total is a claim about the whole set, so anything that isn't a count says
+    // nothing rather than something wrong.
+    block.total = typeof count === "number" && Number.isFinite(count) && count >= 0 ? Math.floor(count) : undefined;
+    this.#onBlockUpdate(blockId, { ...block });
+  }
+
+  // Widening the table widens the rows already drawn, so header and rows can never
+  // disagree about how many columns there are.
+  #column(table: LiveTable, name: string): number {
+    const known = table.columns.get(name);
+    if (known !== undefined) return known;
+    const block = table.block;
+    const index = block.columns.length;
+    table.columns.set(name, index);
+    block.columns = [...block.columns, name];
+    block.rows = block.rows.map((row) => padCells(row, block.columns.length));
+    return index;
   }
 
   get #tables(): LiveTables {
@@ -835,38 +897,51 @@ export class Kaja {
     this.#tables.open(blockId, table, this);
   }
 
-  // The row's revision is stamped here, and it is what an answer arriving late is
-  // checked against.
-  #declareRow(blockId: string, table: LiveTable, index: number, cells: unknown[]): string[] {
+  /**
+   * The text of a row with these cells written into it. A new row starts blank; an
+   * update starts from the row as drawn, so only the columns it names are rewritten —
+   * and whatever was on its way to those answered the row as it was.
+   */
+  #writeRow(blockId: string, table: LiveTable, index: number, cells: RowObject, update: boolean): string[] {
     const block = table.block;
-    const revision = (table.rowRevision[index] = ++table.revision);
-    // Whatever was on its way answered the row as it was, not the row being written.
-    table.cells.delete(index);
-    block.cells = withoutRowStatus(block, index);
-    block.runs = withoutRowRuns(block, index);
-
-    const text = cells.map((cell, column) => {
-      // Thrown or returned, an Error is a cell that stopped: the script had the failure,
-      // not a way to repeat it, so there is nothing to call again.
-      if (cell instanceof Error) {
-        block.cells = withCellStatus(block, index, column, { error: cell.message });
-        return "";
-      }
-      // A destination is already the whole of itself, so it needs nothing held beside
-      // the block: what is drawn is the label, and where it goes is in the block.
-      if (cell instanceof RunCell) {
-        block.runs = withCellRun(block, index, column, cell.run);
-        return cell.label;
-      }
-      if (typeof cell === "function") return this.#awaitCell(blockId, table, index, column, revision, cell as () => unknown);
-      if (isThenable(cell)) return this.#awaitCell(blockId, table, index, column, revision, undefined, cell);
-      return formatCell(cell);
-    });
-    return padCells(text, block.columns.length);
+    if (!update) {
+      table.cells.delete(index);
+      block.cells = withoutRowStatus(block, index);
+      block.runs = withoutRowRuns(block, index);
+    }
+    const written = new Map<number, string>();
+    for (const [name, cell] of Object.entries(cells)) {
+      const column = this.#column(table, name);
+      table.cells.get(index)?.delete(column);
+      block.cells = withCellStatus(block, index, column, undefined);
+      block.runs = withCellRun(block, index, column, undefined);
+      written.set(column, this.#declareCell(blockId, table, index, column, name, cell));
+    }
+    const base = update ? (block.rows[index] ?? []) : [];
+    return padCells(base, block.columns.length).map((text, column) => written.get(column) ?? text);
   }
 
-  #awaitCell(blockId: string, table: LiveTable, row: number, column: number, revision: number, open?: () => unknown, started?: PromiseLike<unknown>): string {
-    const cell: LiveCell = { revision, open };
+  #declareCell(blockId: string, table: LiveTable, index: number, column: number, name: string, cell: unknown): string {
+    const block = table.block;
+    // Thrown or returned, an Error is a cell that stopped: the script had the failure,
+    // not a way to repeat it, so there is nothing to call again.
+    if (cell instanceof Error) {
+      block.cells = withCellStatus(block, index, column, { error: cell.message });
+      return "";
+    }
+    // A destination is already the whole of itself, so it needs nothing held beside
+    // the block: what is drawn is the label, and where it goes is in the block.
+    if (cell instanceof RunCell) {
+      block.runs = withCellRun(block, index, column, cell.run);
+      return cell.labelled ? cell.label : name;
+    }
+    if (typeof cell === "function") return this.#awaitCell(blockId, table, index, column, cell as () => unknown);
+    if (isThenable(cell)) return this.#awaitCell(blockId, table, index, column, undefined, cell);
+    return formatCell(cell);
+  }
+
+  #awaitCell(blockId: string, table: LiveTable, row: number, column: number, open?: () => unknown, started?: PromiseLike<unknown>): string {
+    const cell: LiveCell = { open };
     const byColumn = table.cells.get(row) ?? new Map<number, LiveCell>();
     byColumn.set(column, cell);
     table.cells.set(row, byColumn);
@@ -938,7 +1013,7 @@ export class Kaja {
   #writeCell(blockId: string, table: LiveTable, cell: LiveCell, row: number, column: number, text: string | undefined, status: CellStatus | undefined): void {
     const block = table.block;
     // The row this answers can be gone or rewritten, so there is nothing to land in.
-    if (table.rowRevision[row] !== cell.revision) return;
+    if (table.cells.get(row)?.get(column) !== cell) return;
     if (text !== undefined) {
       block.rows = block.rows.map((current, at) => (at === row ? current.map((value, index) => (index === column ? text : value)) : current));
     }
@@ -987,10 +1062,10 @@ export class Kaja {
       table.block.rows = [];
       table.block.exhausted = false;
       table.block.loadedSearch = search;
-      // A revision is never reused, so cells still in flight write nothing when they land.
+      // Cells still in flight are no longer held, so they write nothing when they land.
       table.cells.clear();
-      table.rowRevision = [];
       table.block.cells = undefined;
+      table.block.runs = undefined;
       // A total counts a result set, and this is a different one.
       table.block.total = undefined;
     } else if (table.pulling) {
@@ -1018,7 +1093,16 @@ export class Kaja {
     this.#onBlockUpdate(blockId, { ...block });
 
     try {
-      if (!table.iterator) table.iterator = openIterator(table.open!(table.search));
+      if (!table.iterator) {
+        const iterator = openIterator(table.open!(table.search));
+        // A page that says how many there are says it for the table pulling it.
+        if (iterator instanceof PageIterator) {
+          iterator.onTotal = (count) => {
+            if (table.generation === generation) this.#total(blockId, block, count);
+          };
+        }
+        table.iterator = iterator;
+      }
       while (block.rows.length < want) {
         const next = await table.iterator.next();
         // A restart happened while this was awaiting.
@@ -1027,7 +1111,7 @@ export class Kaja {
           block.exhausted = true;
           break;
         }
-        block.rows = [...block.rows, this.#declareRow(blockId, table, block.rows.length, toCells(next.value))];
+        block.rows = [...block.rows, this.#writeRow(blockId, table, block.rows.length, table.toRow(next.value), false)];
         this.#onBlockUpdate(blockId, { ...block });
       }
     } catch (error) {
@@ -1062,6 +1146,10 @@ export class Kaja {
       // work that is already done.
       for (const table of mine) table.first = undefined;
     }
+  }
+
+  pages<T>(fetch: (cursor: string) => PromiseLike<unknown>, options?: PagesOptions<any, T>): Pages<T> {
+    return new Pages<T>(fetch, options);
   }
 
   // Builders for google.protobuf.Value, Struct and ListValue, so a field of one of
