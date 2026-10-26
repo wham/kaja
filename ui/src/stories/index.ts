@@ -9,6 +9,16 @@ import githubMyPullRequests from "./github/my-pull-requests.story" with { type: 
 import githubRepoPulse from "./github/repo-pulse.story" with { type: "text" };
 import githubWaitingOnMe from "./github/waiting-on-me.story" with { type: "text" };
 import githubWhereIveBeen from "./github/where-ive-been.story" with { type: "text" };
+import benchlingAlreadyRegistered from "./benchling/already-registered.story" with { type: "text" };
+import benchlingAwaitingReview from "./benchling/awaiting-review.story" with { type: "text" };
+import benchlingBox from "./benchling/box.story" with { type: "text" };
+import benchlingFreezerSpace from "./benchling/freezer-space.story" with { type: "text" };
+import benchlingNewPlasmid from "./benchling/new-plasmid.story" with { type: "text" };
+import benchlingNotebookWeek from "./benchling/notebook-week.story" with { type: "text" };
+import benchlingSequence from "./benchling/sequence.story" with { type: "text" };
+import benchlingSequenceLibrary from "./benchling/sequence-library.story" with { type: "text" };
+import benchlingTeamDirectory from "./benchling/team-directory.story" with { type: "text" };
+import benchlingWorkflowBoard from "./benchling/workflow-board.story" with { type: "text" };
 
 export interface Story {
   // What a `kaja.run` in another story of the collection reaches it by.
@@ -21,10 +31,11 @@ export interface Story {
 
 export interface StoryCollection {
   id: string;
-  // The server the API's document declares, which is what the collection belongs to.
-  server: string;
-  // The document Kaja knows describes that server, for an app that names no base URL.
+  // The document the stories are written against.
   document: string;
+  // The one server that document describes, for an app read from a copy of it. An API
+  // with a host per customer has none.
+  server?: string;
   importName: string;
   stories: Story[];
 }
@@ -48,17 +59,49 @@ export const collections: StoryCollection[] = [
       { name: "repo-pulse", title: "Repo pulse", summary: "One repository's week: commits, CI and open pull requests", code: githubRepoPulse },
     ],
   },
+  {
+    id: "benchling",
+    document: "https://benchling.com/api/v3/openapi.yaml",
+    importName: "benchling",
+    stories: [
+      { name: "sequence-library", title: "Sequence library", summary: "Every DNA sequence, most recently changed first", code: benchlingSequenceLibrary },
+      { name: "sequence", title: "Sequence", summary: "One sequence: its annotations, primers, translations and bases", code: benchlingSequence },
+      {
+        name: "already-registered",
+        title: "Already registered?",
+        summary: "Whether Benchling holds these exact bases, on either strand",
+        code: benchlingAlreadyRegistered,
+      },
+      { name: "new-plasmid", title: "New plasmid", summary: "Paste bases, pick a folder, and create it once you approve", code: benchlingNewPlasmid },
+      { name: "freezer-space", title: "Freezer space", summary: "The boxes in one location, and how full each is", code: benchlingFreezerSpace },
+      { name: "box", title: "Box", summary: "One box drawn as its grid of tubes", code: benchlingBox },
+      {
+        name: "notebook-week",
+        title: "Notebook this week",
+        summary: "Entries touched in the last seven days, and who started them",
+        code: benchlingNotebookWeek,
+      },
+      { name: "awaiting-review", title: "Awaiting review", summary: "What is waiting for review, and on whom", code: benchlingAwaitingReview },
+      { name: "workflow-board", title: "Workflow board", summary: "Open tasks past their date, and every task by status", code: benchlingWorkflowBoard },
+      {
+        name: "team-directory",
+        title: "Team directory",
+        summary: "One team's members, their roles and when they were last seen",
+        code: benchlingTeamDirectory,
+      },
+    ],
+  },
 ];
 
 export function collectionFor(app: WorkspaceApp): StoryCollection | undefined {
   if (app.app.oneofKind !== "openapi") return undefined;
-  const { baseUrl, specUrl } = app.app.openapi;
-  if (baseUrl.trim()) {
-    const server = canonicalEndpoint(baseUrl);
-    return server ? collections.find((collection) => canonicalEndpoint(collection.server) === server) : undefined;
-  }
-  const document = canonicalEndpoint(specUrl);
-  return document ? collections.find((collection) => canonicalEndpoint(collection.document) === document) : undefined;
+  const document = canonicalEndpoint(app.app.openapi.specUrl);
+  const server = canonicalEndpoint(app.app.openapi.baseUrl);
+  return (
+    (document && collections.find((collection) => canonicalEndpoint(collection.document) === document)) ||
+    (server && collections.find((collection) => collection.server && canonicalEndpoint(collection.server) === server)) ||
+    undefined
+  );
 }
 
 export function storyId(collection: StoryCollection, story: Story): string {

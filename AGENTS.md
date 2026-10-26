@@ -61,7 +61,6 @@ protoc-gen-kaja/  Protoc plugin for TypeScript codegen (Go, own go.mod)
 server/           Backend (Go) — serves both web and desktop
 ui/               Frontend (React/TypeScript)
 workspace/        Demo workspace, also what both public deployments serve
-examples/         Workspaces for real APIs, opened as they are; nothing builds or deploys them
 scripts/          Build and development scripts
 docs/
 ```
@@ -466,7 +465,7 @@ The one error surface in the chrome (`appErrors.ts`, `ErrorStatus.tsx`), in the 
 
 **A story is a script Kaja ships for an API it knows, and nothing else** (`ui/src/stories/`). A large API is too much to read as a tree, on a phone above all, so an app's page leads with what to do with it. A story has no format of its own: it is the text of a script, run the way a draft is.
 
-- **A collection belongs to the server an app calls, never to its name** (`collectionFor`): the form writes the server it read off the document as `base_url`, and an app without one is matched by the document Kaja knows describes it. The browser decides this alone, so there is no Go side to it.
+- **A collection belongs to the document its stories are written against, never to the app's name** (`collectionFor`). The server was the key and was cut: an API with a host per customer has no one server to match, and the form writes whichever one somebody picked as `base_url`. A collection names its server only where the document describes exactly one, so an app read from a copy of the document is still found. The browser decides this alone, so there is no Go side to it.
 - **A story is written against the collection's import name and rewritten to the app's** (`instantiateStory`), on the splice a rename is followed by.
 - **A story is a draft once it is tapped, and tapping one never runs it**: a story is Kaja's code calling the person's own account, so it is read before Run is pressed. A `kaja.run` cell is the one way a story starts on a click, the click being on the destination itself. **It is offered on its app's page and on Start, never the Scripts tab or the workspace folder**. One draft per story per app, found by `storyId` and kept per app because two apps on one API are two accounts. The draft is named after the story rather than its code, and is never a browsing buffer, so a method click cannot take one over. Reset story puts the shipped text back.
 - **A `kaja.run` in a story's draft reaches the other stories of its collection, after the workspace's files.** The editor is told the same through `setModelRunDestinations`, so the name is neither marked nor missing from completion. A deeplink cannot reach a story, a story having no file.
