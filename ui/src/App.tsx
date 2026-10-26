@@ -18,7 +18,6 @@ import { Console, RunPresentation } from "./Console";
 import { newRunId, Run } from "./runs";
 import { consoles } from "./consoles";
 import { dropStoredFile, flushDeferredSaves, loadRuns, renameStoredFile, saveRunsLater } from "./runStore";
-import { RecentFile } from "./NoFileBlankslate";
 import { CompileLog } from "./CompileLog";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
@@ -68,6 +67,7 @@ import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm, type AppFormSaveControl } from "./AppForm";
 import { Editor, registerKajaModule, setModelRunDestinations, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { AppPage } from "./AppPage";
+import { runningStories } from "./StoryCards";
 import { collectionFor, instantiateStory, linkedStory, Story, StoryCollection, storyById, storyId } from "./stories";
 import { formatTypeScript } from "./formatter";
 import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
@@ -1504,7 +1504,8 @@ export function App() {
     [apps, applyViews, showFileError, reportScriptError, beginRun, markSettled],
   );
 
-  // A tap is a person in the window, so the run is presented the way a clicked cell's is.
+  // A story is code calling the person's own account, so opening one never runs it;
+  // only a clicked cell does, and that run is presented the way any cell's is.
   const openStory = useCallback(
     (appName: string, collection: StoryCollection, story: Story, options: { run: boolean; input?: { [key: string]: string }; fullScreen?: boolean }) => {
       const id = storyId(collection, story);
@@ -2790,22 +2791,6 @@ export function App() {
 
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
-  const recentFiles = useMemo<RecentFile[]>(() => {
-    const files: RecentFile[] = drafts.slice(0, 3).map((draft) => ({
-      key: draft.id,
-      name: draftTitleText(draft.title),
-      icon: PenLine,
-      updatedAt: draft.updatedAt,
-      saved: false,
-      go: () => onDraftSelect(draft),
-    }));
-    for (const script of scripts ?? []) {
-      if (files.length >= 3) break;
-      files.push({ key: script.path, name: script.name, icon: FileCode, saved: true, go: () => void onScriptSelect(script) });
-    }
-    return files;
-  }, [drafts, scripts, onDraftSelect, onScriptSelect]);
-
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
   // An agent's buffer is a playground rather than work you are keeping, so it is the
   // one draft with no way to a file: the sheet would ask you to name what somebody
@@ -2951,7 +2936,7 @@ export function App() {
           runningFiles={runningFiles}
           missing={missingApps.get(view.appName)}
           phone={isPhone}
-          onOpenStory={openStory}
+          onOpenStory={(appName, collection, story) => openStory(appName, collection, story, { run: false })}
           onShowCompileLog={onShowCompileLog}
           onRevealVariable={onRevealVariable}
         />
@@ -2976,13 +2961,15 @@ export function App() {
       {view.type === "start" && (
         <Start
           workspaceLoaded={workspaceLoaded}
-          hasApps={apps.length > 0}
           onNewAppClick={onNewAppClick}
           onConnectAgentClick={mcpControl ? onMcpClick : undefined}
           canUpdateWorkspace={runtime.canUpdateWorkspace}
           onOpenFinder={() => setFinder("first")}
           onNewDraft={onNewDraft}
-          recent={recentFiles}
+          apps={apps}
+          drafts={drafts}
+          runningFiles={runningFiles}
+          onOpenStory={(appName, collection, story) => openStory(appName, collection, story, { run: false })}
           phone={isPhone}
         />
       )}
@@ -3501,7 +3488,7 @@ function AppPageBody({
   runningFiles: Set<string>;
   missing?: MissingVariable[];
   phone: boolean;
-  onOpenStory: (appName: string, collection: StoryCollection, story: Story, options: { run: boolean }) => void;
+  onOpenStory: (appName: string, collection: StoryCollection, story: Story) => void;
   onShowCompileLog: (appName: string) => void;
   onRevealVariable: (name: string) => void;
 }) {
@@ -3510,14 +3497,7 @@ function AppPageBody({
   if (!collection) {
     return <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">No stories for {appName}.</div>;
   }
-  const running = new Set(
-    collection.stories
-      .filter((story) => {
-        const draft = findStoryDraft(drafts, storyId(collection, story), appName);
-        return draft !== undefined && runningFiles.has(draft.id);
-      })
-      .map((story) => story.name),
-  );
+  const running = runningStories(collection, appName, drafts, runningFiles);
   return (
     <AppPage
       appName={appName}
@@ -3526,8 +3506,7 @@ function AppPageBody({
       running={running}
       missing={missing}
       phone={phone}
-      onRunStory={(story) => onOpenStory(appName, collection, story, { run: true })}
-      onOpenStory={(story) => onOpenStory(appName, collection, story, { run: false })}
+      onOpenStory={(story) => onOpenStory(appName, collection, story)}
       onShowCompileLog={onShowCompileLog}
       onRevealVariable={onRevealVariable}
     />

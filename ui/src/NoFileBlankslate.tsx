@@ -1,25 +1,9 @@
-import { FileCode, type LucideIcon } from "lucide-react";
-import { formatDayLabel } from "./callTime";
-import { cn } from "./cn";
+import { FileCode } from "lucide-react";
 import { useShortcutLabel } from "./shortcuts";
-
-export interface RecentFile {
-  key: string;
-  name: string;
-  icon: LucideIcon;
-  // When it was last worked in, for the unsaved ones. A file on disk has no
-  // timestamp worth showing here.
-  updatedAt?: number;
-  saved: boolean;
-  go: () => void;
-}
 
 interface NoFileBlankslateProps {
   onOpenFinder: () => void;
   onNewDraft: () => void;
-  // The last few things you looked at. This is the only moment the cache behind
-  // the finder is worth showing as a list.
-  recent: RecentFile[];
   // On a phone the tree is in the finder and there is no key to press.
   phone?: boolean;
 }
@@ -28,17 +12,8 @@ interface NoFileBlankslateProps {
  * The first screen of a new install, and where every "nothing open" moment
  * lands. It has one job: say that picking a method in the tree drafts you a
  * script, which is the entire model of the product and is said nowhere else.
- *
- * Under the sentence sits your recent work, because the people who see this
- * screen most are not new — every missed ⌘P and every fresh window comes here,
- * and for them a shortcut beats an illustration. On a first run the list is
- * absent rather than an empty box, which is the right amount for someone who has
- * nothing yet.
  */
-export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent, phone = false }: NoFileBlankslateProps) {
-  const finderKey = useShortcutLabel("finder");
-  const newDraftKey = useShortcutLabel("newDraft");
-
+export function NoFileBlankslate({ onOpenFinder, onNewDraft, phone = false }: NoFileBlankslateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
       <div className="flex flex-col items-center gap-2">
@@ -46,31 +21,23 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent, phone = fal
         <p className="m-0 text-sm text-foreground">Pick a method in the {phone ? "finder" : "sidebar"} and Kaja drafts a script.</p>
         <p className="m-0 text-xs text-muted-foreground">Edit it, run it, save it as a file.</p>
       </div>
-      {recent.length > 0 && (
-        <div className="flex w-[300px] flex-col gap-1">
-          {recent.map((file) => {
-            const Icon = file.icon;
-            return (
-              <button key={file.key} type="button" onClick={file.go} className="flex h-[30px] items-center gap-2 rounded-md px-2 text-left hover:bg-accent">
-                <Icon size={14} className="shrink-0 text-muted-foreground" />
-                <span className={cn("min-w-0 flex-1 truncate text-xs", file.saved ? "text-foreground" : "text-muted-foreground")}>{file.name}</span>
-                {file.updatedAt !== undefined && (
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground opacity-70">{formatDayLabel(file.updatedAt)}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
-          {!phone && <span className="font-mono">{finderKey}</span>} find a call
-        </button>
-        <div className="h-3 w-px bg-border" />
-        <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
-          {!phone && <span className="font-mono">{newDraftKey}</span>} blank script
-        </button>
-      </div>
+      <BlankslateActions onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} phone={phone} />
+    </div>
+  );
+}
+
+export function BlankslateActions({ onOpenFinder, onNewDraft, phone = false }: NoFileBlankslateProps) {
+  const finderKey = useShortcutLabel("finder");
+  const newDraftKey = useShortcutLabel("newDraft");
+  return (
+    <div className="flex items-center gap-3">
+      <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">
+        {!phone && <span className="font-mono">{finderKey}</span>} find a call
+      </button>
+      <div className="h-3 w-px bg-border" />
+      <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
+        {!phone && <span className="font-mono">{newDraftKey}</span>} blank script
+      </button>
     </div>
   );
 }
