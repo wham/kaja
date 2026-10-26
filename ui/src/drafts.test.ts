@@ -1,18 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  appendCall,
-  createDraft,
-  createStoryDraft,
-  findStoryDraft,
-  findUntouched,
-  isUntouched,
-  markRun,
-  orderDrafts,
-  reopen,
-  Draft,
-  takeOver,
-  withCode,
-} from "./drafts";
+import { appendCall, createDraft, findUntouched, isUntouched, markRun, orderDrafts, reopen, Draft, takeOver, withCode } from "./drafts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -169,29 +156,5 @@ describe("appendCall", () => {
   it("keeps whatever the author wrote in between", () => {
     const authored = `import { TheKajaTheatre } from "theatre/service";\n\n// my note\nconst shows = TheKajaTheatre.ListShows({});\n`;
     expect(appendCall(authored, getShow)).toContain("// my note");
-  });
-});
-
-describe("story drafts", () => {
-  const story = `import { kaja } from "kaja";\nimport { Pulls } from "github";\n\nawait Pulls.List({ owner: "", repo: "" });\n`;
-
-  it("are named after the story rather than their code", () => {
-    const draft = createStoryDraft(story, "My pull requests", "github", "github/my-pull-requests", NOW);
-    expect(draft.title).toBe("My pull requests");
-    expect(markRun(draft, getShow, NOW + 1).title).toBe("My pull requests");
-    expect(withCode(draft, getShow, NOW + 1).title).toBe("My pull requests");
-  });
-
-  it("are found per story and per app", () => {
-    const mine = createStoryDraft(story, "Inbox", "github", "github/inbox", NOW);
-    const work = createStoryDraft(story, "Inbox", "work-github", "github/inbox", NOW);
-    expect(findStoryDraft([mine, work], "github/inbox", "work-github")).toBe(work);
-    expect(findStoryDraft([mine, work], "github/my-pull-requests", "github")).toBeUndefined();
-  });
-
-  it("are never a browsing buffer, even before they are run", () => {
-    const draft = createStoryDraft(story, "Inbox", "github", "github/inbox", NOW);
-    expect(isUntouched(draft)).toBe(false);
-    expect(findUntouched([draft], story, "github")).toBeUndefined();
   });
 });

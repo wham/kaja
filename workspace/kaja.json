@@ -1,6 +1,14 @@
 {
   "apps": [
     {
+      "name": "github",
+      "openapi": {
+        "spec_url": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
+        "base_url": "https://api.github.com",
+        "security_scheme": "none"
+      }
+    },
+    {
       "name": "grpcb.in",
       "grpc": {
         "url": "grpc://grpcb.in:9000",
@@ -16,25 +24,6 @@
           "X-Yolo": "kaja123",
           "Authorization": "Bear brown"
         }
-      }
-    },
-    {
-      "name": "theatre",
-      "openapi": {
-        "spec_url": "https://theatre.kaja.tools/openapi.yaml"
-      }
-    },
-    {
-      "name": "seating",
-      "grpc": {
-        "url": "dns:seating.kaja.tools:443",
-        "reflection": true
-      }
-    },
-    {
-      "name": "concierge",
-      "mcp": {
-        "url": "https://concierge.kaja.tools/mcp"
       }
     }
   ],

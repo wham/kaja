@@ -138,9 +138,6 @@ interface SidebarProps {
   reserveTrafficLights?: boolean;
   workspace?: WorkspaceControl;
   onEditApp: (appName: string) => void;
-  // The name of an app with stories opens its page; the rest of the row folds it.
-  onOpenApp: (appName: string) => void;
-  storyApps: Set<string>;
   onDeleteApp: (appName: string) => void;
 }
 
@@ -166,8 +163,6 @@ export const Sidebar = memo(function Sidebar({
   reserveTrafficLights = false,
   workspace,
   onEditApp,
-  onOpenApp,
-  storyApps,
   onDeleteApp,
 }: SidebarProps) {
   // Each tab keeps its own scroll. The pane that is not on screen has no box, so its
@@ -357,20 +352,7 @@ export const Sidebar = memo(function Sidebar({
                     className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", isExpanded && "rotate-90")}
                   />
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
-                  {storyApps.has(appName) ? (
-                    <span
-                      className="truncate hover:underline"
-                      onClick={(e: React.MouseEvent) => {
-                        if (e.altKey) return;
-                        e.stopPropagation();
-                        onOpenApp(appName);
-                      }}
-                    >
-                      {appName}
-                    </span>
-                  ) : (
-                    <span className="truncate">{appName}</span>
-                  )}
+                  <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
                   {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} />}
                   <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
