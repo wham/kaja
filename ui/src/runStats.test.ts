@@ -7,12 +7,12 @@ const START = 1_700_000_000_000;
 
 function call(
   id: string,
-  { at = 0, durationMs, method = "ListShows", error, key }: { at?: number; durationMs?: number; method?: string; error?: unknown; key?: string } = {},
+  { at = 0, durationMs, method = "ListForUser", error, key }: { at?: number; durationMs?: number; method?: string; error?: unknown; key?: string } = {},
 ): ConsoleItem {
   const methodCall = {
     id,
     appName: "app",
-    service: { name: "Shows" },
+    service: { name: "Repos" },
     method: { name: method },
     input: {},
     output: durationMs === undefined ? undefined : {},
@@ -156,20 +156,20 @@ describe("RunMetrics", () => {
   it("names the slowest call and the value that identifies it", () => {
     const metrics = new RunMetrics(START);
     issueThenSettle(metrics, call("a", { at: 0, key: "page 1" }), 40);
-    issueThenSettle(metrics, call("b", { at: 100, key: "vera-lune", method: "GetShow" }), 1_204);
+    issueThenSettle(metrics, call("b", { at: 100, key: "wham/kaja", method: "Get" }), 1_204);
     issueThenSettle(metrics, call("c", { at: 200, key: "page 3" }), 60);
     const stats = metrics.view(20, 16, 1_000);
-    expect(stats.slowest).toMatchObject({ itemId: "b", method: "Shows.GetShow", key: "vera-lune", durationMs: 1_204 });
+    expect(stats.slowest).toMatchObject({ itemId: "b", method: "Repos.Get", key: "wham/kaja", durationMs: 1_204 });
   });
 
   it("breaks the run down per method, busiest first", () => {
     const metrics = new RunMetrics(START);
     for (let index = 0; index < 6; index++) issueThenSettle(metrics, call(`l-${index}`, { at: index * 10 }), 31);
-    for (let index = 0; index < 4; index++) issueThenSettle(metrics, call(`g-${index}`, { at: index * 10, method: "GetShow" }), 48);
-    const failed = call("g-bad", { at: 90, method: "GetShow" });
+    for (let index = 0; index < 4; index++) issueThenSettle(metrics, call(`g-${index}`, { at: index * 10, method: "Get" }), 48);
+    const failed = call("g-bad", { at: 90, method: "Get" });
     issueThenSettle(metrics, failed, 48, { status: 503 });
     const stats = metrics.view(20, 16, 1_000);
-    expect(stats.methods.map((row) => row.method)).toEqual(["Shows.ListShows", "Shows.GetShow"]);
+    expect(stats.methods.map((row) => row.method)).toEqual(["Repos.ListForUser", "Repos.Get"]);
     expect(stats.methods[0]).toMatchObject({ calls: 6, failures: 0, p50: 31, max: 31 });
     expect(stats.methods[1]).toMatchObject({ calls: 5, failures: 1 });
   });

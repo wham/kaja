@@ -126,12 +126,12 @@ describe("Start", () => {
 
 describe("viewIdentity", () => {
   it("takes a draft's name from the store, so the two can't drift apart", () => {
-    const draft = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
+    const draft = { id: "s1", title: "Get · wham/kaja", originAppName: "github" } as any;
     const identity = viewIdentity(draftView("draft-1", "s1"), [draft]);
 
-    expect(identity.name).toBe("GetShow vera-lune");
+    expect(identity.name).toBe("Get wham/kaja");
     expect(identity.path).toBe("Drafts");
-    expect(identity.origin).toBe("theatre");
+    expect(identity.origin).toBe("github");
   });
 });
 

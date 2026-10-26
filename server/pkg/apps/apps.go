@@ -76,7 +76,7 @@ type App interface {
 // its methods are invoked on.
 type Opened struct {
 	// ProtoDir overrides where the proto surface to compile lives. Empty means the
-	// protoDir passed to Open. A relative path ("seating/proto") is resolved by the
+	// protoDir passed to Open. A relative path ("grpcbin/proto") is resolved by the
 	// compiler against the workspace, which is what an app with protos on disk uses.
 	ProtoDir string
 	// Instance is what the app's methods are invoked on. Every app has one, the

@@ -5,9 +5,7 @@ package grpcapptest
 
 import (
 	"context"
-	"encoding/json"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -20,17 +18,20 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// The public gRPC servers this suite reads: kaja's own demo upstream, and Postman's
-// echo server, which is the one everybody points a gRPC client at first.
+// The public gRPC servers this suite reads: grpcb.in, the demo workspace's upstream,
+// on its plaintext and its TLS port, and Postman's echo server, which is the one
+// everybody points a gRPC client at first.
 var publicServers = []struct {
 	name string
 	url  string
 	// dial is the address to check is reachable before asking anything of it, so a
 	// server that is down is skipped rather than reported as a kaja failure.
 	dial string
+	tls  bool
 }{
-	{name: "seating.kaja.tools", url: "dns:seating.kaja.tools:443", dial: "seating.kaja.tools:443"},
-	{name: "grpc.postman-echo.com", url: "dns:grpc.postman-echo.com:443", dial: "grpc.postman-echo.com:443"},
+	{name: "grpcb.in", url: "grpc://grpcb.in:9000", dial: "grpcb.in:9000"},
+	{name: "grpcb.in over TLS", url: "grpcs://grpcb.in:9001", dial: "grpcb.in:9001", tls: true},
+	{name: "grpc.postman-echo.com", url: "dns:grpc.postman-echo.com:443", dial: "grpc.postman-echo.com:443", tls: true},
 }
 
 // TestPublicReflection reads each public server the way the New app form does.
@@ -53,8 +54,8 @@ func TestPublicReflection(t *testing.T) {
 			if response.GetServer().GetMethodCount() == 0 {
 				t.Errorf("no methods read off %s", server.name)
 			}
-			if !response.GetServer().GetTls() {
-				t.Errorf("tls = false against a :443 server")
+			if got := response.GetServer().GetTls(); got != server.tls {
+				t.Errorf("tls = %v, want %v", got, server.tls)
 			}
 		})
 	}
@@ -64,9 +65,10 @@ func TestPublicReflection(t *testing.T) {
 // with a certificate the machine trusts, which is the one case where kaja can say
 // what is wrong rather than that it couldn't connect.
 func TestPublicWrongTransport(t *testing.T) {
-	skipUnlessReachable(t, publicServers[0].dial)
+	server := publicServers[2]
+	skipUnlessReachable(t, server.dial)
 
-	response := inspect(t, map[string]string{"url": publicServers[0].url, "reflection": "true", "tls": "off"})
+	response := inspect(t, map[string]string{"url": server.url, "reflection": "true", "tls": "off"})
 	problem := response.GetProblem()
 	if problem == nil {
 		t.Fatalf("plaintext against a TLS server: %s", summary(response))
@@ -101,25 +103,24 @@ func skipUnlessReachable(t *testing.T, address string) {
 	connection.Close()
 }
 
-// TestLiveDemoApp is kaja's own demo upstream, opened and called the way the window
-// does it: reflect the server, compile what it declared, then make the call a script
-// would make. It is the one case here where every piece is real at once.
+// TestLiveDemoApp is the demo workspace's gRPC upstream, opened and called the way
+// the window does it: reflect the server, compile what it declared, then make the
+// call a script would make. It is the one case here where every piece is real at once.
 func TestLiveDemoApp(t *testing.T) {
-	skipUnlessReachable(t, "seating.kaja.tools:443")
+	skipUnlessReachable(t, "grpcb.in:9000")
 
-	const seating = "dns:seating.kaja.tools:443"
+	const target = "grpc://grpcb.in:9000"
 	sources, _ := openAndCompile(t, &api.WorkspaceApp{
-		Name: "seating",
-		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: seating, Reflection: true}},
+		Name: "grpcb.in",
+		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: target, Reflection: true}},
 	})
 	t.Logf("generated: %v", sourceNames(sources))
 
-	k := openKaja(t, "seating", map[string]string{"url": seating, "reflection": "true"}, nil)
-	files := reflectedFiles(t, seating)
+	k := openKaja(t, "grpcb.in", map[string]string{"url": target, "reflection": "true"}, nil)
+	files := reflectedFiles(t, target)
 
-	show := aShow(t)
 	t.Run("a unary call", func(t *testing.T) {
-		e := k.invoke(t, "seating.Seating/GetSeatMap", build(t, files, "seating.GetSeatMapRequest", map[string]any{"show_id": show}), nil)
+		e := k.invoke(t, "hello.HelloService/SayHello", build(t, files, "hello.HelloRequest", map[string]any{"greeting": "kaja"}), nil)
 		code, message := e.grpcStatus(t)
 		if code != "0" {
 			t.Fatalf("grpc-status = %q (%s)", code, message)
@@ -127,45 +128,24 @@ func TestLiveDemoApp(t *testing.T) {
 		if len(e.Messages) != 1 {
 			t.Fatalf("%d messages, want 1", len(e.Messages))
 		}
-		answered := decode(t, files, "seating.GetSeatMapResponse", e.Messages[0])
+		answered := decode(t, files, "hello.HelloResponse", e.Messages[0])
 		t.Logf("answered with %d bytes: %s", len(e.Messages[0]), firstLine(answered.String()))
 	})
 
-	t.Run("a server stream, read for as long as somebody is reading it", func(t *testing.T) {
-		// WatchSeats stays open, which is what a watch is. The browser going away is
-		// what ends it, so the request carries the deadline rather than kaja.
+	t.Run("a server stream, read to its end", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 
-		e := k.invokeWithin(t, ctx, "seating.Seating/WatchSeats", build(t, files, "seating.WatchSeatsRequest", map[string]any{"show_id": show}), nil)
+		e := k.invokeWithin(t, ctx, "hello.HelloService/LotsOfReplies", build(t, files, "hello.HelloRequest", map[string]any{"greeting": "kaja"}), nil)
 		code, message := e.grpcStatus(t)
 		t.Logf("the stream carried %d message(s) and ended with %s (%s)", len(e.Messages), code, message)
-		if len(e.Messages) == 0 {
-			t.Errorf("the stream carried nothing")
+		if code != "0" {
+			t.Errorf("grpc-status = %q (%s)", code, message)
+		}
+		if len(e.Messages) < 2 {
+			t.Errorf("the stream carried %d message(s), want several", len(e.Messages))
 		}
 	})
-}
-
-// aShow is a show the demo is running, read from the demo's own REST side. The
-// seating server is asked about a show rather than in general, and which shows there
-// are is a thing about today rather than about kaja.
-func aShow(t *testing.T) string {
-	t.Helper()
-	response, err := http.Get("https://theatre.kaja.tools/shows")
-	if err != nil {
-		t.Skipf("the demo's shows are not readable from here: %v", err)
-	}
-	defer response.Body.Close()
-
-	var shows struct {
-		Shows []struct {
-			Id string `json:"id"`
-		} `json:"shows"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&shows); err != nil || len(shows.Shows) == 0 {
-		t.Skipf("the demo is showing nothing today: %v", err)
-	}
-	return shows.Shows[0].Id
 }
 
 // reflectedFiles reads a live server's surface as descriptors, which is what a test

@@ -328,8 +328,8 @@ func TestSaveWorkspace_WritesOneLayout(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kaja.json")
 	workspace := &Workspace{
 		Apps: []*WorkspaceApp{{
-			Name: "theatre",
-			App:  &WorkspaceApp_Openapi{Openapi: &OpenApiApp{SpecUrl: "https://theatre.example.com/openapi.yaml"}},
+			Name: "github",
+			App:  &WorkspaceApp_Openapi{Openapi: &OpenApiApp{SpecUrl: "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json"}},
 		}},
 		Variables: map[string]string{"TOKEN": "${secret}"},
 	}
@@ -347,9 +347,9 @@ func TestSaveWorkspace_WritesOneLayout(t *testing.T) {
 	want := `{
   "apps": [
     {
-      "name": "theatre",
+      "name": "github",
       "openapi": {
-        "spec_url": "https://theatre.example.com/openapi.yaml"
+        "spec_url": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json"
       }
     }
   ],

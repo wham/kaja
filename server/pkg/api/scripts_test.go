@@ -35,10 +35,10 @@ func workspaceWithScripts(t *testing.T, scripts map[string]string) string {
 
 func TestListScriptsReadsTheFolderBesideTheWorkspace(t *testing.T) {
 	workspaceFile := workspaceWithScripts(t, map[string]string{
-		"seat-map.ts":  "// seats",
-		"programme.ts": "// shows",
-		"notes.md":     "not a script",
-		".hidden.ts":   "// hidden",
+		"releases.ts":    "// releases",
+		"open-issues.ts": "// issues",
+		"notes.md":       "not a script",
+		".hidden.ts":     "// hidden",
 	})
 	service := NewApiService(workspaceFile, false, "", "", nil)
 
@@ -51,7 +51,7 @@ func TestListScriptsReadsTheFolderBesideTheWorkspace(t *testing.T) {
 		t.Fatalf("expected the two .ts files, got %d: %v", len(response.Scripts), response.Scripts)
 	}
 	// Sorted by name, so a listing is stable across filesystems.
-	if response.Scripts[0].Name != "programme.ts" || response.Scripts[1].Name != "seat-map.ts" {
+	if response.Scripts[0].Name != "open-issues.ts" || response.Scripts[1].Name != "releases.ts" {
 		t.Errorf("expected the scripts sorted by name, got %q and %q", response.Scripts[0].Name, response.Scripts[1].Name)
 	}
 	// The path identifies the script to the client, so it must not depend on

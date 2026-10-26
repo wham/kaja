@@ -84,7 +84,7 @@ export function targetHost(value: string): string {
 const HOST_NOISE = new Set(["api", "apis", "grpc", "grpcs", "rpc", "www", "svc", "service", "services", "dev", "staging", "stage", "prod", "test", "sandbox"]);
 
 // deriveAppName turns what was typed into a name that reads as one word in an import
-// path: "dns:seating.kaja.tools:443" → "seating", "grpcb.in:9000" stays, and
+// path: "dns:quirks.kaja.tools:443" → "quirks", "grpcb.in:9000" stays, and
 // "localhost:50051" falls back to what the server said it serves.
 export function deriveAppName(url: string, services: string[]): string {
   return nameFromAddress(url) || nameFromServices(services);

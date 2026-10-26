@@ -5,7 +5,7 @@ import { Call, callResponseHeaders, MethodCall, MethodCallHeaders } from "./kaja
 // that matters about a Call: has the request gone out yet?
 function stub<T>(value: T): { call: Call<T>; sends: number } {
   const state = { sends: 0 };
-  const call = new Call("Shows.ListShows", { pageSize: 25 }, async () => {
+  const call = new Call("Repos.ListForUser", { perPage: 25 }, async () => {
     state.sends++;
     return value;
   });
@@ -21,29 +21,29 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 describe("Call", () => {
   it("doesn't send while the tick it was written in is still running", () => {
-    const stubbed = stub("shows");
+    const stubbed = stub("repos");
     expect(stubbed.sends).toBe(0);
     expect(stubbed.call.started).toBe(false);
   });
 
   it("sends when it is awaited", async () => {
-    const stubbed = stub("shows");
-    expect(await stubbed.call).toBe("shows");
+    const stubbed = stub("repos");
+    expect(await stubbed.call).toBe("repos");
     expect(stubbed.sends).toBe(1);
   });
 
   it("sends at the end of the tick when nothing claims it", async () => {
-    const stubbed = stub("shows");
+    const stubbed = stub("repos");
     await tick();
     expect(stubbed.sends).toBe(1);
     expect(stubbed.call.started).toBe(true);
   });
 
   it("sends once however many times it is read", async () => {
-    const stubbed = stub("shows");
+    const stubbed = stub("repos");
     const [first, second] = await Promise.all([stubbed.call, stubbed.call]);
     await tick();
-    expect([first, second]).toEqual(["shows", "shows"]);
+    expect([first, second]).toEqual(["repos", "repos"]);
     expect(stubbed.sends).toBe(1);
   });
 
@@ -55,19 +55,19 @@ describe("Call", () => {
   });
 
   it("stays unsent once claimed, and goes out when it is started", async () => {
-    const stubbed = stub("shows");
+    const stubbed = stub("repos");
     stubbed.call.claim();
     await tick();
     expect(stubbed.sends).toBe(0);
 
-    expect(await stubbed.call.start()).toBe("shows");
+    expect(await stubbed.call.start()).toBe("repos");
     expect(stubbed.sends).toBe(1);
   });
 
   it("carries what it is, so a canvas can name it before it happens", () => {
-    const { call } = stub("shows");
-    expect(call.label).toBe("Shows.ListShows");
-    expect(call.input).toEqual({ pageSize: 25 });
+    const { call } = stub("repos");
+    expect(call.label).toBe("Repos.ListForUser");
+    expect(call.input).toEqual({ perPage: 25 });
   });
 });
 
@@ -77,12 +77,12 @@ function answered(headers: MethodCallHeaders): { call: Call<string>; sends: numb
   const state = { sends: 0 };
   let settled = false;
   const call = new Call(
-    "Shows.ListShows",
+    "Repos.ListForUser",
     {},
     async () => {
       state.sends++;
       settled = true;
-      return "shows";
+      return "repos";
     },
     () => (settled ? headers : {}),
   );
@@ -97,26 +97,26 @@ function answered(headers: MethodCallHeaders): { call: Call<string>; sends: numb
 describe("Call.withHeaders", () => {
   it("hands back the response and what the call was answered with", async () => {
     const { call } = answered({ etag: 'W/"1"' });
-    expect(await call.withHeaders()).toEqual({ response: "shows", headers: { etag: 'W/"1"' } });
+    expect(await call.withHeaders()).toEqual({ response: "repos", headers: { etag: 'W/"1"' } });
   });
 
   it("is the same answer on a call already sent, and sends it once", async () => {
     const stubbed = answered({ "x-request-id": "abc" });
-    expect(await stubbed.call).toBe("shows");
-    expect(await stubbed.call.withHeaders()).toEqual({ response: "shows", headers: { "x-request-id": "abc" } });
+    expect(await stubbed.call).toBe("repos");
+    expect(await stubbed.call.withHeaders()).toEqual({ response: "repos", headers: { "x-request-id": "abc" } });
     expect(stubbed.sends).toBe(1);
   });
 
   it("sends the call when it is the only thing awaited", async () => {
     const stubbed = answered({});
     const { response } = await stubbed.call.withHeaders();
-    expect(response).toBe("shows");
+    expect(response).toBe("repos");
     expect(stubbed.sends).toBe(1);
   });
 
   it("has no headers for a call nothing reported any for", async () => {
-    const call = new Call("Shows.ListShows", {}, async () => "shows");
-    expect(await call.withHeaders()).toEqual({ response: "shows", headers: {} });
+    const call = new Call("Repos.ListForUser", {}, async () => "repos");
+    expect(await call.withHeaders()).toEqual({ response: "repos", headers: {} });
   });
 });
 

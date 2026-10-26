@@ -51,15 +51,15 @@ func TestAddAppWritesWhatIsComplete(t *testing.T) {
 func TestAddAppOpensTheFormAndWaitsForIt(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.inspection = AppInspection{Summary: "Not probed.", Missing: []string{"A proto folder: the server has no reflection."}}
-	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "theatre"}
+	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "github"}
 	bridge.compiled = true
 	srv := NewServer(bridge, token, version)
 
-	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
 	if len(bridge.formOpened) != 1 {
 		t.Errorf("forms opened = %d, want 1", len(bridge.formOpened))
 	}
-	if !strings.Contains(text, "Added theatre") || !strings.Contains(text, "ListShows") {
+	if !strings.Contains(text, "Added github") || !strings.Contains(text, "ListForRepo") {
 		t.Errorf("answer = %q", text)
 	}
 	// The form writes the app, not the tool.
@@ -79,24 +79,24 @@ func TestAddAppAnswersWhileTheFormIsStillOpen(t *testing.T) {
 	bridge.formPending = true
 	srv := NewServer(bridge, token, version)
 
-	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	for _, want := range []string{"is open in front of the user", "A credential", "without ending your turn", `add_app again with the name "Seats"`} {
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
+	for _, want := range []string{"is open in front of the user", "A credential", "without ending your turn", `add_app again with the name "GitHub"`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("answer lacks %q: %q", want, text)
 		}
 	}
 
 	// The agent asks again in the same turn, and is told to go on asking.
-	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
 	if !strings.Contains(text, "has not finished") || !strings.Contains(text, "without ending your turn") {
 		t.Errorf("answer = %q", text)
 	}
 
 	bridge.formPending = false
-	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "Seats"}
+	bridge.formOutcome = AppFormOutcome{Saved: true, Name: "GitHub"}
 	bridge.compiled = true
-	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	if !strings.Contains(text, "Added Seats") {
+	text = toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
+	if !strings.Contains(text, "Added GitHub") {
 		t.Errorf("answer = %q", text)
 	}
 	if len(bridge.formOpened) != 1 {
@@ -118,8 +118,8 @@ func TestAddAppStopsAskingAfterAWhile(t *testing.T) {
 	bridge.formPending = true
 	srv := NewServer(bridge, token, version)
 
-	toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
+	toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
 	if !strings.Contains(text, "Stop calling add_app") || !strings.Contains(text, "end your turn") {
 		t.Errorf("answer = %q", text)
 	}
@@ -132,7 +132,7 @@ func TestAddAppCarriesHintsToTheForm(t *testing.T) {
 	bridge.formOutcome = AppFormOutcome{Saved: false}
 	srv := NewServer(bridge, token, version)
 
-	arguments := appArguments("Seats")
+	arguments := appArguments("GitHub")
 	arguments["hints"] = map[string]interface{}{"username": "The API key goes here."}
 	arguments["note"] = "  Keys are per user.  "
 	call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": arguments})
@@ -150,8 +150,8 @@ func TestAddAppFormClosed(t *testing.T) {
 	bridge.inspection = AppInspection{Missing: []string{"A credential."}}
 	srv := NewServer(bridge, token, version)
 
-	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")}))
-	if !strings.Contains(text, "without adding Seats") {
+	text := toolText(t, call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")}))
+	if !strings.Contains(text, "without adding GitHub") {
 		t.Errorf("answer = %q", text)
 	}
 }
@@ -162,7 +162,7 @@ func TestAddAppFormFailed(t *testing.T) {
 	bridge.formErr = errors.New("no Kaja window is open")
 	srv := NewServer(bridge, token, version)
 
-	resp := call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("Seats")})
+	resp := call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": appArguments("GitHub")})
 	result := resp.Result.(map[string]interface{})
 	text := contentText(t, result)
 	if result["isError"] != true || !strings.Contains(text, "no Kaja window") || !strings.Contains(text, "A credential") {

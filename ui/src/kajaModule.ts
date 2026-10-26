@@ -79,10 +79,10 @@ export function kajaModuleDeclaration(variableNames: string[]): string {
 
 /**
  * A call that hasn't been made yet, which is what every service method hands
- * back: \`Shows.ListShows({})\` is the call, and awaiting it is what sends it.
+ * back: \`Repos.Get({ owner, repo })\` is the call, and awaiting it is what sends it.
  *
  * A call starts when it is awaited — or at the end of the tick, if nothing has
- * claimed it — so a bare \`Shows.Ping({})\` still goes out, and
+ * claimed it — so a bare \`GRPCBin.Empty({})\` still goes out, and
  * \`Promise.all([a(), b()])\` still runs both at once. The gap of one tick is
  * what kaja.approve holds a call in.
  */
@@ -91,7 +91,7 @@ export interface Call<T> extends PromiseLike<T> {
    * The response with the headers the API answered with beside it — the whole
    * of how a script reads them. Header names are lowercase.
    *
-   *   const { response, headers } = await Shows.ListShows({ pageSize: 25 }).withHeaders();
+   *   const { response, headers } = await Repos.ListForUser({ username: "octocat" }).withHeaders();
    *   const remaining = headers["x-ratelimit-remaining"];
    *
    * Awaiting the call itself still hands back the response alone, so this is
@@ -110,9 +110,9 @@ export interface Call<T> extends PromiseLike<T> {
  * What a call is made with, beyond the request it sends. Optional on every
  * method: a call that says nothing about its headers sends the app's own.
  *
- *   await Shows.CreateShow(
- *     { title: "Vera Lune" },
- *     { headers: { "Idempotency-Key": kaja.uuidV4() } },
+ *   await Issues.Create(
+ *     { owner, repo, title },
+ *     { headers: { "X-GitHub-Api-Version": "2022-11-28" } },
  *   );
  *
  * Headers are laid over the ones the app is configured with, matched by name
@@ -130,7 +130,7 @@ export interface CallOptions {
  * optional, at every depth.
  *
  * A field that is left out is sent as its zero value, which is what the wire
- * format does with a zero anyway — so \`Shows.ListShows({ pageSize: 25 })\` and a
+ * format does with a zero anyway — so \`Repos.ListForUser({ username: "octocat" })\` and a
  * call that also spells out every other field as \`""\` and \`0\` send the same
  * request. Write the fields you mean; a field the API insists on is marked
  * \`[required]\` in its declaration.
@@ -228,8 +228,8 @@ export interface Table {
    * is how a row is drawn from what you already have while the rest of it is
    * fetched:
    *
-   *   for (const show of shows) {
-   *     table.row({ id: show.id, title: show.title, rating: () => Ratings.GetRating({ id: show.id }) });
+   *   for (const repo of repos) {
+   *     table.row({ name: repo.name, release: () => Repos.GetLatestRelease({ owner, repo: repo.name }).then((release) => release.tagName) });
    *   }
    */
   row(cells: RowObject): Row;
@@ -377,9 +377,9 @@ export declare const kaja: {
    *
    *   const region = await kaja.askSelect("Which region?", ["eu", "us"]);
    *
-   *   const show = await kaja.askSelect(
-   *     "Which show?",
-   *     shows.map((show) => ({ label: show.title, value: show })),
+   *   const repo = await kaja.askSelect(
+   *     "Which repository?",
+   *     repos.map((repo) => ({ label: repo.fullName, value: repo })),
    *   );
    */
   askSelect(question: string, options: readonly string[]): Promise<string>;
@@ -389,7 +389,7 @@ export declare const kaja: {
    * send are drawn on the run's canvas and the run stops there; approving sends
    * it and hands back the response, and not approving stops the script.
    *
-   *   const show = await kaja.approve(Shows.CreateShow({ title: "Vera Lune" }));
+   *   const issue = await kaja.approve(Issues.Create({ owner, repo, title }));
    *
    * Write the call inside the parentheses. That is what makes it a call that
    * hasn't happened yet: a call kept in a variable and awaited elsewhere has
@@ -419,10 +419,10 @@ export declare const kaja: {
    * give it. The same script, the same parameters and the same grammar as a
    * deeplink; this is that link said inside the window.
    *
-   *   kaja.table(shows, (show) => ({
-   *     show: show.title,
-   *     sold: show.sold,
-   *     detail: kaja.run("show-detail", { id: show.id }),
+   *   kaja.table(issues, (issue) => ({
+   *     issue: issue.title,
+   *     comments: issue.comments,
+   *     detail: kaja.run("issue-detail", { number: issue.number }),
    *   }));
    *
    * The cell says its column's name unless you give it a label:
@@ -434,7 +434,7 @@ export declare const kaja: {
    * be reached by. Every value is sent as text and read there as kaja.input.<key>,
    * so the script on the other end is an ordinary script:
    *
-   *   const id = kaja.input.id ?? (await kaja.askStr("Which show?"));
+   *   const number = kaja.input.number ?? (await kaja.askStr("Which issue?"));
    *
    * Use it for the action a row invites rather than as a way to structure work: a
    * script calling another script's work directly is a function call, not a cell.
@@ -477,8 +477,8 @@ export declare const kaja: {
    * search, which is how the box reaches the server:
    *
    *   kaja.table(
-   *     (search) => kaja.pages((cursor) => Shows.ListShows({ query: search, pageToken: cursor })),
-   *     (show) => ({ id: show.id, title: show.title }),
+   *     (search) => kaja.pages((page) => Search.Repos({ q: search, perPage: 50, page }), { page: 1 }),
+   *     (repo) => ({ name: repo.fullName, stars: repo.stargazersCount }),
    *   );
    *
    * Without rows, the table is filled through the handle it hands back, a row
@@ -498,8 +498,8 @@ export declare const kaja: {
    * A cell whose value comes from somewhere else can be handed over as a promise
    * or a function instead, and draws as loading until it lands:
    *
-   *   const ratings = Ratings.GetRatings({ ids });
-   *   kaja.table(shows, (show) => ({ title: show.title, rating: ratings.then((r) => r.byId[show.id]) }));
+   *   const releases = Repos.ListReleases({ owner, repo });
+   *   kaja.table(commits, (commit) => ({ sha: commit.sha, released: releases.then((page) => page.items.some((release) => release.targetCommitish === commit.sha)) }));
    */
   table<T>(rows: RowSource<T>, columns: ((item: T) => RowObject) | readonly (keyof T & string)[], options?: TableOptions): Table;
   table(rows: RowSource<object>, options?: TableOptions): Table;
@@ -517,12 +517,12 @@ export declare const kaja: {
    * the table drawing it. Where a page has none of those, or more than one
    * list, say where they are:
    *
-   *   kaja.pages((cursor) => Shows.ListShows({ cursor }), { items: (page) => page.shows, next: (page) => page.after });
+   *   kaja.pages((cursor) => Events.List({ after: cursor }), { items: (page) => page.events, next: (page) => page.after });
    *
    * A list paged by number says where it starts, and the call is handed the
    * page's number — or, with offset, the first item's — instead of a cursor:
    *
-   *   kaja.pages((page) => Issues.List({ perPage: 50, page }), { page: 1 });
+   *   kaja.pages((page) => Issues.ListForRepo({ owner, repo, perPage: 50, page }), { page: 1 });
    *   kaja.pages((offset) => Orders.ListOrders({ limit: 100, offset }), { offset: 0 });
    *
    * There is no cursor to say where it ends, so it ends at a page shorter than
@@ -544,7 +544,7 @@ export declare const kaja: {
    *
    *   const report = await kaja.perfTest(
    *     async ({ iteration }) => {
-   *       await Shows.GetShow({ showId: ids[iteration % ids.length] });
+   *       await HelloService.SayHello({ greeting: names[iteration % names.length] });
    *     },
    *     { iterations: 1000, concurrency: 10, warmup: 50, rampUp: "10s" },
    *   );
@@ -580,9 +580,9 @@ export declare const kaja: {
   /**
    * Watch an API's rate limit and obey it, for the app the given service belongs to.
    *
-   *   kaja.rateLimit(Shows);
-   *   for (const show of page.shows) {
-   *     await Shows.GetShow({ showId: show.id });
+   *   kaja.rateLimit(Repos);
+   *   for (const repo of page.items) {
+   *     await Repos.ListCommits({ owner: "octocat", repo: repo.name });
    *   }
    *
    * Nothing is paced until you call this — a script that doesn't is never slowed —
@@ -607,11 +607,11 @@ export declare const kaja: {
    *
    * For an API that documents a limit but publishes no headers, say it:
    *
-   *   kaja.rateLimit(Shows, { perSecond: 10 });
+   *   kaja.rateLimit(Repos, { perSecond: 10 });
    *
    * The handle reads live, so it can be declared first and read at the end.
    *
-   *   const limit = kaja.rateLimit(Shows);
+   *   const limit = kaja.rateLimit(Repos);
    *   // …
    *   if (limit.held > 0) kaja.text(\`held \${limit.held} calls for \${limit.waitedMs} ms\`);
    */

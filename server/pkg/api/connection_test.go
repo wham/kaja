@@ -24,9 +24,9 @@ func TestAppConnection(t *testing.T) {
 		"variables": { "DEMO_PASSWORD": "lovelace" },
 		"apps": [
 			{
-				"name": "seating",
+				"name": "grpcb.in",
 				"grpc": {
-					"url": "dns:seating.example.com:443",
+					"url": "dns:grpcb.in:9001",
 					"reflection": true,
 					"tls": "on",
 					"insecure_skip_verify": true,
@@ -41,7 +41,7 @@ func TestAppConnection(t *testing.T) {
 
 	service := NewApiService(path, false, "", "", nil)
 
-	connection := service.snapshot().connection("seating")
+	connection := service.snapshot().connection("grpcb.in")
 	if got := connection.Metadata["authorization"]; got != "Basic YWRhOmxvdmVsYWNl" {
 		t.Errorf("authorization = %q, want the variable resolved and base64 encoded", got)
 	}

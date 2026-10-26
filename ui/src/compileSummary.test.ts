@@ -32,9 +32,9 @@ describe("summarizeCompilation", () => {
   });
 
   test("one app compiling is named", () => {
-    expect(summarizeCompilation([app("seating", "running"), app("b", "success")], true)).toMatchObject({
+    expect(summarizeCompilation([app("quirks", "running"), app("b", "success")], true)).toMatchObject({
       state: "compiling",
-      label: "Compiling seating…",
+      label: "Compiling quirks…",
     });
   });
 

@@ -696,7 +696,7 @@ type GrpcServer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Where the surface came from: "reflection" or "proto_dir".
 	Source string `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	// The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+	// The gRPC target that answered, e.g. "dns:grpcb.in:9000". Empty for
 	// the proto_dir source, which reaches no server.
 	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	// Whether the connection that answered used TLS. When the app leaves the
@@ -816,7 +816,7 @@ func (x *GrpcServer) GetReachable() bool {
 
 type GrpcService struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Fully qualified name, e.g. "seating.Seating".
+	// Fully qualified name, e.g. "hello.HelloService".
 	Name        string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	MethodCount int32  `protobuf:"varint,2,opt,name=method_count,json=methodCount,proto3" json:"method_count,omitempty"`
 	// Methods that stream from the client, bidirectional ones included. Neither

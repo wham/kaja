@@ -214,7 +214,7 @@ export function showCompiler(views: View[]): View[] {
 
 export interface ViewIdentity {
   name: string;
-  // Where it sits, for the finder's list: "theatre / Shows", "Drafts".
+  // Where it sits, for the finder's list: "github / Repos", "Drafts".
   path: string;
   // Empty where the name is already the whole answer.
   origin: string;

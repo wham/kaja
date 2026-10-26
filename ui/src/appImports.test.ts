@@ -14,8 +14,8 @@ function source(importPath: string, serviceNames: string[], enums: string[] = []
 
 // An app kaja generated the proto surface for: one module, named by a word kaja chose.
 function generated(): App {
-  const app = createPendingApp({ name: "theatre", app: { oneofKind: "openapi" } as any });
-  app.sources = [source("theatre/service", ["Shows"], ["Sort"])];
+  const app = createPendingApp({ name: "github", app: { oneofKind: "openapi" } as any });
+  app.sources = [source("github/service", ["Repos"], ["Sort"])];
   return app;
 }
 
@@ -29,8 +29,8 @@ function fromDisk(): App {
 describe("moduleSpecifier", () => {
   it("is the app, where the app declares the name once", () => {
     const app = generated();
-    expect(moduleSpecifier(app, app.sources[0], "Shows")).toBe("theatre");
-    expect(moduleSpecifier(app, app.sources[0], "Sort")).toBe("theatre");
+    expect(moduleSpecifier(app, app.sources[0], "Repos")).toBe("github");
+    expect(moduleSpecifier(app, app.sources[0], "Sort")).toBe("github");
   });
 
   it("is the module's path, where two of the app's modules declare the name", () => {
@@ -45,7 +45,7 @@ describe("moduleSpecifier", () => {
 describe("resolve", () => {
   it("answers the app's own name with the module declaring the name", () => {
     const app = generated();
-    expect(resolve(app, "theatre", "Shows")).toEqual({ source: app.sources[0] });
+    expect(resolve(app, "github", "Repos")).toEqual({ source: app.sources[0] });
   });
 
   it("answers a path with that module, whatever the name", () => {
@@ -61,18 +61,18 @@ describe("resolve", () => {
 
   it("reports a name nothing declares as absent, since a type binds nothing at run time", () => {
     const app = generated();
-    expect(resolve(app, "theatre", "ListShowsRequest")).toEqual({ absent: true });
+    expect(resolve(app, "github", "ReposListForUserRequest")).toEqual({ absent: true });
   });
 
   it("reports a path no module answers to", () => {
     const app = generated();
-    expect(resolve(app, "theatre/nope", "Shows")).toEqual({ unknownPath: true });
+    expect(resolve(app, "github/nope", "Repos")).toEqual({ unknownPath: true });
   });
 });
 
 describe("barrel", () => {
   it("re-exports every module a script may import from, under the app's name", () => {
-    expect(barrel(generated())).toEqual({ path: "theatre.ts", content: 'export * from "./theatre/service";\n' });
+    expect(barrel(generated())).toEqual({ path: "github.ts", content: 'export * from "./github/service";\n' });
   });
 
   it("leaves a name two modules declare unreachable, which is what makes the path required", () => {

@@ -39,19 +39,19 @@ func openedUnder(t *testing.T, manager *Manager, name string) string {
 // name it answers to has moved. Reopening it would mean reading the upstream again
 // for a surface that has not changed.
 func TestManagerRenameMovesTheOpenApp(t *testing.T) {
-	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
+	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "github"}}})
 	opened, err := manager.Instantiate(context.Background(), "grpc", nil, "", func(string) {})
 	if err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
-	manager.Register("theatre", opened.Instance)
+	manager.Register("github", opened.Instance)
 
-	manager.Rename("theatre", "playhouse")
+	manager.Rename("github", "octocat")
 
-	if answered := openedUnder(t, manager, "playhouse"); answered != "theatre" {
+	if answered := openedUnder(t, manager, "octocat"); answered != "github" {
 		t.Errorf("the new name answered with %q, want the app that was open", answered)
 	}
-	if _, err := manager.Invoke(context.Background(), "theatre", &Call{}); err == nil {
+	if _, err := manager.Invoke(context.Background(), "github", &Call{}); err == nil {
 		t.Error("the old name still answers, so an app is open twice over")
 	}
 }
@@ -60,20 +60,20 @@ func TestManagerRenameMovesTheOpenApp(t *testing.T) {
 // nothing left to move. Neither is that a failure when the app was never opened at
 // all, which is every app a compilation never got to.
 func TestManagerRenameLeavesAnUnopenedAppAlone(t *testing.T) {
-	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "theatre"}}})
+	manager := NewManager(map[string]App{"grpc": &stubApp{instance: &stubInstance{name: "github"}}})
 	opened, err := manager.Instantiate(context.Background(), "grpc", nil, "", func(string) {})
 	if err != nil {
 		t.Fatalf("failed to open the app: %v", err)
 	}
-	manager.Register("theatre", opened.Instance)
+	manager.Register("github", opened.Instance)
 
-	manager.Rename("seating", "stalls")
-	manager.Rename("theatre", "theatre")
+	manager.Rename("grpcb.in", "hub")
+	manager.Rename("github", "github")
 
-	if answered := openedUnder(t, manager, "theatre"); answered != "theatre" {
+	if answered := openedUnder(t, manager, "github"); answered != "github" {
 		t.Errorf("the app answered with %q, want the app that was open", answered)
 	}
-	if _, err := manager.Invoke(context.Background(), "stalls", &Call{}); err == nil {
+	if _, err := manager.Invoke(context.Background(), "hub", &Call{}); err == nil {
 		t.Error("a name nothing was open under became an open app")
 	}
 }

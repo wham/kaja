@@ -193,10 +193,10 @@ describe("deriveAppName", () => {
     ["Swagger Petstore - OpenAPI 3.0", "Petstore"],
     ["GitHub v3 REST API", "GitHub"],
     ["Stripe API", "Stripe"],
-    ["The Movie Database API", "MovieDatabase"],
+    ["The Open Library API", "OpenLibrary"],
     ["Payments API (Beta)", "Payments"],
     ["Billing: OpenAPI specification", "Billing"],
-    ["theatre", "theatre"],
+    ["github", "github"],
     ["grpcb.in", "grpcb.in"],
   ])("derives %s as %s", (title, expected) => {
     expect(deriveAppName(title)).toBe(expected);

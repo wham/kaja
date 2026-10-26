@@ -284,13 +284,13 @@ is an HTTP failure carrying a JSON body, so it comes back like any other
 app's: the row is labelled `404`, the response tab shows `{"code":…,"msg":…}`
 as the API sent it, and `msg` is the summary.
 
-### 4. MCP — `Concierge.SuggestFilm({ mood, party, city })`
+### 4. MCP — `Tools.SearchRepositories({ query })`
 
-`suggest_film` becomes `mcp.Tools/SuggestFilm`. Each request field carries
-the property's own `json_name`, so the decoded message **is** the arguments
-object, wrapped as
-`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"suggest_film","arguments":{…}}}`
-and posted at **`https://concierge.kaja.tools/mcp`** — `application/json`,
+`search_repositories` becomes `mcp.Tools/SearchRepositories`. Each request
+field carries the property's own `json_name`, so the decoded message **is** the
+arguments object, wrapped as
+`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"search_repositories","arguments":{…}}}`
+and posted at **`https://api.githubcopilot.com/mcp/`** — `application/json`,
 `Accept: application/json, text/event-stream`, `MCP-Protocol-Version`, then
 the era's pair: modern gets `Mcp-Method` + `Mcp-Name`, handshake-era gets
 `Mcp-Session-Id`. (The era was settled once, by a `server/discover` probe.)

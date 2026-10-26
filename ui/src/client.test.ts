@@ -35,7 +35,7 @@ const transport = {
       return { response: Promise.reject(refuse), headers: Promise.reject(refuse), trailers: Promise.reject(refuse) };
     }
     return {
-      response: Promise.resolve({ shows: [] }),
+      response: Promise.resolve({ repos: [] }),
       headers: Promise.resolve({ "content-type": "application/grpc-web+proto" }),
       trailers: Promise.resolve({
         // What the app exchanged with the API it carried the call to, in the one
@@ -49,25 +49,31 @@ const transport = {
 
 const reflection = buildReflection([
   {
-    path: "theatre.ts",
+    path: "github.ts",
     editorText: "",
     messages: [
-      { name: "ListShowsRequest", typeName: "theatre.ListShowsRequest", fields: [{ no: 1, name: "page_size", kind: "scalar", T: 5 }] },
-      { name: "ListShowsResponse", typeName: "theatre.ListShowsResponse", fields: [] },
+      { name: "ReposListForUserRequest", typeName: "github.ReposListForUserRequest", fields: [{ no: 1, name: "per_page", kind: "scalar", T: 5 }] },
+      { name: "ReposListForUserResponse", typeName: "github.ReposListForUserResponse", fields: [] },
     ],
     enums: [],
     services: [
       {
-        name: "Shows",
-        typeName: "theatre.Shows",
+        name: "Repos",
+        typeName: "github.Repos",
         methods: [
-          { name: "ListShows", input: "ListShowsRequest", output: "ListShowsResponse", I: "theatre.ListShowsRequest", O: "theatre.ListShowsResponse" },
+          {
+            name: "ListForUser",
+            input: "ReposListForUserRequest",
+            output: "ReposListForUserResponse",
+            I: "github.ReposListForUserRequest",
+            O: "github.ReposListForUserResponse",
+          },
           {
             name: "Upload",
-            input: "ListShowsRequest",
-            output: "ListShowsResponse",
-            I: "theatre.ListShowsRequest",
-            O: "theatre.ListShowsResponse",
+            input: "ReposListForUserRequest",
+            output: "ReposListForUserResponse",
+            I: "github.ReposListForUserRequest",
+            O: "github.ReposListForUserResponse",
             clientStreaming: true,
           },
         ],
@@ -78,15 +84,15 @@ const reflection = buildReflection([
 ]);
 
 const service: Service = {
-  name: "Shows",
-  packageName: "theatre",
-  sourcePath: "theatre",
-  typeName: "theatre.Shows",
-  methods: [{ name: "ListShows" }],
+  name: "Repos",
+  packageName: "github",
+  sourcePath: "github",
+  typeName: "github.Repos",
+  methods: [{ name: "ListForUser" }],
 };
 
 const app = {
-  name: "theatre",
+  name: "github",
   app: {
     oneofKind: "grpc",
     grpc: { headers: { "X-Tenant": "acme", Authorization: "Bearer ${TOKEN}" } },
@@ -114,14 +120,14 @@ const meta = () => sent[0].options.meta as Record<string, string>;
 describe("a call's headers", () => {
   it("sends the app's own where the call says nothing", async () => {
     const { methods } = client();
-    await methods.ListShows({ pageSize: 25 });
+    await methods.ListForUser({ perPage: 25 });
     expect(meta()["X-Header-X-Tenant"]).toBe("acme");
     expect(meta()["X-Header-Authorization"]).toBe("Bearer ${TOKEN}");
   });
 
   it("lays the call's own over them, replacing by name whatever the case", async () => {
     const { methods } = client();
-    await methods.ListShows({}, { headers: { authorization: "Bearer other", "Idempotency-Key": "k1" } });
+    await methods.ListForUser({}, { headers: { authorization: "Bearer other", "Idempotency-Key": "k1" } });
     expect(meta()["X-Header-authorization"]).toBe("Bearer other");
     expect(meta()["X-Header-Authorization"]).toBeUndefined();
     expect(meta()["X-Header-Idempotency-Key"]).toBe("k1");
@@ -130,13 +136,13 @@ describe("a call's headers", () => {
 
   it("names the app the call belongs to, which is the whole of where it is going", async () => {
     const { methods } = client();
-    await methods.ListShows({});
-    expect(meta()["X-Header-X-Kaja-App"]).toBe("theatre");
+    await methods.ListForUser({});
+    expect(meta()["X-Header-X-Kaja-App"]).toBe("github");
   });
 
   it("shows the call's whole set as written, references intact", async () => {
     const { methods, calls } = client();
-    await methods.ListShows({}, { headers: { "Idempotency-Key": "k1" } });
+    await methods.ListForUser({}, { headers: { "Idempotency-Key": "k1" } });
     expect(calls[0].requestHeaders).toEqual({
       "X-Tenant": "acme",
       Authorization: "Bearer ${TOKEN}",
@@ -146,7 +152,7 @@ describe("a call's headers", () => {
 
   it("refuses the reserved one where it is written, rather than sending it", () => {
     const { methods } = client();
-    expect(() => methods.ListShows({}, { headers: { "x-kaja-app": "somebody-else" } })).toThrow("X-Kaja-App");
+    expect(() => methods.ListForUser({}, { headers: { "x-kaja-app": "somebody-else" } })).toThrow("X-Kaja-App");
     expect(sent).toHaveLength(0);
   });
 
@@ -158,7 +164,7 @@ describe("a call's headers", () => {
     });
     // A failed call is reported rather than thrown, so it is the response that is
     // missing — the headers it was refused with are there to be read.
-    expect(await methods.ListShows({}).withHeaders()).toEqual({
+    expect(await methods.ListForUser({}).withHeaders()).toEqual({
       response: undefined,
       headers: { "www-authenticate": "Bearer" },
     });
@@ -166,25 +172,25 @@ describe("a call's headers", () => {
 
   it("says which of the app's variables had nothing behind them when the call failed", async () => {
     const host = new KajaHost();
-    host.missingVariables = new Map([["theatre", [{ name: "TOKEN", defined: true, apps: ["theatre"] }]]]);
+    host.missingVariables = new Map([["github", [{ name: "TOKEN", defined: true, apps: ["github"] }]]]);
     const { methods, calls } = client(host);
     refuse = Object.assign(new Error("unauthenticated"), { code: "UNAUTHENTICATED" });
-    await methods.ListShows({});
+    await methods.ListForUser({});
     expect(calls.at(-1)?.missingVariables?.map((variable) => variable.name)).toEqual(["TOKEN"]);
   });
 
   it("says nothing about them on a call that succeeded", async () => {
     const host = new KajaHost();
-    host.missingVariables = new Map([["theatre", [{ name: "TOKEN", defined: true, apps: ["theatre"] }]]]);
+    host.missingVariables = new Map([["github", [{ name: "TOKEN", defined: true, apps: ["github"] }]]]);
     const { methods, calls } = client(host);
-    await methods.ListShows({});
+    await methods.ListForUser({});
     expect(calls.at(-1)?.missingVariables).toBeUndefined();
   });
 
   it("hands back the response with what the API answered with beside it", async () => {
     const { methods } = client();
-    const { response, headers } = await methods.ListShows({}).withHeaders();
-    expect(response).toEqual({ shows: [] });
+    const { response, headers } = await methods.ListForUser({}).withHeaders();
+    expect(response).toEqual({ repos: [] });
     expect(headers).toEqual({ "x-ratelimit-remaining": "42" });
   });
 });
@@ -229,12 +235,12 @@ describe("what a server said about a call", () => {
   it("reads a trailer as it was written rather than as it was escaped", async () => {
     const { methods, calls } = client();
     trailer = {
-      "grpc-status-details-bin": '[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SEAT_TAKEN"}]',
-      "x-seat": "%C5%99ada%201",
+      "grpc-status-details-bin": '[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMITED"}]',
+      "x-label": "%C5%99ada%201",
     };
-    await methods.ListShows({});
+    await methods.ListForUser({});
     const headers = calls[calls.length - 1].responseHeaders ?? {};
-    expect(headers["x-seat"]).toBe("řada 1");
-    expect(headers["grpc-status-details-bin"]).toContain("SEAT_TAKEN");
+    expect(headers["x-label"]).toBe("řada 1");
+    expect(headers["grpc-status-details-bin"]).toContain("RATE_LIMITED");
   });
 });

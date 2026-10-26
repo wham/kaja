@@ -54,10 +54,10 @@ func TestReflectionKeepsWhatAMethodDeclares(t *testing.T) {
 	}{
 		{"the deprecated method's mark", "@deprecated"},
 		{"the optional field's presence", "note?: string"},
-		{"the enum", "VOID = 2"},
+		{"the enum", "LOCKED = 2"},
 		{"the map field", "labels"},
-		{"the oneof", "voucher"},
-		{"the server stream", "ListTickets"},
+		{"the oneof", "team"},
+		{"the server stream", "ListIssues"},
 	} {
 		if !strings.Contains(generated, one.want) {
 			t.Errorf("%s is missing from what reflection generated (%q)", one.what, one.want)

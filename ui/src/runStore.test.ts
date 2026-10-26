@@ -6,14 +6,14 @@ import { deserializeFile, pruneArchive, RunArchive, serializeFile, StoredFile } 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-const run: Run = { id: "r1", title: "ListShows", fileId: "draft-1", startedAt: NOW, durationMs: 212 };
+const run: Run = { id: "r1", title: "ListForUser", fileId: "draft-1", startedAt: NOW, durationMs: 212 };
 
 function call(output: unknown, runId = run.id, id = "item-1"): ConsoleItem {
   const methodCall = {
     id: `call-${id}`,
-    appName: "theatre",
-    service: { name: "Shows" },
-    method: { name: "ListShows" },
+    appName: "github",
+    service: { name: "Repos" },
+    method: { name: "ListForUser" },
     input: { pageSize: 20 },
     output,
     timestamp: NOW,
@@ -24,7 +24,7 @@ function call(output: unknown, runId = run.id, id = "item-1"): ConsoleItem {
 
 describe("serializeFile", () => {
   it("marks what it stores as stale, so it can never come back looking live", () => {
-    const stored = serializeFile([run], [call({ shows: [] })], NOW);
+    const stored = serializeFile([run], [call({ repos: [] })], NOW);
     expect(stored.runs[0].run.stale).toBe(true);
     expect(stored.runs[0].run.payloadsExpired).toBe(false);
   });
@@ -33,7 +33,7 @@ describe("serializeFile", () => {
     const stored = serializeFile([run], [call({ blob: "x".repeat(600 * 1024) })], NOW);
     expect(stored.runs[0].items).toEqual([]);
     expect(stored.runs[0].run.payloadsExpired).toBe(true);
-    expect(stored.runs[0].run.title).toBe("ListShows");
+    expect(stored.runs[0].run.title).toBe("ListForUser");
   });
 
   it("keeps only the newest few runs of a file", () => {
@@ -57,13 +57,13 @@ describe("serializeFile", () => {
   });
 
   it("round-trips a call back into something the console can render", () => {
-    const loaded = deserializeFile(serializeFile([run], [call({ shows: [1, 2] })], NOW));
+    const loaded = deserializeFile(serializeFile([run], [call({ repos: [1, 2] })], NOW));
     expect(loaded.runs[0].id).toBe("r1");
     expect(loaded.items).toHaveLength(1);
     expect(loaded.items[0].runId).toBe("r1");
-    expect(loaded.items[0].call?.service.name).toBe("Shows");
-    expect(loaded.items[0].call?.method.name).toBe("ListShows");
-    expect(loaded.items[0].call?.output).toEqual({ shows: [1, 2] });
+    expect(loaded.items[0].call?.service.name).toBe("Repos");
+    expect(loaded.items[0].call?.method.name).toBe("ListForUser");
+    expect(loaded.items[0].call?.output).toEqual({ repos: [1, 2] });
     expect(loaded.items[0].call?.durationMs).toBe(212);
   });
 });
@@ -94,7 +94,7 @@ describe("pruneArchive", () => {
     const pruned = pruneArchive(archive, NOW);
     expect(pruned.a.runs[0].run.payloadsExpired).toBe(true);
     expect(pruned.a.runs[0].items).toEqual([]);
-    expect(pruned.a.runs[0].run.title).toBe("ListShows");
+    expect(pruned.a.runs[0].run.title).toBe("ListForUser");
   });
 
   it("leaves a recent run alone", () => {
@@ -140,9 +140,9 @@ describe("blocks in the store", () => {
 
   // And that is the truth about the call, too: nothing ever sent it.
   it("stores a call nobody approved as one that was not approved", () => {
-    const items: ConsoleItem[] = [{ id: "b1", runId: "r1", timestamp: NOW, block: { kind: "approve", method: "Shows.CreateShow", request: "{}" } }];
+    const items: ConsoleItem[] = [{ id: "b1", runId: "r1", timestamp: NOW, block: { kind: "approve", method: "Issues.Create", request: "{}" } }];
     const loaded = deserializeFile(serializeFile([run], items, NOW));
-    expect(loaded.items[0].block).toEqual({ kind: "approve", method: "Shows.CreateShow", request: "{}", decision: "rejected" });
+    expect(loaded.items[0].block).toEqual({ kind: "approve", method: "Issues.Create", request: "{}", decision: "rejected" });
   });
 
   // A live source is a closure and reads back expired; a destination is a name, so it

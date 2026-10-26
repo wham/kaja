@@ -10,8 +10,8 @@ function call(id: string, runId: string, changes: Partial<MethodCall> = {}): Con
   const methodCall = {
     id,
     appName: "app",
-    service: { name: "Shows" },
-    method: { name: "ListShows" },
+    service: { name: "Repos" },
+    method: { name: "ListForUser" },
     input: {},
     output: {},
     timestamp: NOW,

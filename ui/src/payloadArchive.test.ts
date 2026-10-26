@@ -89,17 +89,17 @@ afterEach(() => {
 
 describe("the payload shelf", () => {
   it("hands a payload back to the row that asked for it", async () => {
-    const ref = archivePayload("run-1", { input: { id: "vera-lune" }, output: { seats: 3 } })!;
+    const ref = archivePayload("run-1", { input: { id: "wham/kaja" }, output: { stars: 3 } })!;
     flushArchive();
 
-    expect(await readArchivedPayload(ref)).toEqual({ input: { id: "vera-lune" }, output: { seats: 3 }, streamOutputs: undefined });
+    expect(await readArchivedPayload(ref)).toEqual({ input: { id: "wham/kaja" }, output: { stars: 3 }, streamOutputs: undefined });
   });
 
   it("answers from the queue before the write has landed", async () => {
-    const ref = archivePayload("run-1", { output: { seats: 3 } })!;
+    const ref = archivePayload("run-1", { output: { stars: 3 } })!;
 
     expect(data.size).toBe(0);
-    expect((await readArchivedPayload(ref))?.output).toEqual({ seats: 3 });
+    expect((await readArchivedPayload(ref))?.output).toEqual({ stars: 3 });
   });
 
   // The run it was filed under is how it is found again; it is not part of the call

@@ -216,7 +216,7 @@ describe("parseLink add-app", () => {
   });
 
   test("reads the headers out of their JSON", () => {
-    const link = parsedAddApp(`kaja://add-app?type=grpc&name=Seats&headers=${encodeURIComponent(JSON.stringify({ "X-Tenant": "acme" }))}`);
+    const link = parsedAddApp(`kaja://add-app?type=grpc&name=Greeter&headers=${encodeURIComponent(JSON.stringify({ "X-Tenant": "acme" }))}`);
     expect(link.headers).toEqual({ "X-Tenant": "acme" });
     expect(link.parameters).toEqual({});
   });

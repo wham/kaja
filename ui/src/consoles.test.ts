@@ -35,7 +35,7 @@ function call(method: string, changes: Partial<MethodCall> = {}): MethodCall {
   return {
     id: `call-${calls}`,
     appName: "app",
-    service: { name: "Shows" },
+    service: { name: "Repos" },
     method: { name: method },
     input: {},
     output: {},
@@ -75,7 +75,7 @@ describe("startRun", () => {
   it("drops the oldest runs of a file past the cap, and their calls with them", () => {
     for (let i = 0; i < 30; i++) {
       const created = start("a.ts", `run-${i}`);
-      store.recordCall("a.ts", created.id, call("ListShows"), NOW);
+      store.recordCall("a.ts", created.id, call("ListForUser"), NOW);
     }
     paint();
 
@@ -122,9 +122,9 @@ describe("startRun", () => {
 describe("recordCall", () => {
   it("updates a call already in the run rather than appending it again", () => {
     const created = start("a.ts");
-    const issued = call("GetShow", { output: undefined, durationMs: undefined });
+    const issued = call("Get", { output: undefined, durationMs: undefined });
     store.recordCall("a.ts", created.id, issued, NOW);
-    issued.output = { id: "vera-lune" };
+    issued.output = { id: "kaja" };
     issued.durationMs = 42;
     store.recordCall("a.ts", created.id, issued, NOW);
     paint();
@@ -146,17 +146,17 @@ describe("recordCall", () => {
 
   it("reads what identifies the call once, when it is issued", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { input: { id: "vera-lune" } }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { input: { id: "kaja" } }), NOW);
     paint();
 
-    expect(store.file("a.ts").groups[0].calls[0].key).toBe("vera-lune");
+    expect(store.file("a.ts").groups[0].calls[0].key).toBe("kaja");
   });
 });
 
 describe("a run of a thousand calls", () => {
   it("keeps every row, because the log is the audit record", () => {
     const created = start("a.ts");
-    for (let i = 0; i < 1000; i++) store.recordCall("a.ts", created.id, call("GetShow", { input: { id: `show-${i}` } }), NOW);
+    for (let i = 0; i < 1000; i++) store.recordCall("a.ts", created.id, call("Get", { input: { id: `repo-${i}` } }), NOW);
     paint();
 
     const group = store.file("a.ts").groups[0];
@@ -166,7 +166,7 @@ describe("a run of a thousand calls", () => {
 
   it("lets the oldest payloads go and says so on the row that lost one", () => {
     const created = start("a.ts");
-    for (let i = 0; i < 700; i++) store.recordCall("a.ts", created.id, call("GetShow", { input: { id: `show-${i}` }, output: { seats: [1, 2, 3] } }), NOW);
+    for (let i = 0; i < 700; i++) store.recordCall("a.ts", created.id, call("Get", { input: { id: `repo-${i}` }, output: { items: [1, 2, 3] } }), NOW);
     paint();
 
     const calls = store.file("a.ts").groups[0].calls;
@@ -174,7 +174,7 @@ describe("a run of a thousand calls", () => {
     expect(calls[0].call?.output).toBeUndefined();
     // The row is still the record that the call happened, and still says which
     // pass through the loop it was.
-    expect(calls[0].key).toBe("show-0");
+    expect(calls[0].key).toBe("repo-0");
     expect(calls[699].payloadsDropped).toBeUndefined();
     expect(calls[699].call?.output).toBeDefined();
   });
@@ -186,7 +186,7 @@ describe("a run of a thousand calls", () => {
     shelf.available = () => true;
     try {
       const created = start("a.ts");
-      for (let i = 0; i < 700; i++) store.recordCall("a.ts", created.id, call("GetShow", { output: { seats: [1, 2, 3] } }), NOW);
+      for (let i = 0; i < 700; i++) store.recordCall("a.ts", created.id, call("Get", { output: { items: [1, 2, 3] } }), NOW);
       paint();
 
       const calls = store.file("a.ts").groups[0].calls;
@@ -201,7 +201,7 @@ describe("a run of a thousand calls", () => {
   it("keeps a shelved call's verdict rather than reading it as pending", () => {
     const created = start("a.ts");
     for (let i = 0; i < 700; i++) {
-      store.recordCall("a.ts", created.id, call("GetShow", { output: { ok: true }, error: i === 0 ? { code: "NOT_FOUND" } : undefined }), NOW);
+      store.recordCall("a.ts", created.id, call("Get", { output: { ok: true }, error: i === 0 ? { code: "NOT_FOUND" } : undefined }), NOW);
     }
     paint();
 
@@ -216,9 +216,9 @@ describe("a run of a thousand calls", () => {
 
   it("shelves a settled call and sends one still in flight to the back of the queue", () => {
     const created = start("a.ts");
-    const open = call("GetShow", { output: undefined, durationMs: undefined });
+    const open = call("Get", { output: undefined, durationMs: undefined });
     store.recordCall("a.ts", created.id, open, NOW);
-    for (let i = 0; i < 600; i++) store.recordCall("a.ts", created.id, call("GetShow", { output: { ok: true } }), NOW);
+    for (let i = 0; i < 600; i++) store.recordCall("a.ts", created.id, call("Get", { output: { ok: true } }), NOW);
     paint();
 
     const calls = store.file("a.ts").groups[0].calls;
@@ -231,7 +231,7 @@ describe("a run of a thousand calls", () => {
     let notified = 0;
     store.subscribeFile("a.ts", () => notified++);
 
-    for (let i = 0; i < 500; i++) store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    for (let i = 0; i < 500; i++) store.recordCall("a.ts", created.id, call("Get"), NOW);
     expect(notified).toBe(0);
     paint();
 
@@ -240,14 +240,14 @@ describe("a run of a thousand calls", () => {
 
   it("keeps calls off the canvas and states them on the strip", () => {
     const created = start("a.ts");
-    for (let i = 0; i < 200; i++) store.recordCall("a.ts", created.id, call("GetShow", { input: { id: `show-${i}` } }), NOW);
+    for (let i = 0; i < 200; i++) store.recordCall("a.ts", created.id, call("Get", { input: { id: `repo-${i}` } }), NOW);
     store.recordBlock("a.ts", created.id, "block-1", { kind: "text", text: "done" }, NOW);
     paint();
 
     const group = store.file("a.ts").groups[0];
     expect(group.drawn).toHaveLength(1);
     expect(group.strip.calls).toBe(200);
-    expect(group.strip.methodLabel).toBe("Shows.GetShow ×200");
+    expect(group.strip.methodLabel).toBe("Repos.Get ×200");
   });
 });
 
@@ -256,8 +256,8 @@ describe("a run past the row cap", () => {
 
   it("counts a call it has no room for once, as it is issued, and not again as it settles", () => {
     const created = start("a.ts");
-    for (let i = 0; i < CAP; i++) store.recordCall("a.ts", created.id, call("GetShow"), NOW);
-    const late = call("GetShow", { output: undefined, durationMs: undefined });
+    for (let i = 0; i < CAP; i++) store.recordCall("a.ts", created.id, call("Get"), NOW);
+    const late = call("Get", { output: undefined, durationMs: undefined });
     store.recordCall("a.ts", created.id, late, NOW);
     late.output = {};
     late.durationMs = 5;
@@ -277,7 +277,7 @@ describe("what leaves with a trimmed run", () => {
     const first = start("a.ts", "run-0");
     const kept: ReturnType<typeof call>[] = [];
     for (let i = 0; i < 10; i++) {
-      const made = call("GetShow", { output: { seats: [i] } });
+      const made = call("Get", { output: { items: [i] } });
       kept.push(made);
       store.recordCall("a.ts", first.id, made, NOW);
     }
@@ -285,7 +285,7 @@ describe("what leaves with a trimmed run", () => {
     expect(store.file("a.ts").runs[0].id).toBe("run-1");
 
     const newest = store.file("a.ts").runs[24];
-    for (let i = 0; i < 600; i++) store.recordCall("a.ts", newest.id, call("GetShow", { output: { ok: true } }), NOW);
+    for (let i = 0; i < 600; i++) store.recordCall("a.ts", newest.id, call("Get", { output: { ok: true } }), NOW);
     paint();
 
     // The trimmed run's calls still carry what they carried: nothing shelved them.
@@ -330,7 +330,7 @@ describe("what a script printed", () => {
   // logged past.
   it("does not report a failure on the script's behalf", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { error: { code: "NOT_FOUND" } }), NOW);
     store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "tick", NOW);
     paint();
 
@@ -341,18 +341,18 @@ describe("what a script printed", () => {
 describe("failures the run said nothing about", () => {
   it("names a failed call nothing was drawn after", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND", message: "no such show" } }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { error: { code: "NOT_FOUND", message: "Not Found" } }), NOW);
     paint();
 
     expect(store.file("a.ts").groups[0].unreported).toEqual([
-      { itemId: expect.any(String), method: "Shows.GetShow", count: 1, code: "NOT_FOUND", message: "no such show" },
+      { itemId: expect.any(String), method: "Repos.Get", count: 1, code: "NOT_FOUND", message: "Not Found" },
     ]);
   });
 
   it("stays quiet about one the script drew past", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
-    store.recordBlock("a.ts", created.id, "block-1", { kind: "table", columns: ["id", "result"], rows: [["show-1", "404"]] }, NOW);
+    store.recordCall("a.ts", created.id, call("Get", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { kind: "table", columns: ["id", "result"], rows: [["repo-1", "404"]] }, NOW);
     paint();
 
     expect(store.file("a.ts").groups[0].unreported).toHaveLength(0);
@@ -362,8 +362,8 @@ describe("failures the run said nothing about", () => {
     const created = start("a.ts");
     const table: Block = { kind: "table", columns: ["id", "result"], rows: [] };
     store.recordBlock("a.ts", created.id, "block-1", table, NOW);
-    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
-    store.recordBlock("a.ts", created.id, "block-1", { ...table, rows: [["show-1", "404"]] }, NOW);
+    store.recordCall("a.ts", created.id, call("Get", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { ...table, rows: [["repo-1", "404"]] }, NOW);
     paint();
 
     expect(store.file("a.ts").groups[0].unreported).toHaveLength(0);
@@ -371,7 +371,7 @@ describe("failures the run said nothing about", () => {
 
   it("names the failures a script crashed on rather than hiding them behind the crash", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("ListShows", { error: { code: "UNAUTHENTICATED", message: "Requires authentication" } }), NOW);
+    store.recordCall("a.ts", created.id, call("ListForUser", { error: { code: "UNAUTHENTICATED", message: "Requires authentication" } }), NOW);
     store.recordLogs("a.ts", created.id, [{ level: LogLevel.LEVEL_ERROR, message: "TypeError: undefined is not an object" }], NOW);
     paint();
 
@@ -382,7 +382,7 @@ describe("failures the run said nothing about", () => {
 
   it("says one row for a method that failed the same way ten times", () => {
     const created = start("a.ts");
-    for (let i = 0; i < 10; i++) store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    for (let i = 0; i < 10; i++) store.recordCall("a.ts", created.id, call("Get", { error: { code: "NOT_FOUND" } }), NOW);
     paint();
 
     const [notice] = store.file("a.ts").groups[0].unreported;
@@ -393,9 +393,9 @@ describe("failures the run said nothing about", () => {
 describe("what a run says about itself", () => {
   it("says the same as deriving it from the items would", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { durationMs: 40 }), NOW);
-    store.recordCall("a.ts", created.id, call("GetShow", { durationMs: 300 }), NOW);
-    store.recordCall("a.ts", created.id, call("GetShow", { durationMs: 90, error: { code: "NOT_FOUND" } }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { durationMs: 40 }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { durationMs: 300 }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { durationMs: 90, error: { code: "NOT_FOUND" } }), NOW);
     paint();
 
     const group = store.file("a.ts").groups[0];
@@ -406,7 +406,7 @@ describe("what a run says about itself", () => {
 
   it("is pending while a call is still in flight", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow", { output: undefined, durationMs: undefined }), NOW);
+    store.recordCall("a.ts", created.id, call("Get", { output: undefined, durationMs: undefined }), NOW);
     paint();
 
     const group = store.file("a.ts").groups[0];
@@ -427,7 +427,7 @@ describe("what a run says about itself", () => {
   // own block is the one record of it, so the run reads the count off that.
   it("counts the calls a budget is holding back", () => {
     const created = start("a.ts");
-    const limit = { kind: "limit", app: "theatre", state: "held", calls: 3, held: 1, waitedMs: 900, waiting: 2 } as const;
+    const limit = { kind: "limit", app: "github", state: "held", calls: 3, held: 1, waitedMs: 900, waiting: 2 } as const;
     store.recordBlock("a.ts", created.id, "limit-1", limit, NOW);
     paint();
 
@@ -479,7 +479,7 @@ describe("settleRun", () => {
 describe("hasWorkInFlight", () => {
   it("is what the settle check waits on", () => {
     const created = start("a.ts");
-    const issued = call("GetShow", { output: undefined, durationMs: undefined });
+    const issued = call("Get", { output: undefined, durationMs: undefined });
     store.recordCall("a.ts", created.id, issued, NOW);
 
     expect(store.hasWorkInFlight("a.ts", created.id)).toBe(true);
@@ -506,7 +506,7 @@ describe("hasWorkInFlight", () => {
     const created = start("a.ts");
     const quiet: string[] = [];
     store.subscribeQuiet((fileId, runId) => quiet.push(`${fileId}:${runId}`));
-    const issued = call("GetShow", { output: undefined, durationMs: undefined });
+    const issued = call("Get", { output: undefined, durationMs: undefined });
     store.recordCall("a.ts", created.id, issued, NOW);
 
     expect(quiet).toEqual([]);
@@ -522,7 +522,7 @@ describe("recordBlock", () => {
   it("keeps a block where it was emitted as it fills in", () => {
     const created = start("a.ts");
     store.recordBlock("a.ts", created.id, "table-1", { kind: "table", columns: ["a"], rows: [] }, NOW);
-    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    store.recordCall("a.ts", created.id, call("Get"), NOW);
     store.recordBlock("a.ts", created.id, "table-1", { kind: "table", columns: ["a"], rows: [["1"]] }, NOW);
     paint();
 
@@ -578,7 +578,7 @@ describe("the sidebar's three sets", () => {
     let flips = 0;
     store.subscribeFlags(() => flips++);
 
-    for (let i = 0; i < 100; i++) store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    for (let i = 0; i < 100; i++) store.recordCall("a.ts", created.id, call("Get"), NOW);
 
     expect(flips).toBe(0);
   });
@@ -608,7 +608,7 @@ describe("adoptStoredRuns", () => {
 
   it("brings a stored run's items back with it", () => {
     const stored = run("old", "a.ts", { stale: true });
-    store.adoptStoredRuns("a.ts", { runs: [stored], items: [{ id: "i1", runId: "old", timestamp: NOW, call: call("GetShow") }] }, NOW);
+    store.adoptStoredRuns("a.ts", { runs: [stored], items: [{ id: "i1", runId: "old", timestamp: NOW, call: call("Get") }] }, NOW);
 
     expect(store.file("a.ts").groups[0].calls).toHaveLength(1);
   });
@@ -672,11 +672,11 @@ describe("run numbering", () => {
 describe("renaming, taking and dropping a file", () => {
   it("moves a console to the name the file now has", () => {
     const created = start("draft-1");
-    store.renameFile("draft-1", "/scripts/show.ts");
+    store.renameFile("draft-1", "/scripts/repo.ts");
 
     expect(store.file("draft-1").runs).toHaveLength(0);
-    expect(store.file("/scripts/show.ts").runs[0].id).toBe(created.id);
-    expect(store.file("/scripts/show.ts").runs[0].fileId).toBe("/scripts/show.ts");
+    expect(store.file("/scripts/repo.ts").runs[0].id).toBe(created.id);
+    expect(store.file("/scripts/repo.ts").runs[0].fileId).toBe("/scripts/repo.ts");
   });
 
   it("leaves a store with nothing under that name alone", () => {
@@ -705,7 +705,7 @@ describe("the view a run opens in", () => {
 
   it("opens a run that only made calls on its log", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    store.recordCall("a.ts", created.id, call("Get"), NOW);
     paint();
 
     expect(defaultView(store.file("a.ts").groups[0])).toBe("calls");
@@ -720,7 +720,7 @@ describe("followSelection", () => {
   function groupsWith(...counts: number[]) {
     for (const [index, count] of counts.entries()) {
       const created = start("a.ts", `run-${index}`);
-      for (let i = 0; i < count; i++) store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+      for (let i = 0; i < count; i++) store.recordCall("a.ts", created.id, call("Get"), NOW);
     }
     paint();
     return store.file("a.ts").groups;
@@ -793,8 +793,8 @@ describe("findBlock", () => {
 describe("what a script printed", () => {
   it("is kept beside the calls rather than among them", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
-    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 shows", NOW + 1);
+    store.recordCall("a.ts", created.id, call("Get"), NOW);
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 repos", NOW + 1);
     paint();
 
     const group = store.file("a.ts").groups[0];
@@ -810,7 +810,7 @@ describe("what a script printed", () => {
    */
   it("does not count as something drawn", () => {
     const created = start("a.ts");
-    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 shows", NOW);
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 repos", NOW);
     paint();
 
     expect(store.file("a.ts").groups[0].drew).toBe(false);
@@ -819,7 +819,7 @@ describe("what a script printed", () => {
 
   it("does not fail a run, even at error level", () => {
     const created = start("a.ts");
-    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    store.recordCall("a.ts", created.id, call("Get"), NOW);
     store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_ERROR, "gave up on page 3", NOW + 1);
     paint();
 

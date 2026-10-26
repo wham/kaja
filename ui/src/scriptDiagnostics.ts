@@ -28,7 +28,7 @@ export interface ScriptDiagnostic {
 }
 
 // Where a script with no editor of its own is checked. Flat, like every editor model
-// (ts:/draft-….ts), because the depth is what makes `import { Shows } from "theatre"`
+// (ts:/draft-….ts), because the depth is what makes `import { Repos } from "github"`
 // resolve to the app's barrel model the way it does for an open script.
 const CHECK_URI = "ts:/agent-check.ts";
 

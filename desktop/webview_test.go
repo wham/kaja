@@ -47,7 +47,7 @@ func TestWebviewHandlerServesTheCallLanesAndTheUI(t *testing.T) {
 
 	// No app named "nothing", so the app lane refuses the call rather than falling
 	// through to the UI and answering a protobuf with HTML.
-	request = httptest.NewRequest("POST", "/app/seating.Seating/GetSeatMap", emptyMessage())
+	request = httptest.NewRequest("POST", "/app/hello.HelloService/SayHello", emptyMessage())
 	request.Header.Set("Content-Type", "application/grpc-web+proto")
 	request.Header.Set("X-Header-X-Kaja-App", "nothing")
 	response = httptest.NewRecorder()
