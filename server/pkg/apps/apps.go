@@ -10,6 +10,7 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -286,8 +287,19 @@ func (m *Manager) Invoke(ctx context.Context, name string, call *Call) (Stream, 
 	instance, ok := m.instances[name]
 	m.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("app %q is not open (it may need to be recompiled)", name)
+		return nil, fmt.Errorf("app %q %w", name, ErrNotOpen)
 	}
 
 	return instance.Invoke(ctx, call)
+}
+
+// ErrNotOpen is a call naming an app nothing has opened in this process.
+var ErrNotOpen = errors.New("is not open (it may need to be recompiled)")
+
+// IsOpen reports whether an instance answers under name.
+func (m *Manager) IsOpen(name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.instances[name]
+	return ok
 }

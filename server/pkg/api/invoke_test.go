@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wham/kaja/v2/pkg/apps"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -210,4 +211,27 @@ func atLevel(t *testing.T, level slog.Level, act func()) string {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&written, &slog.HandlerOptions{Level: level})))
 	act()
 	return written.String()
+}
+
+// A process that restarted under an open window has no instance for the apps that
+// window compiled, and the window does not know to compile them again. The call
+// carries the app's name and the workspace says the rest, so the door opens it.
+func TestInvokeAppOpensAnAppNothingCompiled(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/kaja.json", []byte(`{"apps":[{"name":"notes","folder":{"path":"."}}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := NewApiService(dir+"/kaja.json", false, "", "", nil)
+
+	stream, err := service.InvokeApp(context.Background(), "folder.Folder/ListFolder", nil, map[string]string{"X-Kaja-App": "notes"})
+	if err != nil {
+		t.Fatalf("the call was refused: %v", err)
+	}
+	if _, err := stream.Recv(); err != nil {
+		t.Fatalf("the call failed: %v", err)
+	}
+
+	if _, err := service.InvokeApp(context.Background(), "folder.Folder/ListFolder", nil, map[string]string{"X-Kaja-App": "elsewhere"}); !errors.Is(err, apps.ErrNotOpen) {
+		t.Fatalf("an app the workspace doesn't name: %v", err)
+	}
 }
