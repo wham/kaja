@@ -69,13 +69,16 @@ import { matchesShortcut, useShortcutLabel } from "./shortcuts";
  * on the place, held in a clipboard of the region's own.
  */
 
-// The base indent of a row inside a group, so the group's label and its rows share a
-// left edge — the label sits behind a 12px chevron and a 6px gap, which is what makes
-// it 26 — and one level of folder depth.
-const ROW_INDENT = 26;
+// The same numbers as the Apps tree, so the two tabs read as one index: a row under a
+// group starts where a service starts under an app (the tree's 14px nested indent past
+// the group's own 8px padding), each folder is one more of the same step, and a row
+// that never branches spends the chevron column anyway so its name lines up with a
+// branch's.
+const ROW_INDENT = 22;
 const DEPTH_INDENT = 14;
-// The chevron column a folder row spends and a file row doesn't.
+// The chevron column a folder row spends and every other row leaves empty.
 const CHEVRON_SLOT = 18;
+const LEAF_INDENT = ROW_INDENT + CHEVRON_SLOT;
 // Every control at a row's right edge — a group's verb, a row's hover actions, a run
 // indicator — is an 18px box 8px in from the edge, so all of them share one column
 // with the tools in the panel's band above.
@@ -87,9 +90,8 @@ const RENAME_CLICK_MS = 450;
 // without letting go.
 const SPRING_MS = 600;
 
-const GROUP_HEADER =
-  "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
-const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-[13px] outline-none focus-visible:bg-accent/50";
+const GROUP_HEADER = "flex h-6 w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent/40";
+const ROW = "group flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -358,7 +360,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
                 <li role="treeitem">
                   <div
                     onClick={() => setShowAllDrafts(true)}
-                    style={{ paddingLeft: ROW_INDENT }}
+                    style={{ paddingLeft: LEAF_INDENT }}
                     className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
                   >
                     {hiddenDrafts} more…
@@ -515,7 +517,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
               than the rows it sits among. */}
           {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
             <li role="treeitem">
-              <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
+              <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-6 items-center py-1 pr-3 text-xs text-muted-foreground">
                 {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
               </div>
             </li>
@@ -738,7 +740,7 @@ function GroupHeader({
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onToggle()}
     >
-      <ChevronRight size={12} className={cn("shrink-0 transition-transform duration-[120ms]", open && "rotate-90")} />
+      <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", open && "rotate-90")} />
       <span className="flex-1 truncate">{label}</span>
       {/* Revealed by the cursor, and always there for the keyboard: the verb
           belongs to this group, which is why it sits on it rather than on a
@@ -795,7 +797,7 @@ function DraftRow({
     <li role="treeitem" aria-current={current || undefined}>
       <div
         tabIndex={0}
-        style={{ paddingLeft: ROW_INDENT }}
+        style={{ paddingLeft: LEAF_INDENT }}
         className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40")}
         onClick={onSelect}
         onContextMenu={(event) => {
@@ -872,7 +874,7 @@ function AgentRow({
     <li role="treeitem" aria-current={current || undefined}>
       <div
         tabIndex={0}
-        style={{ paddingLeft: ROW_INDENT }}
+        style={{ paddingLeft: LEAF_INDENT }}
         className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40")}
         onClick={onSelect}
         onMouseEnter={() => onHover(true)}
@@ -1084,7 +1086,7 @@ function NewFileRow({
   return (
     <li role="treeitem">
       <NameField
-        indent={ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT}
+        indent={LEAF_INDENT + depth * DEPTH_INDENT}
         initial={initial}
         label="File name"
         select={scriptNameParts(initial).base.length}
@@ -1200,7 +1202,7 @@ function NameField({
           }
         }}
         className={cn(
-          "h-5 min-w-0 flex-1 rounded-sm border bg-background px-1 text-[13px] text-foreground outline-none",
+          "h-5 min-w-0 flex-1 rounded-sm border bg-background px-1 text-sm text-foreground outline-none",
           error ? "border-destructive" : "border-ring",
         )}
       />
@@ -1257,7 +1259,7 @@ function FileRow({
   onRename: (name: string) => Promise<void>;
   onCancelRename: () => void;
 }) {
-  const indent = ROW_INDENT + depth * DEPTH_INDENT + CHEVRON_SLOT;
+  const indent = LEAF_INDENT + depth * DEPTH_INDENT;
   // A file has a selected state of its own, so a second click means a click on the row
   // that is open — not merely on the one the focus was left on.
   const rename = useClickRename(canRename && current, onStartRename);
