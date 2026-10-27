@@ -1,66 +1,29 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { Ban, Braces, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
+import { Ban, ChevronsUpDown, CircleAlert, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Method, Service } from "./apps";
-import { appType, appTypeLabel } from "./appTypes";
 import { cn } from "./cn";
-import { countMethods, isCompiling } from "./compileSummary";
 import { FileName } from "./FileName";
 import { Destination, matchesDestination } from "./Finder";
 import { matchParts, methodTag } from "./phone";
-import { WorkspaceControl } from "./WorkspaceMenu";
-import { unsupportedReason } from "./streaming";
 import { useMediaQuery } from "./useMediaQuery";
-import { MissingVariable, missingVariableSentence } from "./variableUsage";
-
-// Recent stops here so the apps start above the fold.
-const RESTING_RECENT = 5;
 
 interface PhoneFinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
-  // Kaja's own views, each carrying the state the sidebar would have shown.
-  workspace: Destination[];
-  // The sidebar band's workspace menu, which the phone has no sidebar to hold.
-  workspaces?: WorkspaceControl;
-  apps: App[];
-  onSelectMethod: (method: Method, service: Service, app: App) => void;
-  onEditApp: (appName: string) => void;
-  missingVariables: Map<string, MissingVariable[]>;
-  onRevealVariable: (name: string) => void;
-  // Absent where the workspace can't be written.
-  onNewApp?: () => void;
   errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * The finder as the phone's whole navigation. Its trigger is the header — the one
- * thing that says where you are — and it opens as a sheet over the window. With no
- * query it is where you have been, the app tree expanding in place, and Kaja's own
- * views; with one it is the same ranked list the desktop finder gives, with nothing
- * between the rows.
+ * The finder on a phone, as it is on the desktop: its trigger is the header's label,
+ * the one thing that says where you are, and it opens as a sheet over the window.
+ * With no query it is where you have been; with one it is the same ranked list the
+ * desktop finder gives, with nothing between the rows.
  */
-export function PhoneFinder({
-  recent,
-  elsewhere,
-  workspace,
-  workspaces,
-  apps,
-  onSelectMethod,
-  onEditApp,
-  missingVariables,
-  onRevealVariable,
-  onNewApp,
-  errorCount,
-  open,
-  onOpenChange,
-}: PhoneFinderProps) {
+export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange }: PhoneFinderProps) {
   const [query, setQuery] = useState("");
-  const [showAllRecent, setShowAllRecent] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   // A field focused on opening brings the keyboard up over the list, and the list is
   // what the sheet opened to show.
@@ -70,9 +33,6 @@ export function PhoneFinder({
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    setShowAllRecent(false);
-    // One app is not a choice, so it opens already unfolded.
-    setExpanded(new Set(apps.length === 1 ? [apps[0].configuration.name] : []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -82,37 +42,18 @@ export function PhoneFinder({
     if (term === "") return [];
     const seen = new Set<string>();
     const rows: Destination[] = [];
-    for (const destination of [...recent, ...elsewhere, ...workspace]) {
+    for (const destination of [...recent, ...elsewhere]) {
       if (seen.has(destination.key) || !matchesDestination(destination, term)) continue;
       seen.add(destination.key);
       rows.push(destination);
     }
     return rows;
-  }, [recent, elsewhere, workspace, term]);
-
-  const matchingApps = useMemo(() => (term === "" ? [] : apps.filter((app) => app.configuration.name.toLowerCase().includes(term))), [apps, term]);
+  }, [recent, elsewhere, term]);
 
   const select = (destination: Destination) => {
     destination.go();
     onOpenChange(false);
   };
-
-  const selectMethod = (method: Method, service: Service, app: App) => {
-    onSelectMethod(method, service, app);
-    onOpenChange(false);
-  };
-
-  const toggleApp = (name: string) => {
-    setExpanded((previous) => {
-      const next = new Set(previous);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
-
-  const recentRows = showAllRecent ? recent : recent.slice(0, RESTING_RECENT);
-  const hiddenRecent = recent.length - recentRows.length;
 
   const Icon = errorCount > 0 ? CircleAlert : current.icon;
   const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : current.origin;
@@ -190,155 +131,23 @@ export function PhoneFinder({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
               {term !== "" ? (
                 <>
-                  {results.length === 0 && matchingApps.length === 0 && (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">Nothing matches “{query}”.</div>
-                  )}
+                  {results.length === 0 && <div className="px-4 py-3 text-sm text-muted-foreground">Nothing matches “{query}”.</div>}
                   {results.map((destination, index) => (
                     <ResultRow key={destination.key} destination={destination} query={query} first={index === 0} onSelect={() => select(destination)} />
-                  ))}
-                  {/* An app is not a place to go, so picking one opens its tree here. */}
-                  {matchingApps.map((app) => (
-                    <Row
-                      key={`app:${app.configuration.name}`}
-                      onClick={() => {
-                        setQuery("");
-                        setExpanded((previous) => new Set([...previous, app.configuration.name]));
-                      }}
-                    >
-                      <span className="w-4 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        <Matched text={app.configuration.name} query={query} />
-                      </span>
-                      <AppDetail app={app} missing={missingVariables.get(app.configuration.name)} />
-                    </Row>
                   ))}
                 </>
               ) : (
                 <>
-                  {recentRows.length > 0 && <SectionHeader>Recent</SectionHeader>}
-                  {recentRows.map((destination, index) => (
+                  {recent.length > 0 && <SectionHeader>Recent</SectionHeader>}
+                  {recent.map((destination, index) => (
                     <DestinationRow key={destination.key} destination={destination} current={index === 0} onSelect={() => select(destination)} />
                   ))}
-                  {hiddenRecent > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllRecent(true)}
-                      className="flex h-10 w-full items-center pl-11 pr-4 text-left text-sm text-muted-foreground"
-                    >
-                      {hiddenRecent} more…
-                    </button>
-                  )}
-
-                  {(apps.length > 0 || onNewApp) && (
-                    <>
-                      <Divider />
-                      <SectionHeader>Apps</SectionHeader>
-                    </>
-                  )}
-                  {apps.map((app) => {
-                    const name = app.configuration.name;
-                    const isExpanded = expanded.has(name);
-                    const missing = missingVariables.get(name);
-                    return (
-                      <div key={name}>
-                        <Row onClick={() => toggleApp(name)} aria-expanded={isExpanded}>
-                          {isExpanded ? (
-                            <ChevronDown size={16} className="shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
-                          )}
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-                          <AppDetail app={app} missing={missing} />
-                        </Row>
-                        {isExpanded &&
-                          missing?.map((variable) => (
-                            <Row
-                              key={variable.name}
-                              onClick={() => {
-                                onRevealVariable(variable.name);
-                                onOpenChange(false);
-                              }}
-                              className="pl-11"
-                            >
-                              <Braces size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                              <span className="min-w-0 flex-1 truncate text-sm text-amber-700 dark:text-amber-300">{missingVariableSentence(variable)}</span>
-                            </Row>
-                          ))}
-                        {/* Above the tree: a failed app has none, and is the one that needs its settings. */}
-                        {isExpanded && (
-                          <Row
-                            onClick={() => {
-                              onEditApp(name);
-                              onOpenChange(false);
-                            }}
-                            className="pl-11"
-                          >
-                            <Settings size={16} className="shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">Settings</span>
-                          </Row>
-                        )}
-                        {isExpanded && !isCompiling(app) && <AppTree app={app} onSelect={selectMethod} />}
-                      </div>
-                    );
-                  })}
-                  {onNewApp && (
-                    <Row
-                      onClick={() => {
-                        onNewApp();
-                        onOpenChange(false);
-                      }}
-                    >
-                      <Plus size={16} className="shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">New app</span>
-                    </Row>
-                  )}
-
-                  {workspace.length > 0 && (
-                    <>
-                      <Divider />
-                      <SectionHeader>Kaja</SectionHeader>
-                    </>
-                  )}
-                  {workspace.map((destination) => (
-                    <DestinationRow key={destination.key} destination={destination} onSelect={() => select(destination)} />
-                  ))}
-
-                  {workspaces && (
-                    <>
-                      <Divider />
-                      <SectionHeader>Workspace</SectionHeader>
-                      {workspaces.known.map((known) => {
-                        const current = known.dir === workspaces.current.dir;
-                        return (
-                          <Row
-                            key={known.dir}
-                            onClick={() => {
-                              if (!current) workspaces.onOpen(known.dir);
-                              onOpenChange(false);
-                            }}
-                          >
-                            <Check size={16} className={cn("shrink-0", !current && "invisible")} />
-                            <span className="min-w-0 flex-1 truncate text-sm">{known.name}</span>
-                          </Row>
-                        );
-                      })}
-                      <Row
-                        onClick={() => {
-                          workspaces.onChoose();
-                          onOpenChange(false);
-                        }}
-                      >
-                        <FolderOpen size={16} className="shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">Open workspace…</span>
-                      </Row>
-                    </>
-                  )}
                 </>
               )}
             </div>
             {term !== "" && (
               <div className="flex h-[44px] shrink-0 items-center border-t border-border px-4 text-xs text-muted-foreground">
-                {results.length + matchingApps.length} {results.length + matchingApps.length === 1 ? "match" : "matches"}
+                {results.length} {results.length === 1 ? "match" : "matches"}
               </div>
             )}
           </BaseDialog.Popup>
@@ -360,10 +169,6 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return <div className="px-4 pb-1 pt-1 text-xs uppercase tracking-[0.06em] text-muted-foreground">{children}</div>;
 }
 
-function Divider() {
-  return <div className="mx-4 my-2 border-t border-border" />;
-}
-
 function Matched({ text, query }: { text: string; query: string }) {
   return (
     <>
@@ -376,64 +181,6 @@ function Matched({ text, query }: { text: string; query: string }) {
           <span key={index}>{part.text}</span>
         ),
       )}
-    </>
-  );
-}
-
-// The same sentence the sidebar's row says about an app, in the room a phone row has.
-function AppDetail({ app, missing }: { app: App; missing?: MissingVariable[] }) {
-  if (app.compilation.status === "error") {
-    return (
-      <span className="flex shrink-0 items-center gap-1.5 text-xs text-destructive">
-        <span className="size-1.5 rounded-full bg-destructive" />
-        failed
-      </span>
-    );
-  }
-  if (isCompiling(app)) return <span className="shrink-0 text-xs text-muted-foreground">compiling…</span>;
-  if (missing && missing.length > 0) {
-    return (
-      <span className="flex shrink-0 items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-        <span className="size-1.5 rounded-full bg-amber-500" />
-        {missing.length === 1 ? `needs ${missing[0].name}` : `needs ${missing.length} variables`}
-      </span>
-    );
-  }
-  const methods = countMethods(app);
-  return (
-    <span className="shrink-0 text-xs text-muted-foreground">
-      {appTypeLabel(appType(app.configuration))} · {methods} {methods === 1 ? "method" : "methods"}
-    </span>
-  );
-}
-
-function AppTree({ app, onSelect }: { app: App; onSelect: (method: Method, service: Service, app: App) => void }) {
-  const type = appType(app.configuration);
-  const grouped = app.services.length > 1;
-  return (
-    <>
-      {app.services.map((service) => (
-        <div key={`${service.packageName}.${service.name}`}>
-          {grouped && <div className="flex h-8 items-center pl-11 pr-4 text-xs text-muted-foreground">{service.name}</div>}
-          {service.methods.map((method) => {
-            const unsupported = unsupportedReason(method, type) !== undefined;
-            return (
-              <Row key={method.name} onClick={() => onSelect(method, service, app)} className="pl-11">
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-sm",
-                    (unsupported || method.deprecated) && "text-muted-foreground",
-                    method.deprecated && "line-through",
-                  )}
-                >
-                  {method.name}
-                </span>
-                <MethodMark tag={methodTag(method)} uncallable={unsupported} />
-              </Row>
-            );
-          })}
-        </div>
-      ))}
     </>
   );
 }
