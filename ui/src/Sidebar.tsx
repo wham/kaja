@@ -77,7 +77,7 @@ export const SIDEBAR_TABS: SidebarTab[] = ["apps", "scripts"];
 export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // An app's row, and the one row the empty list draws in its place.
-const SECTION_ROW = "flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 text-sm font-medium text-foreground";
+const SECTION_ROW = "flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground";
 
 // Small enough to sit inside a 24px row, which is what lets the frequent verbs live
 // on the row instead of behind a menu. Every one of them sits in an 18px box 16px in
@@ -530,7 +530,7 @@ function GlobalBand({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-[3px]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-[15px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       {workspace ? (
@@ -610,7 +610,7 @@ function TabRow({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-7 shrink-0 items-center pr-2 pl-2.5">
+    <div className="flex h-7 shrink-0 items-center pr-5 pl-2.5">
       <div
         role="tablist"
         aria-label="Sidebar"
@@ -714,7 +714,7 @@ function TabPane({
       onScroll={(event) => {
         paneScroll.current[tab] = event.currentTarget.scrollTop;
       }}
-      className="min-h-0 flex-1 overflow-y-auto p-2"
+      className="min-h-0 flex-1 overflow-y-auto py-2 pr-3 pl-2"
     >
       {children}
     </div>
