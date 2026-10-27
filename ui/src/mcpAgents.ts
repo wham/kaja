@@ -32,6 +32,8 @@ export interface McpAgent {
    */
   configurationKey?: string;
   install?: { label: string; link: (endpoint: McpEndpoint) => string };
+  /** Whether the agent can run its MCP client inside a dev container. */
+  container?: boolean;
   snippet: (endpoint: McpEndpoint) => string;
 }
 
@@ -45,6 +47,16 @@ function cursorLink({ url, token }: McpEndpoint): string {
 function vsCodeLink({ url, token }: McpEndpoint): string {
   const server = { name: "kaja", type: "http", url, headers: { Authorization: `Bearer ${token}` } };
   return `vscode:mcp/install?${encodeURIComponent(JSON.stringify(server))}`;
+}
+
+// Inside a container the loopback address is the container's own, and Docker Desktop
+// and OrbStack answer host.docker.internal with the host's loopback, which is where the
+// listener is. A URL that isn't loopback reaches the container as it is.
+export function containerUrl(url: string): string | undefined {
+  const parsed = new URL(url);
+  if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") return undefined;
+  parsed.hostname = "host.docker.internal";
+  return parsed.toString();
 }
 
 function mcpServers(body: string): string {
@@ -93,6 +105,7 @@ export const mcpAgents: McpAgent[] = [
     lead: "Opens Cursor through its deeplink handler and prefills the server; Cursor writes mcp.json once you accept. Below is the equivalent hand-edit.",
     configurationKey: "cursor",
     install: { label: "Add to Cursor", link: cursorLink },
+    container: true,
     snippet: ({ url, token }) => mcpServers(`      "url": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
   },
   {
@@ -101,6 +114,7 @@ export const mcpAgents: McpAgent[] = [
     path: "run in a terminal",
     lead: "Opens VS Code's install prompt through its vscode: handler; VS Code writes the server into its own settings. The command below does the same thing without the handler.",
     install: { label: "Add to VS Code", link: vsCodeLink },
+    container: true,
     snippet: ({ url, token }) => `code --add-mcp '{"name":"kaja","type":"http",\n  "url":"${url}",\n  "headers":{"Authorization":"Bearer ${token}"}}'`,
   },
   {

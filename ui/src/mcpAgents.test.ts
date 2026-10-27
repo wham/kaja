@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mcpAgents, type McpAgent } from "./mcpAgents";
+import { containerUrl, mcpAgents, type McpAgent } from "./mcpAgents";
 
 const endpoint = { url: "http://127.0.0.1:41521/mcp", token: "170e16de0d09011feb6b7fddfff0813a7007000f8f31935d" };
 
@@ -45,5 +45,11 @@ describe("mcpAgents", () => {
       url: endpoint.url,
       headers: { Authorization: `Bearer ${endpoint.token}` },
     });
+  });
+
+  test("a container reaches a loopback endpoint through the Docker host", () => {
+    expect(containerUrl("http://127.0.0.1:41521/mcp")).toBe("http://host.docker.internal:41521/mcp");
+    expect(containerUrl("http://localhost:41520/mcp")).toBe("http://host.docker.internal:41520/mcp");
+    expect(containerUrl("https://demo.kaja.tools/mcp")).toBeUndefined();
   });
 });
