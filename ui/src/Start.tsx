@@ -82,7 +82,7 @@ export function Start({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background">
       <div className={cn("flex flex-col gap-6 py-[18px]", phone ? "px-4" : "px-5")}>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="m-0 text-xs text-muted-foreground">Pick a method in the {phone ? "finder" : "sidebar"} and Kaja drafts a script.</p>
+          <p className="m-0 text-xs text-muted-foreground">Pick a method in the sidebar and Kaja drafts a script.</p>
           <BlankslateActions onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} phone={phone} />
         </div>
         <section aria-label="Scripts" className="flex flex-col gap-2">

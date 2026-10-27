@@ -1,6 +1,6 @@
 import { useMediaQuery } from "./useMediaQuery";
 import { PHONE_QUERY, methodTag } from "./phone";
-import { PhoneFinder } from "./PhoneFinder";
+import { PhoneDrawer, PhoneTitle } from "./PhoneDrawer";
 import { PhoneFrame } from "./PhoneFrame";
 import { summarizeCompilation } from "./compileSummary";
 import { Dialog } from "./components/dialog";
@@ -272,6 +272,7 @@ export function App() {
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [zoom, setZoom] = usePersistedState<number>("zoom", DEFAULT_ZOOM);
   useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
+  // On a phone this is the drawer, and "previous" is the drawer opened on its search.
   const [finder, setFinder] = useState<"first" | "previous">();
   const viewsRef = useRef(views);
   viewsRef.current = views;
@@ -2684,7 +2685,7 @@ export function App() {
     onOpenWorkspace,
   ]);
 
-  // Kaja's own views on the phone's finder, each wearing the state the Apps tab
+  // Kaja's own views in the phone's drawer, each wearing the state the Apps tab
   // and the sidebar's band would have shown.
   const phoneWorkspace = useMemo<Destination[]>(() => {
     const rows: Destination[] = [
@@ -2875,7 +2876,7 @@ export function App() {
           onNewAppClick={onNewAppClick}
           onConnectAgentClick={mcpControl ? onMcpClick : undefined}
           canUpdateWorkspace={runtime.canUpdateWorkspace}
-          onOpenFinder={() => setFinder("first")}
+          onOpenFinder={() => setFinder(isPhone ? "previous" : "first")}
           onNewDraft={onNewDraft}
           apps={apps}
           scripts={scripts}
@@ -2997,8 +2998,9 @@ export function App() {
     <>
       {isPhone ? (
         <PhoneFrame
-          finder={
-            <PhoneFinder
+          title={<PhoneTitle current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
+          drawer={
+            <PhoneDrawer
               recent={recent}
               elsewhere={elsewhere}
               workspace={phoneWorkspace}
@@ -3009,11 +3011,13 @@ export function App() {
               missingVariables={missingApps}
               onRevealVariable={onRevealVariable}
               onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
-              errorCount={currentIsEditor ? syntaxErrors.count : 0}
               open={finder !== undefined}
-              onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
+              searchOnOpen={finder === "previous"}
+              onClose={() => setFinder(undefined)}
             />
           }
+          drawerOpen={finder !== undefined}
+          onDrawerOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
           action={action}
           script={phoneScript}
           onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}

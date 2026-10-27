@@ -35,9 +35,9 @@ export interface Destination {
   // A call the API deprecated. Dimmed and struck through, as it is in the tree and
   // in the editor; it is still a call, so it keeps its place and its ⏎.
   deprecated?: boolean;
-  // A method, which the phone's finder names by its service rather than by an icon.
+  // A method, which the phone's search names by its service rather than by an icon.
   call?: boolean;
-  // The one word the phone's finder puts beside a method: what calling it does.
+  // The one word the phone's drawer puts beside a method: what calling it does.
   tag?: MethodTag;
   // A dot and a word for a row that reports on something — Kaja's own MCP server, the
   // compilation — where the phone has no sidebar to say it in.

@@ -18,7 +18,7 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, phone = false }: No
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
       <div className="flex flex-col items-center gap-2">
         <FileCode size={28} className="text-muted-foreground" />
-        <p className="m-0 text-sm text-foreground">Pick a method in the {phone ? "finder" : "sidebar"} and Kaja drafts a script.</p>
+        <p className="m-0 text-sm text-foreground">Pick a method in the sidebar and Kaja drafts a script.</p>
         <p className="m-0 text-xs text-muted-foreground">Edit it, run it, save it as a file.</p>
       </div>
       <BlankslateActions onOpenFinder={onOpenFinder} onNewDraft={onNewDraft} phone={phone} />

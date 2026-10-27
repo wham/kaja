@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { matchParts, methodTag, sheetStops, snapSheet, tapSheet } from "./phone";
+import { matchParts, methodTag, sheetStops, snapDrawer, snapSheet, tapSheet } from "./phone";
 
 describe("sheetStops", () => {
   it("orders the three places from the top down", () => {
@@ -8,6 +8,19 @@ describe("sheetStops", () => {
       { position: "half", offset: 270 },
       { position: "rest", offset: 600 },
     ]);
+  });
+});
+
+describe("snapDrawer", () => {
+  it("follows a flick whichever way it went, however short", () => {
+    expect(snapDrawer(0.1, 1)).toBe(true);
+    expect(snapDrawer(0.9, -1)).toBe(false);
+  });
+
+  it("lands a slow drag on the nearer end", () => {
+    expect(snapDrawer(0.7, 0.1)).toBe(true);
+    expect(snapDrawer(0.3, -0.1)).toBe(false);
+    expect(snapDrawer(0.5, 0)).toBe(true);
   });
 });
 

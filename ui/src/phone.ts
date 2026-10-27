@@ -2,9 +2,9 @@ import { Method } from "./apps";
 import { streamingKind } from "./streaming";
 
 /**
- * One breakpoint. Under it the window is a phone: no sidebar, no splitters, no status
- * bar, and the finder is the whole of the navigation. Above it the desktop frame is
- * drawn unchanged, so an iPad in landscape is the desktop.
+ * One breakpoint. Under it the window is a phone: no splitters, no status bar, and
+ * the sidebar is a drawer under the page. Above it the desktop frame is drawn
+ * unchanged, so an iPad in landscape is the desktop.
  */
 export const PHONE_QUERY = "(max-width: 639px)";
 
@@ -52,6 +52,17 @@ export function snapSheet(offset: number, stops: SheetStop[], velocity: number, 
     return stops[Math.max(0, Math.min(stops.length - 1, (at === -1 ? 0 : at) + step))].position;
   }
   return stops.reduce((nearest, stop) => (Math.abs(stop.offset - offset) < Math.abs(nearest.offset - offset) ? stop : nearest)).position;
+}
+
+/**
+ * Where the drawer lands when it is let go. `progress` is how far open it was left,
+ * 0 to 1, and `velocity` is in px/ms, positive toward open. A flick goes its own way
+ * however little it travelled; anything slower by which end is nearer.
+ */
+export function snapDrawer(progress: number, velocity: number): boolean {
+  if (velocity > FLICK_VELOCITY) return true;
+  if (velocity < -FLICK_VELOCITY) return false;
+  return progress >= 0.5;
 }
 
 /** A tap on the chrome raises a resting sheet and drops a raised one. */
