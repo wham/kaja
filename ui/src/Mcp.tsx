@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { Button } from "./components/button";
+import { Checkbox } from "./components/checkbox";
 import { IconButton } from "./components/icon-button";
 import { Switch } from "./components/switch";
-import { mcpAgents, type McpEndpoint } from "./mcpAgents";
+import { containerUrl, mcpAgents, type McpEndpoint } from "./mcpAgents";
 import { isListening, mcpDotClass, mcpStatusOf, type McpConnection, type McpControl } from "./mcpState";
 import { desktop, isWailsEnvironment, openInBrowser } from "./wails";
 
@@ -44,6 +45,7 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState<CopyTarget>();
   const [armed, setArmed] = useState(false);
+  const [inContainer, setInContainer] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const armTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -63,7 +65,9 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   // and on neither is it the server's: a stopped server still has the one every pasted
   // configuration names, which is why the band states both with the switch off.
   const endpoint: McpEndpoint = { url: info?.url || idleUrl(), token: info?.token ?? "" };
-  const snippet = agent.snippet(endpoint);
+  const fromContainer = agent.container ? containerUrl(endpoint.url) : undefined;
+  const agentEndpoint = fromContainer && inContainer ? { ...endpoint, url: fromContainer } : endpoint;
+  const snippet = agent.snippet(agentEndpoint);
   const configurationPath = agent.configurationKey ? info?.configurationPaths?.[agent.configurationKey] : undefined;
   const canReveal = isWailsEnvironment() && !!configurationPath;
   const written = !!endpoint.token;
@@ -89,7 +93,7 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   };
 
   const install = () => {
-    const link = agent.install?.link(endpoint);
+    const link = agent.install?.link(agentEndpoint);
     if (!link) return;
     if (isWailsEnvironment()) {
       openInBrowser(link);
@@ -164,6 +168,13 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
                 )}
               </div>
               <p className="m-0 text-xs leading-[1.6] text-pretty text-muted-foreground">{agent.lead}</p>
+              {fromContainer && (
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                  <Checkbox checked={inContainer} onCheckedChange={(checked) => setInContainer(checked === true)} />
+                  {agent.name} runs in a dev container
+                  <span className="text-muted-foreground">reaches Kaja at host.docker.internal</span>
+                </label>
+              )}
               <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border", !written && "opacity-45")}>
                 <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border bg-muted pl-2.5 pr-1">
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{agent.path}</span>
