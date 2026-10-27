@@ -530,7 +530,7 @@ function GlobalBand({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-[3px]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-[15px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       {workspace ? (
