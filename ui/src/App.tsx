@@ -1,8 +1,7 @@
 import { useMediaQuery } from "./useMediaQuery";
 import { PHONE_QUERY, methodTag } from "./phone";
-import { PhoneDrawer, PhoneTitle } from "./PhoneDrawer";
+import { PhoneFinder } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
-import { summarizeCompilation } from "./compileSummary";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
@@ -84,7 +83,7 @@ import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
 import { effectiveShortcuts, saveMcpEnabled, saveShortcuts, useSettings } from "./settings";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
 import { Mcp } from "./Mcp";
-import { mcpDotClass, mcpStatusOf, type McpControl } from "./mcpState";
+import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useWorkspaceChanges } from "./useWorkspaceChanges";
 import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
@@ -272,8 +271,10 @@ export function App() {
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [zoom, setZoom] = usePersistedState<number>("zoom", DEFAULT_ZOOM);
   useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
-  // On a phone this is the drawer, and "previous" is the drawer opened on its search.
   const [finder, setFinder] = useState<"first" | "previous">();
+  // The phone's sidebar is a drawer, so it is a passing state rather than a persisted
+  // collapse: every launch opens on the page.
+  const [phoneSidebarOpen, setPhoneSidebarOpen] = useState(false);
   const viewsRef = useRef(views);
   viewsRef.current = views;
   const draftsRef = useRef(drafts);
@@ -384,8 +385,7 @@ export function App() {
   );
   // The plug in the sidebar's band and the page's headline are one derivation, so the
   // two can never say different things about the same server.
-  const mcpBandStatus = mcpControl ? mcpStatusOf(mcpConnection, mcpControl, mcpActive) : undefined;
-  const mcpBandState = mcpBandStatus?.state;
+  const mcpBandState = mcpControl ? mcpStatusOf(mcpConnection, mcpControl, mcpActive).state : undefined;
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -2685,53 +2685,6 @@ export function App() {
     onOpenWorkspace,
   ]);
 
-  // Kaja's own views in the phone's drawer, each wearing the state the Apps tab
-  // and the sidebar's band would have shown.
-  const phoneWorkspace = useMemo<Destination[]>(() => {
-    const rows: Destination[] = [
-      {
-        key: "variables",
-        name: "Variables",
-        path: "",
-        origin: "",
-        icon: Braces,
-        status:
-          missing.length === 0 ? undefined : { dot: "bg-amber-500", note: missing.length === 1 ? `${missing[0].name} missing` : `${missing.length} missing` },
-        go: missing.length === 0 ? onVariablesClick : () => onRevealVariable(missing[0].name),
-      },
-    ];
-    if (mcpControl && mcpBandStatus) {
-      rows.push({
-        key: "mcp",
-        name: "MCP server",
-        path: "",
-        origin: "",
-        icon: Plug,
-        status: { dot: mcpDotClass(mcpBandStatus.state) ?? "bg-emerald-500", note: mcpBandStatus.headline },
-        go: onMcpClick,
-      });
-    }
-    if (apps.length > 0) {
-      const compile = summarizeCompilation(apps, workspaceLoaded);
-      const dot =
-        compile.state === "failed"
-          ? "bg-destructive"
-          : compile.state === "warning" || compile.state === "compiling" || compile.state === "loading"
-            ? "bg-amber-500"
-            : "bg-emerald-500";
-      rows.push({
-        key: "compiler",
-        name: "Compile log",
-        path: "",
-        origin: "",
-        icon: ScrollText,
-        status: { dot, note: `${apps.length} ${apps.length === 1 ? "app" : "apps"}` },
-        go: () => onShowCompileLog(),
-      });
-    }
-    return rows;
-  }, [apps, workspaceLoaded, mcpControl, mcpBandStatus, missing, onVariablesClick, onRevealVariable, onMcpClick, onShowCompileLog]);
-
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
@@ -2876,7 +2829,7 @@ export function App() {
           onNewAppClick={onNewAppClick}
           onConnectAgentClick={mcpControl ? onMcpClick : undefined}
           canUpdateWorkspace={runtime.canUpdateWorkspace}
-          onOpenFinder={() => setFinder(isPhone ? "previous" : "first")}
+          onOpenFinder={() => setFinder("first")}
           onNewDraft={onNewDraft}
           apps={apps}
           scripts={scripts}
@@ -2936,6 +2889,15 @@ export function App() {
 
   // Built once per change to what it shows, so the sidebar's memo holds across a run's
   // calls and a compile's lines.
+  const closingSidebar = useCallback(
+    <A extends unknown[]>(fn: (...args: A) => unknown) =>
+      (...args: A) => {
+        setPhoneSidebarOpen(false);
+        fn(...args);
+      },
+    [],
+  );
+
   const scriptsRegion = useMemo(
     () => (
       <ScriptsRegion
@@ -2948,11 +2910,11 @@ export function App() {
         agentFileIds={agentFiles}
         waitingFileIds={waitingFiles}
         canWrite={canWriteFiles}
-        onDraftSelect={onDraftSelect}
+        onDraftSelect={isPhone ? closingSidebar(onDraftSelect) : onDraftSelect}
         onSaveDraftAsFile={onSaveDraftAsFile}
         onDiscardDraft={onDiscardDraft}
         onDiscardAllDrafts={onDiscardAllDrafts}
-        onScriptSelect={onScriptSelect}
+        onScriptSelect={isPhone ? closingSidebar(onScriptSelect) : onScriptSelect}
         onRenameScript={canWriteFiles ? onRenameScript : undefined}
         onMoveScript={canWriteFiles ? onMoveScript : undefined}
         onDeleteScript={canWriteFiles ? onDeleteScript : undefined}
@@ -2991,33 +2953,68 @@ export function App() {
       onDeleteFolder,
       onCopyFolder,
       onRevealScripts,
+      isPhone,
+      closingSidebar,
     ],
+  );
+
+  // On a phone the sidebar covers the page, so whatever it opens has to put it away.
+  const phoneClosing = <A extends unknown[]>(fn: (...args: A) => unknown) => (isPhone ? closingSidebar(fn) : fn);
+  const sidebar = (
+    <>
+      <Sidebar
+        apps={apps}
+        tab={sidebarTab}
+        onTabChange={setSidebarTab}
+        canUpdateWorkspace={runtime.canUpdateWorkspace}
+        onSelect={phoneClosing(onMethodSelect)}
+        workspaceLoaded={workspaceLoaded}
+        onShowCompileLog={phoneClosing(onShowCompileLog)}
+        onRecompileApp={onRecompile}
+        onNewAppClick={phoneClosing(onNewAppClick)}
+        onNewScript={phoneClosing(onNewDraft)}
+        onVariablesClick={phoneClosing(onVariablesClick)}
+        variablesMissing={missing.length > 0}
+        missingVariables={missingApps}
+        onRevealVariable={phoneClosing(onRevealVariable)}
+        onMcpClick={mcpControl ? phoneClosing(onMcpClick) : undefined}
+        mcpState={mcpBandState}
+        autoExpandApp={autoExpandApp}
+        reserveTrafficLights={isDesktopMac}
+        workspace={workspaceControl}
+        onEditApp={phoneClosing(onEditApp)}
+        onDeleteApp={onDeleteApp}
+        scriptsRegion={scriptsRegion}
+      />
+      <SidebarFoot
+        colorMode={colorMode}
+        onToggleColorMode={onToggleColorMode}
+        zoom={zoom}
+        onResetZoom={onResetZoom}
+        gitRef={runtime.gitRef}
+        featurePreviews={featurePreviews}
+        onToggleFeaturePreview={onToggleFeaturePreview}
+        onShowShortcuts={phoneClosing(onShortcutsClick)}
+      />
+    </>
   );
 
   return (
     <>
       {isPhone ? (
         <PhoneFrame
-          title={<PhoneTitle current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
-          drawer={
-            <PhoneDrawer
+          finder={
+            <PhoneFinder
               recent={recent}
               elsewhere={elsewhere}
-              workspace={phoneWorkspace}
-              workspaces={workspaceControl}
-              apps={apps}
-              onSelectMethod={(method, service, app) => void onMethodSelect(method, service, app)}
-              onEditApp={onEditApp}
-              missingVariables={missingApps}
-              onRevealVariable={onRevealVariable}
-              onNewApp={runtime.canUpdateWorkspace ? onNewAppClick : undefined}
+              errorCount={currentIsEditor ? syntaxErrors.count : 0}
               open={finder !== undefined}
-              searchOnOpen={finder === "previous"}
-              onClose={() => setFinder(undefined)}
+              onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
             />
           }
-          drawerOpen={finder !== undefined}
-          onDrawerOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
+          drawer={sidebar}
+          drawerOpen={phoneSidebarOpen}
+          onDrawerOpenChange={setPhoneSidebarOpen}
           action={action}
           script={phoneScript}
           onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
@@ -3065,40 +3062,7 @@ export function App() {
                   overflow: "hidden",
                 }}
               >
-                <Sidebar
-                  apps={apps}
-                  tab={sidebarTab}
-                  onTabChange={setSidebarTab}
-                  canUpdateWorkspace={runtime.canUpdateWorkspace}
-                  onSelect={onMethodSelect}
-                  workspaceLoaded={workspaceLoaded}
-                  onShowCompileLog={onShowCompileLog}
-                  onRecompileApp={onRecompile}
-                  onNewAppClick={onNewAppClick}
-                  onNewScript={onNewDraft}
-                  onVariablesClick={onVariablesClick}
-                  variablesMissing={missing.length > 0}
-                  missingVariables={missingApps}
-                  onRevealVariable={onRevealVariable}
-                  onMcpClick={mcpControl ? onMcpClick : undefined}
-                  mcpState={mcpBandState}
-                  autoExpandApp={autoExpandApp}
-                  reserveTrafficLights={isDesktopMac}
-                  workspace={workspaceControl}
-                  onEditApp={onEditApp}
-                  onDeleteApp={onDeleteApp}
-                  scriptsRegion={scriptsRegion}
-                />
-                <SidebarFoot
-                  colorMode={colorMode}
-                  onToggleColorMode={onToggleColorMode}
-                  zoom={zoom}
-                  onResetZoom={onResetZoom}
-                  gitRef={runtime.gitRef}
-                  featurePreviews={featurePreviews}
-                  onToggleFeaturePreview={onToggleFeaturePreview}
-                  onShowShortcuts={onShortcutsClick}
-                />
+                {sidebar}
               </div>
             )}
             <Splitter orientation="vertical" quiet onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />

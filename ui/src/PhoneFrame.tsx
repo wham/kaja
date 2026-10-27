@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { PanelLeftOpen } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -39,8 +39,9 @@ export interface PhoneScript {
 }
 
 interface PhoneFrameProps {
-  // Where you are, said in the header that opens the drawer.
-  title: React.ReactNode;
+  // The finder, trigger and sheet both: the trigger is the header's label.
+  finder: React.ReactNode;
+  // The sidebar, which a phone draws under the page rather than beside it.
   drawer: React.ReactNode;
   drawerOpen: boolean;
   onDrawerOpenChange: (open: boolean) => void;
@@ -60,12 +61,13 @@ interface PhoneFrameProps {
 
 /**
  * The window under 640px: the sidebar as a drawer under the page, and a page that is
- * a header, the view under it, and on a script, its code as an overlay raised over
- * the run. The page slides right to show the drawer, from the header or from a swipe
- * at the left edge, and follows the finger while it does.
+ * the command row's sidebar toggle, finder and action, the view under them, and on a
+ * script, its code as an overlay raised over the run. The page slides right to show
+ * the drawer, from the toggle or from a swipe at the left edge, and follows the
+ * finger while it does.
  */
 export function PhoneFrame({
-  title,
+  finder,
   drawer,
   drawerOpen,
   onDrawerOpenChange,
@@ -241,7 +243,7 @@ export function PhoneFrame({
       <nav
         ref={drawerRef}
         id="phone-drawer"
-        aria-label="Navigation"
+        aria-label="Sidebar"
         tabIndex={-1}
         inert={!drawerOpen}
         onKeyDown={(event) => {
@@ -251,6 +253,7 @@ export function PhoneFrame({
         style={{
           width: "var(--drawer-width)",
           paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
           transform: "translateX(calc((var(--drawer-progress) - 1) * var(--drawer-width) * 0.3))",
         }}
       >
@@ -269,17 +272,15 @@ export function PhoneFrame({
             <button
               ref={triggerRef}
               type="button"
+              aria-label="Show sidebar"
               aria-expanded={drawerOpen}
               aria-controls="phone-drawer"
               onClick={() => onDrawerOpenChange(true)}
-              className="flex h-[36px] min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="sr-only">Navigation: </span>
-              <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground">
-                <Menu size={18} />
-              </span>
-              {title}
+              <PanelLeftOpen size={18} />
             </button>
+            {finder}
             {action}
           </div>
         </div>
@@ -310,10 +311,10 @@ export function PhoneFrame({
           />
         </div>
       </div>
-      {/* The page left showing beside the drawer is dimmed, and a tap on it is the way back. */}
+      {/* The page left showing beside the sidebar is dimmed, and a tap on it is the way back. */}
       <button
         type="button"
-        aria-label="Close navigation"
+        aria-label="Hide sidebar"
         inert={!drawerOpen}
         onClick={() => onDrawerOpenChange(false)}
         className={cn("absolute inset-0 bg-black", slide, !drawerOpen && "pointer-events-none")}
