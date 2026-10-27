@@ -157,6 +157,15 @@ func (f *fakeBridge) RenameScript(path, newName string) (ScriptInfo, error) {
 	f.scripts[np] = c
 	return ScriptInfo{Path: np, Name: newName, Content: c}, nil
 }
+func (f *fakeBridge) RenameFolder(path, newName string) (string, error) {
+	for name, content := range f.scripts {
+		if rest, ok := strings.CutPrefix(name, "/s/"+path+"/"); ok {
+			delete(f.scripts, name)
+			f.scripts["/s/"+newName+"/"+rest] = content
+		}
+	}
+	return newName, nil
+}
 func (f *fakeBridge) DeleteScript(path string) error { delete(f.scripts, path); return nil }
 func (f *fakeBridge) RunScript(_ context.Context, path, code, client string, progress func(RunProgress)) (RunResult, error) {
 	if path != "" {
@@ -422,7 +431,7 @@ func TestToolsList(t *testing.T) {
 	want := map[string]bool{
 		"list_services": false, "describe_method": false, "describe_type": false,
 		"list_scripts": false, "read_script": false, "write_script": false,
-		"create_script": false, "rename_script": false, "delete_script": false,
+		"create_script": false, "rename_script": false, "rename_folder": false, "delete_script": false,
 		"run_script": false, "inspect_api": false, "add_app": false,
 	}
 	descriptions := map[string]string{}
@@ -1204,7 +1213,7 @@ func TestToolsCarryTitlesAndAnnotations(t *testing.T) {
 		}
 	}
 	// Filing a new script takes nothing away, which is the distinction the hint carries.
-	if destructive("create_script") || destructive("rename_script") {
+	if destructive("create_script") || destructive("rename_script") || destructive("rename_folder") {
 		t.Errorf("creating and renaming are not destructive")
 	}
 	if _, ok := tools["run_script"]["outputSchema"]; !ok {

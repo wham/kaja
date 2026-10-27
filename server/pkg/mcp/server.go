@@ -121,6 +121,8 @@ type Bridge interface {
 	WriteScript(path, content string) error
 	CreateScript(name, content string) (ScriptInfo, error)
 	RenameScript(path, newName string) (ScriptInfo, error)
+	// RenameFolder renames a folder where it is and answers with its new path.
+	RenameFolder(path, newName string) (string, error)
 	DeleteScript(path string) error
 	// RunScript executes a script in the webview. Exactly one of path or code is set;
 	// client is what the agent calls itself, which labels the draft an inline snippet

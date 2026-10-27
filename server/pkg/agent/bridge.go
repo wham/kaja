@@ -37,6 +37,15 @@ func (b *bridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
 	return b.change(b.scripts().Rename(path, newName))
 }
 
+func (b *bridge) RenameFolder(path, newName string) (string, error) {
+	change, err := b.scripts().RenameFolder(path, newName)
+	if err != nil {
+		return "", err
+	}
+	b.session.ScriptChanged(change)
+	return change.Folder, nil
+}
+
 func (b *bridge) DeleteScript(path string) error {
 	_, err := b.change(b.scripts().Delete(path))
 	return err

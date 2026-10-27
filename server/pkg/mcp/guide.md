@@ -91,8 +91,9 @@ retrying; the fix is the user opening Kaja, not a different request.
 Saved scripts live in folders. `create_script` takes a name that may name one —
 `create_script "reports/weekly-usage"` files it under `reports`, creating the
 folder if it isn't there — and `rename_script` moves a file the same way, because
-on disk renaming and moving are one operation. `list_scripts` reports the folder
-each script is filed in. File a script where a person would look for it rather
+on disk renaming and moving are one operation. `rename_folder` renames a folder
+with everything in it, which is one step where renaming its scripts one by one is
+many. `list_scripts` reports the folder each script is filed in. File a script where a person would look for it rather
 than dropping everything at the root.
 
 ## Read or write

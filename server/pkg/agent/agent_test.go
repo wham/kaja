@@ -74,6 +74,19 @@ func (f *fakeScripts) Rename(path, newName string) (ScriptChange, error) {
 	return ScriptChange{Action: "rename", OldPath: scriptsRoot + name, Path: scriptsRoot + newName, Name: newName}, nil
 }
 
+func (f *fakeScripts) RenameFolder(path, newName string) (ScriptChange, error) {
+	if !f.writable {
+		return ScriptChange{}, api.ErrScriptsReadOnly
+	}
+	for name, content := range f.files {
+		if rest, ok := strings.CutPrefix(name, path+"/"); ok {
+			delete(f.files, name)
+			f.files[newName+"/"+rest] = content
+		}
+	}
+	return ScriptChange{Action: "renameFolder", OldFolder: path, Folder: newName}, nil
+}
+
 func (f *fakeScripts) Delete(path string) (ScriptChange, error) {
 	if !f.writable {
 		return ScriptChange{}, api.ErrScriptsReadOnly
@@ -476,7 +489,7 @@ func TestNoToolWritesAFile(t *testing.T) {
 		name, _ := entry["name"].(string)
 		names[name] = true
 	}
-	for _, write := range []string{"write_script", "create_script", "rename_script", "delete_script"} {
+	for _, write := range []string{"write_script", "create_script", "rename_script", "rename_folder", "delete_script"} {
 		if names[write] {
 			t.Errorf("%s is listed on a workspace nothing may write", write)
 		}
@@ -623,6 +636,33 @@ func TestAWriteReachesEveryWindow(t *testing.T) {
 		if message.Change.Content != "// usage" {
 			t.Errorf("expected the content to travel with a create, got %q", message.Change.Content)
 		}
+	}
+}
+
+// A folder renamed is one change rather than one per script in it, so the window can
+// follow the links into every script it moved in a single pass.
+func TestAFolderRenameReachesTheWindowOnce(t *testing.T) {
+	scripts := &fakeScripts{writable: true, files: map[string]string{"admin/users.ts": "", "admin/teams.ts": ""}}
+	registry := NewRegistry(scripts, &fakeApps{}, Direct, "test")
+	stream, err := registry.Attach(token)
+	if err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	defer stream.Detach()
+
+	text, isError := toolText(t, call(t, registry, "tools/call", map[string]any{
+		"name":      "rename_folder",
+		"arguments": map[string]string{"path": "admin", "new_name": "benchling"},
+	}))
+	if isError || !strings.Contains(text, "benchling") {
+		t.Fatalf("rename_folder = %q", text)
+	}
+	message := drain(t, stream, "scripts")
+	if message.Change == nil || message.Change.Action != "renameFolder" || message.Change.OldFolder != "admin" || message.Change.Folder != "benchling" {
+		t.Fatalf("change = %+v", message.Change)
+	}
+	if _, ok := scripts.files["benchling/users.ts"]; !ok {
+		t.Errorf("the folder's scripts did not move: %v", scripts.files)
 	}
 }
 

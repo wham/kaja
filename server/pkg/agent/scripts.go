@@ -21,6 +21,7 @@ type Scripts interface {
 	Write(path, content string) (ScriptChange, error)
 	Create(name, content string) (ScriptChange, error)
 	Rename(path, newName string) (ScriptChange, error)
+	RenameFolder(path, newName string) (ScriptChange, error)
 	Delete(path string) (ScriptChange, error)
 	CanWrite() bool
 }
@@ -29,13 +30,16 @@ type Scripts interface {
 // on each side: what the agent is answered with, and what every window is told, so a
 // sidebar and an open editor stay in step with a write nobody in the window made.
 type ScriptChange struct {
-	// Action is "write", "create", "rename" or "delete".
+	// Action is "write", "create", "rename", "renameFolder" or "delete".
 	Action string `json:"action"`
 	Path   string `json:"path"`
 	// OldPath is where a renamed file was, and is set for nothing else.
 	OldPath string `json:"oldPath,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Folder  string `json:"folder,omitempty"`
+	// OldFolder is where a renamed folder was, and Folder where it is now. A folder is
+	// told relative, because that is what the window keys its folders on.
+	OldFolder string `json:"oldFolder,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Folder    string `json:"folder,omitempty"`
 	// Content is carried by a write and a create — the create's is what lets a window
 	// recognise the agent's own draft being saved, in which case the draft goes with it.
 	Content string `json:"content,omitempty"`
@@ -108,6 +112,15 @@ func (w *workspaceScripts) Rename(path, newName string) (ScriptChange, error) {
 		return ScriptChange{}, err
 	}
 	return change("rename", from, response.Script), nil
+}
+
+func (w *workspaceScripts) RenameFolder(path, newName string) (ScriptChange, error) {
+	from := w.service.ScriptFolder(path)
+	response, err := w.service.RenameScriptFolder(context.Background(), &api.RenameScriptFolderRequest{Name: path, NewName: newName})
+	if err != nil {
+		return ScriptChange{}, err
+	}
+	return ScriptChange{Action: "renameFolder", OldFolder: from, Folder: response.Folder}, nil
 }
 
 func (w *workspaceScripts) Delete(path string) (ScriptChange, error) {
