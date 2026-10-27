@@ -299,7 +299,7 @@ export const Sidebar = memo(function Sidebar({
         <TabPane tab="apps" active={tab} paneRefs={paneRefs} paneScroll={paneScroll}>
           {/* Where there is an action, the empty list shows the action rather than
               a sentence about it: this list can be filled from here, so its one row
-              is the verb, at the same 22px as the app rows it will be replaced by. */}
+              is the verb, at the same 24px as the app rows it will be replaced by. */}
           {apps.length === 0 &&
             (canUpdateWorkspace ? (
               <button
