@@ -88,8 +88,8 @@ const RENAME_CLICK_MS = 450;
 const SPRING_MS = 600;
 
 const GROUP_HEADER =
-  "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
-const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-[13px] outline-none focus-visible:bg-accent/50";
+  "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
+const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 rounded-md text-[13px] outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";

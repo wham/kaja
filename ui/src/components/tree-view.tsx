@@ -84,7 +84,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded, event) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
-          "group flex h-6 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-2 text-sm outline-none",
+          "group flex h-6 cursor-pointer items-center gap-1.5 rounded-md pl-2 text-sm outline-none",
           current ? "bg-accent/60 text-accent-foreground" : cn(leaf ? "text-foreground/90" : "text-foreground", "hover:bg-accent/40"),
           "focus-visible:bg-accent/40",
         )}
@@ -122,7 +122,7 @@ function SubTree({ state, count = 3, leaf, children }: SubTreeProps) {
       <ul role="group" className={className}>
         {Array.from({ length: count }).map((_, index) => (
           <li key={index} role="treeitem">
-            <div className="flex h-6 items-center gap-1.5 pl-2 pr-2">
+            <div className="flex h-6 items-center gap-1.5 pl-2">
               <span className="size-3 shrink-0" />
               <div className="h-2.5 w-24 animate-pulse rounded bg-muted" />
             </div>
