@@ -1778,9 +1778,8 @@ export function App() {
    * A deeplink outside Kaja is what the address is meant to outlive, which is why it
    * carries no extension and is not followed. A cell inside the workspace can be.
    */
-  const followScriptRenames = useCallback(
+  const followRenamesOnce = useCallback(
     async (renames: Map<string, string>) => {
-      if (renames.size === 0) return;
       const remap = (code: string) => remapRunReferences(code, renames);
 
       // Nothing here is work: the code and the generated form it is compared against move
@@ -1803,6 +1802,28 @@ export function App() {
       });
     },
     [applyDrafts, rewriteScripts],
+  );
+
+  // An agent moving a folder's scripts one at a time sends renames faster than a pass
+  // reads the folder, so passes queue, and each reads the renames since the queue was
+  // last empty off the live map: a file that moved under one pass is read by the next,
+  // which still knows the rename it missed.
+  const followingRenames = useRef({ renames: new Map<string, string>(), pending: 0, queue: Promise.resolve() });
+  const followScriptRenames = useCallback(
+    (renames: Map<string, string>) => {
+      if (renames.size === 0) return Promise.resolve();
+      const following = followingRenames.current;
+      for (const [from, to] of renames) following.renames.set(from, to);
+      following.pending++;
+      const pass = following.queue
+        .then(() => followRenamesOnce(following.renames))
+        .finally(() => {
+          if (--following.pending === 0) following.renames.clear();
+        });
+      following.queue = pass.catch(() => {});
+      return pass;
+    },
+    [followRenamesOnce],
   );
 
   const applyScriptRename = useCallback(
@@ -1939,33 +1960,39 @@ export function App() {
     [showFileError],
   );
 
+  const applyFolderRename = useCallback(
+    async (path: string, moved: string) => {
+      setScriptFolders((prev) =>
+        prev.map((folder) => (folder === path ? moved : folder.startsWith(path + "/") ? moved + folder.slice(path.length) : folder)).sort(),
+      );
+      // The whole folder moved at once, so the destinations are followed once rather
+      // than per file: a script in the folder naming another one in it would otherwise
+      // be rewritten by the first rename and read again by the second.
+      const renames = new Map<string, string>();
+      for (const script of scriptsRef.current ?? []) {
+        if (!isWithinFolder(path, script.folder)) continue;
+        const folder = moved + script.folder.slice(path.length);
+        renames.set(scriptName(script), `${folder}/${script.name}`);
+        applyScriptRename(script.path, {
+          ...script,
+          folder,
+          path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}`,
+        });
+      }
+      await followScriptRenames(renames);
+    },
+    [applyScriptRename, followScriptRenames],
+  );
+
   const onRenameFolder = useCallback(
     async (path: string, name: string) => {
       try {
-        const moved = await renameScriptFolder(path, name);
-        setScriptFolders((prev) =>
-          prev.map((folder) => (folder === path ? moved : folder.startsWith(path + "/") ? moved + folder.slice(path.length) : folder)).sort(),
-        );
-        // The whole folder moved at once, so the destinations are followed once rather
-        // than per file: a script in the folder naming another one in it would otherwise
-        // be rewritten by the first rename and read again by the second.
-        const renames = new Map<string, string>();
-        for (const script of scriptsRef.current ?? []) {
-          if (!isWithinFolder(path, script.folder)) continue;
-          const folder = moved + script.folder.slice(path.length);
-          renames.set(scriptName(script), `${folder}/${script.name}`);
-          applyScriptRename(script.path, {
-            ...script,
-            folder,
-            path: script.path.slice(0, script.path.length - scriptName(script).length) + `${folder}/${script.name}`,
-          });
-        }
-        await followScriptRenames(renames);
+        await applyFolderRename(path, await renameScriptFolder(path, name));
       } catch (err) {
         showFileError(`Rename failed: ${rpcErrorMessage(err)}`);
       }
     },
-    [applyScriptRename, followScriptRenames, showFileError],
+    [applyFolderRename, showFileError],
   );
 
   // A folder is a place, so deleting one deletes what is filed there — the files
@@ -2091,6 +2118,9 @@ export function App() {
         }
         break;
       }
+      case "renameFolder":
+        if (change.oldFolder && change.folder) void applyFolderRename(change.oldFolder, change.folder);
+        break;
       case "delete":
         removeScriptFromUI(change.path);
         break;

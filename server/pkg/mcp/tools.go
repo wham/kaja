@@ -62,7 +62,7 @@ const commentsNote = "Keep comments sparse: the calls and the declarations alrea
 
 // writeTools are the tools that put a file on disk. They are listed only where
 // there is a disk to put one on (Bridge.CanWriteScripts).
-var writeTools = map[string]bool{"write_script": true, "create_script": true, "rename_script": true, "delete_script": true, "add_app": true}
+var writeTools = map[string]bool{"write_script": true, "create_script": true, "rename_script": true, "rename_folder": true, "delete_script": true, "add_app": true}
 
 // toolDefinitions is the tools/list payload. Schemas are hand-written JSON
 // Schema; keep them in sync with handleToolCall below. canWrite drops the tools
@@ -215,6 +215,16 @@ func allToolDefinitions() []map[string]interface{} {
 			"inputSchema": obj(map[string]interface{}{
 				"path":     str("Path of the script to rename, as returned by list_scripts."),
 				"new_name": str("New name, optionally with a folder (\"reports/churn\"). A .ts extension is added if missing."),
+			}, "path", "new_name"),
+		},
+		{
+			"name":        "rename_folder",
+			"title":       "Rename folder",
+			"annotations": writes(false, false),
+			"description": "Rename a folder of scripts where it is, moving every script filed in it in one step. Use this rather than renaming the scripts one by one.",
+			"inputSchema": obj(map[string]interface{}{
+				"path":     str("Path of the folder to rename, as the folder of a script in list_scripts, e.g. \"reports\" or \"reports/2024\"."),
+				"new_name": str("The folder's new name. A name, not a path: the folder stays where it is."),
 			}, "path", "new_name"),
 		},
 		{
@@ -422,6 +432,12 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 			return errorToolResult(err), nil
 		}
 		return jsonToolResult(info)
+	case "rename_folder":
+		folder, err := s.bridge.RenameFolder(args["path"], args["new_name"])
+		if err != nil {
+			return errorToolResult(err), nil
+		}
+		return textToolResult("Renamed " + args["path"] + " to " + folder), nil
 	case "delete_script":
 		if err := s.bridge.DeleteScript(args["path"]); err != nil {
 			return errorToolResult(err), nil

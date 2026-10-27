@@ -88,9 +88,10 @@ export interface AgentRun {
 
 /** What an agent did to a file on disk, so the sidebar and an open editor keep up. */
 export interface AgentScriptChange {
-  action: "write" | "create" | "rename" | "delete";
+  action: "write" | "create" | "rename" | "renameFolder" | "delete";
   path: string;
   oldPath?: string;
+  oldFolder?: string;
   name?: string;
   folder?: string;
   content?: string;

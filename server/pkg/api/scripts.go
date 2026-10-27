@@ -48,6 +48,16 @@ func (s *ApiService) ScriptPath(name string) string {
 	return filepath.Join(dir, filepath.FromSlash(relative))
 }
 
+// ScriptFolder is the relative path a folder's name resolves to, reported back as it
+// arrived when it resolves to nothing.
+func (s *ApiService) ScriptFolder(name string) string {
+	relative, err := relativeFolderPath(name)
+	if err != nil {
+		return name
+	}
+	return relative
+}
+
 // ListScripts returns every *.ts file under the workspace's scripts folder, at any
 // depth, each with the folder it sits in. A missing folder is not a failure: most
 // workspaces ship no scripts, and an empty list is the honest answer for one that
