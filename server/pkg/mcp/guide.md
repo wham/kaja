@@ -27,7 +27,12 @@ there is nothing else to go and read.
 
 An API that is not an app yet can become one from here, where Kaja owns the
 workspace. `inspect_api` probes it and says what adding it would need, writing
-nothing; `add_app` adds it. Both take the app as kaja.json spells it: a `type`
+nothing; `add_app` adds it. **The one thing to find is where the API publishes
+itself** — an OpenAPI document's URL, a gRPC server's address, an MCP endpoint.
+Hand that straight to `inspect_api`: Kaja fetches and reads the document itself
+and reports its servers, its security schemes and how many operations it has, so
+downloading or grepping a spec yourself is work Kaja is about to do, and once the
+app is added `list_services` is the index of every method. Both take the app as kaja.json spells it: a `type`
 (`grpc`, `twirp`, `openapi`, `openai`, `mcp`, `folder`) and its `parameters`
 under that key, every value a string, so what you write is what the file says.
 
@@ -44,7 +49,8 @@ form. So you carry on as soon as they are done, without them coming back to say
 so. If the form stays open long enough that they have likely walked away, the
 answer says to stop; then end your turn, and call again when they say it is done.
 
-**Read up on an API you don't know before you add it.** Its documentation says
+**Read up on an API you don't know before you add it** — its prose
+documentation, not its spec. The documentation says
 what the person will have to supply and where it differs from the obvious: an
 address that is different for every tenant or region, an API key that is sent as
 the basic-auth username with an empty password, where in the product a key is

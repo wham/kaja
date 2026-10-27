@@ -14,6 +14,11 @@ const appDraftNote = "An app is the kaja.json shape said as strings: `type` is t
 	"A `${NAME}` in any value names one of the workspace's variables and is resolved where the app opens, so a credential the user already keeps " +
 	"as a variable is written as `${NAME}` and never as its value."
 
+const noAppsYet = "This workspace has no apps yet, so there is nothing to call. To use an API, find where it publishes itself - " +
+	"an OpenAPI document's URL, a gRPC server's address, an MCP endpoint - and hand that to inspect_api, then add_app. " +
+	"Kaja reads the document or the server itself: don't download, grep or summarise an OpenAPI document to work out its servers, " +
+	"security schemes or operations, because inspect_api reports all three and list_services lists every method once the app is added."
+
 const appTypeNote = "grpc, twirp, openapi, openai (a chat model, OpenAI or Claude shaped), mcp (somebody else's MCP server) or folder (files on this machine)."
 
 const appParametersNote = "grpc: url (dns:host:443), reflection (\"true\" to read the surface off the server), proto_dir (a folder of .proto files inside the workspace), " +
