@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Kaja phone navigation, sketches</title>
+<style>
+:root{--bg:#16150f;--chrome:#1e1d16;--card:#24231b;--border:#35332a;--fg:#ece8dc;--muted:#938f82;--accent:#34c38a;--amber:#d9a441;--ring:#3b3a30}
+*{box-sizing:border-box}
+body{margin:0;background:#0f0e0a;color:var(--fg);font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;padding:32px 40px 64px}
+h1{font-size:20px;font-weight:600;margin:0 0 6px}
+h2{font-size:15px;font-weight:600;margin:40px 0 4px}
+p.lead{color:var(--muted);max-width:760px;margin:0 0 8px}
+.row{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:18px}
+.step{width:236px}
+.step .cap{color:var(--muted);font-size:12px;margin:10px 2px 0;line-height:1.4}
+.step .cap b{color:var(--fg);font-weight:600}
+.phone{position:relative;width:236px;height:480px;border-radius:30px;border:1px solid #2a2922;background:var(--bg);overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.status{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--muted)}
+.hdr{height:44px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--chrome);border-bottom:1px solid var(--border)}
+.hdr .title{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .sub{color:var(--muted);font-weight:400;font-size:11px;margin-left:6px}
+.hdr .mono{font-family:ui-monospace,Menlo,monospace;font-weight:500}
+.ic{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
+.ic svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.back{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:12px;flex:none;max-width:84px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.run{height:24px;padding:0 10px;border-radius:12px;background:var(--fg);color:var(--bg);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;flex:none}
+.run.stop{background:#e45b5b;color:#fff}
+.body{position:absolute;top:78px;left:0;right:0;bottom:0}
+.list{padding:4px 0}
+.sec{padding:12px 16px 4px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.item{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;font-size:13px}
+.item .ic{width:16px;height:16px}
+.item .lbl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .lbl.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.item .lbl .ext{color:var(--muted)}
+.item .note{font-size:11px;color:var(--muted)}
+.item .chev{color:var(--muted);font-size:14px}
+.item.dim .lbl{color:var(--muted)}
+.item.sel{background:var(--card)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.dot.amber{background:var(--amber)}
+.dot.muted{background:var(--ring)}
+.ind{padding-left:30px}
+.ind2{padding-left:44px}
+.ring{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);border-right-color:transparent}
+.tag{font-size:9px;padding:1px 5px;border-radius:4px;background:var(--card);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+/* drawer */
+.drawer{position:absolute;top:0;left:0;bottom:0;width:206px;background:var(--chrome);border-right:1px solid var(--border);z-index:3;display:flex;flex-direction:column}
+.drawer .status{color:var(--muted)}
+.dhead{display:flex;align-items:center;gap:6px;padding:4px 10px 8px 14px}
+.dhead .ws{flex:1;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+.dhead .ws span.ws-icon{width:16px;height:16px;border-radius:4px;background:var(--accent);display:inline-block}
+.dhead .btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+.dhead .btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dfoot{margin-top:auto;border-top:1px solid var(--border);padding:8px 14px 18px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+.dfoot .sp{flex:1}
+.shade{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:2}
+.pushed{position:absolute;top:0;left:206px;right:-170px;bottom:0;background:var(--bg);z-index:2;border-left:1px solid var(--border);border-radius:14px 0 0 14px;overflow:hidden}
+.pushed .hdr{border-radius:14px 0 0 0}
+/* console */
+.cons{padding:0}
+.strip{display:flex;align-items:center;gap:8px;height:28px;padding:0 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)}
+.seg{display:flex;margin:10px 12px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:11px}
+.seg div{flex:1;text-align:center;padding:4px 0;color:var(--muted)}
+.seg div.on{background:var(--card);color:var(--fg)}
+.block{margin:10px 12px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:11px}
+.block .th{display:flex;background:var(--card);color:var(--muted);padding:4px 8px;gap:8px}
+.block .tr{display:flex;padding:4px 8px;gap:8px;border-top:1px solid var(--border)}
+.block .tr span:first-child,.block .th span:first-child{flex:1}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--border);border-radius:12px 12px 0 0}
+.grab{height:24px;display:flex;align-items:center;justify-content:center}
+.grab i{width:36px;height:4px;border-radius:2px;background:var(--ring);display:block}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.5;padding:0 14px 14px;color:var(--fg);white-space:pre;overflow:hidden}
+.code .k{color:#c792ea}.code .s{color:#c3e88d}.code .f{color:#82aaff}
+.search{margin:10px 12px 4px;height:32px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--muted);font-size:12px;background:var(--card)}
+.search.focus{border-color:var(--muted);color:var(--fg)}
+.edge{position:absolute;left:0;top:300px;width:4px;height:60px;border-radius:0 3px 3px 0;background:var(--accent);opacity:.9}
+.arrow{position:absolute;left:12px;top:318px;color:var(--accent);font-size:16px}
+.legend{margin-top:48px;color:var(--muted);font-size:12px;max-width:760px}
+.legend b{color:var(--fg)}
+</style></head><body>
+
+<h1>Kaja on a phone: the sidebar as a drawer, and the tree as pages</h1>
+<p class="lead">Today the finder is both the search and the whole navigation: a modal sheet with Recent, the tree folding in place, and Kaja's rows. The sketches below take the Claude app's shape instead. A drawer at the left edge holds the top level and what you touched recently, the pane to its right is where you drill down, and every page says what it is under and how to go back. Search is a button again.</p>
+
+<h2>A. The drawer</h2>
+<p class="lead">An edge swipe, or the ☰ in the header, slides the drawer in and pushes the page right, still visible. It is the desktop sidebar's band, foot and two groups, one column.</p>
+<div class="row">
+
+<div class="step"><div class="phone">
+  <div class="drawer">
+    <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+    <div class="dhead"><div class="ws"><span class="ws-icon"></span>demo</div>
+      <div class="btn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+      <div class="btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div></div>
+    <div class="list">
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg></span><span class="lbl">Apps</span><span class="dot"></span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg></span><span class="lbl">Scripts</span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><span class="lbl">Variables</span><span class="dot amber"></span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v5a5 5 0 0 1-10 0z"/><path d="M12 17v4"/></svg></span><span class="lbl">Agent</span><span class="note">on</span><span class="chev">›</span></div>
+      <div class="sec">Recent</div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/></svg></span><span class="lbl mono">open-prs<span class="ext">.ts</span></span><span class="ring"></span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></span><span class="lbl">Repos.Get</span><span class="note">draft</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/></svg></span><span class="lbl mono">releases<span class="ext">.ts</span></span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/></svg></span><span class="lbl mono">issues/triage<span class="ext">.ts</span></span></div>
+      <div class="item dim"><span class="ic"></span><span class="lbl">4 more…</span></div>
+    </div>
+    <div class="dfoot"><span>Compile log</span><span class="sp"></span><span style="color:#e45b5b">2 errors</span><span>⚙</span></div>
+  </div>
+  <div class="pushed">
+    <div class="status"></div>
+    <div class="hdr"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="title mono">open-prs<span class="ext" style="color:var(--muted)">.ts</span></span></div>
+    <div class="list" style="padding:12px"><div class="seg"><div class="on">Canvas</div><div>Calls</div><div>Stats</div></div></div>
+  </div>
+</div><div class="cap"><b>Drawer open.</b> Workspace at the head, search and + beside it like Claude's. Four rows are the top level; Recent is the scripts and drafts you touched, running one marked. The foot is the desktop sidebar's foot. The page you left is still there to the right.</div></div>
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="title mono">open-prs<span class="sub">.ts</span></span><span class="run">▶ Run</span></div>
+  <div class="body">
+    <div class="seg"><div class="on">Canvas</div><div>Calls</div><div>Stats</div></div>
+    <div class="strip" style="margin-top:10px">#12 · 3 calls · 1.2s <span style="margin-left:auto;color:var(--accent)">✓</span></div>
+    <div class="block"><div class="th"><span>title</span><span>author</span></div><div class="tr"><span>Kept a large OpenAPI…</span><span>wham</span></div><div class="tr"><span>Removed stories…</span><span>wham</span></div><div class="tr"><span>Restored the overlay…</span><span>wham</span></div></div>
+    <div class="sheet" style="height:30px"><div class="grab"><i></i></div></div>
+  </div>
+  <div class="edge"></div><div class="arrow">→</div>
+</div><div class="cap"><b>Drawer closed.</b> The script page is unchanged from today: run body, code sheet at the foot. What moved is the header. ☰ opens the drawer, the name is just a name, and the edge swipe (green) is the gesture Claude's app taught.</div></div>
+
+</div>
+
+<h2>B. Drilling down: Apps → app → method</h2>
+<p class="lead">A top-level row pushes a full-width page. Each page has a back chevron naming its parent, so the tree never folds inside a 200px column, and the way back is always where it was.</p>
+<div class="row">
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="title">Apps</span><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div>
+  <div class="body">
+    <div class="search"><span>⌕</span>Search apps and methods</div>
+    <div class="list">
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3 19.5v-3c-2 .5-3-1-3-1l-1-1c-1 0 0 0 0 0"/></svg></span><span class="lbl">github</span><span class="tag">openapi</span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/></svg></span><span class="lbl">grpcbin</span><span class="tag">grpc</span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/></svg></span><span class="lbl">quirks</span><span class="dot amber"></span><span class="tag">openapi</span><span class="chev">›</span></div>
+      <div class="item"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span><span class="lbl">benchling</span><span class="note">compiling</span></div>
+    </div>
+  </div>
+</div><div class="cap"><b>Apps.</b> One row per app, with its type and what the tree marks today: a missing variable, a compile in flight. A search here filters this page and the methods under it in place, the way the sidebar's filter was wanted for.</div></div>
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="back">‹ Apps</span><span class="title">github</span><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3"/></svg></span></div>
+  <div class="body">
+    <div class="list">
+      <div class="sec">Issues</div>
+      <div class="item"><span class="lbl">List</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item"><span class="lbl">Get</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item"><span class="lbl">Create</span><span class="tag">write</span><span class="ic">+</span></div>
+      <div class="sec">Pulls</div>
+      <div class="item sel"><span class="lbl">List</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item"><span class="lbl">Get</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item"><span class="lbl">Merge</span><span class="tag">write</span><span class="ic">+</span></div>
+      <div class="sec">Repos</div>
+      <div class="item"><span class="lbl">Get</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item"><span class="lbl">ListForUser</span><span class="tag">read</span><span class="ic">+</span></div>
+      <div class="item dim"><span class="lbl">Stream</span><span class="note">not supported</span></div>
+    </div>
+  </div>
+</div><div class="cap"><b>One app.</b> Services are section headers, methods are rows, so the whole of an app reads as one scrolling list with no chevrons to fold. Tap drafts the call and pushes the script; the + appends. Back says where you were.</div></div>
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="back">‹ github</span><span class="title">Pulls.List<span class="sub">draft</span></span><span class="run">▶ Run</span></div>
+  <div class="body">
+    <div style="padding:40px 16px;color:var(--muted);font-size:12px;text-align:center">No run yet.</div>
+    <div class="sheet" style="height:300px"><div class="grab"><i></i></div><div class="code"><span class="k">import</span> { Pulls } <span class="k">from</span> <span class="s">"github"</span>;
+
+<span class="k">const</span> response = <span class="k">await</span> Pulls.<span class="f">List</span>({
+  owner: <span class="s">""</span>,
+  repo: <span class="s">""</span>,
+  state: <span class="s">""</span>,
+  perPage: 0,
+});
+
+kaja.<span class="f">table</span>(response, [
+  <span class="s">"title"</span>,
+  <span class="s">"user"</span>,
+]);</div></div>
+  </div>
+</div><div class="cap"><b>The draft.</b> The script page is the same page as today, half sheet up because there is no run. Back goes to the app you took the call from, not to a list of everything.</div></div>
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="back">‹ Scripts</span><span class="title mono">issues/triage<span class="sub">.ts</span></span><span class="run stop">■ Stop</span></div>
+  <div class="body">
+    <div class="seg"><div>Canvas</div><div class="on">Calls</div><div>Stats</div></div>
+    <div class="strip" style="margin-top:10px">#4 · 12 calls · running <span class="ring" style="margin-left:auto"></span></div>
+    <div class="list">
+      <div class="item"><span class="dot"></span><span class="lbl">Issues.List</span><span class="note">210ms</span></div>
+      <div class="item"><span class="dot"></span><span class="lbl">Issues.Get</span><span class="note">#42 · 95ms</span></div>
+      <div class="item"><span class="dot"></span><span class="lbl">Issues.Get</span><span class="note">#43 · 88ms</span></div>
+      <div class="item"><span class="dot muted"></span><span class="lbl">Issues.Get</span><span class="note">#44</span></div>
+    </div>
+    <div class="sheet" style="height:30px"><div class="grab"><i></i></div></div>
+  </div>
+</div><div class="cap"><b>From Scripts.</b> The same page reached through Scripts says so in its back chevron. The folder is a drill too: Scripts → issues → triage.ts, with drafts as a group at the top of Scripts.</div></div>
+
+</div>
+
+<h2>C. Search goes back to being search</h2>
+<div class="row">
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="back">‹</span><div class="search focus" style="flex:1;margin:0;height:30px">pull<span style="opacity:.5">|</span></div></div>
+  <div class="body">
+    <div class="list">
+      <div class="sec">Methods</div>
+      <div class="item"><span class="lbl">Pulls.List</span><span class="note">github</span></div>
+      <div class="item"><span class="lbl">Pulls.Get</span><span class="note">github</span></div>
+      <div class="item"><span class="lbl">Pulls.Merge</span><span class="note">github · write</span></div>
+      <div class="sec">Scripts</div>
+      <div class="item"><span class="lbl mono">open-prs<span class="ext">.ts</span></span></div>
+      <div class="item"><span class="lbl mono">pulls/stale<span class="ext">.ts</span></span><span class="note">pulls</span></div>
+      <div class="sec">Drafts</div>
+      <div class="item"><span class="lbl">Pulls.List</span></div>
+    </div>
+  </div>
+</div><div class="cap"><b>Search page.</b> Opened from the drawer's magnifier. The ranked list the desktop finder already gives, under the same matcher, with nothing else on it. It is a shortcut past the drill, not the way you learn the workspace.</div></div>
+
+<div class="step"><div class="phone">
+  <div class="status"><span>19:28</span><span>●●● ⌾ ▮</span></div>
+  <div class="hdr"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="title">Start</span></div>
+  <div class="body">
+    <div style="padding:18px 16px 6px;font-size:13px;color:var(--muted)">Pick an app, then a method, and Kaja drafts you a script.</div>
+    <div class="list">
+      <div class="item"><span class="lbl">Apps</span><span class="note">4</span><span class="chev">›</span></div>
+      <div class="item"><span class="lbl">Scripts</span><span class="note">9</span><span class="chev">›</span></div>
+      <div class="sec">Run last</div>
+      <div class="item"><span class="lbl mono">open-prs<span class="ext">.ts</span></span><span class="note">github</span></div>
+      <div class="item"><span class="lbl mono">releases<span class="ext">.ts</span></span><span class="note">github</span></div>
+    </div>
+  </div>
+</div><div class="cap"><b>Cold start.</b> Start is the first page, with the drawer closed. It is the drawer's top level said once more as content, so a new phone has a way in without a gesture nobody has told it about.</div></div>
+
+</div>
+
+<div class="legend">
+<b>What stays the same:</b> every view body, the code sheet and its three stops, the run's segmented control, the compile and agent marks (they move from finder rows to drawer rows), the desktop above 640px.<br><br>
+<b>What changes:</b> the header stops being a combobox and becomes ☰ / back + title + action. The finder's sheet is split into the drawer (top level and Recent) and a search page. The app tree stops folding and becomes pages. A history stack of pages replaces "the finder opens on the previous place".
+</div>
+</body></html>
