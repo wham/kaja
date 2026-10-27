@@ -954,6 +954,9 @@ func TestEmptyCatalog(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.catalog = Catalog{}
 	srv := NewServer(bridge, token, version)
+	contains(t, tool(t, srv, "list_services", nil), "inspect_api")
+
+	bridge.readOnly = true
 	contains(t, tool(t, srv, "list_services", nil), "No services yet")
 }
 

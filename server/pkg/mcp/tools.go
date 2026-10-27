@@ -239,7 +239,9 @@ func allToolDefinitions() []map[string]interface{} {
 			"title":       "Inspect API",
 			"annotations": reads(),
 			"description": "Probe an API before adding it as an app: what answers at the address, how much it exposes, and what adding it would still need " +
-				"(a credential, a proto folder, a choice of server). Nothing is written. " + appDraftNote,
+				"(a credential, a proto folder, a choice of server). Nothing is written. " +
+				"For an OpenAPI document Kaja fetches and reads it itself - its servers, its security schemes, how many operations - " +
+				"so hand it the document's URL rather than downloading or searching the document yourself. " + appDraftNote,
 			"inputSchema": obj(map[string]interface{}{
 				"type":       str(appTypeNote),
 				"parameters": params("The type's kaja.json fields, each value a string. " + appParametersNote),
@@ -398,7 +400,11 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage, cal
 
 	switch p.Name {
 	case "list_services":
-		return textToolResult(s.bridge.Catalog().listServices(args["app"], args["service"], args["search"])), nil
+		catalog := s.bridge.Catalog()
+		if len(catalog.Apps) == 0 && s.bridge.CanWriteScripts() {
+			return textToolResult(noAppsYet), nil
+		}
+		return textToolResult(catalog.listServices(args["app"], args["service"], args["search"])), nil
 	case "describe_method":
 		return s.describeMethod(args["method"]), nil
 	case "describe_type":
