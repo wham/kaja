@@ -54,10 +54,15 @@ documentation, not its spec. The documentation says
 what the person will have to supply and where it differs from the obvious: an
 address that is different for every tenant or region, an API key that is sent as
 the basic-auth username with an empty password, where in the product a key is
-made and what it can reach. Say it in `hints`, keyed by the same field names as
-`parameters` (`"base_url": "Your tenant's address, https://<tenant>.example.com/api/v1"`),
-and anything about the app as a whole in `note`. The form shows both while the
-user fills it in, which is where they need them; the chat is not.
+made and what it can reach. Say it in `hints`, one sentence per field, keyed by
+the same field names as `parameters`:
+`"base_url": {"text": "Put your tenant's name where it says <tenant>.", "needs_user": true}`.
+Set `needs_user` where the user still has something to do in that field — a
+credential to type, a `<placeholder>` you left in a value — and leave it out
+where the hint explains what you already filled in. There is no note about the
+app as a whole: a caveat goes with the field it is about, so "prefer a test
+tenant" goes with the API key. The form shows each hint beside its field while
+the user fills it in, which is where they need it; the chat is not.
 
 What is not a secret is yours to ask for before you call: which tenant, region
 or server a document's address leaves open. A form with only the credential left

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isReadableUrl, nameFromHost, uniqueAppName } from "./appForms";
+import { deriveGenericName, isReadableUrl, nameFromHost, uniqueAppName } from "./appForms";
 
 describe("isReadableUrl", () => {
   test("takes an absolute HTTP URL", () => {
@@ -53,5 +53,18 @@ describe("uniqueAppName", () => {
 
   test("has nothing to do when there is no name yet", () => {
     expect(uniqueAppName("", ["Petstore"])).toBe("");
+  });
+});
+
+describe("deriveGenericName", () => {
+  test("names a folder by its own name", () => {
+    expect(deriveGenericName("folder", { path: "/Users/me/notes/" })).toBe("notes");
+    expect(deriveGenericName("folder", { path: "C:\\work\\logs" })).toBe("logs");
+    expect(deriveGenericName("folder", {})).toBe("");
+  });
+
+  test("names a server by its host", () => {
+    expect(deriveGenericName("twirp", { url: "https://api.haberdasher.example.com/twirp" })).toBe("haberdasher");
+    expect(deriveGenericName("twirp", { url: "http://localhost:8080" })).toBe("");
   });
 });

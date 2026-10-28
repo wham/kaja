@@ -33,9 +33,28 @@ func appDraft(arguments toolArguments) AppDraft {
 		Type:       strings.TrimSpace(arguments.strings["type"]),
 		Parameters: arguments.maps["parameters"],
 		Headers:    arguments.maps["headers"],
-		Hints:      arguments.maps["hints"],
-		Note:       strings.TrimSpace(arguments.strings["note"]),
+		Hints:      appHints(arguments.objects["hints"]),
 	}
+}
+
+// appHints reads the hints an agent wrote. A hint said as a bare string is one that
+// explains, which is what a client still holding the earlier schema sends.
+func appHints(fields map[string]interface{}) map[string]AppHint {
+	hints := map[string]AppHint{}
+	for field, value := range fields {
+		switch v := value.(type) {
+		case string:
+			hints[field] = AppHint{Text: v}
+		case map[string]interface{}:
+			text, _ := v["text"].(string)
+			needsUser, _ := v["needs_user"].(bool)
+			hints[field] = AppHint{Text: text, NeedsUser: needsUser}
+		}
+	}
+	if len(hints) == 0 {
+		return nil
+	}
+	return hints
 }
 
 // inspectApi probes and reports, writing nothing. What is missing is said as the list

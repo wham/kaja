@@ -43,6 +43,18 @@ export function nameFromHost(host: string, noise: Set<string>): string {
   return sanitizeName(labels[first === -1 ? 0 : first]);
 }
 
+// deriveGenericName names an app a plain form describes: a folder by its own name, a
+// server by its host.
+export function deriveGenericName(type: string, parameters: Record<string, string>): string {
+  if (type === "folder") {
+    const path = (parameters.path ?? "").trim().replace(/[\\/]+$/, "");
+    return sanitizeName(path.split(/[\\/]/).pop() ?? "");
+  }
+  return nameFromHost(urlHost(parameters.url ?? ""), GENERIC_HOST_NOISE);
+}
+
+const GENERIC_HOST_NOISE = new Set(["api", "apis", "twirp", "rpc", "www", "dev", "staging", "stage", "prod", "test", "sandbox"]);
+
 export function urlHost(url: string): string {
   try {
     return new URL(url.trim()).hostname;

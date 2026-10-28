@@ -1,7 +1,8 @@
 import { Bot, Globe, Key, KeyRound, ShieldOff, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AppNameField } from "./AppNameField";
-import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
+import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
+import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { AppSurface, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
@@ -38,6 +39,7 @@ const CHOICE_ICONS: Record<string, LucideIcon> = {
 // read: no chat endpoint describes itself, so unlike the gRPC, OpenAPI and MCP forms
 // this one settles at the first call rather than before the app is made.
 export function OpenAiForm({
+  nameField,
   name,
   onNameChange,
   duplicateName,
@@ -93,68 +95,74 @@ export function OpenAiForm({
   }, []);
 
   return (
-    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">API</label>
-        <div role="radiogroup" aria-label="API" className="flex flex-col gap-2">
-          {apiChoices.map((option) => {
-            const active = choice === option.key;
-            return (
-              <ChoiceCard key={option.key} selected={active}>
-                <ChoiceRow selected={active} disabled={readOnly} onSelect={() => selectChoice(option.key)} icon={CHOICE_ICONS[option.key]}>
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm text-foreground">{option.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">{option.summary}</span>
-                  </span>
-                </ChoiceRow>
-                {active && (
-                  <div className="flex flex-col gap-2 px-3 pb-3">
-                    <VariableSuggestInput
-                      id="openai-endpoint"
-                      value={endpoint}
-                      onValueChange={(value) => {
-                        setParameter("endpoint", value);
-                        if (!nameTouched && option.key === CHOICE_COMPATIBLE) {
-                          onNameChange(uniqueAppName(deriveAppName(option.key, value), takenRef.current));
-                        }
-                      }}
-                      variables={variables}
-                      placeholder={option.endpoint || "https://llm.example.com/v1/chat/completions"}
-                      disabled={readOnly}
-                    />
-                    <p className="text-xs text-muted-foreground">Kaja POSTs every call here. Change it for a gateway or a proxy serving the same API.</p>
-                  </div>
-                )}
-              </ChoiceCard>
-            );
-          })}
+    <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
+      <FormSection lead fields={["api", "endpoint"]}>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-foreground">API</label>
+          <ChoiceList label="API">
+            {apiChoices.map((option) => {
+              const active = choice === option.key;
+              return (
+                <ChoiceCard key={option.key} selected={active}>
+                  <ChoiceRow selected={active} disabled={readOnly} onSelect={() => selectChoice(option.key)} icon={CHOICE_ICONS[option.key]}>
+                    <span className="flex min-w-0 flex-col">
+                      <span className={cn("truncate", choiceLabel(active))}>{option.label}</span>
+                      <span className="truncate text-xs text-muted-foreground">{option.summary}</span>
+                    </span>
+                  </ChoiceRow>
+                  {active && (
+                    <ChoiceBody>
+                      <VariableSuggestInput
+                        id="openai-endpoint"
+                        value={endpoint}
+                        onValueChange={(value) => {
+                          setParameter("endpoint", value);
+                          if (!nameTouched && option.key === CHOICE_COMPATIBLE) {
+                            onNameChange(uniqueAppName(deriveAppName(option.key, value), takenRef.current));
+                          }
+                        }}
+                        variables={variables}
+                        placeholder={option.endpoint || "https://llm.example.com/v1/chat/completions"}
+                        disabled={readOnly}
+                      />
+                      <p className="text-xs text-muted-foreground">Kaja POSTs every call here. Change it for a gateway or a proxy serving the same API.</p>
+                    </ChoiceBody>
+                  )}
+                </ChoiceCard>
+              );
+            })}
+          </ChoiceList>
         </div>
-      </div>
+      </FormSection>
 
       {ready && (
         <>
-          {!phone && <div className="h-px bg-border" />}
+          {nameField && (
+            <FormSection>
+              <AppNameField
+                id="openai-name"
+                name={name}
+                onNameChange={(value) => {
+                  setNameTouched(true);
+                  onNameChange(value);
+                }}
+                duplicate={duplicateName}
+                readOnly={readOnly}
+                caption={nameTouched ? undefined : "From the API. Rename if you'd rather."}
+              />
+            </FormSection>
+          )}
 
-          <AppNameField
-            id="openai-name"
-            name={name}
-            onNameChange={(value) => {
-              setNameTouched(true);
-              onNameChange(value);
-            }}
-            duplicate={duplicateName}
-            readOnly={readOnly}
-            caption={nameTouched ? undefined : "From the API. Rename if you'd rather."}
-          />
-
-          <AuthenticationSection
-            selected={auth}
-            onSelect={(value) => setParameter("auth", value)}
-            parameters={parameters}
-            onParameterChange={setParameter}
-            variables={variables}
-            readOnly={readOnly}
-          />
+          <FormSection fields={["auth", "apiKeyName", "token"]}>
+            <AuthenticationSection
+              selected={auth}
+              onSelect={(value) => setParameter("auth", value)}
+              parameters={parameters}
+              onParameterChange={setParameter}
+              variables={variables}
+              readOnly={readOnly}
+            />
+          </FormSection>
         </>
       )}
     </div>
@@ -176,7 +184,7 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
-      <div role="radiogroup" aria-label="Authentication" className="flex flex-col gap-2">
+      <ChoiceList label="Authentication">
         {authSchemes.map((scheme) => {
           const active = selected === scheme.key;
           const note = authNote(scheme.key, parameters.apiKeyName ?? "");
@@ -184,12 +192,12 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
             <ChoiceCard key={scheme.key} selected={active}>
               <ChoiceRow selected={active} disabled={readOnly} onSelect={() => onSelect(scheme.key)} icon={scheme.key === AUTH_APIKEY ? Key : KeyRound}>
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm text-foreground">{scheme.label}</span>
+                  <span className={cn("truncate", choiceLabel(active))}>{scheme.label}</span>
                   <span className="truncate text-xs text-muted-foreground">{scheme.summary}</span>
                 </span>
               </ChoiceRow>
               {active && (
-                <div className="flex flex-col gap-2 px-3 pb-3">
+                <ChoiceBody>
                   {scheme.key === AUTH_APIKEY && (
                     <VariableSuggestInput
                       value={parameters.apiKeyName ?? ""}
@@ -207,7 +215,7 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
                     disabled={readOnly}
                   />
                   {note.text && <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>}
-                </div>
+                </ChoiceBody>
               )}
             </ChoiceCard>
           );
@@ -216,12 +224,12 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
         <ChoiceCard selected={selected === AUTH_NONE}>
           <ChoiceRow selected={selected === AUTH_NONE} disabled={readOnly} onSelect={() => onSelect(AUTH_NONE)} icon={ShieldOff}>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm text-foreground">Send no credentials</span>
+              <span className={cn("truncate", choiceLabel(selected === AUTH_NONE))}>Send no credentials</span>
               <span className="truncate text-xs text-muted-foreground">For a local model, or an endpoint guarded another way</span>
             </span>
           </ChoiceRow>
         </ChoiceCard>
-      </div>
+      </ChoiceList>
     </div>
   );
 }

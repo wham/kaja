@@ -165,13 +165,18 @@ type AppDraft struct {
 	Type       string            `json:"type"`
 	Parameters map[string]string `json:"parameters,omitempty"`
 	Headers    map[string]string `json:"headers,omitempty"`
-	// Hints and Note are what the agent found out while reading up on the API, shown
-	// in the form the person finishes and written nowhere: a hint is keyed like
-	// Parameters and sits with that field, the note is about the app as a whole.
-	Hints map[string]string `json:"hints,omitempty"`
-	Note  string            `json:"note,omitempty"`
+	// Hints are what the agent found out while reading up on the API, shown beside the
+	// field each is keyed by in the form the person finishes, and written nowhere.
+	Hints map[string]AppHint `json:"hints,omitempty"`
 	// Agent is who the hints are from, as the agent names itself.
 	Agent string `json:"agent,omitempty"`
+}
+
+// AppHint is one sentence about one field. NeedsUser marks a field the person still
+// has something to do in, as against one the agent filled in and is explaining.
+type AppHint struct {
+	Text      string `json:"text"`
+	NeedsUser bool   `json:"needs_user,omitempty"`
 }
 
 // AppInspection is what probing a draft found. Summary describes what answered;

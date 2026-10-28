@@ -23,10 +23,12 @@ import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { AppNameField } from "./AppNameField";
+import { BasicCredentials } from "./BasicCredentials";
 import { ReadingRow } from "./InspectStatus";
 import { KnownChip, KnownList } from "./KnownList";
 import { KnownApi, knownApiFor, matchingApis } from "./knownApis";
-import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
+import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
+import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
@@ -103,6 +105,7 @@ function inspect(key: string, openapi: OpenApiApp | undefined, fresh: boolean): 
 // the document - and everything after it is a choice between things the document
 // already declared.
 export function OpenApiForm({
+  nameField,
   name,
   onNameChange,
   duplicateName,
@@ -337,179 +340,187 @@ export function OpenApiForm({
   };
 
   return (
-    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground" htmlFor="openapi-source">
-            OpenAPI document
-          </label>
-          <SegmentedControl aria-label="Document source">
-            {(["url", "file", "paste"] as SourceMode[]).map((mode) => (
-              <SegmentedControl.Button
-                key={mode}
-                selected={sourceMode === mode}
-                disabled={readOnly}
-                className={cn(phone && "px-2 py-0.5 text-xs")}
-                onClick={() => switchSourceMode(mode)}
-              >
-                {mode === "url" ? "URL" : mode === "file" ? "File" : "Paste"}
-              </SegmentedControl.Button>
-            ))}
-          </SegmentedControl>
-        </div>
-
-        {sourceMode === "url" && (
-          <div className="relative">
-            <VariableSuggestInput
-              id="openapi-source"
-              value={specUrl}
-              onValueChange={(value) => {
-                typedRef.current = true;
-                setParameter("specUrl", value);
-              }}
-              variables={variables}
-              placeholder="https://example.com/openapi.json"
-              disabled={readOnly}
-              className={known ? "pr-28" : undefined}
-              trailingAction={known && <KnownChip entry={known} />}
-              onFocus={() => setPicker(true)}
-              onBlur={() => setPicker(false)}
-              onKeyDown={(event) => {
-                if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
-                  event.preventDefault();
-                  setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
-                  return;
-                }
-                if (picking && event.key === "Escape") {
-                  event.preventDefault();
-                  setPicker(false);
-                  return;
-                }
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                if (picking) pick(offered[highlight % offered.length]);
-                else if (isReadableUrl(specUrl)) read();
-              }}
-            />
-            {picking && (
-              <KnownList
-                heading="Known APIs"
-                entries={offered.map((api) => ({ name: api.name, address: api.specUrl, mark: api.mark }))}
-                query={specUrl}
-                highlight={highlight % offered.length}
-                onHighlight={setHighlight}
-                onPick={(index) => pick(offered[index])}
-                footer={
-                  !specUrl.trim() || isReadableUrl(specUrl) ? (
-                    <>
-                      Or paste any document URL. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
-                    </>
-                  ) : (
-                    "Nothing typed here is a URL yet, so no document has been read."
-                  )
-                }
-              />
-            )}
+    <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
+      <FormSection lead fields={["specUrl", "specContent", "specHeaderName", "specHeaderValue"]}>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-foreground" htmlFor="openapi-source">
+              OpenAPI document
+            </label>
+            <SegmentedControl aria-label="Document source">
+              {(["url", "file", "paste"] as SourceMode[]).map((mode) => (
+                <SegmentedControl.Button
+                  key={mode}
+                  selected={sourceMode === mode}
+                  disabled={readOnly}
+                  className={cn(phone && "px-2 py-0.5 text-xs")}
+                  onClick={() => switchSourceMode(mode)}
+                >
+                  {mode === "url" ? "URL" : mode === "file" ? "File" : "Paste"}
+                </SegmentedControl.Button>
+              ))}
+            </SegmentedControl>
           </div>
-        )}
 
-        {sourceMode === "file" && (
-          <div className="flex items-center gap-2">
-            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-              <FileIcon size={14} />
-              {specContent.trim() ? "Change file" : "Choose file"}
-              <input
-                type="file"
-                accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                hidden
+          {sourceMode === "url" && (
+            <div className="relative">
+              <VariableSuggestInput
+                id="openapi-source"
+                value={specUrl}
+                onValueChange={(value) => {
+                  typedRef.current = true;
+                  setParameter("specUrl", value);
+                }}
+                variables={variables}
+                placeholder="https://example.com/openapi.json"
                 disabled={readOnly}
-                onChange={(event) => {
-                  upload(event.target.files?.[0]);
-                  event.target.value = "";
+                className={known ? "pr-28" : undefined}
+                trailingAction={known && <KnownChip entry={known} />}
+                onFocus={() => setPicker(true)}
+                onBlur={() => setPicker(false)}
+                onKeyDown={(event) => {
+                  if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                    event.preventDefault();
+                    setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                    return;
+                  }
+                  if (picking && event.key === "Escape") {
+                    event.preventDefault();
+                    setPicker(false);
+                    return;
+                  }
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  if (picking) pick(offered[highlight % offered.length]);
+                  else if (isReadableUrl(specUrl)) read();
                 }}
               />
-            </label>
-            <span className="text-xs text-muted-foreground">{uploadName || (specContent.trim() ? "Document loaded" : "No file chosen")}</span>
-          </div>
-        )}
+              {picking && (
+                <KnownList
+                  heading="Known APIs"
+                  entries={offered.map((api) => ({ name: api.name, address: api.specUrl, mark: api.mark }))}
+                  query={specUrl}
+                  highlight={highlight % offered.length}
+                  onHighlight={setHighlight}
+                  onPick={(index) => pick(offered[index])}
+                  footer={
+                    !specUrl.trim() || isReadableUrl(specUrl) ? (
+                      <>
+                        Or paste any document URL. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                      </>
+                    ) : (
+                      "Nothing typed here is a URL yet, so no document has been read."
+                    )
+                  }
+                />
+              )}
+            </div>
+          )}
 
-        {sourceMode === "paste" && (
-          <textarea
-            id="openapi-source"
-            value={specContent}
-            onChange={(event) => {
-              typedRef.current = true;
-              setParameter("specContent", event.target.value);
+          {sourceMode === "file" && (
+            <div className="flex items-center gap-2">
+              <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                <FileIcon size={14} />
+                {specContent.trim() ? "Change file" : "Choose file"}
+                <input
+                  type="file"
+                  accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                  hidden
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    upload(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <span className="text-xs text-muted-foreground">{uploadName || (specContent.trim() ? "Document loaded" : "No file chosen")}</span>
+            </div>
+          )}
+
+          {sourceMode === "paste" && (
+            <textarea
+              id="openapi-source"
+              value={specContent}
+              onChange={(event) => {
+                typedRef.current = true;
+                setParameter("specContent", event.target.value);
+              }}
+              disabled={readOnly}
+              spellCheck={false}
+              placeholder="Paste the OpenAPI document (JSON or YAML)"
+              className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            />
+          )}
+
+          <SourceStatus
+            state={state}
+            parameters={parameters}
+            variables={variables}
+            readOnly={readOnly}
+            onCancel={() => {
+              readIdRef.current++;
+              setState({ status: "idle" });
             }}
-            disabled={readOnly}
-            spellCheck={false}
-            placeholder="Paste the OpenAPI document (JSON or YAML)"
-            className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            onRefresh={() => read({ fresh: true })}
+            onUploadInstead={() => switchSourceMode("file")}
+            onSpecHeaderChange={setParameter}
+            onRetry={() => read({ fresh: true })}
           />
-        )}
-
-        <SourceStatus
-          state={state}
-          parameters={parameters}
-          variables={variables}
-          readOnly={readOnly}
-          onCancel={() => {
-            readIdRef.current++;
-            setState({ status: "idle" });
-          }}
-          onRefresh={() => read({ fresh: true })}
-          onUploadInstead={() => switchSourceMode("file")}
-          onSpecHeaderChange={setParameter}
-          onRetry={() => read({ fresh: true })}
-        />
-      </div>
+        </div>
+      </FormSection>
 
       {document && (
         <>
-          {!phone && <div className="h-px bg-border" />}
+          {nameField && (
+            <FormSection>
+              <AppNameField
+                id="openapi-name"
+                name={name}
+                onNameChange={(value) => {
+                  setNameTouched(true);
+                  onNameChange(value);
+                }}
+                duplicate={duplicateName}
+                readOnly={readOnly}
+                caption={nameTouched ? undefined : "From the document's title."}
+              />
+            </FormSection>
+          )}
 
-          <AppNameField
-            id="openapi-name"
-            name={name}
-            onNameChange={(value) => {
-              setNameTouched(true);
-              onNameChange(value);
-            }}
-            duplicate={duplicateName}
-            readOnly={readOnly}
-            caption={nameTouched ? undefined : "From the document's title."}
-          />
+          <FormSection fields={["baseUrl"]}>
+            <ServerSection
+              document={document}
+              variables={variables}
+              readOnly={readOnly}
+              choice={serverChoice}
+              onChoice={(choice) => {
+                setServerChoice(choice);
+              }}
+              variableValues={serverVariables}
+              onVariableChange={(index, variable, value) => {
+                setServerVariables((previous) => ({ ...previous, [index]: { ...previous[index], [variable]: value } }));
+              }}
+              customUrl={customServerUrl}
+              onCustomUrlChange={setCustomServerUrl}
+              baseUrl={parameters.baseUrl ?? ""}
+              onBaseUrlChange={(value) => setParameter("baseUrl", value)}
+            />
+          </FormSection>
 
-          <ServerSection
-            document={document}
-            variables={variables}
-            readOnly={readOnly}
-            choice={serverChoice}
-            onChoice={(choice) => {
-              setServerChoice(choice);
-            }}
-            variableValues={serverVariables}
-            onVariableChange={(index, variable, value) => {
-              setServerVariables((previous) => ({ ...previous, [index]: { ...previous[index], [variable]: value } }));
-            }}
-            customUrl={customServerUrl}
-            onCustomUrlChange={setCustomServerUrl}
-            baseUrl={parameters.baseUrl ?? ""}
-            onBaseUrlChange={(value) => setParameter("baseUrl", value)}
-          />
-
-          <AuthenticationSection
-            document={document}
-            variables={variables}
-            readOnly={readOnly}
-            selected={selectedScheme}
-            onSelect={selectScheme}
-            parameters={parameters}
-            onParameterChange={setParameter}
-            signIn={signIn}
-            onSignIn={authorize}
-            onSignOut={forget}
-          />
+          <FormSection fields={["securityScheme", "username", "password", "token"]}>
+            <AuthenticationSection
+              document={document}
+              variables={variables}
+              readOnly={readOnly}
+              selected={selectedScheme}
+              onSelect={selectScheme}
+              parameters={parameters}
+              onParameterChange={setParameter}
+              signIn={signIn}
+              onSignIn={authorize}
+              onSignOut={forget}
+            />
+          </FormSection>
         </>
       )}
     </div>
@@ -572,47 +583,23 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
   if (document.servers.length === 0) missing.push("servers");
   if (declared === 0 && supplied === 0) missing.push("securitySchemes");
 
-  // The counts beyond the operations are what the sections below already show, so a
-  // phone says what was read in one line and leaves the box for a problem.
-  if (phone) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span className="min-w-0 truncate">
-            <span className="text-foreground">{document.title || "Untitled API"}</span> · {pluralCount(document.operationCount, "operation")}
-          </span>
-          <IconButton icon={RefreshCw} aria-label="Read the document again" variant="ghost" size="xs" className="ml-auto shrink-0" onClick={onRefresh} />
-        </div>
-        {missing.length > 0 && <MissingNote missing={missing} guessedBaseUrl={document.guessedBaseUrl} />}
-      </div>
-    );
-  }
-
+  // What the sections below already show is left to them, so the summary is one line
+  // and the box is kept for a problem.
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-        <div className="pt-0.5 text-emerald-600 dark:text-emerald-400">
-          <CircleCheck size={15} />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <p className="text-sm text-foreground">
-            {document.title || "Untitled API"}{" "}
-            <span className="text-muted-foreground">
-              {document.version && `v${document.version} · `}OpenAPI {document.openapiVersion}
-            </span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {pluralCount(document.operationCount, "operation")} · {pluralCount(document.tagCount, "tag")} ·{" "}
-            {document.servers.length ? pluralCount(document.servers.length, "server") : "no servers"} ·{" "}
-            {declared ? pluralCount(declared, "security scheme") : "no security schemes"}
-            {supplied > 0 && ` · ${pluralCount(supplied, "scheme")} from Kaja`}
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-1 text-muted-foreground">
-          <RelativeTime at={readAt} />
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <span className="min-w-0 truncate">
+          <span className="text-foreground">{document.title || "Untitled API"}</span>
+          {document.version && ` v${document.version}`}
+          {!phone && ` · OpenAPI ${document.openapiVersion}`} · {pluralCount(document.operationCount, "operation")}
+          {!phone && ` · ${declared ? pluralCount(declared, "security scheme") : "no security schemes"}`}
+          {!phone && supplied > 0 && ` · ${pluralCount(supplied, "scheme")} from Kaja`}
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {!phone && <RelativeTime at={readAt} />}
           <IconButton icon={RefreshCw} aria-label="Read the document again" variant="ghost" size="xs" onClick={onRefresh} />
-        </div>
+        </span>
       </div>
       {missing.length > 0 && <MissingNote missing={missing} guessedBaseUrl={document.guessedBaseUrl} />}
     </div>
@@ -789,20 +776,20 @@ function ServerSection({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Server</label>
-      <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Server">
+      <ChoiceList label="Server">
         {document.servers.map((server, index) => {
           const selected = choice === index;
           const values = variableValues[index] ?? {};
           return (
             <ChoiceCard key={`${server.url}-${index}`} selected={selected}>
               <ChoiceRow selected={selected} disabled={readOnly} onSelect={() => onChoice(index)} icon={ServerIcon}>
-                <span className={cn("truncate font-mono text-sm", selected ? "text-foreground" : "text-muted-foreground")}>{server.url}</span>
-                {server.description && (
-                  <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{server.description}</span>
-                )}
+                <span className={cn("truncate font-mono", phone ? "text-xs" : "text-sm", selected ? "text-foreground" : "text-muted-foreground")}>
+                  {server.url}
+                </span>
+                {server.description && !phone && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{server.description}</span>}
               </ChoiceRow>
               {selected && server.variables.length > 0 && (
-                <div className="flex flex-col gap-2.5 border-t border-border px-3 py-3">
+                <ChoiceBody className="gap-2.5">
                   {server.variables.map((variable) => (
                     <div key={variable.name} className="flex items-center gap-3">
                       <span className="w-[70px] shrink-0 font-mono text-xs text-muted-foreground">{variable.name}</span>
@@ -842,11 +829,11 @@ function ServerSection({
                       </span>
                     </div>
                   ))}
-                  <div className="flex items-center gap-2 border-t border-border pt-2.5">
+                  <div className="flex items-center gap-2 pt-0.5">
                     <ArrowRight size={13} className="text-muted-foreground" />
                     <span className="truncate font-mono text-xs text-foreground">{resolveServerUrl(server, values)}</span>
                   </div>
-                </div>
+                </ChoiceBody>
               )}
             </ChoiceCard>
           );
@@ -854,17 +841,15 @@ function ServerSection({
 
         <ChoiceCard selected={choice === "custom"}>
           <ChoiceRow selected={choice === "custom"} disabled={readOnly} onSelect={() => onChoice("custom")} icon={Pencil}>
-            <span className={cn("text-sm", choice === "custom" ? "text-foreground" : "text-muted-foreground")}>
-              Somewhere else
-            </span>
+            <span className={choiceLabel(choice === "custom")}>Somewhere else</span>
           </ChoiceRow>
           {choice === "custom" && (
-            <div className="border-t border-border px-3 py-3">
+            <ChoiceBody>
               <VariableSuggestInput value={customUrl} onValueChange={onCustomUrlChange} variables={variables} disabled={readOnly} />
-            </div>
+            </ChoiceBody>
           )}
         </ChoiceCard>
-      </div>
+      </ChoiceList>
     </div>
   );
 }
@@ -919,45 +904,32 @@ function AuthenticationSection({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
-      <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Authentication">
+      <ChoiceList label="Authentication">
         {document.securitySchemes.map((scheme) => {
           const supported = scheme.type !== "mutualTLS";
           const isSelected = supported && selected === scheme.key;
           return (
             <ChoiceCard key={scheme.key} selected={isSelected} className={cn(!supported && "opacity-60")}>
               <ChoiceRow selected={isSelected} disabled={readOnly || !supported} onSelect={() => onSelect(scheme.key)} icon={schemeIcon(scheme)}>
-                <span className={cn("shrink-0 text-sm", isSelected ? "text-foreground" : "text-muted-foreground")}>{schemeLabel(scheme)}</span>
-                {scheme.signIn ? (
-                  !phone && <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
-                ) : (
-                  <span className="truncate font-mono text-xs text-muted-foreground">{schemeIdentity(scheme)}</span>
-                )}
-                {scheme.signIn ? (
-                  !phone && <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>
-                ) : !supported ? (
-                  <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Not yet supported</span>
-                ) : scheme.requiresOthers ? (
-                  <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Needs another too</span>
-                ) : (
-                  document.perOperationSecurity &&
-                  !phone && (
-                    <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                      {scheme.operationCount} of {document.operationCount} ops
-                    </span>
-                  )
+                {/* A phone has no width for the scheme's id beside its label, so it goes under it. */}
+                <span className={cn("flex min-w-0", phone ? "flex-col" : "items-center gap-3")}>
+                  <span className={cn("shrink-0", choiceLabel(isSelected))}>{schemeLabel(scheme)}</span>
+                  <span className={cn("truncate text-xs text-muted-foreground", !scheme.signIn && "font-mono")}>
+                    {scheme.signIn ? "Kaja gets the token and keeps it renewed" : schemeIdentity(scheme)}
+                    {phone && schemeAside(scheme, document) && ` · ${schemeAside(scheme, document)}`}
+                  </span>
+                </span>
+                {!phone && schemeAside(scheme, document) && (
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">{schemeAside(scheme, document)}</span>
                 )}
               </ChoiceRow>
               {isSelected && scheme.signIn && (
-                <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+                <ChoiceBody>
                   {/* The verbs go where the workspace can't be written, as in the MCP form. */}
                   {!readOnly && <SignInStatus state={signIn} signedIn={scheme.signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
-                  {scheme.signedIn ? (
-                    <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>
-                  ) : (
-                    phone && <p className="text-xs text-muted-foreground">Kaja gets the token and keeps it renewed.</p>
-                  )}
+                  {scheme.signedIn && <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>}
                   <SignInVariable credential={parameters.token ?? ""} variables={variables} />
-                </div>
+                </ChoiceBody>
               )}
               {isSelected && !scheme.signIn && (
                 <SchemeCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
@@ -968,10 +940,10 @@ function AuthenticationSection({
 
         <ChoiceCard selected={selected === NO_CREDENTIALS}>
           <ChoiceRow selected={selected === NO_CREDENTIALS} disabled={readOnly} onSelect={() => onSelect(NO_CREDENTIALS)}>
-            <span className={cn("text-sm", selected === NO_CREDENTIALS ? "text-foreground" : "text-muted-foreground")}>Send no credentials</span>
+            <span className={choiceLabel(selected === NO_CREDENTIALS)}>Send no credentials</span>
           </ChoiceRow>
         </ChoiceCard>
-      </div>
+      </ChoiceList>
     </div>
   );
 }
@@ -990,7 +962,7 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
   const basic = isBasicScheme(scheme);
 
   return (
-    <div className="flex flex-col gap-1.5 border-t border-border px-3 py-3">
+    <ChoiceBody className="gap-1.5">
       {scheme.requiresOthers && (
         <div className="mb-1 flex items-center gap-2">
           <Info size={13} className="shrink-0 text-muted-foreground" />
@@ -1001,26 +973,7 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
       )}
 
       {basic ? (
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <VariableSuggestInput
-              value={parameters.username ?? ""}
-              onValueChange={(value) => onParameterChange("username", value)}
-              variables={variables}
-              placeholder="Username"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="flex-1">
-            <VariableSuggestInput
-              value={parameters.password ?? ""}
-              onValueChange={(value) => onParameterChange("password", value)}
-              variables={variables}
-              placeholder="Password"
-              disabled={readOnly}
-            />
-          </div>
-        </div>
+        <BasicCredentials parameters={parameters} onParameterChange={onParameterChange} variables={variables} readOnly={readOnly} />
       ) : (
         <VariableSuggestInput
           value={parameters.token ?? ""}
@@ -1040,7 +993,7 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
       {credentialNote(scheme).text && (
         <p className={cn("text-xs text-muted-foreground", credentialNote(scheme).mono && "font-mono")}>{credentialNote(scheme).text}</p>
       )}
-    </div>
+    </ChoiceBody>
   );
 }
 
@@ -1054,6 +1007,16 @@ function RelativeTime({ at }: { at: number }) {
   const seconds = Math.floor((Date.now() - at) / 1000);
   const label = seconds < 1 ? "just now" : seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
   return <span className="text-xs">{label}</span>;
+}
+
+// schemeAside is what a scheme's row says at its far end, if anything: why it can't be
+// picked, or how much of the API it covers where that differs per operation.
+function schemeAside(scheme: OpenApiSecurityScheme, document: OpenApiDocument): string {
+  if (scheme.signIn) return "nothing to paste";
+  if (scheme.type === "mutualTLS") return "Not yet supported";
+  if (scheme.requiresOthers) return "Needs another too";
+  if (document.perOperationSecurity) return `${scheme.operationCount} of ${document.operationCount} ops`;
+  return "";
 }
 
 function schemeIcon(scheme: OpenApiSecurityScheme): LucideIcon {

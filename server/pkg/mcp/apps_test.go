@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -133,15 +134,19 @@ func TestAddAppCarriesHintsToTheForm(t *testing.T) {
 	srv := NewServer(bridge, token, version)
 
 	arguments := appArguments("GitHub")
-	arguments["hints"] = map[string]interface{}{"username": "The API key goes here."}
-	arguments["note"] = "  Keys are per user.  "
+	arguments["hints"] = map[string]interface{}{
+		"username": map[string]interface{}{"text": "The API key goes here.", "needs_user": true},
+		"base_url": "Each tenant has its own.",
+		"token":    7,
+	}
 	call(t, srv, "tools/call", map[string]interface{}{"name": "add_app", "arguments": arguments})
 	if len(bridge.formOpened) != 1 {
 		t.Fatalf("forms opened = %d, want 1", len(bridge.formOpened))
 	}
 	draft := bridge.formOpened[0]
-	if draft.Hints["username"] != "The API key goes here." || draft.Note != "Keys are per user." {
-		t.Errorf("draft = %+v", draft)
+	want := map[string]AppHint{"username": {Text: "The API key goes here.", NeedsUser: true}, "base_url": {Text: "Each tenant has its own."}}
+	if !reflect.DeepEqual(draft.Hints, want) {
+		t.Errorf("hints = %+v, want %+v", draft.Hints, want)
 	}
 }
 

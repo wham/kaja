@@ -2,7 +2,7 @@ import { Braces, FileCode, House, Keyboard, PenLine, Plug, ScrollText, Settings,
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
-import { AgentNotes } from "./scriptLink";
+import { AgentNotes } from "./agentHints";
 import { isUntouched, Draft } from "./drafts";
 import { draftTitleText } from "./draftTitle";
 import { WorkspaceApp } from "./server/api";

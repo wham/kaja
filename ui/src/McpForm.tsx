@@ -4,7 +4,8 @@ import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { AppNameField } from "./AppNameField";
 import { DemoLink, ReadingRow } from "./InspectStatus";
-import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
+import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
+import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps, getAppType } from "./appTypes";
 import { cn } from "./cn";
@@ -87,6 +88,7 @@ function surfaceCount(server: McpServer): number {
 // McpForm is the New/Edit form for an MCP app. It asks for one thing - where the
 // server is - and everything after it is what that server said about itself.
 export function McpForm({
+  nameField,
   name,
   onNameChange,
   duplicateName,
@@ -259,119 +261,123 @@ export function McpForm({
     problem?.kind === McpProblemKind.MCP_PROBLEM_FORBIDDEN;
 
   return (
-    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="mcp-url">
-          MCP endpoint
-        </label>
+    <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
+      <FormSection lead fields={["url"]}>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-foreground" htmlFor="mcp-url">
+            MCP endpoint
+          </label>
 
-        <div className="relative">
-          <VariableSuggestInput
-            id="mcp-url"
-            value={url}
-            onValueChange={(value) => {
-              typedRef.current = true;
-              onParametersChange((previous) => withEndpoint(previous, value));
-            }}
-            variables={variables}
-            placeholder="https://example.com/mcp"
-            disabled={readOnly}
-            className={known ? "pr-28" : undefined}
-            trailingAction={known && <KnownChip entry={known} />}
-            onFocus={() => setPicker(true)}
-            onBlur={() => setPicker(false)}
-            onKeyDown={(event) => {
-              if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          <div className="relative">
+            <VariableSuggestInput
+              id="mcp-url"
+              value={url}
+              onValueChange={(value) => {
+                typedRef.current = true;
+                onParametersChange((previous) => withEndpoint(previous, value));
+              }}
+              variables={variables}
+              placeholder="https://example.com/mcp"
+              disabled={readOnly}
+              className={known ? "pr-28" : undefined}
+              trailingAction={known && <KnownChip entry={known} />}
+              onFocus={() => setPicker(true)}
+              onBlur={() => setPicker(false)}
+              onKeyDown={(event) => {
+                if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                  event.preventDefault();
+                  setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                  return;
+                }
+                if (picking && event.key === "Escape") {
+                  event.preventDefault();
+                  setPicker(false);
+                  return;
+                }
+                if (event.key !== "Enter") return;
                 event.preventDefault();
-                setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
-                return;
-              }
-              if (picking && event.key === "Escape") {
-                event.preventDefault();
-                setPicker(false);
-                return;
-              }
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (picking) pick(offered[highlight % offered.length]);
-              else read({ fresh: true });
-            }}
-          />
-          {picking && (
-            <KnownList
-              heading="Servers Kaja is set up for"
-              note="sign-in ready"
-              entries={offered.map((server) => ({ name: server.name, address: server.endpoint, mark: server.mark }))}
-              query={url}
-              highlight={highlight % offered.length}
-              onHighlight={setHighlight}
-              onPick={(index) => pick(offered[index])}
-              footer={
-                !url.trim() || isReadableUrl(url) ? (
-                  <>
-                    Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
-                  </>
-                ) : (
-                  "Nothing typed here is a URL yet, so no server has been reached."
-                )
-              }
+                if (picking) pick(offered[highlight % offered.length]);
+                else read({ fresh: true });
+              }}
             />
-          )}
-        </div>
+            {picking && (
+              <KnownList
+                heading="Servers Kaja is set up for"
+                note="sign-in ready"
+                entries={offered.map((server) => ({ name: server.name, address: server.endpoint, mark: server.mark }))}
+                query={url}
+                highlight={highlight % offered.length}
+                onHighlight={setHighlight}
+                onPick={(index) => pick(offered[index])}
+                footer={
+                  !url.trim() || isReadableUrl(url) ? (
+                    <>
+                      Or paste any endpoint. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                    </>
+                  ) : (
+                    "Nothing typed here is a URL yet, so no server has been reached."
+                  )
+                }
+              />
+            )}
+          </div>
 
-        <EndpointStatus
-          state={state}
-          readOnly={readOnly}
-          demoLabel={demo?.label}
-          onDemo={demo ? () => onParametersChange((previous) => ({ ...previous, ...demo.parameters })) : undefined}
-          onCancel={() => {
-            readIdRef.current++;
-            setState({ status: "idle" });
-          }}
-          onRetry={() => read({ fresh: true })}
-        />
-      </div>
+          <EndpointStatus
+            state={state}
+            readOnly={readOnly}
+            demoLabel={demo?.label}
+            onDemo={demo ? () => onParametersChange((previous) => ({ ...previous, ...demo.parameters })) : undefined}
+            onCancel={() => {
+              readIdRef.current++;
+              setState({ status: "idle" });
+            }}
+            onRetry={() => read({ fresh: true })}
+          />
+        </div>
+      </FormSection>
 
       {(server || unresolved || showAuthentication) && (
         <>
-          {!phone && <div className="h-px bg-border" />}
-
-          {(server || unresolved) && (
-            <AppNameField
-              id="mcp-name"
-              name={name}
-              onNameChange={(value) => {
-                setNameTouched(true);
-                onNameChange(value);
-              }}
-              duplicate={duplicateName}
-              readOnly={readOnly}
-              caption={nameTouched || !server ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}.`}
-            />
+          {(server || unresolved) && (nameField || unresolved) && (
+            <FormSection>
+              <AppNameField
+                id="mcp-name"
+                name={name}
+                onNameChange={(value) => {
+                  setNameTouched(true);
+                  onNameChange(value);
+                }}
+                duplicate={duplicateName}
+                readOnly={readOnly}
+                caption={nameTouched || !server ? undefined : `From ${server.name ? "what the server calls itself" : "the endpoint"}.`}
+              />
+            </FormSection>
           )}
 
           {showAuthentication && (
-            <AuthenticationSection
-              selected={auth}
-              onSelect={(value) =>
-                onParametersChange((previous) => ({
-                  ...previous,
-                  auth: value,
-                  // The sign-in stays kept for when Sign in is chosen again; another
-                  // credential is typed, and a reference to a sign-in isn't one.
-                  ...(value !== AUTH_OAUTH && signsIn(previous.token ?? "", variables) ? { token: "" } : {}),
-                }))
-              }
-              known={known}
-              parameters={parameters}
-              onParameterChange={setParameter}
-              variables={variables}
-              readOnly={readOnly}
-              signedIn={Boolean(server) && auth === AUTH_OAUTH}
-              signIn={signIn}
-              onSignIn={authorize}
-              onSignOut={forget}
-            />
+            <FormSection fields={["auth", "clientId", "scope", "apiKeyName", "token"]}>
+              <AuthenticationSection
+                selected={auth}
+                onSelect={(value) =>
+                  onParametersChange((previous) => ({
+                    ...previous,
+                    auth: value,
+                    // The sign-in stays kept for when Sign in is chosen again; another
+                    // credential is typed, and a reference to a sign-in isn't one.
+                    ...(value !== AUTH_OAUTH && signsIn(previous.token ?? "", variables) ? { token: "" } : {}),
+                  }))
+                }
+                known={known}
+                parameters={parameters}
+                onParameterChange={setParameter}
+                variables={variables}
+                readOnly={readOnly}
+                signedIn={Boolean(server) && auth === AUTH_OAUTH}
+                signIn={signIn}
+                onSignIn={authorize}
+                onSignOut={forget}
+              />
+            </FormSection>
           )}
         </>
       )}
@@ -418,24 +424,15 @@ function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: ()
   if (server.promptCount > 0) parts.push(pluralCount(server.promptCount, "prompt"));
 
   return (
-    <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-      <div className="pt-0.5 text-emerald-600 dark:text-emerald-400">
-        <CircleCheck size={15} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <p className="truncate text-sm text-foreground">
-          {parts.join(" · ")} <span className="text-muted-foreground">from {server.name || "the server"}</span>
-        </p>
-        {/* A version is whatever the server calls its build, and some of them name a
-            commit, so it goes on the line that truncates rather than the one read. */}
-        <p className="truncate text-xs text-muted-foreground">
-          {eraLabel(server.protocolVersion, server.handshake)}
-          {server.version && ` · ${server.version}`}
-        </p>
-      </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
-        <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
-      </div>
+    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+      {/* A version is whatever the server calls its build, and some of them name a
+          commit, so it goes last where the line truncates. */}
+      <span className="min-w-0 truncate">
+        <span className="text-foreground">{parts.join(" · ")}</span> from {server.name || "the server"} · {eraLabel(server.protocolVersion, server.handshake)}
+        {server.version && ` · ${server.version}`}
+      </span>
+      <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" className="ml-auto shrink-0" onClick={onRefresh} />
     </div>
   );
 }
@@ -525,15 +522,15 @@ function AuthenticationSection({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-foreground">Authentication</label>
-      <div role="radiogroup" aria-label="Authentication" className="flex flex-col gap-1.5 pt-0.5">
+      <ChoiceList label="Authentication">
         <ChoiceCard selected={oauth}>
           <ChoiceRow selected={oauth} disabled={readOnly} onSelect={() => onSelect(AUTH_OAUTH)} icon={ShieldCheck}>
-            <span className={cn("shrink-0 text-sm", oauth ? "text-foreground" : "text-muted-foreground")}>Sign in</span>
+            <span className={cn("shrink-0", choiceLabel(oauth))}>Sign in</span>
             <span className="truncate text-xs text-muted-foreground">Kaja gets the token and keeps it renewed</span>
-            {known && <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">nothing to paste</span>}
+            {known && <span className="ml-auto shrink-0 text-xs text-muted-foreground">nothing to paste</span>}
           </ChoiceRow>
           {oauth && (
-            <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+            <ChoiceBody>
               {/* The verbs go where the workspace can't be written; the fields stay,
                   because reading how an app is configured is still worth doing. */}
               {!readOnly && (
@@ -567,7 +564,7 @@ function AuthenticationSection({
                 </>
               )}
               {bundled && <p className="text-xs text-muted-foreground">Using Kaja's registration with {bundled.name}.</p>}
-            </div>
+            </ChoiceBody>
           )}
         </ChoiceCard>
 
@@ -577,11 +574,11 @@ function AuthenticationSection({
           return (
             <ChoiceCard key={scheme.key} selected={active}>
               <ChoiceRow selected={active} disabled={readOnly} onSelect={() => onSelect(scheme.key)} icon={scheme.key === AUTH_APIKEY ? Key : Blocks}>
-                <span className={cn("shrink-0 text-sm", active ? "text-foreground" : "text-muted-foreground")}>{scheme.label}</span>
+                <span className={cn("shrink-0", choiceLabel(active))}>{scheme.label}</span>
                 <span className="truncate text-xs text-muted-foreground">{scheme.summary}</span>
               </ChoiceRow>
               {active && (
-                <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+                <ChoiceBody>
                   <div className="flex items-center gap-2">
                     {scheme.key === AUTH_APIKEY && (
                       <div className="w-48">
@@ -605,7 +602,7 @@ function AuthenticationSection({
                     </div>
                   </div>
                   <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>
-                </div>
+                </ChoiceBody>
               )}
             </ChoiceCard>
           );
@@ -613,10 +610,10 @@ function AuthenticationSection({
 
         <ChoiceCard selected={selected === AUTH_NONE}>
           <ChoiceRow selected={selected === AUTH_NONE} disabled={readOnly} onSelect={() => onSelect(AUTH_NONE)}>
-            <span className={cn("text-sm", selected === AUTH_NONE ? "text-foreground" : "text-muted-foreground")}>Send no credentials</span>
+            <span className={choiceLabel(selected === AUTH_NONE)}>Send no credentials</span>
           </ChoiceRow>
         </ChoiceCard>
-      </div>
+      </ChoiceList>
     </div>
   );
 }
