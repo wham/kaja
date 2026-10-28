@@ -5,10 +5,13 @@ import { isWailsEnvironment, openInBrowser } from "./wails";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { ErrorStatus, useAppErrors } from "./ErrorStatus";
 import { DEFAULT_ZOOM } from "./zoom";
+import { cn } from "./cn";
+import { isIPhone } from "./phone";
 
 export type ColorMode = "day" | "night";
 
 const footIconClass = "size-7 rounded-[7px] text-muted-foreground hover:text-foreground [&_svg]:size-[15px]";
+const phoneFootIconClass = "size-11 rounded-full text-muted-foreground [&_svg]:size-5";
 
 interface SidebarFootProps {
   colorMode: ColorMode;
@@ -19,6 +22,7 @@ interface SidebarFootProps {
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
   onShowShortcuts: () => void;
+  phone?: boolean;
 }
 
 const FEEDBACK_URL = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
@@ -42,12 +46,14 @@ export const SidebarFoot = memo(function SidebarFoot({
   featurePreviews,
   onToggleFeaturePreview,
   onShowShortcuts,
+  phone = false,
 }: SidebarFootProps) {
+  const iconClass = phone ? phoneFootIconClass : footIconClass;
   const appErrors = useAppErrors();
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1.5 pr-2 pl-4 text-xs text-muted-foreground">
+    <div className={cn("flex shrink-0 items-center gap-1.5 text-muted-foreground", phone ? "h-14 pr-2 pl-5 text-[13px]" : "h-10 pr-2 pl-4 text-xs")}>
       {gitRef && shortRef && (
         <a
           href={`https://github.com/wham/kaja/tree/${gitRef}`}
@@ -61,7 +67,7 @@ export const SidebarFoot = memo(function SidebarFoot({
           }}
           className="flex min-w-0 items-center gap-1.5 text-muted-foreground no-underline hover:text-foreground"
         >
-          <GitBranch size={13} className="shrink-0" />
+          <GitBranch size={phone ? 16 : 13} className="shrink-0" />
           <span className="truncate">{shortRef}</span>
         </a>
       )}
@@ -77,23 +83,19 @@ export const SidebarFoot = memo(function SidebarFoot({
         </button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
-        <IconButton
-          size="xs"
-          variant="ghost"
-          icon={CircleHelp}
-          aria-label="Send feedback"
-          onClick={() => openExternal(FEEDBACK_URL)}
-          className={footIconClass}
-        />
-        <IconButton size="xs" variant="ghost" icon={Keyboard} aria-label="Keyboard shortcuts" onClick={onShowShortcuts} className={footIconClass} />
-        <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={footIconClass} />
+        <IconButton size="xs" variant="ghost" icon={CircleHelp} aria-label="Send feedback" onClick={() => openExternal(FEEDBACK_URL)} className={iconClass} />
+        {/* An iPhone has no keyboard to press them on; a narrow browser window still does. */}
+        {!isIPhone() && (
+          <IconButton size="xs" variant="ghost" icon={Keyboard} aria-label="Keyboard shortcuts" onClick={onShowShortcuts} className={iconClass} />
+        )}
+        <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={iconClass} />
         <IconButton
           size="xs"
           variant="ghost"
           icon={colorMode === "night" ? Sun : Moon}
           aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
           onClick={onToggleColorMode}
-          className={footIconClass}
+          className={iconClass}
         />
       </div>
     </div>

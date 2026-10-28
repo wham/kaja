@@ -8,6 +8,11 @@ import { streamingKind } from "./streaming";
  */
 export const PHONE_QUERY = "(max-width: 639px)";
 
+/** An iPhone, in the app or in Safari, whatever width the window is drawn at. */
+export function isIPhone(): boolean {
+  return typeof navigator !== "undefined" && /iPhone|iPod/.test(navigator.userAgent);
+}
+
 /**
  * Where the script's sheet sits. `rest` is the grabber alone, `half` shows the code
  * over the run it produced, and `full` is what editing needs — a keyboard leaves

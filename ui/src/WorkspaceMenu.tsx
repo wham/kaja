@@ -1,4 +1,5 @@
 import { ChevronDown, ExternalLink, FolderOpen } from "lucide-react";
+import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { KajaTrace } from "./KajaTrace";
 
@@ -20,7 +21,7 @@ export interface WorkspaceControl {
 
 // Where the band has no traffic lights the mark and the name are one button, so the
 // corner says which workspace rather than repeating "Kaja".
-export function WorkspaceMenu({ control, withMark }: { control: WorkspaceControl; withMark?: boolean }) {
+export function WorkspaceMenu({ control, withMark, large = false }: { control: WorkspaceControl; withMark?: boolean; large?: boolean }) {
   const others = control.known.filter((workspace) => workspace.dir !== control.current.dir);
   return (
     <DropdownMenu>
@@ -29,11 +30,14 @@ export function WorkspaceMenu({ control, withMark }: { control: WorkspaceControl
           type="button"
           aria-label={`Workspace: ${control.current.name}`}
           title={control.current.dir}
-          className="flex h-6 min-w-0 shrink items-center gap-1 rounded-md pl-2 pr-1.5 text-xs font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted"
+          className={cn(
+            "flex min-w-0 shrink items-center font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted",
+            large ? "h-11 gap-1.5 rounded-xl pr-2.5 pl-2 text-[20px]" : "h-6 gap-1 rounded-md pr-1.5 pl-2 text-xs",
+          )}
         >
-          {withMark && <KajaTrace width={18} height={11} className="mr-0.5 shrink-0" />}
+          {withMark && <KajaTrace width={large ? 26 : 18} height={large ? 16 : 11} className={cn("shrink-0", large ? "mr-1" : "mr-0.5")} />}
           <span className="truncate">{control.current.name}</span>
-          <ChevronDown size={12} className="shrink-0 text-muted-foreground" />
+          <ChevronDown size={large ? 18 : 12} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">

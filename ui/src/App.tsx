@@ -2,6 +2,7 @@ import { useMediaQuery } from "./useMediaQuery";
 import { PHONE_QUERY, methodTag } from "./phone";
 import { PhoneFinder } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
+import { PhoneSidebar } from "./PhoneSidebar";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
@@ -2926,6 +2927,7 @@ export function App() {
         onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
         onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
         onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+        phone={isPhone}
       />
     ),
     [
@@ -2960,9 +2962,10 @@ export function App() {
 
   // On a phone the sidebar covers the page, so whatever it opens has to put it away.
   const phoneClosing = <A extends unknown[]>(fn: (...args: A) => unknown) => (isPhone ? closingSidebar(fn) : fn);
+  const SidebarList = isPhone ? PhoneSidebar : Sidebar;
   const sidebar = (
     <>
-      <Sidebar
+      <SidebarList
         apps={apps}
         tab={sidebarTab}
         onTabChange={setSidebarTab}
@@ -2995,6 +2998,7 @@ export function App() {
         featurePreviews={featurePreviews}
         onToggleFeaturePreview={onToggleFeaturePreview}
         onShowShortcuts={phoneClosing(onShortcutsClick)}
+        phone={isPhone}
       />
     </>
   );
