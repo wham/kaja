@@ -1,4 +1,4 @@
-import { Bot, Check, ChevronsUpDown, Logs, Maximize, Minimize, Trash2 } from "lucide-react";
+import { Bot, Check, ChevronsUpDown, Logs, Maximize2, Minimize2, Trash2 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture, CellRun } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
@@ -440,7 +440,7 @@ export function Console({
         {selectedGroup && (
           <div className="ml-auto flex shrink-0 items-center @max-[430px]:hidden">
             <IconButton
-              icon={Maximize}
+              icon={Maximize2}
               aria-label="Full screen"
               variant="ghost"
               size="sm"
@@ -640,7 +640,7 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           {runControl && <div className="h-4 w-px bg-border" />}
           <span className="font-mono text-xs text-muted-foreground">Esc</span>
           <IconButton
-            icon={Minimize}
+            icon={Minimize2}
             aria-label="Leave full screen"
             variant="ghost"
             size="sm"
