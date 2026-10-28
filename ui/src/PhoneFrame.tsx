@@ -238,7 +238,7 @@ export function PhoneFrame({
     <div
       ref={rootRef}
       className="group/frame fixed inset-0 overflow-hidden bg-chrome text-foreground"
-      style={{ overscrollBehavior: "contain", "--drawer-width": "min(84vw, 320px)" } as React.CSSProperties}
+      style={{ overscrollBehavior: "contain", "--drawer-width": "min(86vw, 360px)" } as React.CSSProperties}
     >
       <nav
         ref={drawerRef}

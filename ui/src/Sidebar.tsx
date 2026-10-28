@@ -102,7 +102,7 @@ export function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: s
   );
 }
 
-interface SidebarProps {
+export interface SidebarProps {
   apps: App[];
   // Which list the panel shows. Held by the window rather than here, because the keys
   // that switch it also have to bring back a collapsed sidebar.
@@ -583,7 +583,7 @@ function McpTool({ state, onClick }: { state: McpState; onClick: () => void }) {
   );
 }
 
-const TAB_LABEL: Record<SidebarTab, string> = { apps: "Apps", scripts: "Scripts" };
+export const TAB_LABEL: Record<SidebarTab, string> = { apps: "Apps", scripts: "Scripts" };
 
 export function sidebarTabId(tab: SidebarTab): string {
   return `${tab}-tab`;
@@ -662,7 +662,17 @@ function TabRow({
  * every app is ready, a spinner while any is compiling, a dot when one failed or
  * warned. Clicking opens the compile log, on the first failure if there is one.
  */
-function CompileMarker({ apps, workspaceLoaded, onShowCompileLog }: { apps: App[]; workspaceLoaded: boolean; onShowCompileLog: (appName?: string) => void }) {
+export function CompileMarker({
+  apps,
+  workspaceLoaded,
+  onShowCompileLog,
+  large = false,
+}: {
+  apps: App[];
+  workspaceLoaded: boolean;
+  onShowCompileLog: (appName?: string) => void;
+  large?: boolean;
+}) {
   const summary = summarizeCompilation(apps, workspaceLoaded);
   const label = summary.state === "ready" ? `${pluralCount(summary.total, "app")} compiled` : summary.label;
   const firstFailure = apps.find((app) => app.compilation.status === "error") ?? apps.find((app) => warningCount(app) > 0);
@@ -673,16 +683,16 @@ function CompileMarker({ apps, workspaceLoaded, onShowCompileLog }: { apps: App[
         type="button"
         aria-label={`${label}. Show compile log`}
         onClick={() => onShowCompileLog(firstFailure?.configuration.name)}
-        className="flex size-[18px] shrink-0 items-center justify-center rounded-sm hover:bg-accent"
+        className={cn("flex shrink-0 items-center justify-center rounded-sm hover:bg-accent", large ? "size-7 rounded-full" : "size-[18px]")}
       >
         {summary.state === "loading" || summary.state === "compiling" ? (
-          <Spinner size="sm" className="size-3 text-muted-foreground" />
+          <Spinner size="sm" className={cn("text-muted-foreground", large ? "size-4" : "size-3")} />
         ) : summary.state === "failed" ? (
-          <span className="size-[7px] rounded-full bg-destructive" />
+          <span className={cn("rounded-full bg-destructive", large ? "size-2" : "size-[7px]")} />
         ) : summary.state === "warning" ? (
-          <span className="size-[7px] rounded-full bg-amber-500" />
+          <span className={cn("rounded-full bg-amber-500", large ? "size-2" : "size-[7px]")} />
         ) : (
-          <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
+          <Check size={large ? 16 : 12} className="text-emerald-600 dark:text-emerald-400" />
         )}
       </button>
     </SimpleTooltip>
@@ -725,11 +735,11 @@ function TabPane({
 // app is broken and opens its log.
 // A method Kaja won't call still has a row — hiding it would make the tree say the
 // app has less than it does — so the row says why instead.
-function UnsupportedMarker({ reason }: { reason: string }) {
+export function UnsupportedMarker({ reason, size = 12 }: { reason: string; size?: number }) {
   return (
     <SimpleTooltip text={reason}>
       <span role="img" aria-label={reason} className="inline-flex shrink-0 items-center text-muted-foreground">
-        <Ban size={12} />
+        <Ban size={size} />
       </span>
     </SimpleTooltip>
   );
@@ -741,12 +751,12 @@ function UnsupportedMarker({ reason }: { reason: string }) {
 // 13px, and the dimming was never what told the two apart: the `Ban` in the trailing
 // slot is, and so is the `+` a deprecated row keeps. A strikethrough says nothing
 // about who decided it, so the name carries the sentence that does.
-function MethodName({ name, unsupported, deprecated }: { name: string; unsupported: boolean; deprecated: boolean }) {
+export function MethodName({ name, unsupported, deprecated }: { name: string; unsupported: boolean; deprecated: boolean }) {
   const label = <span className={cn((unsupported || deprecated) && "text-muted-foreground", deprecated && "line-through")}>{name}</span>;
   return deprecated ? <SimpleTooltip text={DEPRECATION_NOTE}>{label}</SimpleTooltip> : label;
 }
 
-function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appName: string) => void }) {
+export function AppCompileMarker({ app, onShowCompileLog, size = 12 }: { app: App; onShowCompileLog: (appName: string) => void; size?: number }) {
   const failed = app.compilation.status === "error";
   const warned = warningCount(app);
   if (!failed && warned === 0) return null;
@@ -764,14 +774,24 @@ function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLo
         onShowCompileLog(app.configuration.name);
       }}
     >
-      {failed ? <CircleX size={12} /> : <TriangleAlert size={12} />}
+      {failed ? <CircleX size={size} /> : <TriangleAlert size={size} />}
     </button>
   );
 }
 
 // Beside the compile marker rather than folded into it: the app compiled, and what it
 // is missing is a value on this machine rather than anything the compile log can say.
-function AppVariableMarker({ appName, missing, onReveal }: { appName: string; missing?: MissingVariable[]; onReveal: (name: string) => void }) {
+export function AppVariableMarker({
+  appName,
+  missing,
+  onReveal,
+  size = 12,
+}: {
+  appName: string;
+  missing?: MissingVariable[];
+  onReveal: (name: string) => void;
+  size?: number;
+}) {
   if (!missing || missing.length === 0) return null;
   const label = missing.map(missingVariableSentence).join(". ");
   return (
@@ -785,7 +805,7 @@ function AppVariableMarker({ appName, missing, onReveal }: { appName: string; mi
         onReveal(missing[0].name);
       }}
     >
-      <Braces size={12} />
+      <Braces size={size} />
     </button>
   );
 }

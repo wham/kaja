@@ -5,6 +5,8 @@ import {
   Copy,
   Ellipsis,
   ExternalLink,
+  FileCode,
+  FilePen,
   FilePlus,
   Folder,
   FolderPlus,
@@ -42,6 +44,7 @@ import { ROW_ACTION, RowAction } from "./Sidebar";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
+import { PHONE_ICON, PhoneLevelHeader, PhoneRow, PhoneRowAction, PhoneSection } from "./PhoneList";
 
 /**
  * Scripts: one section, two labelled groups, and four rules holding them together.
@@ -134,6 +137,8 @@ export interface ScriptsRegionProps {
   onCopyScript?: (script: Script, name: string, folder: string) => Promise<void>;
   onCopyFolder?: (path: string, newPath: string) => Promise<void>;
   onRevealScripts?: () => void;
+  // A level at a time rather than a tree, at a phone's size.
+  phone?: boolean;
 }
 
 export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionProps) {
@@ -178,6 +183,11 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
   const spring = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const canMove = canWrite && props.onMoveScript !== undefined;
   const filesActions = canWrite && Boolean(props.onCreateScript || props.onCreateFolder || props.onRevealScripts);
+
+  // The folder a phone is showing; the top level is "".
+  const [level, setLevel] = useState("");
+  const levelNode = props.phone && level !== "" ? findFolder(tree, level) : undefined;
+  const levelPath = levelNode?.path ?? "";
 
   const toggleFolder = (path: string) => setOpenFolders((open) => (open.includes(path) ? open.filter((candidate) => candidate !== path) : [...open, path]));
 
@@ -239,6 +249,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
 
   const openFolder = (path: string) => {
     setFilesOpen(true);
+    if (props.phone) setLevel(path);
     if (path) setOpenFolders((open) => (open.includes(path) ? open : [...open, path]));
   };
 
@@ -301,6 +312,231 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
 
   const active = (key: string) => touch || hovered === key;
 
+  const folderHasMenu = canWrite && (props.onCreateFolder !== undefined || props.onCreateScript !== undefined || props.onCopyFolder !== undefined);
+  const menuAt = (event: React.MouseEvent) => ({ top: event.clientY, left: event.clientX });
+
+  const phoneList = () => {
+    const nodes = levelNode ? levelNode.children : tree;
+    const parent = levelPath.includes("/") ? levelPath.slice(0, levelPath.lastIndexOf("/")) : "";
+    return (
+      <>
+        {levelNode ? (
+          <PhoneLevelHeader
+            back={parent === "" ? "Scripts" : folderName(parent)}
+            onBack={() => setLevel(parent)}
+            icon={<Folder size={22} className="shrink-0 text-muted-foreground" />}
+            title={levelNode.name}
+            trailing={
+              folderHasMenu && (
+                <PhoneRowAction
+                  icon={Ellipsis}
+                  label={`Actions for ${levelNode.name}`}
+                  onClick={(event) => setFolderMenu({ path: levelPath, ...menuAt(event) })}
+                />
+              )
+            }
+          />
+        ) : (
+          (agentDrafts.length > 0 || ownDrafts.length > 0) && (
+            <>
+              <PhoneSection trailing={ownDrafts.length > 0 && <PhoneRowAction icon={Trash2} label="Discard all drafts" onClick={props.onDiscardAllDrafts} />}>
+                Drafts
+              </PhoneSection>
+              <ul aria-label="Drafts">
+                {agentDrafts.map((draft) => (
+                  <li key={draft.id}>
+                    <PhoneRow
+                      current={props.currentDraftId === draft.id}
+                      icon={<Plug size={PHONE_ICON} className={cn(props.runningFileIds?.has(draft.id) && "text-emerald-600 dark:text-emerald-400")} />}
+                      onClick={() => props.onDraftSelect(draft)}
+                      trailing={<PhoneRowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={() => props.onDiscardDraft(draft)} />}
+                    >
+                      <span className="truncate text-muted-foreground">{draft.agentName}</span>
+                    </PhoneRow>
+                  </li>
+                ))}
+                {draftsShown.map((draft) => {
+                  const { name, qualifier } = titleParts(draft.title);
+                  const current = props.currentDraftId === draft.id;
+                  return (
+                    <li key={draft.id}>
+                      <PhoneRow
+                        current={current}
+                        icon={<FilePen size={PHONE_ICON} />}
+                        onClick={() => props.onDraftSelect(draft)}
+                        trailing={
+                          <>
+                            <RowTrailing
+                              running={props.runningFileIds?.has(draft.id)}
+                              agent={props.agentFileIds?.has(draft.id)}
+                              waiting={props.waitingFileIds?.has(draft.id)}
+                            />
+                            <PhoneRowAction
+                              icon={Ellipsis}
+                              label={`Actions for ${draft.title}`}
+                              onClick={(event) => setDraftMenu({ draft, ...menuAt(event) })}
+                            />
+                          </>
+                        }
+                      >
+                        <DraftName name={name} qualifier={qualifier} browsing={isUntouched(draft)} current={current} />
+                      </PhoneRow>
+                    </li>
+                  );
+                })}
+                {hiddenDrafts > 0 && (
+                  <li>
+                    <PhoneRow onClick={() => setShowAllDrafts(true)} className="text-muted-foreground">
+                      {hiddenDrafts} more…
+                    </PhoneRow>
+                  </li>
+                )}
+              </ul>
+            </>
+          )
+        )}
+        {!levelNode && (
+          <PhoneSection trailing={filesActions && <PhoneRowAction icon={Ellipsis} label="Actions for Files" onClick={openFilesMenu} />}>Files</PhoneSection>
+        )}
+        <ul aria-label={levelNode ? levelNode.name : "Files"}>
+          {nodes.map((node) =>
+            node.kind === "folder" ? (
+              <li key={node.path}>
+                {folderEdit?.path === node.path ? (
+                  <NameField
+                    large
+                    initial={node.name}
+                    label="Folder name"
+                    error={(name) => folderNameError(name, siblingFolderNames(tree, node.path))}
+                    onCommit={async (name) => {
+                      await props.onRenameFolder?.(node.path, name);
+                      setFolderEdit(null);
+                    }}
+                    onCancel={() => setFolderEdit(null)}
+                  >
+                    <Folder size={PHONE_ICON} className="shrink-0 text-muted-foreground" />
+                  </NameField>
+                ) : (
+                  <PhoneRow
+                    icon={<Folder size={PHONE_ICON} />}
+                    opens
+                    onClick={() => setLevel(node.path)}
+                    trailing={
+                      folderHasMenu && (
+                        <PhoneRowAction
+                          icon={Ellipsis}
+                          label={`Actions for ${node.name}`}
+                          onClick={(event) => setFolderMenu({ path: node.path, ...menuAt(event) })}
+                        />
+                      )
+                    }
+                  >
+                    <span className="truncate">{node.name}</span>
+                  </PhoneRow>
+                )}
+              </li>
+            ) : (
+              <li key={node.script.path}>
+                {renaming === node.script.path ? (
+                  <NameField
+                    large
+                    initial={node.script.name}
+                    label="File name"
+                    select={scriptNameParts(node.script.name).base.length}
+                    error={(name) =>
+                      scriptRenameError(
+                        name,
+                        node.script.folder,
+                        scripts.filter((other) => other.path !== node.script.path),
+                      )
+                    }
+                    onCommit={async (typed) => {
+                      const target = resolveScriptRename(node.script.folder, typed);
+                      if (target && (target.folder !== node.script.folder || target.name !== node.script.name)) {
+                        await props.onRenameScript?.(node.script, target.name, target.folder);
+                      }
+                      setRenaming(null);
+                    }}
+                    onCancel={() => setRenaming(null)}
+                  >
+                    <FileCode size={PHONE_ICON} className="shrink-0 text-muted-foreground" />
+                  </NameField>
+                ) : (
+                  <PhoneRow
+                    current={props.currentScriptPath === node.script.path}
+                    icon={<FileCode size={PHONE_ICON} />}
+                    onClick={() => props.onScriptSelect(node.script)}
+                    trailing={
+                      <>
+                        <RowTrailing
+                          running={props.runningFileIds?.has(node.script.path)}
+                          agent={props.agentFileIds?.has(node.script.path)}
+                          waiting={props.waitingFileIds?.has(node.script.path)}
+                        />
+                        {(canWrite || props.onCopyScriptLink !== undefined) && (
+                          <PhoneRowAction
+                            icon={Ellipsis}
+                            label={`Actions for ${node.script.name}`}
+                            onClick={(event) => setScriptMenu({ script: node.script, ...menuAt(event) })}
+                          />
+                        )}
+                      </>
+                    }
+                  >
+                    <span className="truncate">
+                      <FileName name={node.script.name} />
+                    </span>
+                  </PhoneRow>
+                )}
+              </li>
+            ),
+          )}
+          {folderEdit && folderEdit.parent === levelPath && folderEdit.path === undefined && (
+            <li>
+              <NameField
+                large
+                initial="untitled folder"
+                label="Folder name"
+                error={(name) => folderNameError(name, childFolderNames(tree, levelPath))}
+                onCommit={async (name) => {
+                  await props.onCreateFolder?.(levelPath ? `${levelPath}/${name}` : name);
+                  setFolderEdit(null);
+                }}
+                onCancel={() => setFolderEdit(null)}
+              >
+                <Folder size={PHONE_ICON} className="shrink-0 text-muted-foreground" />
+              </NameField>
+            </li>
+          )}
+          {fileEdit?.folder === levelPath && (
+            <li>
+              <NameField
+                large
+                initial="untitled.ts"
+                label="File name"
+                select={scriptNameParts("untitled.ts").base.length}
+                error={(name) => scriptRenameError(name, levelPath, scripts)}
+                onCommit={async (typed) => {
+                  const target = resolveScriptRename(levelPath, typed);
+                  if (target) await props.onCreateScript?.(target.name, target.folder);
+                  setFileEdit(null);
+                }}
+                onCancel={() => setFileEdit(null)}
+              >
+                <FileCode size={PHONE_ICON} className="shrink-0 text-muted-foreground" />
+              </NameField>
+            </li>
+          )}
+          {nodes.length === 0 && !folderEdit && !fileEdit && (
+            <li className="px-3 py-2 text-[15px] text-muted-foreground">
+              {levelNode ? "Empty folder" : canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here"}
+            </li>
+          )}
+        </ul>
+      </>
+    );
+  };
+
   return (
     // Named by the tab above it, which is the sidebar's: the heading is stated once.
     <nav
@@ -314,215 +550,221 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
         setDrag((current) => (current && current.folder !== null ? { ...current, folder: null } : current));
       }}
     >
-      {/* Zero drafts hides the group rather than showing an empty label: there
-          is nothing there and nothing to say about it. */}
-      {(agentDrafts.length > 0 || ownDrafts.length > 0) && (
+      {props.phone ? (
+        phoneList()
+      ) : (
         <>
+          {/* Zero drafts hides the group rather than showing an empty label: there
+              is nothing there and nothing to say about it. */}
+          {(agentDrafts.length > 0 || ownDrafts.length > 0) && (
+            <>
+              <GroupHeader
+                label="Drafts"
+                open={draftsOpen}
+                onToggle={() => setDraftsOpen((open) => !open)}
+                action={ownDrafts.length > 0 ? { icon: Trash2, label: "Discard all drafts", onClick: props.onDiscardAllDrafts } : undefined}
+              />
+              {draftsOpen && (
+                <ul role="tree" aria-label="Drafts" className="select-none">
+                  {agentDrafts.map((draft) => (
+                    <AgentRow
+                      key={draft.id}
+                      draft={draft}
+                      current={props.currentDraftId === draft.id}
+                      running={props.runningFileIds?.has(draft.id)}
+                      waiting={props.waitingFileIds?.has(draft.id)}
+                      active={active(`draft:${draft.id}`)}
+                      onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
+                      onSelect={() => props.onDraftSelect(draft)}
+                      onDiscard={() => props.onDiscardDraft(draft)}
+                    />
+                  ))}
+                  {draftsShown.map((draft) => (
+                    <DraftRow
+                      key={draft.id}
+                      draft={draft}
+                      current={props.currentDraftId === draft.id}
+                      running={props.runningFileIds?.has(draft.id)}
+                      agent={props.agentFileIds?.has(draft.id)}
+                      waiting={props.waitingFileIds?.has(draft.id)}
+                      active={active(`draft:${draft.id}`)}
+                      canWrite={canWrite}
+                      onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
+                      onSelect={() => props.onDraftSelect(draft)}
+                      onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
+                      onDiscard={() => props.onDiscardDraft(draft)}
+                      onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
+                    />
+                  ))}
+                  {hiddenDrafts > 0 && (
+                    <li role="treeitem">
+                      <div
+                        onClick={() => setShowAllDrafts(true)}
+                        style={{ paddingLeft: LEAF_INDENT }}
+                        className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
+                      >
+                        {hiddenDrafts} more…
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </>
+          )}
+
           <GroupHeader
-            label="Drafts"
-            open={draftsOpen}
-            onToggle={() => setDraftsOpen((open) => !open)}
-            action={ownDrafts.length > 0 ? { icon: Trash2, label: "Discard all drafts", onClick: props.onDiscardAllDrafts } : undefined}
+            label="Files"
+            open={filesOpen}
+            onToggle={() => setFilesOpen((open) => !open)}
+            // The row that means the top level, so a file inside a folder has somewhere to be
+            // dropped that isn't another folder — and it is there while Files is folded.
+            dropping={drag?.folder === ""}
+            onDragOver={(event) => onDragOverFolder(event, "")}
+            onDrop={(event) => onDropInFolder(event, "")}
+            action={filesActions ? { icon: Ellipsis, label: "Actions for Files", onClick: openFilesMenu } : undefined}
+            onMenu={filesActions ? openFilesMenu : undefined}
           />
-          {draftsOpen && (
-            <ul role="tree" aria-label="Drafts" className="select-none">
-              {agentDrafts.map((draft) => (
-                <AgentRow
-                  key={draft.id}
-                  draft={draft}
-                  current={props.currentDraftId === draft.id}
-                  running={props.runningFileIds?.has(draft.id)}
-                  waiting={props.waitingFileIds?.has(draft.id)}
-                  active={active(`draft:${draft.id}`)}
-                  onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
-                  onSelect={() => props.onDraftSelect(draft)}
-                  onDiscard={() => props.onDiscardDraft(draft)}
+          {filesOpen && (
+            <ul
+              role="tree"
+              aria-label="Files"
+              className="select-none"
+              // The space under the last row is still the top level.
+              onDragOver={(event) => onDragOverFolder(event, "")}
+              onDrop={(event) => onDropInFolder(event, "")}
+            >
+              {rows.map((node) =>
+                node.kind === "folder" ? (
+                  <Fragment key={node.path}>
+                    <FolderRow
+                      node={node}
+                      open={openFolders.includes(node.path)}
+                      editing={folderEdit?.path === node.path}
+                      active={active(`folder:${node.path}`)}
+                      hasMenu={folderHasMenu}
+                      dropping={drag?.folder === node.path}
+                      onDragOver={(event) => onDragOverFolder(event, node.path, node.path)}
+                      onDrop={(event) => onDropInFolder(event, node.path)}
+                      siblingNames={siblingFolderNames(tree, node.path)}
+                      onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
+                      onToggle={() => toggleFolder(node.path)}
+                      onMenu={(event) => setFolderMenu({ path: node.path, top: event.clientY, left: event.clientX })}
+                      canRename={props.onRenameFolder !== undefined}
+                      onStartRename={() => setFolderEdit({ parent: node.path, path: node.path, name: node.name })}
+                      onRename={async (name) => {
+                        await props.onRenameFolder?.(node.path, name);
+                        setFolderEdit(null);
+                      }}
+                      onCancelRename={() => setFolderEdit(null)}
+                    />
+                    {/* The new row sits inside the folder it is being made in,
+                        which is what lets you see where it lands as you type. */}
+                    {folderEdit?.parent === node.path && folderEdit.path === undefined && (
+                      <NewFolderRow
+                        depth={node.depth + 1}
+                        siblingNames={childFolderNames(tree, node.path)}
+                        onCommit={async (name) => {
+                          await props.onCreateFolder?.(`${node.path}/${name}`);
+                          setFolderEdit(null);
+                        }}
+                        onCancel={() => setFolderEdit(null)}
+                      />
+                    )}
+                    {fileEdit?.folder === node.path && (
+                      <NewFileRow
+                        depth={node.depth + 1}
+                        folder={node.path}
+                        scripts={scripts}
+                        onCommit={async (name, folder) => {
+                          await props.onCreateScript?.(name, folder);
+                          setFileEdit(null);
+                        }}
+                        onCancel={() => setFileEdit(null)}
+                      />
+                    )}
+                  </Fragment>
+                ) : (
+                  <FileRow
+                    key={node.script.path}
+                    script={node.script}
+                    scripts={scripts}
+                    depth={node.depth}
+                    editing={renaming === node.script.path}
+                    canRename={props.onRenameScript !== undefined}
+                    current={props.currentScriptPath === node.script.path}
+                    running={props.runningFileIds?.has(node.script.path)}
+                    agent={props.agentFileIds?.has(node.script.path)}
+                    waiting={props.waitingFileIds?.has(node.script.path)}
+                    active={active(`file:${node.script.path}`)}
+                    // A file the web is serving is read-only, but it still has an address — so the row
+                    // keeps its menu wherever there is an item to put in it.
+                    hasMenu={canWrite || props.onCopyScriptLink !== undefined}
+                    draggable={canMove}
+                    dragging={drag?.script.path === node.script.path}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      // Firefox starts no drag at all without data on the transfer, and a
+                      // type of our own is what keeps a row let go over the editor from
+                      // being pasted into it as text.
+                      event.dataTransfer.setData(DRAG_TYPE, node.script.path);
+                      setDrag({ script: node.script, folder: null });
+                    }}
+                    onDragOver={(event) => onDragOverFolder(event, node.script.folder)}
+                    onDrop={(event) => onDropInFolder(event, node.script.folder)}
+                    onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
+                    onSelect={() => props.onScriptSelect(node.script)}
+                    onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
+                    onStartRename={() => setRenaming(node.script.path)}
+                    onRename={async (typed) => {
+                      const target = resolveScriptRename(node.script.folder, typed);
+                      // A name that landed where it already was is not a write.
+                      if (target && (target.folder !== node.script.folder || target.name !== node.script.name)) {
+                        await props.onRenameScript?.(node.script, target.name, target.folder);
+                      }
+                      setRenaming(null);
+                    }}
+                    onCancelRename={() => setRenaming(null)}
+                  />
+                ),
+              )}
+              {folderEdit && folderEdit.parent === "" && folderEdit.path === undefined && (
+                <NewFolderRow
+                  depth={0}
+                  siblingNames={childFolderNames(tree, "")}
+                  onCommit={async (name) => {
+                    await props.onCreateFolder?.(name);
+                    setFolderEdit(null);
+                  }}
+                  onCancel={() => setFolderEdit(null)}
                 />
-              ))}
-              {draftsShown.map((draft) => (
-                <DraftRow
-                  key={draft.id}
-                  draft={draft}
-                  current={props.currentDraftId === draft.id}
-                  running={props.runningFileIds?.has(draft.id)}
-                  agent={props.agentFileIds?.has(draft.id)}
-                  waiting={props.waitingFileIds?.has(draft.id)}
-                  active={active(`draft:${draft.id}`)}
-                  canWrite={canWrite}
-                  onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
-                  onSelect={() => props.onDraftSelect(draft)}
-                  onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
-                  onDiscard={() => props.onDiscardDraft(draft)}
-                  onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
+              )}
+              {fileEdit?.folder === "" && (
+                <NewFileRow
+                  depth={0}
+                  folder=""
+                  scripts={scripts}
+                  onCommit={async (name, folder) => {
+                    await props.onCreateScript?.(name, folder);
+                    setFileEdit(null);
+                  }}
+                  onCancel={() => setFileEdit(null)}
                 />
-              ))}
-              {hiddenDrafts > 0 && (
+              )}
+              {/* Zero files wants a line of instruction rather than a blank space:
+                  this is the one screen that can say where files come from. It states
+                  the rule and stops — there is no action to offer, since a file only
+                  exists once a draft is saved, and a full sentence would weigh more
+                  than the rows it sits among. */}
+              {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
                 <li role="treeitem">
-                  <div
-                    onClick={() => setShowAllDrafts(true)}
-                    style={{ paddingLeft: LEAF_INDENT }}
-                    className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
-                  >
-                    {hiddenDrafts} more…
+                  <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-6 items-center py-1 pr-3 text-xs text-muted-foreground">
+                    {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
                   </div>
                 </li>
               )}
             </ul>
           )}
         </>
-      )}
-
-      <GroupHeader
-        label="Files"
-        open={filesOpen}
-        onToggle={() => setFilesOpen((open) => !open)}
-        // The row that means the top level, so a file inside a folder has somewhere to be
-        // dropped that isn't another folder — and it is there while Files is folded.
-        dropping={drag?.folder === ""}
-        onDragOver={(event) => onDragOverFolder(event, "")}
-        onDrop={(event) => onDropInFolder(event, "")}
-        action={filesActions ? { icon: Ellipsis, label: "Actions for Files", onClick: openFilesMenu } : undefined}
-        onMenu={filesActions ? openFilesMenu : undefined}
-      />
-      {filesOpen && (
-        <ul
-          role="tree"
-          aria-label="Files"
-          className="select-none"
-          // The space under the last row is still the top level.
-          onDragOver={(event) => onDragOverFolder(event, "")}
-          onDrop={(event) => onDropInFolder(event, "")}
-        >
-          {rows.map((node) =>
-            node.kind === "folder" ? (
-              <Fragment key={node.path}>
-                <FolderRow
-                  node={node}
-                  open={openFolders.includes(node.path)}
-                  editing={folderEdit?.path === node.path}
-                  active={active(`folder:${node.path}`)}
-                  hasMenu={canWrite && (props.onCreateFolder !== undefined || props.onCreateScript !== undefined || props.onCopyFolder !== undefined)}
-                  dropping={drag?.folder === node.path}
-                  onDragOver={(event) => onDragOverFolder(event, node.path, node.path)}
-                  onDrop={(event) => onDropInFolder(event, node.path)}
-                  siblingNames={siblingFolderNames(tree, node.path)}
-                  onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
-                  onToggle={() => toggleFolder(node.path)}
-                  onMenu={(event) => setFolderMenu({ path: node.path, top: event.clientY, left: event.clientX })}
-                  canRename={props.onRenameFolder !== undefined}
-                  onStartRename={() => setFolderEdit({ parent: node.path, path: node.path, name: node.name })}
-                  onRename={async (name) => {
-                    await props.onRenameFolder?.(node.path, name);
-                    setFolderEdit(null);
-                  }}
-                  onCancelRename={() => setFolderEdit(null)}
-                />
-                {/* The new row sits inside the folder it is being made in,
-                    which is what lets you see where it lands as you type. */}
-                {folderEdit?.parent === node.path && folderEdit.path === undefined && (
-                  <NewFolderRow
-                    depth={node.depth + 1}
-                    siblingNames={childFolderNames(tree, node.path)}
-                    onCommit={async (name) => {
-                      await props.onCreateFolder?.(`${node.path}/${name}`);
-                      setFolderEdit(null);
-                    }}
-                    onCancel={() => setFolderEdit(null)}
-                  />
-                )}
-                {fileEdit?.folder === node.path && (
-                  <NewFileRow
-                    depth={node.depth + 1}
-                    folder={node.path}
-                    scripts={scripts}
-                    onCommit={async (name, folder) => {
-                      await props.onCreateScript?.(name, folder);
-                      setFileEdit(null);
-                    }}
-                    onCancel={() => setFileEdit(null)}
-                  />
-                )}
-              </Fragment>
-            ) : (
-              <FileRow
-                key={node.script.path}
-                script={node.script}
-                scripts={scripts}
-                depth={node.depth}
-                editing={renaming === node.script.path}
-                canRename={props.onRenameScript !== undefined}
-                current={props.currentScriptPath === node.script.path}
-                running={props.runningFileIds?.has(node.script.path)}
-                agent={props.agentFileIds?.has(node.script.path)}
-                waiting={props.waitingFileIds?.has(node.script.path)}
-                active={active(`file:${node.script.path}`)}
-                // A file the web is serving is read-only, but it still has an address — so the row
-                // keeps its menu wherever there is an item to put in it.
-                hasMenu={canWrite || props.onCopyScriptLink !== undefined}
-                draggable={canMove}
-                dragging={drag?.script.path === node.script.path}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  // Firefox starts no drag at all without data on the transfer, and a
-                  // type of our own is what keeps a row let go over the editor from
-                  // being pasted into it as text.
-                  event.dataTransfer.setData(DRAG_TYPE, node.script.path);
-                  setDrag({ script: node.script, folder: null });
-                }}
-                onDragOver={(event) => onDragOverFolder(event, node.script.folder)}
-                onDrop={(event) => onDropInFolder(event, node.script.folder)}
-                onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
-                onSelect={() => props.onScriptSelect(node.script)}
-                onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
-                onStartRename={() => setRenaming(node.script.path)}
-                onRename={async (typed) => {
-                  const target = resolveScriptRename(node.script.folder, typed);
-                  // A name that landed where it already was is not a write.
-                  if (target && (target.folder !== node.script.folder || target.name !== node.script.name)) {
-                    await props.onRenameScript?.(node.script, target.name, target.folder);
-                  }
-                  setRenaming(null);
-                }}
-                onCancelRename={() => setRenaming(null)}
-              />
-            ),
-          )}
-          {folderEdit && folderEdit.parent === "" && folderEdit.path === undefined && (
-            <NewFolderRow
-              depth={0}
-              siblingNames={childFolderNames(tree, "")}
-              onCommit={async (name) => {
-                await props.onCreateFolder?.(name);
-                setFolderEdit(null);
-              }}
-              onCancel={() => setFolderEdit(null)}
-            />
-          )}
-          {fileEdit?.folder === "" && (
-            <NewFileRow
-              depth={0}
-              folder=""
-              scripts={scripts}
-              onCommit={async (name, folder) => {
-                await props.onCreateScript?.(name, folder);
-                setFileEdit(null);
-              }}
-              onCancel={() => setFileEdit(null)}
-            />
-          )}
-          {/* Zero files wants a line of instruction rather than a blank space:
-              this is the one screen that can say where files come from. It states
-              the rule and stops — there is no action to offer, since a file only
-              exists once a draft is saved, and a full sentence would weigh more
-              than the rows it sits among. */}
-          {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
-            <li role="treeitem">
-              <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-6 items-center py-1 pr-3 text-xs text-muted-foreground">
-                {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
-              </div>
-            </li>
-          )}
-        </ul>
       )}
 
       {/* The Files header is the row that means the top level, so its menu makes and
@@ -1142,7 +1384,8 @@ function FolderNameField({
  * extension is left alone but is still there to be edited.
  */
 function NameField({
-  indent,
+  indent = 0,
+  large = false,
   initial,
   label,
   select,
@@ -1151,7 +1394,9 @@ function NameField({
   onCancel,
   children,
 }: {
-  indent: number;
+  indent?: number;
+  // A phone's row: its height, and a field at the size the rows around it are read at.
+  large?: boolean;
   initial: string;
   label: string;
   select?: number;
@@ -1182,7 +1427,7 @@ function NameField({
   };
 
   return (
-    <div className="flex h-6 items-center gap-1.5 pr-2" style={{ paddingLeft: indent }}>
+    <div className={cn("flex items-center", large ? "min-h-11 gap-3 px-3" : "h-6 gap-1.5 pr-2")} style={large ? undefined : { paddingLeft: indent }}>
       {children}
       <input
         ref={ref}
@@ -1202,7 +1447,8 @@ function NameField({
           }
         }}
         className={cn(
-          "h-5 min-w-0 flex-1 rounded-sm border bg-background px-1 text-sm text-foreground outline-none",
+          "min-w-0 flex-1 border bg-background text-foreground outline-none",
+          large ? "h-9 rounded-lg px-2 text-[17px]" : "h-5 rounded-sm px-1 text-sm",
           error ? "border-destructive" : "border-ring",
         )}
       />
@@ -1410,6 +1656,15 @@ function MenuGroups({ groups }: { groups: React.ReactNode[][] }) {
       ))}
     </>
   );
+}
+
+function findFolder(nodes: TreeNode[], path: string): FolderNode | undefined {
+  for (const node of nodes) {
+    if (node.kind !== "folder") continue;
+    if (node.path === path) return node;
+    if (isWithinFolder(node.path, path)) return findFolder(node.children, path);
+  }
+  return undefined;
 }
 
 function childFolderNames(tree: TreeNode[], parent: string): string[] {
