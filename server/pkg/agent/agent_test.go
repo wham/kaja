@@ -807,7 +807,7 @@ func TestAppFormRoundTrip(t *testing.T) {
 	draft := mcp.AppDraft{Name: "Petstore", Type: "openapi", Parameters: map[string]string{
 		"spec_url": "https://petstore.example/openapi.json", "token": "sk-live-secret", "password": "${PASSWORD}", "base_url": "",
 	}, Headers: map[string]string{"X-Tenant": "acme"},
-		Hints: map[string]string{"base_url": "Your tenant's address.", "username": " "}, Note: "Keys are made in Settings.", Agent: "Claude"}
+		Hints: map[string]mcp.AppHint{"base_url": {Text: "Your tenant's address.", NeedsUser: true}, "username": {Text: " "}, "spec_url": {Text: "The public document."}}, Agent: "Claude"}
 
 	if err := session.OpenAppForm(context.Background(), draft); err != nil {
 		t.Fatal(err)
@@ -818,7 +818,7 @@ func TestAppFormRoundTrip(t *testing.T) {
 		t.Errorf("link = %q", link)
 	}
 	for _, want := range []string{"type=openapi", "name=Petstore", "request=", "spec_url=https%3A%2F%2Fpetstore.example%2Fopenapi.json", "password=%24%7BPASSWORD%7D", "headers=%7B%22X-Tenant%22%3A%22acme%22%7D",
-		"note=Keys+are+made+in+Settings.", "agent=Claude"} {
+		"agent=Claude"} {
 		if !strings.Contains(link, want) {
 			t.Errorf("link lacks %q: %s", want, link)
 		}
@@ -834,7 +834,7 @@ func TestAppFormRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A blank hint says nothing, so it is not carried.
-	if hints := parsed.Query().Get("hints"); hints != `{"base_url":"Your tenant's address."}` {
+	if hints := parsed.Query().Get("hints"); hints != `{"base_url":{"text":"Your tenant's address.","needs_user":true},"spec_url":{"text":"The public document."}}` {
 		t.Errorf("hints = %s", hints)
 	}
 	request := parsed.Query().Get("request")

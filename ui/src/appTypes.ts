@@ -30,6 +30,8 @@ export interface AppSurface {
 
 // CustomFormProps is what AppForm hands every type marked customForm.
 export interface CustomFormProps {
+  // Whether the form draws the Name field. A new app is named for what the form reads.
+  nameField: boolean;
   name: string;
   onNameChange: (name: string) => void;
   duplicateName: boolean;

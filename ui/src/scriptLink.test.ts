@@ -222,9 +222,14 @@ describe("parseLink add-app", () => {
   });
 
   test("reads what the agent found out apart from the app", () => {
-    const hints = encodeURIComponent(JSON.stringify({ base_url: "Your tenant's address.", username: 7 }));
-    const link = parsedAddApp(`kaja://add-app?type=openapi&name=Benchling&hints=${hints}&note=Keys+are+per+user.&agent=Claude`);
-    expect(link.notes).toEqual({ agent: "Claude", hints: { base_url: "Your tenant's address." }, note: "Keys are per user." });
+    const hints = encodeURIComponent(
+      JSON.stringify({ base_url: { text: "Your tenant's address.", needs_user: true }, security_scheme: "The API-key scheme.", username: 7 }),
+    );
+    const link = parsedAddApp(`kaja://add-app?type=openapi&name=Benchling&hints=${hints}&agent=Claude`);
+    expect(link.notes).toEqual({
+      agent: "Claude",
+      hints: { base_url: { text: "Your tenant's address.", needsUser: true }, security_scheme: { text: "The API-key scheme.", needsUser: false } },
+    });
     expect(link.parameters).toEqual({});
     expect(parsedAddApp("kaja://add-app?type=openapi&name=Benchling&agent=Claude").notes).toBeUndefined();
   });

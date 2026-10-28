@@ -141,15 +141,15 @@ type Session struct {
 	apps    Apps
 	server  *mcp.Server
 
-	mu        sync.Mutex
-	streams   []*Stream
-	catalog   mcp.Catalog
+	mu      sync.Mutex
+	streams []*Stream
+	catalog mcp.Catalog
 	// The window whose push the catalog is, which is how Ready tells a catalog the
 	// window on duty has said from one left over from a window that has gone.
 	catalogFrom string
-	pending   map[string]*pendingRun
-	forms     map[string]*appForm
-	idleSince time.Time
+	pending     map[string]*pendingRun
+	forms       map[string]*appForm
+	idleSince   time.Time
 }
 
 // appForm is a New app form an agent opened, keyed in the session by the name the
@@ -535,9 +535,9 @@ func appFormLink(draft mcp.AppDraft, requestID string) string {
 		headers, _ := json.Marshal(draft.Headers)
 		query.Set("headers", string(headers))
 	}
-	hints := map[string]string{}
+	hints := map[string]mcp.AppHint{}
 	for key, hint := range draft.Hints {
-		if hint = clip(strings.TrimSpace(hint), hintLimit); hint != "" && len(hints) < maxHints {
+		if hint.Text = clip(strings.TrimSpace(hint.Text), hintLimit); hint.Text != "" && len(hints) < maxHints {
 			hints[key] = hint
 		}
 	}
@@ -545,20 +545,16 @@ func appFormLink(draft mcp.AppDraft, requestID string) string {
 		encoded, _ := json.Marshal(hints)
 		query.Set("hints", string(encoded))
 	}
-	if note := clip(strings.TrimSpace(draft.Note), noteLimit); note != "" {
-		query.Set("note", note)
-	}
 	if draft.Agent != "" {
 		query.Set("agent", draft.Agent)
 	}
 	return "kaja://add-app?" + query.Encode()
 }
 
-// What an agent may say beside a form is bounded, since it is drawn above the fields
+// What an agent may say beside a form is bounded, since it is drawn beside the fields
 // the person came to fill in.
 const (
 	hintLimit = 300
-	noteLimit = 600
 	maxHints  = 16
 )
 

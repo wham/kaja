@@ -258,8 +258,8 @@ func allToolDefinitions() []map[string]interface{} {
 				"call add_app again with the same name without ending your turn, which waits again and answers with what the user did " +
 				"rather than opening a second form. " +
 				"Before adding an API you don't know, read its documentation for what the user will have to supply: an address that differs per tenant or region, " +
-				"a credential sent somewhere unusual (an API key as the basic-auth username), where in its dashboard a key is made. Put what you learn in hints and note, " +
-				"which the form shows the user while they fill it in. " +
+				"a credential sent somewhere unusual (an API key as the basic-auth username), where in its dashboard a key is made. Put what you learn in hints, " +
+				"one per field, which the form shows beside that field while the user fills it in. " +
 				"Ask the user for anything that is not a secret - which tenant or region, which server - before you call, so the form has less left in it. " +
 				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
 				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
@@ -268,11 +268,19 @@ func allToolDefinitions() []map[string]interface{} {
 				"type":       str(appTypeNote),
 				"parameters": params("The type's kaja.json fields, each value a string. " + appParametersNote),
 				"headers":    params("Headers sent with every request, by name."),
-				"hints": params("What the user should know about a field, keyed by the same kaja.json names as parameters, shown with the form: " +
-					"`base_url`: \"Your tenant's address, https://<tenant>.example.com/api/v1\"; `username`: \"The API key goes here; leave the password empty.\" " +
-					"A sentence each, from the API's documentation. Never a secret's value."),
-				"note": str("A sentence or two about the app as a whole, shown at the head of the form: a caveat the documentation states, " +
-					"such as where the user creates a key or what it can reach. Never a secret's value."),
+				"hints": map[string]interface{}{
+					"type": "object",
+					"description": "What the user should know about a field, keyed by the same kaja.json names as parameters and shown beside that field in the form: " +
+						"`base_url`: {\"text\": \"Put your tenant's name where it says <tenant>.\", \"needs_user\": true}; " +
+						"`security_scheme`: {\"text\": \"The API-key scheme covers every operation but the token exchange.\"}. " +
+						"A sentence each, from the API's documentation. There is no hint about the app as a whole: a caveat goes with the field it is about, " +
+						"such as what a key can reach with the key. Never a secret's value.",
+					"additionalProperties": obj(map[string]interface{}{
+						"text": str("The sentence the user reads beside the field."),
+						"needs_user": map[string]interface{}{"type": "boolean", "description": "True where the user still has something to do in this field: " +
+							"a credential to type, a <placeholder> left in a value for them to replace. Leave it out where the hint explains what you filled in."},
+					}, "text"),
+				},
 			}, "name", "type"),
 		},
 		{
@@ -341,10 +349,12 @@ type toolCallParams struct {
 type toolArguments struct {
 	strings map[string]string
 	maps    map[string]map[string]string
+	// objects is each object argument as it was sent, for one whose values are not strings.
+	objects map[string]map[string]interface{}
 }
 
 func readToolArguments(raw json.RawMessage) (toolArguments, bool) {
-	args := toolArguments{strings: map[string]string{}, maps: map[string]map[string]string{}}
+	args := toolArguments{strings: map[string]string{}, maps: map[string]map[string]string{}, objects: map[string]map[string]interface{}{}}
 	if len(raw) == 0 {
 		return args, true
 	}
@@ -362,6 +372,7 @@ func readToolArguments(raw json.RawMessage) (toolArguments, bool) {
 				}
 			}
 			args.maps[key] = fields
+			args.objects[key] = v
 		default:
 			if text, ok := scalarString(v); ok {
 				args.strings[key] = text

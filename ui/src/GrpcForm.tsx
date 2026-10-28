@@ -23,10 +23,12 @@ import { Checkbox } from "./components/checkbox";
 import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { AppNameField } from "./AppNameField";
+import { BasicCredentials } from "./BasicCredentials";
 import { ReadingRow } from "./InspectStatus";
 import { KnownChip, KnownList } from "./KnownList";
 import { KnownGrpcServer, knownGrpcServerFor, matchingGrpcServers } from "./knownGrpcServers";
-import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
+import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
+import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
@@ -95,6 +97,7 @@ function inspect(key: string, grpc: GrpcApp | undefined): Promise<InspectGrpcRes
 // the server is - and everything after it is a choice about a server that has
 // already answered.
 export function GrpcForm({
+  nameField,
   name,
   onNameChange,
   duplicateName,
@@ -269,143 +272,149 @@ export function GrpcForm({
     Boolean(server) || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_UNAUTHENTICATED || problem?.kind === GrpcProblemKind.GRPC_PROBLEM_PERMISSION_DENIED;
 
   return (
-    <div className={cn("flex max-w-[640px] flex-col", phone ? "gap-5" : "gap-6")}>
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground" htmlFor="grpc-url">
-            gRPC server
-          </label>
-          <SegmentedControl aria-label="Service definitions">
-            <SegmentedControl.Button selected={surfaceMode === "reflection"} disabled={readOnly} onClick={() => switchSurfaceMode("reflection")}>
-              Reflection
-            </SegmentedControl.Button>
-            <SegmentedControl.Button selected={surfaceMode === "protoDir"} disabled={readOnly} onClick={() => switchSurfaceMode("protoDir")}>
-              Proto files
-            </SegmentedControl.Button>
-          </SegmentedControl>
-        </div>
+    <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
+      <FormSection lead fields={["url", "reflection", "protoDir"]}>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-foreground" htmlFor="grpc-url">
+              gRPC server
+            </label>
+            <SegmentedControl aria-label="Service definitions">
+              <SegmentedControl.Button selected={surfaceMode === "reflection"} disabled={readOnly} onClick={() => switchSurfaceMode("reflection")}>
+                Reflection
+              </SegmentedControl.Button>
+              <SegmentedControl.Button selected={surfaceMode === "protoDir"} disabled={readOnly} onClick={() => switchSurfaceMode("protoDir")}>
+                Proto files
+              </SegmentedControl.Button>
+            </SegmentedControl>
+          </div>
 
-        <div className="relative">
-          <VariableSuggestInput
-            id="grpc-url"
-            value={url}
-            onValueChange={(value) => {
-              typedRef.current = true;
-              setParameter("url", value);
-            }}
-            variables={variables}
-            placeholder="dns:example.com:443"
-            disabled={readOnly}
-            className={known ? "pr-28" : undefined}
-            trailingAction={known && <KnownChip entry={known} />}
-            onFocus={() => setPicker(true)}
-            onBlur={() => setPicker(false)}
-            onKeyDown={(event) => {
-              if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          <div className="relative">
+            <VariableSuggestInput
+              id="grpc-url"
+              value={url}
+              onValueChange={(value) => {
+                typedRef.current = true;
+                setParameter("url", value);
+              }}
+              variables={variables}
+              placeholder="dns:example.com:443"
+              disabled={readOnly}
+              className={known ? "pr-28" : undefined}
+              trailingAction={known && <KnownChip entry={known} />}
+              onFocus={() => setPicker(true)}
+              onBlur={() => setPicker(false)}
+              onKeyDown={(event) => {
+                if (picking && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                  event.preventDefault();
+                  setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
+                  return;
+                }
+                if (picking && event.key === "Escape") {
+                  event.preventDefault();
+                  setPicker(false);
+                  return;
+                }
+                if (event.key !== "Enter") return;
                 event.preventDefault();
-                setHighlight((previous) => (previous + (event.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length);
-                return;
-              }
-              if (picking && event.key === "Escape") {
-                event.preventDefault();
-                setPicker(false);
-                return;
-              }
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (picking) pick(offered[highlight % offered.length]);
-              else read({ fresh: true });
-            }}
-          />
-          {picking && (
-            <KnownList
-              heading="Known servers"
-              entries={offered}
-              query={url}
-              highlight={highlight % offered.length}
-              onHighlight={setHighlight}
-              onPick={(index) => pick(offered[index])}
-              footer={
-                <>
-                  Or type any address. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
-                </>
-              }
+                if (picking) pick(offered[highlight % offered.length]);
+                else read({ fresh: true });
+              }}
+            />
+            {picking && (
+              <KnownList
+                heading="Known servers"
+                entries={offered}
+                query={url}
+                highlight={highlight % offered.length}
+                onHighlight={setHighlight}
+                onPick={(index) => pick(offered[index])}
+                footer={
+                  <>
+                    Or type any address. <span className="font-mono">{"${VARIABLES}"}</span> work here too.
+                  </>
+                }
+              />
+            )}
+          </div>
+
+          {surfaceMode === "protoDir" && (
+            <PathField
+              value={protoDir}
+              onValueChange={(value) => {
+                typedRef.current = true;
+                setParameter("protoDir", value);
+              }}
+              onPick={() => desktop().then((app) => app.OpenDirectoryDialog())}
+              icon={Folder}
+              label="Select the proto directory"
+              variables={variables}
+              placeholder="Folder of .proto files"
+              readOnly={readOnly}
             />
           )}
-        </div>
 
-        {surfaceMode === "protoDir" && (
-          <PathField
-            value={protoDir}
-            onValueChange={(value) => {
-              typedRef.current = true;
-              setParameter("protoDir", value);
-            }}
-            onPick={() => desktop().then((app) => app.OpenDirectoryDialog())}
-            icon={Folder}
-            label="Select the proto directory"
-            variables={variables}
-            placeholder="Folder of .proto files"
+          <SourceStatus
+            state={state}
+            mode={surfaceMode}
             readOnly={readOnly}
+            onCancel={() => {
+              readIdRef.current++;
+              setState({ status: "idle" });
+            }}
+            onRetry={() => read({ fresh: true })}
+            onSwitchMode={switchSurfaceMode}
           />
-        )}
-
-        <SourceStatus
-          state={state}
-          mode={surfaceMode}
-          readOnly={readOnly}
-          onCancel={() => {
-            readIdRef.current++;
-            setState({ status: "idle" });
-          }}
-          onRetry={() => read({ fresh: true })}
-          onSwitchMode={switchSurfaceMode}
-        />
-      </div>
+        </div>
+      </FormSection>
 
       {(server || showTransport || showAuthentication) && (
         <>
-          {!phone && <div className="h-px bg-border" />}
-
-          {server && (
-            <AppNameField
-              id="grpc-name"
-              name={name}
-              onNameChange={(value) => {
-                setNameTouched(true);
-                onNameChange(value);
-              }}
-              duplicate={duplicateName}
-              readOnly={readOnly}
-              caption={nameTouched ? undefined : `From the ${nameFromAddress(url) ? "address" : "service it serves"}.`}
-            />
+          {server && nameField && (
+            <FormSection>
+              <AppNameField
+                id="grpc-name"
+                name={name}
+                onNameChange={(value) => {
+                  setNameTouched(true);
+                  onNameChange(value);
+                }}
+                duplicate={duplicateName}
+                readOnly={readOnly}
+                caption={nameTouched ? undefined : `From the ${nameFromAddress(url) ? "address" : "service it serves"}.`}
+              />
+            </FormSection>
           )}
 
           {showTransport && (
-            <TransportSection
-              server={server}
-              transport={transport}
-              onTransportChange={(value) => setParameter("tls", value)}
-              changing={changingTransport || !server}
-              onChange={() => setChangingTransport(true)}
-              parameters={parameters}
-              onParameterChange={setParameter}
-              variables={variables}
-              readOnly={readOnly}
-              certificatesOpen={certificatesOpen}
-              onCertificatesOpenChange={setCertificatesOpen}
-            />
+            <FormSection fields={["tls", "insecureSkipVerify", "caFile", "clientCertFile", "clientKeyFile"]}>
+              <TransportSection
+                server={server}
+                transport={transport}
+                onTransportChange={(value) => setParameter("tls", value)}
+                changing={changingTransport || !server}
+                onChange={() => setChangingTransport(true)}
+                parameters={parameters}
+                onParameterChange={setParameter}
+                variables={variables}
+                readOnly={readOnly}
+                certificatesOpen={certificatesOpen}
+                onCertificatesOpenChange={setCertificatesOpen}
+              />
+            </FormSection>
           )}
 
           {showAuthentication && (
-            <AuthenticationSection
-              selected={auth}
-              onSelect={(value) => setParameter("auth", value)}
-              parameters={parameters}
-              onParameterChange={setParameter}
-              variables={variables}
-              readOnly={readOnly}
-            />
+            <FormSection fields={["auth", "username", "password", "apiKeyName", "token"]}>
+              <AuthenticationSection
+                selected={auth}
+                onSelect={(value) => setParameter("auth", value)}
+                parameters={parameters}
+                onParameterChange={setParameter}
+                variables={variables}
+                readOnly={readOnly}
+              />
+            </FormSection>
           )}
         </>
       )}
@@ -451,22 +460,16 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-        <div className="pt-0.5 text-emerald-600 dark:text-emerald-400">
-          <CircleCheck size={15} />
-        </div>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-sm text-foreground">
-            {pluralCount(server.services.length, "service")} · {pluralCount(server.methodCount, "method")}{" "}
-            <span className="text-muted-foreground">
-              {server.source === SOURCE_REFLECTION ? `from reflection ${server.reflectionVersion}` : `from ${pluralCount(server.fileCount, "proto file")}`}
-            </span>
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{server.services.map((service) => service.name).join(" · ")}</p>
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
-          <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
-        </div>
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <span className="min-w-0 truncate">
+          <span className="text-foreground">
+            {pluralCount(server.services.length, "service")} · {pluralCount(server.methodCount, "method")}
+          </span>{" "}
+          {server.source === SOURCE_REFLECTION ? `from reflection ${server.reflectionVersion}` : `from ${pluralCount(server.fileCount, "proto file")}`}
+          {server.services.length > 0 && ` · ${server.services.map((service) => service.name).join(" · ")}`}
+        </span>
+        <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" className="ml-auto shrink-0" onClick={onRefresh} />
       </div>
       {clientStreaming > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
@@ -599,25 +602,23 @@ function TransportSection({
       ) : (
         <>
           <p className="text-xs text-muted-foreground">A gRPC address doesn't always say whether the connection is encrypted.</p>
-          <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Transport">
+          <ChoiceList label="Transport">
             <ChoiceCard selected={transport === TLS_ON}>
               <ChoiceRow selected={transport === TLS_ON} disabled={readOnly} onSelect={() => onTransportChange(TLS_ON)} icon={Lock}>
-                <span className={cn("text-sm", transport === TLS_ON ? "text-foreground" : "text-muted-foreground")}>TLS</span>
+                <span className={choiceLabel(transport === TLS_ON)}>TLS</span>
               </ChoiceRow>
             </ChoiceCard>
             <ChoiceCard selected={transport === TLS_OFF}>
               <ChoiceRow selected={transport === TLS_OFF} disabled={readOnly} onSelect={() => onTransportChange(TLS_OFF)} icon={LockOpen}>
-                <span className={cn("text-sm", transport === TLS_OFF ? "text-foreground" : "text-muted-foreground")}>Plaintext</span>
+                <span className={choiceLabel(transport === TLS_OFF)}>Plaintext</span>
               </ChoiceRow>
             </ChoiceCard>
             <ChoiceCard selected={transport === TLS_AUTO}>
               <ChoiceRow selected={transport === TLS_AUTO} disabled={readOnly} onSelect={() => onTransportChange(TLS_AUTO)} icon={Waypoints}>
-                <span className={cn("text-sm", transport === TLS_AUTO ? "text-foreground" : "text-muted-foreground")}>
-                  Decide from the address: https, grpcs, or port 443
-                </span>
+                <span className={choiceLabel(transport === TLS_AUTO)}>Decide from the address: https, grpcs, or port 443</span>
               </ChoiceRow>
             </ChoiceCard>
-          </div>
+          </ChoiceList>
         </>
       )}
 
@@ -733,13 +734,13 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
       <p className="text-xs text-muted-foreground">
         Sent as metadata with every call, and with reflection. A client certificate is a transport credential, so it lives under Certificates above.
       </p>
-      <div className="flex flex-col gap-1.5 pt-0.5" role="radiogroup" aria-label="Authentication">
+      <ChoiceList label="Authentication">
         {authSchemes.map((scheme) => {
           const isSelected = selected === scheme.key;
           return (
             <ChoiceCard key={scheme.key} selected={isSelected}>
               <ChoiceRow selected={isSelected} disabled={readOnly} onSelect={() => onSelect(scheme.key)} icon={scheme.key === AUTH_BASIC ? Lock : Key}>
-                <span className={cn("shrink-0 text-sm", isSelected ? "text-foreground" : "text-muted-foreground")}>{scheme.label}</span>
+                <span className={cn("shrink-0", choiceLabel(isSelected))}>{scheme.label}</span>
                 <span className="truncate text-xs text-muted-foreground">{scheme.summary}</span>
               </ChoiceRow>
               {isSelected && (
@@ -757,10 +758,10 @@ function AuthenticationSection({ selected, onSelect, parameters, onParameterChan
 
         <ChoiceCard selected={selected === AUTH_NONE}>
           <ChoiceRow selected={selected === AUTH_NONE} disabled={readOnly} onSelect={() => onSelect(AUTH_NONE)}>
-            <span className={cn("text-sm", selected === AUTH_NONE ? "text-foreground" : "text-muted-foreground")}>Send no credentials</span>
+            <span className={choiceLabel(selected === AUTH_NONE)}>Send no credentials</span>
           </ChoiceRow>
         </ChoiceCard>
-      </div>
+      </ChoiceList>
     </div>
   );
 }
@@ -780,28 +781,9 @@ function SchemeCredentials({ scheme, parameters, onParameterChange, variables, r
   const note = authNote(scheme, parameters.apiKeyName ?? "");
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+    <ChoiceBody>
       {scheme === AUTH_BASIC ? (
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <VariableSuggestInput
-              value={parameters.username ?? ""}
-              onValueChange={(value) => onParameterChange("username", value)}
-              variables={variables}
-              placeholder="Username"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="flex-1">
-            <VariableSuggestInput
-              value={parameters.password ?? ""}
-              onValueChange={(value) => onParameterChange("password", value)}
-              variables={variables}
-              placeholder="Password"
-              disabled={readOnly}
-            />
-          </div>
-        </div>
+        <BasicCredentials parameters={parameters} onParameterChange={onParameterChange} variables={variables} readOnly={readOnly} />
       ) : (
         <div className="flex items-center gap-2">
           {scheme === AUTH_APIKEY && (
@@ -827,7 +809,7 @@ function SchemeCredentials({ scheme, parameters, onParameterChange, variables, r
         </div>
       )}
       {note.text && <p className={cn("text-xs text-muted-foreground", note.mono && "font-mono")}>{note.text}</p>}
-    </div>
+    </ChoiceBody>
   );
 }
 

@@ -1,4 +1,5 @@
 import { isWailsEnvironment } from "./wails";
+import { AgentNotes, parseHints } from "./agentHints";
 
 /**
  * `kaja://run/<script>?key=value&key=value` — the deeplink that runs a script.
@@ -51,21 +52,12 @@ export interface AddAppLink {
   notes?: AgentNotes;
 }
 
-/** What an agent found out about an app it asked a person to finish adding. */
-export interface AgentNotes {
-  /** Who it is from, as the agent names itself. */
-  agent: string;
-  /** Keyed by the app's fields as kaja.json spells them, like `parameters`. */
-  hints: { [key: string]: string };
-  note: string;
-}
-
 export type KajaLink = ScriptLink | AddAppLink;
 
 export type ParsedLink = { ok: true; link: KajaLink } | { ok: false; error: string };
 
 // The keys of an add-app link that are the link's own rather than the app's.
-const ADD_APP_KEYS = new Set(["type", "name", "request", "headers", "hints", "note", "agent"]);
+const ADD_APP_KEYS = new Set(["type", "name", "request", "headers", "hints", "agent"]);
 
 /**
  * Where a deeplink to *this* Kaja starts, before its verb — the one function here
@@ -216,9 +208,8 @@ function parseAddAppLink(url: URL): ParsedLink {
   for (const [key, value] of url.searchParams) {
     if (!ADD_APP_KEYS.has(key)) parameters[key] = value;
   }
-  const hints = stringMap(url.searchParams.get("hints"));
-  const note = url.searchParams.get("note")?.trim() ?? "";
-  const notes = Object.keys(hints).length > 0 || note ? { agent: url.searchParams.get("agent")?.trim() ?? "", hints, note } : undefined;
+  const hints = parseHints(url.searchParams.get("hints"));
+  const notes = Object.keys(hints).length > 0 ? { agent: url.searchParams.get("agent")?.trim() ?? "", hints } : undefined;
   return {
     ok: true,
     link: {
@@ -233,8 +224,7 @@ function parseAddAppLink(url: URL): ParsedLink {
   };
 }
 
-// A value that isn't a JSON object of strings is left out: the form takes headers
-// typed, and a hint is only ever an aside.
+// A value that isn't a JSON object of strings is left out: the form takes headers typed.
 function stringMap(encoded: string | null): { [key: string]: string } {
   if (!encoded) return {};
   try {

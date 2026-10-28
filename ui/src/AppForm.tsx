@@ -1,4 +1,4 @@
-import { Bot, ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -6,14 +6,16 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { cn } from "./cn";
 import { useState, useRef, useEffect, useCallback, useMemo, type ComponentType } from "react";
-import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, parameterKey, typeForwardsHeaders } from "./appTypes";
+import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { deriveGenericName, uniqueAppName } from "./appForms";
+import { FormHints, FormHintsContext, FormSection } from "./FormSection";
 import { AppNameField } from "./AppNameField";
 import { GrpcForm } from "./GrpcForm";
 import { McpForm } from "./McpForm";
 import { OpenAiForm } from "./OpenAiForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
-import { AgentNotes } from "./scriptLink";
+import { AgentNotes } from "./agentHints";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { WorkspaceApp } from "./server/api";
 import { desktop, isWailsEnvironment } from "./wails";
@@ -147,37 +149,6 @@ function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variabl
   );
 }
 
-// The agent's notes sit above the fields rather than under each one, because a custom
-// form draws a field only in some states (a server the document declares is a choice,
-// not a URL field), and a hint under a field that isn't drawn is a hint nobody reads.
-function AgentNotesPanel({ notes, type }: { notes: AgentNotes; type: string }) {
-  const parameters = getAppType(type)?.parameters ?? [];
-  const hints = Object.entries(notes.hints).map(([field, hint]) => ({
-    field,
-    label: parameters.find((parameter) => parameter.key === parameterKey(field))?.label ?? field,
-    hint,
-  }));
-  return (
-    <div className="flex flex-col gap-2 rounded-md border border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Bot size={13} className="shrink-0" />
-        <span>From {notes.agent || "your agent"}</span>
-      </div>
-      {notes.note && <p className="text-sm text-foreground">{notes.note}</p>}
-      {hints.length > 0 && (
-        <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
-          {hints.map(({ field, label, hint }) => (
-            <div key={field} className="contents">
-              <dt className="font-medium text-foreground">{label}</dt>
-              <dd className="text-muted-foreground">{hint}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
-  );
-}
-
 export function AppForm({
   mode,
   initialData,
@@ -202,20 +173,23 @@ export function AppForm({
   const [surface, setSurface] = useState<AppSurface | undefined>(undefined);
   const [customReady, setCustomReady] = useState(false);
 
-  const getCurrentApp = useCallback((): WorkspaceApp => {
-    const definition = getAppType(type);
-    const params: Record<string, string> = {};
-    for (const parameter of definition?.parameters ?? []) {
-      const value = (parameters[parameter.key] ?? "").trim();
-      if (value) params[parameter.key] = value;
-    }
-    const headerMap: Record<string, string> = {};
-    for (const header of headers) {
-      const headerName = header.name.trim();
-      if (headerName) headerMap[headerName] = header.value;
-    }
-    return buildApp(name, type, params, headerMap);
-  }, [name, type, parameters, headers]);
+  const getCurrentApp = useCallback(
+    (appName: string): WorkspaceApp => {
+      const definition = getAppType(type);
+      const params: Record<string, string> = {};
+      for (const parameter of definition?.parameters ?? []) {
+        const value = (parameters[parameter.key] ?? "").trim();
+        if (value) params[parameter.key] = value;
+      }
+      const headerMap: Record<string, string> = {};
+      for (const header of headers) {
+        const headerName = header.name.trim();
+        if (headerName) headerMap[headerName] = header.value;
+      }
+      return buildApp(appName, type, params, headerMap);
+    },
+    [type, parameters, headers],
+  );
 
   const updateFormFromApp = useCallback((app: WorkspaceApp) => {
     setName(app.name);
@@ -247,15 +221,6 @@ export function AppForm({
     updateFormFromApp(initialData ?? createEmptyApp());
   }
 
-  const handleSubmit = () => {
-    const app = getCurrentApp();
-    if (app.name && appType(app)) onSubmit(app, mode === "edit" ? initialData?.name : undefined);
-  };
-  const handleSubmitRef = useRef(handleSubmit);
-  handleSubmitRef.current = handleSubmit;
-
-  const handleCancel = () => onCancel();
-
   const submitLabel = mode === "edit" ? "Save" : "Add app";
 
   const originalName = mode === "edit" ? initialData?.name : undefined;
@@ -266,7 +231,33 @@ export function AppForm({
   const customForm = Boolean(definition?.customForm);
   const CustomForm = CUSTOM_FORMS[type] ?? OpenApiForm;
 
-  const isValid = Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady));
+  // A new app is named for what it describes, so its form has no Name field. A custom
+  // form derives the name from what it read; a plain one from its fields here, and a
+  // type's own name is what is left where neither says anything. The field comes back
+  // where the name can't be used, which is a name an agent handed over that is taken.
+  const nameField = mode === "edit" || duplicateName;
+  const appName = name.trim() || (mode === "create" ? uniqueAppName((customForm ? "" : deriveGenericName(type, parameters)) || type, takenNames) : "");
+
+  const handleSubmit = () => {
+    const app = getCurrentApp(appName);
+    if (app.name && appType(app)) onSubmit(app, mode === "edit" ? initialData?.name : undefined);
+  };
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  const handleCancel = () => onCancel();
+
+  const isValid = Boolean(appName && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady));
+
+  // The margin is for an agent's notes, which a phone has no room for and has no agent to write.
+  const hinted = Boolean(agentNotes && !readOnly && !phone && Object.keys(agentNotes.hints).length > 0);
+  const formHints = useMemo<FormHints | undefined>(
+    () =>
+      hinted && agentNotes
+        ? { notes: agentNotes, parameters, known: new Set((getAppType(type)?.parameters ?? []).map((parameter) => parameter.key)) }
+        : undefined,
+    [hinted, agentNotes, parameters, type],
+  );
 
   // Read rather than depended on: the caller hands a new function every render.
   const onSaveControlChangeRef = useRef(onSaveControlChange);
@@ -289,132 +280,144 @@ export function AppForm({
     <div className="flex h-full flex-col bg-background">
       {readOnly && <ReadOnlyBanner>Apps are configured in kaja.json.</ReadOnlyBanner>}
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className={cn("max-w-[640px]", phone ? "px-4 py-5" : "p-6")}>
-          <div className={cn("flex flex-col", phone ? "gap-5" : "gap-6")}>
-            {agentNotes && !readOnly && <AgentNotesPanel notes={agentNotes} type={type} />}
-            {customForm ? (
-              // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
-              // in the New dialog again, starts the form over rather than reading the next
-              // server behind the previous one's transport and credentials.
-              <CustomForm
-                key={loaded?.generation}
-                name={name}
-                onNameChange={setName}
-                duplicateName={duplicateName}
-                takenNames={takenNames}
-                parameters={parameters}
-                onParametersChange={setParameters}
-                variables={variables}
-                readOnly={readOnly}
-                onSurfaceChange={setSurface}
-                onReadyChange={setCustomReady}
-              />
-            ) : (
-              <>
-                <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
+      <div className="@container min-h-0 flex-1 overflow-auto">
+        <FormHintsContext.Provider value={formHints}>
+          <div className={cn(formHints ? "max-w-[1000px]" : "max-w-[640px]", phone ? "px-4 py-5" : "px-6 py-7")}>
+            <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
+              {customForm ? (
+                // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
+                // in the New dialog again, starts the form over rather than reading the next
+                // server behind the previous one's transport and credentials.
+                <CustomForm
+                  key={loaded?.generation}
+                  nameField={nameField}
+                  name={name}
+                  onNameChange={setName}
+                  duplicateName={duplicateName}
+                  takenNames={takenNames}
+                  parameters={parameters}
+                  onParametersChange={setParameters}
+                  variables={variables}
+                  readOnly={readOnly}
+                  onSurfaceChange={setSurface}
+                  onReadyChange={setCustomReady}
+                />
+              ) : (
+                <>
+                  {nameField && (
+                    <FormSection>
+                      <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
+                    </FormSection>
+                  )}
 
-                {(definition?.parameters ?? []).map((parameter) => {
-                  // A picked parameter names a folder outside the workspace, which the
-                  // desktop is granted by the picker alone, so there the field states
-                  // what was picked rather than taking a path on trust.
-                  const picked = isWailsEnvironment() ? parameter.picked : undefined;
-                  const pick = async () => {
-                    const app = await desktop();
-                    const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
-                    if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
-                  };
-                  const caption = picked?.caption ?? parameter.caption;
-                  return (
-                    <FormControl key={parameter.key}>
-                      <FormControl.Label>{parameter.label}</FormControl.Label>
-                      {parameter.type === "boolean" ? (
-                        <Checkbox
-                          checked={parameters[parameter.key] === "true"}
-                          disabled={readOnly}
-                          onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
-                        />
-                      ) : parameter.type === "upload" ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-                            <FileIcon size={16} />
-                            {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
-                            <input
-                              type="file"
-                              accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                              hidden
+                  {(definition?.parameters ?? []).map((parameter, index) => {
+                    // A picked parameter names a folder outside the workspace, which the
+                    // desktop is granted by the picker alone, so there the field states
+                    // what was picked rather than taking a path on trust.
+                    const picked = isWailsEnvironment() ? parameter.picked : undefined;
+                    const pick = async () => {
+                      const app = await desktop();
+                      const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
+                      if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
+                    };
+                    const caption = picked?.caption ?? parameter.caption;
+                    return (
+                      <FormSection key={parameter.key} fields={[parameter.key]} lead={index === 0}>
+                        <FormControl>
+                          <FormControl.Label>{parameter.label}</FormControl.Label>
+                          {parameter.type === "boolean" ? (
+                            <Checkbox
+                              checked={parameters[parameter.key] === "true"}
                               disabled={readOnly}
-                              onChange={(e) => {
-                                handleUpload(parameter.key, e.target.files?.[0]);
-                                e.target.value = "";
-                              }}
+                              onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
                             />
-                          </label>
-                          <span className="text-xs text-muted-foreground">
-                            {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
-                          </span>
-                        </div>
-                      ) : (
-                        <VariableSuggestInput
-                          value={parameters[parameter.key] ?? ""}
-                          onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
-                          variables={variables}
-                          placeholder={picked ? picked.placeholder : parameter.placeholder}
-                          disabled={readOnly}
-                          readOnly={!!picked}
-                          onClick={picked && !readOnly ? pick : undefined}
-                          trailingAction={
-                            (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                              <IconButton
-                                icon={parameter.type === "folder" ? Folder : FileIcon}
-                                aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                                variant="ghost"
-                                size="sm"
-                                tooltip="native"
-                                onClick={pick}
-                                disabled={readOnly}
-                              />
-                            ) : undefined
-                          }
-                        />
-                      )}
-                      {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
-                    </FormControl>
-                  );
-                })}
+                          ) : parameter.type === "upload" ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                                <FileIcon size={16} />
+                                {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                                <input
+                                  type="file"
+                                  accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                                  hidden
+                                  disabled={readOnly}
+                                  onChange={(e) => {
+                                    handleUpload(parameter.key, e.target.files?.[0]);
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </label>
+                              <span className="text-xs text-muted-foreground">
+                                {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
+                              </span>
+                            </div>
+                          ) : (
+                            <VariableSuggestInput
+                              value={parameters[parameter.key] ?? ""}
+                              onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
+                              variables={variables}
+                              placeholder={picked ? picked.placeholder : parameter.placeholder}
+                              disabled={readOnly}
+                              readOnly={!!picked}
+                              onClick={picked && !readOnly ? pick : undefined}
+                              trailingAction={
+                                (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
+                                  <IconButton
+                                    icon={parameter.type === "folder" ? Folder : FileIcon}
+                                    aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
+                                    variant="ghost"
+                                    size="sm"
+                                    tooltip="native"
+                                    onClick={pick}
+                                    disabled={readOnly}
+                                  />
+                                ) : undefined
+                              }
+                            />
+                          )}
+                          {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
+                        </FormControl>
+                      </FormSection>
+                    );
+                  })}
 
-                {demo && !readOnly && (
-                  <button
-                    type="button"
-                    onClick={fillDemo}
-                    className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
-                  >
-                    <Lightbulb size={12} />
-                    {demo.label}
-                  </button>
-                )}
-              </>
-            )}
+                  {demo && !readOnly && (
+                    <FormSection>
+                      <button
+                        type="button"
+                        onClick={fillDemo}
+                        className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
+                      >
+                        <Lightbulb size={12} />
+                        {demo.label}
+                      </button>
+                    </FormSection>
+                  )}
+                </>
+              )}
 
-            {typeForwardsHeaders(type) && (!customForm || surface) && (
-              <AdvancedSection
-                open={advancedOpen}
-                onOpenChange={setAdvancedOpen}
-                headers={headers}
-                onHeadersChange={setHeaders}
-                variables={variables}
-                readOnly={readOnly}
-              />
-            )}
+              {typeForwardsHeaders(type) && (!customForm || surface) && (
+                <FormSection>
+                  <AdvancedSection
+                    open={advancedOpen}
+                    onOpenChange={setAdvancedOpen}
+                    headers={headers}
+                    onHeadersChange={setHeaders}
+                    variables={variables}
+                    readOnly={readOnly}
+                  />
+                </FormSection>
+              )}
 
-            {phone && mode === "edit" && !readOnly && onDelete && initialData && (
-              <Button variant="outline" className="mt-4 h-10 text-destructive hover:text-destructive" onClick={() => onDelete(initialData.name)}>
-                <Trash2 size={16} />
-                Delete app
-              </Button>
-            )}
+              {phone && mode === "edit" && !readOnly && onDelete && initialData && (
+                <Button variant="outline" className="mt-4 h-10 text-destructive hover:text-destructive" onClick={() => onDelete(initialData.name)}>
+                  <Trash2 size={16} />
+                  Delete app
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        </FormHintsContext.Provider>
       </div>
 
       {!phone && (
