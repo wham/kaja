@@ -30,6 +30,15 @@ export function isWailsEnvironment(): boolean {
   return Boolean(host.chrome?.webview?.postMessage || host.webkit?.messageHandlers?.external?.postMessage || host.wails?.invoke);
 }
 
+/**
+ * Whether this is the iOS app, iPad included. An iPad's webview asks for desktop
+ * sites, so it calls itself a Mac and is told apart by having a touch screen.
+ */
+export function isIOSApp(): boolean {
+  if (!isWailsEnvironment()) return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
 /** The bound Go methods. Only ever awaited where `isWailsEnvironment()` holds. */
 export function desktop(): Promise<typeof import("./bindings/github.com/wham/kaja/desktop/app")> {
   return bindings();

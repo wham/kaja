@@ -16,7 +16,7 @@ export interface WorkspaceControl {
   known: WorkspaceFolder[];
   onOpen: (dir: string) => void;
   onChoose: () => void;
-  onReveal: () => void;
+  onReveal?: () => void;
 }
 
 // Where the band has no traffic lights the mark and the name are one button, so the
@@ -48,10 +48,12 @@ export function WorkspaceMenu({ control, withMark, large = false }: { control: W
               {control.current.location || control.current.dir}
             </div>
           </div>
-          <DropdownMenuItem onSelect={control.onReveal} className="h-7 shrink-0 gap-1.5 border border-border px-2 py-0 text-xs">
-            <ExternalLink size={14} />
-            Reveal
-          </DropdownMenuItem>
+          {control.onReveal && (
+            <DropdownMenuItem onSelect={control.onReveal} className="h-7 shrink-0 gap-1.5 border border-border px-2 py-0 text-xs">
+              <ExternalLink size={14} />
+              Reveal
+            </DropdownMenuItem>
+          )}
         </div>
         <DropdownMenuSeparator />
         {others.length > 0 && <div className="px-2 pb-1 pt-1.5 text-xs text-muted-foreground">Switch to</div>}
