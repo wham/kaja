@@ -26,7 +26,7 @@ describe("mcpAgents", () => {
   });
 
   test("the JSON snippets parse", () => {
-    for (const name of ["Cursor", "Claude Desktop", "Windsurf", "Cline", "Gemini CLI"]) {
+    for (const name of ["Cursor", "Claude Desktop", "Windsurf", "Cline", "Gemini CLI", "GitHub Copilot CLI"]) {
       expect(() => JSON.parse(agent(name).snippet(endpoint))).not.toThrow();
     }
   });
