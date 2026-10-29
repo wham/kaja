@@ -22,6 +22,7 @@ import { useVariableScan, VariableScan } from "./useVariableScan";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
 import { orderReferences, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
 import { pluralCount } from "./plural";
+import { isIOSApp } from "./wails";
 
 interface VariableRow {
   key: string;
@@ -722,12 +723,16 @@ function SourcePicker({
           description={storeAvailable ? `Stored ${storedWhere()}` : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
-        <SourceItem
-          selected={kind === "environment"}
-          label="Environment"
-          description={`Read from ${environmentName}`}
-          onSelect={() => onSelect("environment")}
-        />
+        {/* Nobody sets the environment an iOS app is launched with, so there it is
+            listed only for a variable a workspace synced from elsewhere already reads. */}
+        {(kind === "environment" || !isIOSApp()) && (
+          <SourceItem
+            selected={kind === "environment"}
+            label="Environment"
+            description={`Read from ${environmentName}`}
+            onSelect={() => onSelect("environment")}
+          />
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

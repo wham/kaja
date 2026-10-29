@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { isIPhone } from "./phone";
 
 /**
  * Every key the window states, in one table. A key is the person's (their settings),
@@ -405,5 +406,6 @@ function snapshot(): number {
  */
 export function useShortcutLabel(action: ShortcutAction): string {
   useSyncExternalStore(subscribe, snapshot, snapshot);
-  return shortcutLabel(action);
+  // A key nobody can press is not worth naming.
+  return isIPhone() ? "" : shortcutLabel(action);
 }

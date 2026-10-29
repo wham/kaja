@@ -1,5 +1,5 @@
 import { useMediaQuery } from "./useMediaQuery";
-import { PHONE_QUERY, methodTag } from "./phone";
+import { PHONE_QUERY, isIPhone, methodTag } from "./phone";
 import { PhoneFinder } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
 import { PhoneSidebar } from "./PhoneSidebar";
@@ -93,7 +93,7 @@ import { onBrowserValuesChanged, storedValues } from "./browserValues";
 import { appVariableUses, missingByApp, missingVariables } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { Start } from "./Start";
-import { desktop, emitWailsEvent, isWailsEnvironment, onWailsEvent, setWindowBackground, setWindowTitle } from "./wails";
+import { desktop, emitWailsEvent, isIOSApp, isWailsEnvironment, onWailsEvent, setWindowBackground, setWindowTitle } from "./wails";
 import {
   canWriteScripts,
   copyScriptFile,
@@ -361,8 +361,8 @@ export function App() {
   const mcpControl: McpControl | undefined = useMemo(
     () =>
       isWailsEnvironment()
-        ? // Only the iOS app reports intents, and a phone has nothing that could reach its listener.
-          mcpInfo?.intents
+        ? // Nothing on an iPhone or an iPad can reach the listener the page would describe.
+          isIOSApp()
           ? undefined
           : {
               enabled: mcpInfo?.enabled === true,
@@ -725,7 +725,9 @@ export function App() {
 
   const isNarrow = useMediaQuery("(max-width: 767px)");
   const isPhone = useMediaQuery(PHONE_QUERY);
-  const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
+  const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac") && !isIOSApp();
+  // iOS has no file browser to reveal a path in (desktop/reveal_ios.go).
+  const canReveal = isWailsEnvironment() && !isIOSApp();
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
@@ -1677,9 +1679,15 @@ export function App() {
   const workspaceControl = useMemo<WorkspaceControl | undefined>(
     () =>
       workspaces
-        ? { current: workspaces.current, known: workspaces.known, onOpen: onOpenWorkspace, onChoose: onChooseWorkspace, onReveal: onRevealWorkspace }
+        ? {
+            current: workspaces.current,
+            known: workspaces.known,
+            onOpen: onOpenWorkspace,
+            onChoose: onChooseWorkspace,
+            onReveal: canReveal ? onRevealWorkspace : undefined,
+          }
         : undefined,
-    [workspaces, onOpenWorkspace, onChooseWorkspace, onRevealWorkspace],
+    [workspaces, onOpenWorkspace, onChooseWorkspace, onRevealWorkspace, canReveal],
   );
 
   // The desktop's token is the process's, persisted so the connection command stays
@@ -2340,14 +2348,14 @@ export function App() {
   // `ShowFileInFinder` selects the file and falls back to the nearest folder that
   // exists, so a script written but not yet flushed still lands somewhere useful.
   const onRevealCurrentScript = useMemo(() => {
-    if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
+    if (!canReveal || currentView?.type !== "script") return undefined;
     const path = currentView.script.path;
     return () => {
       desktop()
         .then((app) => app.ShowFileInFinder(path))
         .catch(() => {});
     };
-  }, [currentView]);
+  }, [currentView, canReveal]);
 
   /**
    * The copy of a read-only file, in the one place it can be edited. Taken from the
@@ -2624,7 +2632,8 @@ export function App() {
     if (mcpControl && !views.some((view) => view.type === "mcp")) {
       destinations.push({ key: "mcp", name: "MCP server", path: "Settings", origin: "", icon: Plug, go: onMcpClick });
     }
-    if (!views.some((view) => view.type === "shortcuts")) {
+    // An iPhone has no keyboard to press them on.
+    if (!isIPhone() && !views.some((view) => view.type === "shortcuts")) {
       destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard, go: onShortcutsClick });
     }
     if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
@@ -2926,7 +2935,7 @@ export function App() {
         onRenameFolder={canWriteFiles ? onRenameFolder : undefined}
         onDeleteFolder={canWriteFiles ? onDeleteFolder : undefined}
         onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
-        onRevealScripts={isWailsEnvironment() ? onRevealScripts : undefined}
+        onRevealScripts={canReveal ? onRevealScripts : undefined}
         phone={isPhone}
       />
     ),
