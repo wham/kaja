@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Braces, Ellipsis, Plug, Plus, RotateCw, Settings, Trash2 } from "lucide-react";
+import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2 } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
@@ -52,6 +52,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   onRecompileApp,
   onNewAppClick,
   onNewScript,
+  onFinderClick,
   onVariablesClick,
   variablesMissing = false,
   missingVariables,
@@ -92,6 +93,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
           </div>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {onFinderClick && <BandButton icon={<Search size={PHONE_ICON} />} label="Go to a file or call" onClick={onFinderClick} />}
           {onVariablesClick && (
             <BandButton icon={<Braces size={PHONE_ICON} />} label="Variables" onClick={onVariablesClick} dot={variablesMissing ? "bg-amber-500" : undefined} />
           )}

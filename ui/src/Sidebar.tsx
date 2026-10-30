@@ -122,6 +122,8 @@ export interface SidebarProps {
   onRecompileApp: (appName: string) => void;
   onNewAppClick: () => void;
   onNewScript?: () => void;
+  // A phone's only way to the finder, the command row being the desktop's.
+  onFinderClick?: () => void;
   onVariablesClick?: () => void;
   variablesMissing?: boolean;
   // By app: what each one uses that has nothing behind it on this machine.

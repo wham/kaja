@@ -11,18 +11,16 @@ interface PhoneFinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
-  errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * The finder on a phone: its trigger is a magnifier floating at the page's foot, where
- * a thumb is, and it opens as a sheet over the window.
+ * The finder on a phone, a sheet over the window opened from the sidebar's band.
  * With no query it is where you have been; with one it is the same ranked list the
  * desktop finder gives, with nothing between the rows.
  */
-export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange }: PhoneFinderProps) {
+export function PhoneFinder({ recent, elsewhere, open, onOpenChange }: PhoneFinderProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // A field focused on opening brings the keyboard up over the list, and the list is
@@ -56,19 +54,6 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
 
   return (
     <>
-      <button
-        type="button"
-        role="combobox"
-        data-testid="file-switcher"
-        aria-expanded={open}
-        aria-controls="phone-finder"
-        aria-label="Go to another file"
-        onClick={() => onOpenChange(true)}
-        className="flex size-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Search size={22} />
-      </button>
-
       <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
         <BaseDialog.Portal>
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-black/55 transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
@@ -154,7 +139,9 @@ export function PhoneLocation({ current, errorCount }: { current: Destination; e
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
       <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", current.provisional && "opacity-60")} />
-      <span className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}>
+      <span
+        className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}
+      >
         {current.file ? <FileName name={current.name} /> : current.name}
       </span>
       {/* The place gives way before the name does. */}
