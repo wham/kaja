@@ -431,18 +431,10 @@ interface SourceStatusProps {
   onSwitchMode: (mode: SurfaceMode) => void;
 }
 
-// SourceStatus is the one slot under the address carrying every state: the caption,
-// the read in progress, the server that answered, and each way reaching it can fail.
+// SourceStatus is the one slot under the address carrying every state: the read in
+// progress, the server that answered, and each way reaching it can fail.
 function SourceStatus({ state, mode, readOnly, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
-  if (state.status === "idle") {
-    return (
-      <p className="text-xs text-muted-foreground">
-        {mode === "reflection"
-          ? "Kaja asks the server what it serves and fills in the rest."
-          : "Kaja reads every .proto file in the folder and fills in the rest."}
-      </p>
-    );
-  }
+  if (state.status === "idle") return null;
 
   if (state.status === "reading") {
     return <ReadingRow label={mode === "reflection" ? "Reaching the server…" : "Reading the proto files, and checking the server…"} onCancel={onCancel} />;

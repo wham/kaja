@@ -546,11 +546,9 @@ interface SourceStatusProps {
 }
 
 // SourceStatus is the one slot under the source field carrying every state: the
-// caption, the read in progress, the document that was read, and each way it can fail.
+// read in progress, the document that was read, and each way it can fail.
 function SourceStatus({ state, parameters, variables, readOnly, onCancel, onRefresh, onUploadInstead, onSpecHeaderChange, onRetry }: SourceStatusProps) {
-  if (state.status === "idle") {
-    return <p className="text-xs text-muted-foreground">Kaja reads it and fills in the rest.</p>;
-  }
+  if (state.status === "idle") return null;
 
   if (state.status === "reading") {
     return <ReadingRow label="Reading the document…" onCancel={onCancel} />;

@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { AppNameField } from "./AppNameField";
-import { DemoLink, ReadingRow } from "./InspectStatus";
+import { ReadingRow } from "./InspectStatus";
 import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
 import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { buildApp, CustomFormProps, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
@@ -184,7 +184,7 @@ export function McpForm({
     read({ fresh: true });
   }, [read]);
 
-  // Read once the endpoint settles. The demo link, ⏎, or the app this form was opened
+  // Read once the endpoint settles. A picked server, ⏎, or the app this form was opened
   // on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
@@ -246,7 +246,6 @@ export function McpForm({
     onParametersChange((previous) => ({ ...previous, url: chosen.endpoint, auth: AUTH_OAUTH }));
   };
 
-  const demo = getAppType("mcp")?.demo;
   // An app that names no credential sends none, and the form says so rather than
   // showing a bearer card with nothing in it. A token with no scheme beside it is a
   // bearer token, which is what the server reads it as.
@@ -325,8 +324,6 @@ export function McpForm({
           <EndpointStatus
             state={state}
             readOnly={readOnly}
-            demoLabel={demo?.label}
-            onDemo={demo ? () => onParametersChange((previous) => ({ ...previous, ...demo.parameters })) : undefined}
             onCancel={() => {
               readIdRef.current++;
               setState({ status: "idle" });
@@ -388,23 +385,13 @@ export function McpForm({
 interface EndpointStatusProps {
   state: ReadState;
   readOnly: boolean;
-  demoLabel?: string;
-  onDemo?: () => void;
   onCancel: () => void;
   onRetry: () => void;
 }
 
-// EndpointStatus is the one slot under the endpoint carrying every state: the caption,
-// the read in progress, the server that answered, and each way reaching it can fail.
-function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry }: EndpointStatusProps) {
-  if (state.status === "idle") {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Kaja asks the server what it exposes and fills in the rest.
-        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
-      </p>
-    );
-  }
+// EndpointStatus is the one slot under the endpoint carrying every state: the read in progress, the server that answered, and each way reaching it can fail.
+function EndpointStatus({ state, readOnly, onCancel, onRetry }: EndpointStatusProps) {
+  if (state.status === "idle") return null;
 
   if (state.status === "reading") {
     return <ReadingRow label="Reaching the server…" onCancel={onCancel} />;

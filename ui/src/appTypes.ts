@@ -63,8 +63,6 @@ export interface AppTypeDefinition {
   // parameter list is still the contract with the config: it says which fields the type
   // has, and the custom form supplies its own labels.
   customForm?: boolean;
-  // Optional one-click demo that prefills the form.
-  demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
 // In the order shown in the New dialog, most used first. Keep in sync with the app
@@ -105,11 +103,6 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "clientId", label: "OAuth client ID", type: "text", optional: true },
       { key: "scope", label: "OAuth scopes", type: "text", optional: true },
     ],
-    demo: {
-      label: "try the DeepWiki demo server",
-      name: "DeepWiki",
-      parameters: { url: "https://mcp.deepwiki.com/mcp" },
-    },
   },
   {
     type: "grpc",
