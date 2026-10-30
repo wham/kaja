@@ -43,8 +43,6 @@ export interface PhoneScript {
 interface PhoneFrameProps {
   // Where you are, the header's label.
   location: React.ReactNode;
-  // The finder, trigger and sheet both: the trigger floats at the page's foot.
-  finder: React.ReactNode;
   // The sidebar, which a phone draws under the page rather than beside it.
   drawer: React.ReactNode;
   drawerOpen: boolean;
@@ -64,15 +62,12 @@ interface PhoneFrameProps {
 
 /**
  * The window under 640px: the sidebar as a drawer under the page, and a page that is
- * the sidebar toggle, where you are and the action, the view under them with the finder
- * floating at its foot, and on a
- * script, its code as one more view beside the run's three. The page slides right to show
+ * the sidebar toggle, where you are and the action, the view under them, and on a script, its code as one more view beside the run's three. The page slides right to show
  * the drawer, from the toggle or from a swipe at the left edge, and follows the
  * finger while it does.
  */
 export function PhoneFrame({
   location,
-  finder,
   drawer,
   drawerOpen,
   onDrawerOpenChange,
@@ -336,9 +331,6 @@ export function PhoneFrame({
           </div>
           <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {children}
-          </div>
-          <div className={cn("absolute left-4 z-20", editing && "hidden")} style={{ bottom: "calc(env(safe-area-inset-bottom) + 16px)" }}>
-            {finder}
           </div>
         </div>
       </div>

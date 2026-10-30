@@ -2984,6 +2984,7 @@ export function App() {
         onRecompileApp={onRecompile}
         onNewAppClick={phoneClosing(onNewAppClick)}
         onNewScript={phoneClosing(onNewDraft)}
+        onFinderClick={isPhone ? closingSidebar(() => setFinder("first")) : undefined}
         onVariablesClick={phoneClosing(onVariablesClick)}
         variablesMissing={missing.length > 0}
         missingVariables={missingApps}
@@ -3014,45 +3015,44 @@ export function App() {
   return (
     <>
       {isPhone ? (
-        <PhoneFrame
-          location={<PhoneLocation current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
-          finder={
-            <PhoneFinder
-              recent={recent}
-              elsewhere={elsewhere}
-              errorCount={currentIsEditor ? syntaxErrors.count : 0}
-              open={finder !== undefined}
-              onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
-            />
-          }
-          drawer={sidebar}
-          drawerOpen={phoneSidebarOpen}
-          onDrawerOpenChange={setPhoneSidebarOpen}
-          action={action}
-          script={phoneScript}
-          onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
-          editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
-          console={(phone) => (
-            <Console
-              fileId={currentFileId}
-              onAnswer={onAnswerAsk}
-              onCancelAsk={onCancelAsk}
-              onDecide={onDecideApproval}
-              tableViews={tableViews}
-              onTableView={onTableView}
-              onTablePull={onTablePull}
-              onTableCells={onTableCells}
-              onRunScript={onRunScriptCell}
-              onRevealVariable={onRevealVariable}
-              onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
-              present={present}
-              onPresented={() => setPresent(undefined)}
-              phone={phone}
-            />
-          )}
-        >
-          {otherBodies.map((view) => bodyOf(view))}
-        </PhoneFrame>
+        <>
+          <PhoneFinder
+            recent={recent}
+            elsewhere={elsewhere}
+            open={finder !== undefined}
+            onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
+          />
+          <PhoneFrame
+            location={<PhoneLocation current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
+            drawer={sidebar}
+            drawerOpen={phoneSidebarOpen}
+            onDrawerOpenChange={setPhoneSidebarOpen}
+            action={action}
+            script={phoneScript}
+            onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
+            editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
+            console={(phone) => (
+              <Console
+                fileId={currentFileId}
+                onAnswer={onAnswerAsk}
+                onCancelAsk={onCancelAsk}
+                onDecide={onDecideApproval}
+                tableViews={tableViews}
+                onTableView={onTableView}
+                onTablePull={onTablePull}
+                onTableCells={onTableCells}
+                onRunScript={onRunScriptCell}
+                onRevealVariable={onRevealVariable}
+                onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
+                present={present}
+                onPresented={() => setPresent(undefined)}
+                phone={phone}
+              />
+            )}
+          >
+            {otherBodies.map((view) => bodyOf(view))}
+          </PhoneFrame>
+        </>
       ) : (
         <div
           className="fixed inset-0 flex flex-col bg-chrome text-foreground"

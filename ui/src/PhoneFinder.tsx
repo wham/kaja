@@ -11,18 +11,16 @@ interface PhoneFinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
-  errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * The finder on a phone: its trigger is a magnifier floating at the page's foot, where
- * a thumb is, and it opens as a sheet over the window.
+ * The finder on a phone, a sheet over the window opened from the sidebar's band.
  * With no query it is where you have been; with one it is the same ranked list the
  * desktop finder gives, with nothing between the rows.
  */
-export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange }: PhoneFinderProps) {
+export function PhoneFinder({ recent, elsewhere, open, onOpenChange }: PhoneFinderProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // A field focused on opening brings the keyboard up over the list, and the list is
@@ -56,19 +54,6 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
 
   return (
     <>
-      <button
-        type="button"
-        role="combobox"
-        data-testid="file-switcher"
-        aria-expanded={open}
-        aria-controls="phone-finder"
-        aria-label="Go to another file"
-        onClick={() => onOpenChange(true)}
-        className="flex size-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Search size={22} />
-      </button>
-
       <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
         <BaseDialog.Portal>
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-black/55 transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
@@ -79,38 +64,43 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
             style={{ top: "calc(env(safe-area-inset-top) + 40px)" }}
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           >
-            <div className="flex shrink-0 justify-center pb-1 pt-2">
-              <div className="h-1 w-9 rounded-full bg-muted-foreground/40" />
-            </div>
-            <div className="mx-4 my-2 flex h-[44px] shrink-0 items-center gap-2 rounded-md border border-input bg-background px-3">
-              <Search size={16} className="shrink-0 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && results[0]) {
-                    event.preventDefault();
-                    select(results[0]);
-                  }
-                }}
-                placeholder="Go to a file or call…"
-                aria-label="Go to a file or call"
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              {query !== "" && (
-                <button
-                  type="button"
-                  aria-label="Clear"
-                  onClick={() => {
-                    setQuery("");
-                    inputRef.current?.focus();
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4">
+              <div className="flex h-[44px] min-w-0 flex-1 items-center gap-2 rounded-full border border-input bg-background px-4">
+                <Search size={16} className="shrink-0 text-muted-foreground" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && results[0]) {
+                      event.preventDefault();
+                      select(results[0]);
+                    }
                   }}
-                  className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                >
-                  <X size={12} />
-                </button>
-              )}
+                  placeholder="Go to a file or call…"
+                  aria-label="Go to a file or call"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+                {query !== "" && (
+                  <button
+                    type="button"
+                    aria-label="Clear"
+                    onClick={() => {
+                      setQuery("");
+                      inputRef.current?.focus();
+                    }}
+                    className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <BaseDialog.Close
+                aria-label="Close"
+                className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X size={20} />
+              </BaseDialog.Close>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
@@ -149,7 +139,9 @@ export function PhoneLocation({ current, errorCount }: { current: Destination; e
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
       <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", current.provisional && "opacity-60")} />
-      <span className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}>
+      <span
+        className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}
+      >
         {current.file ? <FileName name={current.name} /> : current.name}
       </span>
       {/* The place gives way before the name does. */}
