@@ -126,15 +126,15 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
             copied={copied === "token"}
             onCopy={written ? () => copy("token", endpoint.token) : undefined}
           />
-          {written && <Verb label={armed ? "Replaces every pasted config" : "Regenerate"} lit={armed} onClick={regenerate} />}
+          {written && <Verb icon={RefreshCw} label={armed ? "Replaces every pasted config" : "Regenerate"} lit={armed} onClick={regenerate} />}
         </div>
       </section>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <nav aria-label="MCP agent" className="flex w-[200px] shrink-0 flex-col gap-3.5 overflow-y-auto py-4 pr-3 pl-5">
+        <nav aria-label="MCP agent" className="flex w-[200px] shrink-0 flex-col gap-5 overflow-y-auto py-4 pr-3 pl-5">
           {agentGroups.map((group) => (
             <div key={group.kind} className="flex flex-col gap-px">
-              <span className="px-2 pb-1 text-[11px] text-muted-foreground">{group.label}</span>
+              <span className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">{group.label}</span>
               {mcpAgents.map(
                 (candidate, index) =>
                   candidate.kind === group.kind && (
