@@ -25,8 +25,8 @@ import { SegmentedControl } from "./components/segmented-control";
 import { AppNameField } from "./AppNameField";
 import { BasicCredentials } from "./BasicCredentials";
 import { ReadingRow } from "./InspectStatus";
-import { KnownChip, KnownList } from "./KnownList";
-import { KnownGrpcServer, knownGrpcServerFor, matchingGrpcServers } from "./knownGrpcServers";
+import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
+import { KnownGrpcServer, knownGrpcServerFor, knownGrpcServers, matchingGrpcServers } from "./knownGrpcServers";
 import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
 import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
@@ -139,6 +139,7 @@ export function GrpcForm({
   const known = useMemo(() => knownGrpcServerFor(url), [url]);
   const offered = useMemo(() => matchingGrpcServers(url), [url]);
   const picking = picker && !readOnly && surfaceMode === "reflection" && !known && offered.length > 0;
+  const marks = !readOnly && surfaceMode === "reflection" && !url.trim() && knownGrpcServers.length > 0;
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
     const parameters = parametersRef.current;
@@ -300,8 +301,14 @@ export function GrpcForm({
               variables={variables}
               placeholder="dns:example.com:443"
               disabled={readOnly}
-              className={known ? "pr-28" : undefined}
-              trailingAction={known && <KnownChip entry={known} />}
+              className={known ? "pr-28" : marks ? knownMarksPadding(knownGrpcServers.length, phone) : undefined}
+              trailingAction={
+                known ? (
+                  <KnownChip entry={known} />
+                ) : (
+                  marks && <KnownMarks entries={knownGrpcServers} inputId="grpc-url" open={picking} onOpen={() => setPicker(true)} />
+                )
+              }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
               onKeyDown={(event) => {
@@ -431,18 +438,10 @@ interface SourceStatusProps {
   onSwitchMode: (mode: SurfaceMode) => void;
 }
 
-// SourceStatus is the one slot under the address carrying every state: the caption,
-// the read in progress, the server that answered, and each way reaching it can fail.
+// SourceStatus is the one slot under the address carrying every state: the read in
+// progress, the server that answered, and each way reaching it can fail.
 function SourceStatus({ state, mode, readOnly, onCancel, onRetry, onSwitchMode }: SourceStatusProps) {
-  if (state.status === "idle") {
-    return (
-      <p className="text-xs text-muted-foreground">
-        {mode === "reflection"
-          ? "Kaja asks the server what it serves and fills in the rest."
-          : "Kaja reads every .proto file in the folder and fills in the rest."}
-      </p>
-    );
-  }
+  if (state.status === "idle") return null;
 
   if (state.status === "reading") {
     return <ReadingRow label={mode === "reflection" ? "Reaching the server…" : "Reading the proto files, and checking the server…"} onCancel={onCancel} />;

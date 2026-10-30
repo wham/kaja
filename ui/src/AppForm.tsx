@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FileIcon, Plus, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -268,14 +268,6 @@ export function AppForm({
     return () => onSaveControlChangeRef.current?.(undefined);
   }, [phone, readOnly, submitLabel, isValid]);
 
-  const demo = definition?.demo;
-
-  const fillDemo = () => {
-    if (!demo) return;
-    setName(demo.name);
-    setParameters({ ...demo.parameters });
-  };
-
   return (
     <div className="flex h-full flex-col bg-background">
       {readOnly && <ReadOnlyBanner>Apps are configured in kaja.json.</ReadOnlyBanner>}
@@ -380,19 +372,6 @@ export function AppForm({
                       </FormSection>
                     );
                   })}
-
-                  {demo && !readOnly && (
-                    <FormSection>
-                      <button
-                        type="button"
-                        onClick={fillDemo}
-                        className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
-                      >
-                        <Lightbulb size={12} />
-                        {demo.label}
-                      </button>
-                    </FormSection>
-                  )}
                 </>
               )}
 
