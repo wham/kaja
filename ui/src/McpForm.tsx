@@ -14,8 +14,8 @@ import { useMediaQuery } from "./useMediaQuery";
 import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, authNote, authSchemes, deriveAppName, eraLabel } from "./mcpServer";
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
-import { KnownServer, knownServerFor, matchingServers } from "./knownServers";
-import { KnownChip, KnownList } from "./KnownList";
+import { KnownServer, knownServerFor, knownServers, matchingServers } from "./knownServers";
+import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -121,6 +121,7 @@ export function McpForm({
   // The list is an offer of what to type, so it goes the moment the field holds one of
   // them: what a matched endpoint has to say is said by the chip and the read below it.
   const picking = picker && !readOnly && !known && offered.length > 0;
+  const marks = !readOnly && !url.trim() && knownServers.length > 0;
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   // The endpoint names a variable this kaja doesn't define. The server is read where
@@ -278,8 +279,14 @@ export function McpForm({
               variables={variables}
               placeholder="https://example.com/mcp"
               disabled={readOnly}
-              className={known ? "pr-28" : undefined}
-              trailingAction={known && <KnownChip entry={known} />}
+              className={known ? "pr-28" : marks ? knownMarksPadding(knownServers.length, phone) : undefined}
+              trailingAction={
+                known ? (
+                  <KnownChip entry={known} />
+                ) : (
+                  marks && <KnownMarks entries={knownServers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
+                )
+              }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
               onKeyDown={(event) => {

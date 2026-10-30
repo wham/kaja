@@ -25,8 +25,8 @@ import { SegmentedControl } from "./components/segmented-control";
 import { AppNameField } from "./AppNameField";
 import { BasicCredentials } from "./BasicCredentials";
 import { ReadingRow } from "./InspectStatus";
-import { KnownChip, KnownList } from "./KnownList";
-import { KnownGrpcServer, knownGrpcServerFor, matchingGrpcServers } from "./knownGrpcServers";
+import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
+import { KnownGrpcServer, knownGrpcServerFor, knownGrpcServers, matchingGrpcServers } from "./knownGrpcServers";
 import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
 import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
@@ -139,6 +139,7 @@ export function GrpcForm({
   const known = useMemo(() => knownGrpcServerFor(url), [url]);
   const offered = useMemo(() => matchingGrpcServers(url), [url]);
   const picking = picker && !readOnly && surfaceMode === "reflection" && !known && offered.length > 0;
+  const marks = !readOnly && surfaceMode === "reflection" && !url.trim() && knownGrpcServers.length > 0;
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
     const parameters = parametersRef.current;
@@ -300,8 +301,14 @@ export function GrpcForm({
               variables={variables}
               placeholder="dns:example.com:443"
               disabled={readOnly}
-              className={known ? "pr-28" : undefined}
-              trailingAction={known && <KnownChip entry={known} />}
+              className={known ? "pr-28" : marks ? knownMarksPadding(knownGrpcServers.length, phone) : undefined}
+              trailingAction={
+                known ? (
+                  <KnownChip entry={known} />
+                ) : (
+                  marks && <KnownMarks entries={knownGrpcServers} inputId="grpc-url" open={picking} onOpen={() => setPicker(true)} />
+                )
+              }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
               onKeyDown={(event) => {
