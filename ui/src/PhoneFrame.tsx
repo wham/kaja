@@ -1,10 +1,13 @@
-import { TextAlignStart } from "lucide-react";
+import { Check, TextAlignStart } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
-import { CODE_SHEET_REST_HEIGHT, CodeSheet } from "./CodeSheet";
+import { CodePane } from "./CodePane";
+import { Button } from "./components/button";
+import { Console } from "./Console";
 import { consoles } from "./consoles";
-import { SheetPosition, snapDrawer } from "./phone";
+import { snapDrawer } from "./phone";
+import { ConsoleView } from "./runs";
 
 // How far in from the left edge a swipe has to start to open the drawer.
 const EDGE = 24;
@@ -25,15 +28,14 @@ interface DrawerTrack {
   velocity: number;
 }
 
-/** What the console is handed on a phone: the one gesture it asks the sheet for. */
+/** What the console is handed on a phone: the one gesture it asks the frame for. */
 export interface PhoneConsole {
-  // Full screen on a phone is the sheet getting out of the way.
+  // Full screen on a phone is leaving the code for the run.
   onShowRun: () => void;
 }
 
 export interface PhoneScript {
   fileId: string;
-  name: string;
   model: monaco.editor.ITextModel;
   readOnly: boolean;
 }
@@ -49,12 +51,11 @@ interface PhoneFrameProps {
   onDrawerOpenChange: (open: boolean) => void;
   // Run for a script, the view's own verb for anything else.
   action?: React.ReactNode;
-  // The nearest script in the view stack, whose editor stays mounted in the sheet.
+  // The nearest script in the view stack, whose editor stays mounted in the code pane.
   script?: PhoneScript;
-  // Set while that script is the view on screen: the run is the body and the sheet is
-  // there to raise. Anywhere else there is no sheet.
+  // Set while that script is the view on screen: its code and its run are the body.
   onScript: boolean;
-  // The mounted editors, whichever view is current; they live in the sheet.
+  // The mounted editors, whichever view is current; they live in the code pane.
   editor: React.ReactNode;
   console: (phone: PhoneConsole) => React.ReactNode;
   // Every other view's body.
@@ -65,7 +66,7 @@ interface PhoneFrameProps {
  * The window under 640px: the sidebar as a drawer under the page, and a page that is
  * the sidebar toggle, where you are and the action, the view under them with the finder
  * floating at its foot, and on a
- * script, its code as an overlay raised over the run. The page slides right to show
+ * script, its code as one more view beside the run's three. The page slides right to show
  * the drawer, from the toggle or from a swipe at the left edge, and follows the
  * finger while it does.
  */
@@ -82,7 +83,7 @@ export function PhoneFrame({
   console: renderConsole,
   children,
 }: PhoneFrameProps) {
-  const [position, setPosition] = useState<SheetPosition>("rest");
+  const [code, setCode] = useState(false);
   const [editing, setEditing] = useState(false);
   const fileId = script?.fileId;
 
@@ -90,41 +91,40 @@ export function PhoneFrame({
   // with runs opens on the run.
   useLayoutEffect(() => {
     if (fileId === undefined) return;
-    setPosition(consoles.file(fileId).groups.length === 0 ? "half" : "rest");
+    setCode(consoles.file(fileId).groups.length === 0);
     setEditing(false);
   }, [fileId]);
 
-  // A run starting is a request to watch it, so the sheet gets out of its way. Only a
-  // live one: the runs a file kept from last time arrive settled.
   useSyncExternalStore(
     useCallback((notify: () => void) => (fileId === undefined ? () => {} : consoles.subscribeFile(fileId, notify)), [fileId]),
     useCallback(() => consoles.fileVersion(fileId), [fileId]),
   );
-  const newest = consoles.file(fileId).groups.at(-1);
+  const file = consoles.file(fileId);
+
+  const showRun = useCallback(() => {
+    setCode(false);
+    setEditing(false);
+  }, []);
+
+  // A run starting is a request to watch it. Only a live one: the runs a file kept
+  // from last time arrive settled.
+  const newest = file.groups.at(-1);
   const newestRunId = newest?.run.id;
   const newestRunning = newest?.running === true;
   useLayoutEffect(() => {
-    if (newestRunId !== undefined && newestRunning) setPosition("rest");
+    if (newestRunId !== undefined && newestRunning) showRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newestRunId]);
 
-  // A keyboard leaves nothing over for what the sheet covers, so editing takes the
-  // screen rather than being typed into through a gap.
-  const onEditingChange = useCallback((next: boolean) => {
-    setEditing(next);
-    if (next) setPosition("full");
-  }, []);
+  const onRunView = useCallback(
+    (view: ConsoleView) => {
+      consoles.setView(fileId, view, Date.now());
+      showRun();
+    },
+    [fileId, showRun],
+  );
 
-  // Putting the sheet away ends the edit with it: a keyboard over a 24px grabber has
-  // nothing left to type into.
-  const onPositionChange = useCallback((next: SheetPosition) => {
-    setPosition(next);
-    if (next === "rest") setEditing(false);
-  }, []);
-
-  const phone = useMemo<PhoneConsole>(() => ({ onShowRun: () => onPositionChange("rest") }), [onPositionChange]);
-
-  const up = onScript && position !== "rest";
+  const phone = useMemo<PhoneConsole>(() => ({ onShowRun: showRun }), [showRun]);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -293,35 +293,53 @@ export function PhoneFrame({
         </div>
         <div className="relative flex min-h-0 flex-1 flex-col">
           {onScript && (
+            <div className="flex h-[44px] shrink-0 items-center px-3">
+              <Console.ViewSelect
+                activeView={file.activeView}
+                waiting={file.selectedGroup?.awaiting !== undefined}
+                onChange={onRunView}
+                fullWidth
+                code={{ selected: code, onSelect: () => setCode(true) }}
+              />
+              {editing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2 h-[32px] shrink-0 gap-1.5 px-3 text-xs"
+                  data-testid="code-pane-done"
+                  onClick={() => setEditing(false)}
+                >
+                  <Check size={13} className="text-muted-foreground" />
+                  Done
+                </Button>
+              )}
+            </div>
+          )}
+          {onScript && (
             <div
               data-testid="phone-run"
-              className={cn("flex min-h-0 flex-1 flex-col transition-opacity duration-200", up && "opacity-40")}
-              style={{ paddingBottom: `calc(${CODE_SHEET_REST_HEIGHT}px + env(safe-area-inset-bottom))` }}
+              className={cn("flex min-h-0 flex-1 flex-col", code && "hidden")}
+              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
               {renderConsole(phone)}
             </div>
           )}
+          {/* Always mounted, because it holds the editors. */}
+          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
+            <CodePane
+              model={onScript ? script?.model : undefined}
+              readOnly={script?.readOnly ?? true}
+              editing={editing}
+              onEditingChange={setEditing}
+              editor={editor}
+            />
+          </div>
           <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {children}
           </div>
-          {/* What is behind a raised sheet is dimmed, and a tap on it is the way back. */}
-          {up && <button type="button" aria-label="Put the code away" className="absolute inset-0 z-10" onClick={() => onPositionChange("rest")} />}
-          <div
-            className={cn("absolute left-4 z-20", up && "hidden")}
-            style={{ bottom: `calc(${onScript ? CODE_SHEET_REST_HEIGHT : 0}px + env(safe-area-inset-bottom) + 16px)` }}
-          >
+          <div className={cn("absolute left-4 z-20", editing && "hidden")} style={{ bottom: "calc(env(safe-area-inset-bottom) + 16px)" }}>
             {finder}
           </div>
-          <CodeSheet
-            model={onScript ? script?.model : undefined}
-            name={script?.name}
-            readOnly={script?.readOnly ?? true}
-            position={position}
-            onPositionChange={onPositionChange}
-            editing={editing}
-            onEditingChange={onEditingChange}
-            editor={editor}
-          />
         </div>
       </div>
       {/* The page left showing beside the sidebar is faded, and a tap on it is the way back. */}

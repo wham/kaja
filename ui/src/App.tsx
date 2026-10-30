@@ -2890,7 +2890,6 @@ export function App() {
     phoneScriptView && (phoneScriptView.type === "draft" || phoneScriptView.type === "script")
       ? {
           fileId: phoneScriptView.type === "script" ? phoneScriptView.script.path : phoneScriptView.draftId,
-          name: viewIdentity(phoneScriptView, drafts).name,
           model: phoneScriptView.model,
           readOnly:
             (phoneScriptView.type === "script" && !canWriteFiles) || (phoneScriptView.type === "draft" && agentViewName(phoneScriptView.draftId) !== undefined),

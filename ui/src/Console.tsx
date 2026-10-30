@@ -73,9 +73,8 @@ interface ConsoleProps {
   // So a run can be started again from full screen rather than only from the command
   // row the canvas covers.
   runControl?: React.ReactNode;
-  // On a phone the console is the screen: the three views get the segmented control
-  // full width, and full screen is nothing more than the script's sheet getting out
-  // of the way.
+  // On a phone the console is the screen: the frame draws the segmented control, the
+  // code's segment in front, and full screen is nothing more than leaving the code.
   phone?: PhoneConsole;
 }
 
@@ -165,8 +164,8 @@ export function Console({
   const enterFullScreen = useCallback(
     (view: ConsoleView) => {
       onViewChange(view);
-      // The canvas already has the phone's whole screen; taking it means the sheet
-      // getting out of the way.
+      // The canvas already has the phone's whole screen; taking it means leaving the
+      // code for the run.
       if (phone) {
         phone.onShowRun();
         return;
@@ -194,7 +193,7 @@ export function Console({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId, file.version, tailing]);
 
-  const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
+  const selectedGroup = file.selectedGroup;
   const logFloor = file.logFloor;
   // The merge is a walk of two ordered lists, but it is read on every repaint of a run
   // that may be thousands long, and both sides only ever grow at the end.
@@ -205,7 +204,7 @@ export function Console({
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
   const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
-  const activeView = file.view ?? defaultView(selectedGroup);
+  const activeView = file.activeView;
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
   const onShowLogs = useCallback(() => onLogFloorChange("all"), [onLogFloorChange]);
@@ -375,12 +374,6 @@ export function Console({
   if (phone) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-background">
-        {/* The desktop's own control, full width: three run surfaces here, three
-            there, same labels and same order. The code has no segment — it is the
-            sheet, raised over whatever this is showing. */}
-        <div className="flex h-[40px] shrink-0 items-center px-3">
-          <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} fullWidth />
-        </div>
         {/* What the console header and the strip say on the desktop: which run, and
             its calls. */}
         <div className="flex h-[28px] shrink-0 items-center gap-3 border-y border-border px-3">
@@ -468,6 +461,9 @@ interface ViewSelectProps {
   onChange: (view: ConsoleView) => void;
   // The phone, where the control is the whole of the chrome's first row.
   fullWidth?: boolean;
+  // The phone's code, a segment in front of the run's three; while it is selected
+  // none of theirs is.
+  code?: { selected: boolean; onSelect: () => void };
 }
 
 /**
@@ -475,10 +471,16 @@ interface ViewSelectProps {
  * rather than in the header because the full-screen bar carries it too — a size is
  * not a mode, so taking the screen may not take two thirds of the run with it.
  */
-Console.ViewSelect = function ({ activeView, waiting, onChange, fullWidth }: ViewSelectProps) {
+Console.ViewSelect = function ({ activeView: runView, waiting, onChange, fullWidth, code }: ViewSelectProps) {
   const segment = fullWidth ? "h-[26px] flex-1 justify-center px-2.5 py-0 text-xs" : "h-[20px] px-2.5 py-0 text-xs";
+  const activeView = code?.selected ? undefined : runView;
   return (
     <SegmentedControl className={fullWidth ? "flex h-[32px] w-full p-[2px]" : "h-[26px] shrink-0 p-[2px]"} aria-label="Run view">
+      {code && (
+        <SegmentedControl.Button selected={code.selected} className={segment} onClick={code.onSelect} data-testid="console-view-code">
+          Code
+        </SegmentedControl.Button>
+      )}
       {/* "Calls" rather than "Log": a row here is a call and only a call, and
           "log" is what anyone means by what a script printed — which is now a
           thing this view can mix in. */}
