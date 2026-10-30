@@ -155,7 +155,6 @@ func mcpAgentConfigurationPaths() map[string]string {
 	}
 	paths["cursor"] = filepath.Join(home, ".cursor", "mcp.json")
 	paths["windsurf"] = filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
-	paths["copilotCli"] = filepath.Join(home, ".copilot", "mcp-config.json")
 	paths["codex"] = filepath.Join(home, ".codex", "config.toml")
 	paths["gemini"] = filepath.Join(home, ".gemini", "settings.json")
 	// Zed and Goose read ~/.config on every platform, macOS included, so these two

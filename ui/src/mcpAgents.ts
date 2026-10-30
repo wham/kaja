@@ -119,13 +119,11 @@ export const mcpAgents: McpAgent[] = [
   },
   {
     name: "GitHub Copilot CLI",
-    kind: "config file",
-    path: "~/.copilot/mcp-config.json",
-    lead: "Copilot CLI offers a server only the tools it names, so the snippet names all of them.",
+    kind: "terminal command",
+    path: "run in a terminal",
+    lead: "Registers it for every session, in ~/.copilot/mcp-config.json.",
     foot: "/mcp show inside Copilot CLI lists it and says whether it connected.",
-    configurationKey: "copilotCli",
-    snippet: ({ url, token }) =>
-      mcpServers(`      "type": "http",\n      "url": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" },\n      "tools": ["*"]`),
+    snippet: ({ url, token }) => `copilot mcp add --transport http kaja \\\n  ${url} \\\n  --header "Authorization: Bearer ${token}"`,
   },
   {
     name: "OpenAI Codex CLI",
