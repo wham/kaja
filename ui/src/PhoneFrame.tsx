@@ -269,6 +269,8 @@ export function PhoneFrame({
         style={{
           transform: "translateX(calc(var(--drawer-progress) * var(--drawer-width)))",
           borderRadius: "calc(var(--drawer-progress) * 16px) 0 0 calc(var(--drawer-progress) * 16px)",
+          // Faded into the chrome rather than dimmed with black, which a dark page doesn't show.
+          opacity: "calc(1 - var(--drawer-progress) * 0.6)",
         }}
       >
         <div className="shrink-0 border-b border-border bg-chrome" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -322,15 +324,14 @@ export function PhoneFrame({
           />
         </div>
       </div>
-      {/* The page left showing beside the sidebar is dimmed, and a tap on it is the way back. */}
+      {/* The page left showing beside the sidebar is faded, and a tap on it is the way back. */}
       <button
         type="button"
         aria-label="Hide sidebar"
         inert={!drawerOpen}
         onClick={() => onDrawerOpenChange(false)}
-        className={cn("absolute inset-0 bg-black", slide, !drawerOpen && "pointer-events-none")}
+        className={cn("absolute inset-0", slide, !drawerOpen && "pointer-events-none")}
         style={{
-          opacity: "calc(var(--drawer-progress) * 0.4)",
           transform: "translateX(calc(var(--drawer-progress) * var(--drawer-width)))",
           borderRadius: "calc(var(--drawer-progress) * 16px) 0 0 calc(var(--drawer-progress) * 16px)",
         }}
