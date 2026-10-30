@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { Ban, ChevronsUpDown, CircleAlert, Search, X } from "lucide-react";
+import { Ban, CircleAlert, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { FileName } from "./FileName";
@@ -17,8 +17,8 @@ interface PhoneFinderProps {
 }
 
 /**
- * The finder on a phone, as it is on the desktop: its trigger is the header's label,
- * the one thing that says where you are, and it opens as a sheet over the window.
+ * The finder on a phone: its trigger is a magnifier floating at the page's foot, where
+ * a thumb is, and it opens as a sheet over the window.
  * With no query it is where you have been; with one it is the same ranked list the
  * desktop finder gives, with nothing between the rows.
  */
@@ -28,7 +28,6 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
   // A field focused on opening brings the keyboard up over the list, and the list is
   // what the sheet opened to show.
   const touch = useMediaQuery("(hover: none)");
-  const current = recent[0];
 
   useEffect(() => {
     if (!open) return;
@@ -55,9 +54,6 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
     onOpenChange(false);
   };
 
-  const Icon = errorCount > 0 ? CircleAlert : current.icon;
-  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : current.origin;
-
   return (
     <>
       <button
@@ -66,22 +62,11 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
         data-testid="file-switcher"
         aria-expanded={open}
         aria-controls="phone-finder"
-        aria-label={`${current.name}. Go to another file`}
+        aria-label="Go to another file"
         onClick={() => onOpenChange(true)}
-        className={cn(
-          "flex h-[36px] min-w-0 flex-1 items-center gap-2 rounded-md border bg-card px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          errorCount > 0 ? "border-destructive" : "border-border",
-        )}
+        className="flex size-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", current.provisional && "opacity-60")} />
-        <span className={cn("min-w-0 truncate text-sm", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}>
-          {current.file ? <FileName name={current.name} /> : current.name}
-        </span>
-        {/* The place gives way before the name does. */}
-        {qualifier && (
-          <span className={cn("min-w-0 shrink-[3] truncate text-sm", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
-        )}
-        <ChevronsUpDown size={13} className="ml-auto shrink-0 text-muted-foreground" />
+        <Search size={22} />
       </button>
 
       <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -154,6 +139,24 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
         </BaseDialog.Portal>
       </BaseDialog.Root>
     </>
+  );
+}
+
+/** The header's label: where you are, or how many errors the file there has. */
+export function PhoneLocation({ current, errorCount }: { current: Destination; errorCount: number }) {
+  const Icon = errorCount > 0 ? CircleAlert : current.icon;
+  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : current.origin;
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+      <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", current.provisional && "opacity-60")} />
+      <span className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}>
+        {current.file ? <FileName name={current.name} /> : current.name}
+      </span>
+      {/* The place gives way before the name does. */}
+      {qualifier && (
+        <span className={cn("min-w-0 shrink-[3] truncate text-sm", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
+      )}
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { PanelLeftOpen } from "lucide-react";
+import { TextAlignStart } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -39,7 +39,9 @@ export interface PhoneScript {
 }
 
 interface PhoneFrameProps {
-  // The finder, trigger and sheet both: the trigger is the header's label.
+  // Where you are, the header's label.
+  location: React.ReactNode;
+  // The finder, trigger and sheet both: the trigger floats at the page's foot.
   finder: React.ReactNode;
   // The sidebar, which a phone draws under the page rather than beside it.
   drawer: React.ReactNode;
@@ -61,12 +63,14 @@ interface PhoneFrameProps {
 
 /**
  * The window under 640px: the sidebar as a drawer under the page, and a page that is
- * the command row's sidebar toggle, finder and action, the view under them, and on a
+ * the sidebar toggle, where you are and the action, the view under them with the finder
+ * floating at its foot, and on a
  * script, its code as an overlay raised over the run. The page slides right to show
  * the drawer, from the toggle or from a swipe at the left edge, and follows the
  * finger while it does.
  */
 export function PhoneFrame({
+  location,
   finder,
   drawer,
   drawerOpen,
@@ -265,10 +269,12 @@ export function PhoneFrame({
         style={{
           transform: "translateX(calc(var(--drawer-progress) * var(--drawer-width)))",
           borderRadius: "calc(var(--drawer-progress) * 16px) 0 0 calc(var(--drawer-progress) * 16px)",
+          // Faded into the chrome rather than dimmed with black, which a dark page doesn't show.
+          opacity: "calc(1 - var(--drawer-progress) * 0.6)",
         }}
       >
         <div className="shrink-0 border-b border-border bg-chrome" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-          <div className="flex h-[52px] items-center gap-2 px-3">
+          <div className="flex h-[60px] items-center gap-2 px-3">
             <button
               ref={triggerRef}
               type="button"
@@ -276,12 +282,13 @@ export function PhoneFrame({
               aria-expanded={drawerOpen}
               aria-controls="phone-drawer"
               onClick={() => onDrawerOpenChange(true)}
-              className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PanelLeftOpen size={18} />
+              <TextAlignStart size={22} />
             </button>
-            {finder}
-            {action}
+            {location}
+            {/* Keeps the label centred when there is no action to balance the toggle. */}
+            {action ?? <div className="size-11 shrink-0" />}
           </div>
         </div>
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -299,6 +306,12 @@ export function PhoneFrame({
           </div>
           {/* What is behind a raised sheet is dimmed, and a tap on it is the way back. */}
           {up && <button type="button" aria-label="Put the code away" className="absolute inset-0 z-10" onClick={() => onPositionChange("rest")} />}
+          <div
+            className={cn("absolute left-4 z-20", up && "hidden")}
+            style={{ bottom: `calc(${onScript ? CODE_SHEET_REST_HEIGHT : 0}px + env(safe-area-inset-bottom) + 16px)` }}
+          >
+            {finder}
+          </div>
           <CodeSheet
             model={onScript ? script?.model : undefined}
             name={script?.name}
@@ -311,15 +324,14 @@ export function PhoneFrame({
           />
         </div>
       </div>
-      {/* The page left showing beside the sidebar is dimmed, and a tap on it is the way back. */}
+      {/* The page left showing beside the sidebar is faded, and a tap on it is the way back. */}
       <button
         type="button"
         aria-label="Hide sidebar"
         inert={!drawerOpen}
         onClick={() => onDrawerOpenChange(false)}
-        className={cn("absolute inset-0 bg-black", slide, !drawerOpen && "pointer-events-none")}
+        className={cn("absolute inset-0", slide, !drawerOpen && "pointer-events-none")}
         style={{
-          opacity: "calc(var(--drawer-progress) * 0.4)",
           transform: "translateX(calc(var(--drawer-progress) * var(--drawer-width)))",
           borderRadius: "calc(var(--drawer-progress) * 16px) 0 0 calc(var(--drawer-progress) * 16px)",
         }}
