@@ -1,6 +1,6 @@
 import { useMediaQuery } from "./useMediaQuery";
 import { PHONE_QUERY, isIPhone, methodTag } from "./phone";
-import { PhoneFinder } from "./PhoneFinder";
+import { PhoneFinder, PhoneLocation } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
 import { PhoneSidebar } from "./PhoneSidebar";
 import { Dialog } from "./components/dialog";
@@ -3016,6 +3016,7 @@ export function App() {
     <>
       {isPhone ? (
         <PhoneFrame
+          location={<PhoneLocation current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
           finder={
             <PhoneFinder
               recent={recent}
