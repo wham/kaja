@@ -19,11 +19,10 @@ export type McpAgentKind = "one-click install" | "config file" | "terminal comma
 export interface McpAgent {
   name: string;
   kind: McpAgentKind;
-  /** Where the snippet goes, in the agent's own words. */
-  path: string;
-  lead: string;
-  /** The one thing that bites after the snippet is in place, where there is one. */
-  foot?: string;
+  /** The file the snippet is pasted into; an agent without one is given a command to run. */
+  file?: string;
+  /** The one thing worth knowing beyond where the snippet goes, where there is one. */
+  note?: string;
   /**
    * The key the desktop resolves this agent's configuration file under. An agent
    * whose snippet goes into a file it names has one — a one-click agent included,
@@ -74,9 +73,7 @@ export const mcpAgents: McpAgent[] = [
   {
     name: "Claude Code",
     kind: "terminal command",
-    path: "run in your project directory",
-    lead: "Scoped to the project you run it in. Use --scope user to register it for every project.",
-    foot: "/mcp inside Claude Code lists it and says whether it connected.",
+    note: "Adds it to this project only. Add --scope user for every project.",
     snippet: ({ url, token }) => `claude mcp add --transport http kaja \\\n  ${url} \\\n  --header "Authorization: Bearer ${token}"`,
   },
   {
@@ -86,9 +83,8 @@ export const mcpAgents: McpAgent[] = [
     // mangle "Bearer <token>".
     name: "Claude Desktop",
     kind: "config file",
-    path: "…/Claude/claude_desktop_config.json",
-    lead: "No HTTP transport, so it bridges through mcp-remote over stdio.",
-    foot: "Needs Node on PATH. Claude Desktop reads this file only at launch, so quit it fully and reopen.",
+    file: "…/Claude/claude_desktop_config.json",
+    note: "Needs Node. Quit and reopen Claude Desktop after saving.",
     configurationKey: "claudeDesktop",
     snippet: ({ url, token }) =>
       JSON.stringify(
@@ -108,8 +104,7 @@ export const mcpAgents: McpAgent[] = [
   {
     name: "Cursor",
     kind: "one-click install",
-    path: "~/.cursor/mcp.json",
-    lead: "Opens Cursor through its deeplink handler and prefills the server; Cursor writes mcp.json once you accept. Below is the equivalent hand-edit.",
+    file: "~/.cursor/mcp.json",
     configurationKey: "cursor",
     install: { label: "Add to Cursor", link: cursorLink },
     container: true,
@@ -118,8 +113,6 @@ export const mcpAgents: McpAgent[] = [
   {
     name: "VS Code",
     kind: "one-click install",
-    path: "run in a terminal",
-    lead: "Opens VS Code's install prompt through its vscode: handler; VS Code writes the server into its own settings. The command below does the same thing without the handler.",
     install: { label: "Add to VS Code", link: vsCodeLink },
     container: true,
     snippet: ({ url, token }) => `code --add-mcp '{"name":"kaja","type":"http",\n  "url":"${url}",\n  "headers":{"Authorization":"Bearer ${token}"}}'`,
@@ -127,53 +120,43 @@ export const mcpAgents: McpAgent[] = [
   {
     name: "GitHub Copilot CLI",
     kind: "terminal command",
-    path: "run in a terminal",
-    lead: "Registers it for every session, in ~/.copilot/mcp-config.json.",
-    foot: "/mcp show inside Copilot CLI lists it and says whether it connected.",
     snippet: ({ url, token }) => `copilot mcp add --transport http kaja \\\n  ${url} \\\n  --header "Authorization: Bearer ${token}"`,
   },
   {
     name: "OpenAI Codex CLI",
     kind: "config file",
-    path: "~/.codex/config.toml",
-    lead: "TOML. Append both tables at the end of the file.",
-    foot: "The headers table has to come after its parent table.",
+    file: "~/.codex/config.toml",
     configurationKey: "codex",
     snippet: ({ url, token }) => `[mcp_servers.kaja]\nurl = "${url}"\n\n[mcp_servers.kaja.headers]\nAuthorization = "Bearer ${token}"`,
   },
   {
     name: "Windsurf",
     kind: "config file",
-    path: "~/.codeium/windsurf/mcp_config.json",
-    lead: "The URL field is serverUrl here, not url.",
-    foot: "Windsurf rereads the file on Refresh in the Cascade MCP panel.",
+    file: "~/.codeium/windsurf/mcp_config.json",
+    note: "Then press Refresh in the Cascade MCP panel.",
     configurationKey: "windsurf",
     snippet: ({ url, token }) => mcpServers(`      "serverUrl": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
   },
   {
     name: "Zed",
     kind: "config file",
-    path: "~/.config/zed/settings.json",
-    lead: "Zed calls these context servers.",
-    foot: "Merge into the existing top-level object; settings.json is one object, not a stream of them.",
+    file: "~/.config/zed/settings.json",
+    note: "Add it inside the top-level object.",
     configurationKey: "zed",
-    snippet: ({ url, token }) =>
-      `"context_servers": {\n  "kaja": {\n    "url": "${url}",\n    "headers": { "Authorization": "Bearer ${token}" }\n  }\n}`,
+    snippet: ({ url, token }) => `"context_servers": {\n  "kaja": {\n    "url": "${url}",\n    "headers": { "Authorization": "Bearer ${token}" }\n  }\n}`,
   },
   {
     name: "Cline",
     kind: "config file",
-    path: "…/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-    lead: "Cline's settings file lives inside its VS Code extension storage folder, not in your home config.",
+    file: "…/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
     configurationKey: "cline",
     snippet: ({ url, token }) => mcpServers(`      "type": "streamableHttp",\n      "url": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
   },
   {
     name: "Goose",
     kind: "one-click install",
-    path: "~/.config/goose/config.yaml",
-    lead: "Opens Goose's extension settings with the server filled in; Goose adds it once you save. Below is the equivalent hand-edit, merged under the existing extensions key.",
-    foot: "Two spaces per level; tabs are a parse error.",
+    file: "~/.config/goose/config.yaml",
+    note: "Add it under the existing extensions key.",
     configurationKey: "goose",
     install: { label: "Add to Goose", link: gooseLink },
     snippet: ({ url, token }) =>
@@ -182,10 +165,7 @@ export const mcpAgents: McpAgent[] = [
   {
     name: "Gemini CLI",
     kind: "terminal command",
-    path: "run in a terminal",
-    lead: "Registers it for every project. Leave out --scope user to scope it to the one you run it in.",
-    foot: "/mcp inside Gemini CLI lists it and says whether it connected.",
-    snippet: ({ url, token }) =>
-      `gemini mcp add --scope user --transport http \\\n  --header "Authorization: Bearer ${token}" \\\n  kaja ${url}`,
+    note: "Leave out --scope user to add it to this project only.",
+    snippet: ({ url, token }) => `gemini mcp add --scope user --transport http \\\n  --header "Authorization: Bearer ${token}" \\\n  kaja ${url}`,
   },
 ];

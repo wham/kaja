@@ -21,7 +21,8 @@ describe("mcpAgents", () => {
   test("only a one-click agent installs, and only a filed one reveals", () => {
     for (const a of mcpAgents) {
       expect(!!a.install).toBe(a.kind === "one-click install");
-      if (a.kind === "config file") expect(a.configurationKey).toBeDefined();
+      if (a.kind === "config file") expect(a.configurationKey && a.file).toBeTruthy();
+      if (a.kind === "terminal command") expect(a.file).toBeUndefined();
     }
   });
 
