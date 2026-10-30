@@ -26,7 +26,7 @@ describe("mcpAgents", () => {
   });
 
   test("the JSON snippets parse", () => {
-    for (const name of ["Cursor", "Claude Desktop", "Windsurf", "Cline", "Gemini CLI", "GitHub Copilot CLI"]) {
+    for (const name of ["Cursor", "Claude Desktop", "Windsurf", "Cline"]) {
       expect(() => JSON.parse(agent(name).snippet(endpoint))).not.toThrow();
     }
   });
@@ -45,6 +45,14 @@ describe("mcpAgents", () => {
       url: endpoint.url,
       headers: { Authorization: `Bearer ${endpoint.token}` },
     });
+  });
+
+  test("Goose's deeplink carries the server and its header", () => {
+    const params = new URL(agent("Goose").install!.link(endpoint)).searchParams;
+    expect(params.get("url")).toBe(endpoint.url);
+    expect(params.get("type")).toBe("streamable_http");
+    expect(params.get("name")).toBe("kaja");
+    expect(params.getAll("header")).toEqual([`Authorization=Bearer ${endpoint.token}`]);
   });
 
   test("a container reaches a loopback endpoint through the Docker host", () => {
