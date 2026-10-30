@@ -29,9 +29,13 @@ An API that is not an app yet can become one from here, where Kaja owns the
 workspace. `inspect_api` probes it and says what adding it would need, writing
 nothing; `add_app` adds it. **The one thing to find is where the API publishes
 itself** — an OpenAPI document's URL, a gRPC server's address, an MCP endpoint.
-Hand that straight to `inspect_api`: Kaja fetches and reads the document itself
-and reports its servers, its security schemes and how many operations it has, so
-downloading or grepping a spec yourself is work Kaja is about to do, and once the
+**When the user gave you that address, or you know it is what it says it is,
+hand it straight to `add_app`**, which probes it before writing anything. Reach
+for `inspect_api` first only when you found the address yourself and aren't sure
+what answers there — a guessed spec path, a host that may or may not reflect.
+Either way Kaja fetches and reads the document itself and reports its servers,
+its security schemes and how many operations it has, so downloading or grepping
+a spec yourself is work Kaja is about to do, and once the
 app is added `list_services` is the index of every method. Both take the app as kaja.json spells it: a `type`
 (`grpc`, `twirp`, `openapi`, `openai`, `mcp`, `folder`) and its `parameters`
 under that key, every value a string, so what you write is what the file says.
