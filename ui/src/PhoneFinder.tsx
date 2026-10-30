@@ -79,38 +79,43 @@ export function PhoneFinder({ recent, elsewhere, errorCount, open, onOpenChange 
             style={{ top: "calc(env(safe-area-inset-top) + 40px)" }}
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           >
-            <div className="flex shrink-0 justify-center pb-1 pt-2">
-              <div className="h-1 w-9 rounded-full bg-muted-foreground/40" />
-            </div>
-            <div className="mx-4 my-2 flex h-[44px] shrink-0 items-center gap-2 rounded-md border border-input bg-background px-3">
-              <Search size={16} className="shrink-0 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && results[0]) {
-                    event.preventDefault();
-                    select(results[0]);
-                  }
-                }}
-                placeholder="Go to a file or call…"
-                aria-label="Go to a file or call"
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              {query !== "" && (
-                <button
-                  type="button"
-                  aria-label="Clear"
-                  onClick={() => {
-                    setQuery("");
-                    inputRef.current?.focus();
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4">
+              <div className="flex h-[44px] min-w-0 flex-1 items-center gap-2 rounded-full border border-input bg-background px-4">
+                <Search size={16} className="shrink-0 text-muted-foreground" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && results[0]) {
+                      event.preventDefault();
+                      select(results[0]);
+                    }
                   }}
-                  className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                >
-                  <X size={12} />
-                </button>
-              )}
+                  placeholder="Go to a file or call…"
+                  aria-label="Go to a file or call"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+                {query !== "" && (
+                  <button
+                    type="button"
+                    aria-label="Clear"
+                    onClick={() => {
+                      setQuery("");
+                      inputRef.current?.focus();
+                    }}
+                    className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <BaseDialog.Close
+                aria-label="Close"
+                className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X size={20} />
+              </BaseDialog.Close>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
