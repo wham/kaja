@@ -240,6 +240,7 @@ func allToolDefinitions() []map[string]interface{} {
 			"annotations": reads(),
 			"description": "Probe an API before adding it as an app: what answers at the address, how much it exposes, and what adding it would still need " +
 				"(a credential, a proto folder, a choice of server). Nothing is written. " +
+				"It is for an address you found yourself and are not sure of: one the user gave you, or one you know, goes straight to add_app, which probes it the same way. " +
 				"For an OpenAPI document Kaja fetches and reads it itself - its servers, its security schemes, how many operations - " +
 				"so hand it the document's URL rather than downloading or searching the document yourself. " + appDraftNote,
 			"inputSchema": obj(map[string]interface{}{
@@ -262,7 +263,7 @@ func allToolDefinitions() []map[string]interface{} {
 				"one per field, which the form shows beside that field while the user fills it in. " +
 				"Ask the user for anything that is not a secret - which tenant or region, which server - before you call, so the form has less left in it. " +
 				"Never ask the user for a token or password yourself: name a `${VARIABLE}` in its place, or leave it out and let the form take it. " +
-				"Use inspect_api first when you are not sure what the API is. " + appDraftNote,
+				"When the user handed you the address or you are sure what it is, call add_app directly; use inspect_api first only for an address you found yourself and are not sure of. " + appDraftNote,
 			"inputSchema": obj(map[string]interface{}{
 				"name":       str("The app's name, which is what a script imports it as: `import { Shows } from \"<name>\"`."),
 				"type":       str(appTypeNote),
