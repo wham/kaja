@@ -310,14 +310,12 @@ function MethodRow({ app, service, method, onSelect }: { app: App; service: Serv
   const unsupported = unsupportedReason(method, appType(app.configuration));
   return (
     <PhoneRow
-      onClick={() => onSelect(method, service, app, "go")}
+      onClick={() => onSelect(method, service, app)}
       trailing={
-        unsupported ? (
+        unsupported && (
           <span className="flex size-9 shrink-0 items-center justify-center">
             <UnsupportedMarker reason={unsupported} size={18} />
           </span>
-        ) : (
-          <PhoneRowAction icon={Plus} label={`Add ${method.name} to the open draft`} onClick={() => onSelect(method, service, app, "append")} />
         )
       }
     >
