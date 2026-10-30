@@ -83,12 +83,12 @@ import { Variables, VariablesSave } from "./Variables";
 import { KeyboardShortcuts, type ResetAllControl } from "./KeyboardShortcuts";
 import { effectiveShortcuts, saveMcpEnabled, saveShortcuts, useSettings } from "./settings";
 import { matchesShortcut, setShortcutOverrides, useShortcutLabel } from "./shortcuts";
-import { Mcp } from "./Mcp";
+import { Mcp, idleUrl } from "./Mcp";
 import { mcpStatusOf, type McpControl } from "./mcpState";
 import { useWorkspaceChanges } from "./useWorkspaceChanges";
 import { isNewGeneration, loadWorkspace } from "./workspaceLoad";
 import { usePersistedState } from "./usePersistedState";
-import { setVariables, variableKind } from "./variableExpansion";
+import { SECRET_SOURCE, kajaTokenVariable, setVariables, variableKind } from "./variableExpansion";
 import { onBrowserValuesChanged, storedValues } from "./browserValues";
 import { appVariableUses, missingByApp, missingVariables } from "./variableUsage";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
@@ -2554,6 +2554,31 @@ export function App() {
     applyStoredValue(name);
   };
 
+  // Kaja's own MCP server as an app: its token is stored rather than written into
+  // kaja.json, which is meant to be committed, so the app names it as a variable.
+  const mcpToken = mcpConnection?.token;
+  const onConnectKajaMcp = useCallback(async (): Promise<string> => {
+    const workspace = workspaceRef.current;
+    if (!workspace || !mcpToken) throw new Error("Kaja's MCP server has no token");
+    const variables = workspace.variables ?? {};
+    const name = kajaTokenVariable(variables);
+    const status = await queueVariableWrite(async () => {
+      const client = getApiClient();
+      if (variables[name] !== SECRET_SOURCE) {
+        const { response } = await client.updateWorkspace({ workspace: { ...workspace, variables: { ...variables, [name]: SECRET_SOURCE } } });
+        if (response.workspace) applyWorkspace(response.workspace);
+      }
+      return (await client.setStoredValue({ name, value: mcpToken })).response.variableStatus;
+    });
+    setVariableStatus(status);
+    applyStoredValue(name);
+    return "${" + name + "}";
+  }, [mcpToken, queueVariableWrite, applyWorkspace, applyStoredValue]);
+  const kajaMcp = useMemo(
+    () => (mcpToken ? { endpoint: mcpConnection?.url || idleUrl(), connect: onConnectKajaMcp } : undefined),
+    [mcpToken, mcpConnection?.url, onConnectKajaMcp],
+  );
+
   const onDeleteApp = useCallback(
     async (appName: string) => {
       const workspace = workspaceRef.current;
@@ -2831,6 +2856,7 @@ export function App() {
           onDelete={onAppFormDelete}
           onSaveControlChange={(control) => reportAppFormSave(view.id, control)}
           agentNotes={view.agentNotes}
+          kaja={kajaMcp}
         />
       )}
       {view.type === "start" && (

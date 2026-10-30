@@ -45,6 +45,7 @@ interface AppFormProps {
   onDelete?: (appName: string) => void;
   // What the agent that opened the form read up on about the API.
   agentNotes?: AgentNotes;
+  kaja?: CustomFormProps["kaja"];
 }
 
 export interface AppFormSaveControl {
@@ -160,6 +161,7 @@ export function AppForm({
   onCancel,
   onDelete,
   agentNotes,
+  kaja,
 }: AppFormProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [name, setName] = useState("");
@@ -301,6 +303,7 @@ export function AppForm({
                   readOnly={readOnly}
                   onSurfaceChange={setSurface}
                   onReadyChange={setCustomReady}
+                  kaja={readOnly ? undefined : kaja}
                 />
               ) : (
                 <>
