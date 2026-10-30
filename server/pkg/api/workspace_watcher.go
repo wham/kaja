@@ -26,7 +26,9 @@ func NewWorkspaceWatcher(path string) (*WorkspaceWatcher, error) {
 		done:        make(chan struct{}),
 	}
 
-	go cw.poll()
+	// Taken here rather than in the goroutine, which may not run until after the
+	// snapshot that started it has been read and the file edited again.
+	go cw.poll(statFile(path))
 
 	return cw, nil
 }
@@ -68,11 +70,9 @@ func statFile(path string) fileState {
 	return fileState{exists: true, modTime: info.ModTime(), size: info.Size()}
 }
 
-func (cw *WorkspaceWatcher) poll() {
+func (cw *WorkspaceWatcher) poll(last fileState) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-
-	last := statFile(cw.path)
 
 	for {
 		select {
