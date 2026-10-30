@@ -6,6 +6,7 @@ import {
   ConsoleItem,
   ConsoleTab,
   ConsoleView,
+  defaultView,
   FailureNotice,
   failureNotices,
   isScriptError,
@@ -209,6 +210,15 @@ export class FileConsole {
 
   // Told which tables left with their runs, so the sources held for them can go too.
   constructor(private readonly onTablesDropped: (blockIds: string[]) => void = () => {}) {}
+
+  get selectedGroup(): RunGroup | undefined {
+    const runId = this.selection?.runId;
+    return runId === undefined ? undefined : this.#groups.get(runId);
+  }
+
+  get activeView(): ConsoleView {
+    return this.view ?? defaultView(this.selectedGroup);
+  }
 
   get groups(): RunGroup[] {
     if (!this.#ordered) this.#ordered = this.runs.map((run) => this.#groups.get(run.id)!).filter(Boolean);

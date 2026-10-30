@@ -13,51 +13,8 @@ export function isIPhone(): boolean {
   return typeof navigator !== "undefined" && /iPhone|iPod/.test(navigator.userAgent);
 }
 
-/**
- * Where the script's sheet sits. `rest` is the grabber alone, `half` shows the code
- * over the run it produced, and `full` is what editing needs — a keyboard leaves
- * nothing over for the run anyway.
- */
-export type SheetPosition = "rest" | "half" | "full";
-
-export interface SheetStop {
-  position: SheetPosition;
-  // How far down from `full` this place sits.
-  offset: number;
-}
-
-// A flick decides by its direction; anything slower by which place is nearest.
+// A flick decides by its direction; anything slower by which end is nearest.
 const FLICK_VELOCITY = 0.4;
-
-// Where the middle place sits, as a share of the way from full down to rest.
-const HALF_SHARE = 0.45;
-
-/**
- * The three places a sheet has, given how far down its resting place is. Ordered
- * from the top down, which is what makes a flick one step through the list.
- */
-export function sheetStops(restOffset: number): SheetStop[] {
-  return [
-    { position: "full", offset: 0 },
-    { position: "half", offset: Math.round(restOffset * HALF_SHARE) },
-    { position: "rest", offset: restOffset },
-  ];
-}
-
-/**
- * Where a sheet lands when it is let go. `offset` is how far down from `full` it was
- * left, `from` is where the drag started, and `velocity` is in px/ms, positive
- * downward. A flick moves one place in its own direction rather than to the end, so
- * the middle place is reachable by the same gesture that leaves it.
- */
-export function snapSheet(offset: number, stops: SheetStop[], velocity: number, from: SheetPosition): SheetPosition {
-  const step = velocity > FLICK_VELOCITY ? 1 : velocity < -FLICK_VELOCITY ? -1 : 0;
-  if (step !== 0) {
-    const at = stops.findIndex((stop) => stop.position === from);
-    return stops[Math.max(0, Math.min(stops.length - 1, (at === -1 ? 0 : at) + step))].position;
-  }
-  return stops.reduce((nearest, stop) => (Math.abs(stop.offset - offset) < Math.abs(nearest.offset - offset) ? stop : nearest)).position;
-}
 
 /**
  * Where the drawer lands when it is let go. `progress` is how far open it was left,
@@ -68,11 +25,6 @@ export function snapDrawer(progress: number, velocity: number): boolean {
   if (velocity > FLICK_VELOCITY) return true;
   if (velocity < -FLICK_VELOCITY) return false;
   return progress >= 0.5;
-}
-
-/** A tap on the chrome raises a resting sheet and drops a raised one. */
-export function tapSheet(position: SheetPosition): SheetPosition {
-  return position === "rest" ? "half" : "rest";
 }
 
 export type MethodTag = "write" | "stream";

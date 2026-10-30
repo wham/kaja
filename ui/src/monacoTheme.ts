@@ -110,7 +110,7 @@ export function surfaceColor(colorMode: ColorMode): string {
 }
 
 // What the native window shows around the webview: on iOS the status bar and the
-// home indicator, which border the header and the code sheet's grabber.
+// home indicator, which border the header and the foot of the page.
 export function chromeColor(colorMode: ColorMode): string {
   return surfaces[colorMode].chrome;
 }
