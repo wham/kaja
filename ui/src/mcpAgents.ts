@@ -44,6 +44,13 @@ function cursorLink({ url, token }: McpEndpoint): string {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=kaja&config=${encodeURIComponent(btoa(JSON.stringify(server)))}`;
 }
 
+// Goose opens its extension settings prefilled from the link rather than installing it
+// outright, because the link carries a header.
+function gooseLink({ url, token }: McpEndpoint): string {
+  const query = new URLSearchParams({ url, type: "streamable_http", name: "kaja", header: `Authorization=Bearer ${token}` });
+  return `goose://extension?${query.toString().replaceAll("+", "%20")}`;
+}
+
 function vsCodeLink({ url, token }: McpEndpoint): string {
   const server = { name: "kaja", type: "http", url, headers: { Authorization: `Bearer ${token}` } };
   return `vscode:mcp/install?${encodeURIComponent(JSON.stringify(server))}`;
@@ -147,11 +154,11 @@ export const mcpAgents: McpAgent[] = [
     name: "Zed",
     kind: "config file",
     path: "~/.config/zed/settings.json",
-    lead: "Zed calls these context servers and has no HTTP transport, so it goes through mcp-remote.",
+    lead: "Zed calls these context servers.",
     foot: "Merge into the existing top-level object; settings.json is one object, not a stream of them.",
     configurationKey: "zed",
     snippet: ({ url, token }) =>
-      `"context_servers": {\n  "kaja": {\n    "source": "custom",\n    "command": "npx",\n    "args": ["mcp-remote", "${url}",\n      "--header", "Authorization: Bearer ${token}"]\n  }\n}`,
+      `"context_servers": {\n  "kaja": {\n    "url": "${url}",\n    "headers": { "Authorization": "Bearer ${token}" }\n  }\n}`,
   },
   {
     name: "Cline",
@@ -163,20 +170,22 @@ export const mcpAgents: McpAgent[] = [
   },
   {
     name: "Goose",
-    kind: "config file",
+    kind: "one-click install",
     path: "~/.config/goose/config.yaml",
-    lead: "YAML. Merge under the existing extensions key rather than adding a second one.",
+    lead: "Opens Goose's extension settings with the server filled in; Goose adds it once you save. Below is the equivalent hand-edit, merged under the existing extensions key.",
     foot: "Two spaces per level; tabs are a parse error.",
     configurationKey: "goose",
+    install: { label: "Add to Goose", link: gooseLink },
     snippet: ({ url, token }) =>
       `extensions:\n  kaja:\n    type: streamable_http\n    uri: ${url}\n    headers:\n      Authorization: "Bearer ${token}"\n    enabled: true`,
   },
   {
     name: "Gemini CLI",
-    kind: "config file",
-    path: "~/.gemini/settings.json",
-    lead: "The URL field is httpUrl here, not url.",
-    configurationKey: "gemini",
-    snippet: ({ url, token }) => mcpServers(`      "httpUrl": "${url}",\n      "headers": { "Authorization": "Bearer ${token}" }`),
+    kind: "terminal command",
+    path: "run in a terminal",
+    lead: "Registers it for every project. Leave out --scope user to scope it to the one you run it in.",
+    foot: "/mcp inside Gemini CLI lists it and says whether it connected.",
+    snippet: ({ url, token }) =>
+      `gemini mcp add --scope user --transport http \\\n  --header "Authorization: Bearer ${token}" \\\n  kaja ${url}`,
   },
 ];
