@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { callDurationMs } from "./kaja";
 import { cn } from "./cn";
 import { PerfPhase, PerfSchedule } from "./perfTest";
+import { PHONE_QUERY } from "./phone";
 import { RunGroup } from "./runs";
 import { MethodRow, RunStats, StatsSlot } from "./runStats";
 import {
@@ -19,6 +20,7 @@ import {
   stepPoints,
   timeTicks,
 } from "./statsChart";
+import { useMediaQuery } from "./useMediaQuery";
 
 /**
  * What a run's calls add up to. The third view of one run: the log is every call in
@@ -29,10 +31,16 @@ import {
  * already records, so a paging loop has latency and throughput like anything else.
  */
 
-const LATENCY_HEIGHT = 104;
-const RPS_HEIGHT = 52;
-const IN_FLIGHT_HEIGHT = 36;
-const DISTRIBUTION_HEIGHT = 56;
+interface ChartHeights {
+  latency: number;
+  rps: number;
+  inFlight: number;
+  distribution: number;
+}
+
+const HEIGHTS: ChartHeights = { latency: 104, rps: 52, inFlight: 36, distribution: 56 };
+// A phone has a third of the width to draw the same run in, so it takes the height.
+const PHONE_HEIGHTS: ChartHeights = { latency: 144, rps: 72, inFlight: 48, distribution: 72 };
 // A serial loop must not read as a saturated one, so the concurrency axis has a floor
 // rather than being the run's own maximum.
 const MIN_IN_FLIGHT_CEILING = 4;
@@ -44,6 +52,8 @@ interface StatsProps {
 }
 
 export function Stats({ group }: StatsProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  const heights = phone ? PHONE_HEIGHTS : HEIGHTS;
   const body = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -77,7 +87,7 @@ export function Stats({ group }: StatsProps) {
   }
 
   // One call has no distribution, no throughput and no concurrency — it has a
-  // duration and an outcome, and the table is the rest of what there is to say.
+  // duration and an outcome, and a table of one row would say them again.
   const single = stats.calls === 1;
   const schedule = group.run.perf;
   const bands = schedule === undefined ? [] : phaseBands(schedule.phases, group.run.startedAt, stats.spanMs, group.run.startedAt + stats.spanMs);
@@ -85,16 +95,17 @@ export function Stats({ group }: StatsProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <Stats.Tiles group={group} stats={stats} single={single} />
-      <div ref={body} className="min-h-0 flex-1 overflow-y-auto">
+      {/* Clears the magnifier and the code sheet floating over a phone's foot. */}
+      <div ref={body} className="min-h-0 flex-1 overflow-y-auto max-sm:pb-24">
         {!single && (
           <>
-            <Stats.Latency stats={stats} bands={bands} />
-            <Stats.Throughput stats={stats} bands={bands} />
-            <Stats.InFlight stats={stats} bands={bands} />
-            <Stats.Distribution stats={stats} />
+            <Stats.Latency stats={stats} bands={bands} height={heights.latency} />
+            <Stats.Throughput stats={stats} bands={bands} height={heights.rps} />
+            <Stats.InFlight stats={stats} bands={bands} height={heights.inFlight} />
+            <Stats.Distribution stats={stats} height={heights.distribution} />
+            <Stats.Methods stats={stats} phone={phone} />
           </>
         )}
-        <Stats.Methods stats={stats} />
       </div>
     </div>
   );
@@ -110,7 +121,9 @@ Stats.Tiles = function ({ group, stats, single }: { group: RunGroup; stats: RunS
   const only = single ? group.calls[0] : undefined;
   const cells: TileCell[] = only
     ? [
-        { label: "duration", value: formatMs(callDurationMs(only.call!) ?? undefined) },
+        // Labelled by the call rather than "duration", because the run's own wall time
+        // is stated just above it and is a different number.
+        { label: stats.slowest?.method ?? "call", value: formatMs(callDurationMs(only.call!) ?? undefined) },
         {
           label: "outcome",
           value: only.call?.error !== undefined ? "failed" : "ok",
@@ -149,14 +162,36 @@ export interface TileCell {
  */
 export function StatTiles({ cells, note }: { cells: TileCell[]; note?: string }) {
   return (
-    <div data-testid="stats-tiles" className="flex shrink-0 items-stretch overflow-hidden border-b border-border bg-card">
+    <div
+      data-testid="stats-tiles"
+      className={cn(
+        "flex shrink-0 items-stretch overflow-hidden border-b border-border bg-card",
+        // A phone can't hold six cells in a row, so they wrap into a grid whose
+        // hairlines are the border showing through the gaps.
+        "max-sm:grid max-sm:gap-px max-sm:bg-border",
+        cells.length % 3 === 0 ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2",
+      )}
+    >
       {cells.map((cell, index) => (
-        <div key={cell.label} className={cn("flex min-w-[96px] shrink flex-col justify-center px-3 py-2", index > 0 && "border-l border-border")}>
-          <span className="truncate text-xs text-muted-foreground">{cell.label}</span>
+        <div
+          key={cell.label}
+          className={cn(
+            "flex min-w-[96px] shrink flex-col justify-center px-3 py-2 max-sm:min-w-0 max-sm:border-l-0 max-sm:bg-card",
+            index > 0 && "border-l border-border",
+          )}
+        >
+          <span className="truncate text-xs text-muted-foreground" title={cell.label}>
+            {cell.label}
+          </span>
           <span className={cn("truncate font-mono text-sm", cell.className ?? "text-foreground")}>{cell.value}</span>
         </div>
       ))}
-      <div className="flex flex-1 items-center overflow-hidden border-l border-border px-3">
+      <div
+        className={cn(
+          "flex flex-1 items-center overflow-hidden border-l border-border px-3 max-sm:col-span-full max-sm:border-l-0 max-sm:bg-card max-sm:py-1.5",
+          note === undefined && "max-sm:hidden",
+        )}
+      >
         {note !== undefined && <span className="truncate text-xs text-muted-foreground">{note}</span>}
       </div>
     </div>
@@ -213,7 +248,7 @@ Stats.PhaseBands = function ({ bands, labels }: { bands: PhaseBand[]; labels?: b
           className={cn("absolute inset-y-0", PHASE_TINT[band.name] ?? "")}
           style={{ left: `${band.left}%`, width: `${band.width}%` }}
         >
-          {labels && <span className="absolute left-1.5 top-1 whitespace-nowrap text-[9px] text-muted-foreground">{band.name}</span>}
+          {labels && <span className="absolute left-1.5 top-1 whitespace-nowrap text-[9px] text-muted-foreground max-sm:text-[11px]">{band.name}</span>}
         </div>
       ))}
     </div>
@@ -249,23 +284,23 @@ export function phaseBands(phases: PerfPhase[], runStartedAt: number, spanMs: nu
  * lines: the tail is a region the run spent time in, and drawing it as a line invites
  * reading a p99 spike as one call's story.
  */
-Stats.Latency = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
+Stats.Latency = function ({ stats, bands, height }: { stats: RunStats; bands: PhaseBand[]; height: number }) {
   const ceiling = niceCeiling(Math.max(...stats.slots.map((slot) => slot.p99 ?? 0), 0));
   const tail = bandPoints(
     stats.slots,
     (slot) => slot.p95,
     (slot) => slot.p99,
     ceiling,
-    LATENCY_HEIGHT,
+    height,
   );
   const body = bandPoints(
     stats.slots,
     (slot) => slot.p50,
     (slot) => slot.p95,
     ceiling,
-    LATENCY_HEIGHT,
+    height,
   );
-  const median = linePoints(stats.slots, (slot) => slot.p50, ceiling, LATENCY_HEIGHT);
+  const median = linePoints(stats.slots, (slot) => slot.p50, ceiling, height);
 
   return (
     <div className="px-3 pt-3">
@@ -278,15 +313,10 @@ Stats.Latency = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[
           <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatMs(ceiling)}</span>
         </div>
       </div>
-      <div data-testid="stats-latency" className="relative rounded border border-border" style={{ height: LATENCY_HEIGHT }}>
+      <div data-testid="stats-latency" className="relative rounded border border-border" style={{ height }}>
         {/* The only chart with the room to name them, so it is the one that does. */}
         <Stats.PhaseBands bands={bands} labels />
-        <svg
-          viewBox={`0 0 ${CHART_WIDTH} ${LATENCY_HEIGHT}`}
-          preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full text-foreground"
-          aria-hidden="true"
-        >
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full text-foreground" aria-hidden="true">
           {tail && <polygon points={tail} fill="currentColor" opacity={0.1} />}
           {body && <polygon points={body} fill="currentColor" opacity={0.2} />}
           {median && <polyline points={median} fill="none" stroke="currentColor" strokeWidth={1.5} opacity={0.85} vectorEffect="non-scaling-stroke" />}
@@ -315,7 +345,7 @@ Stats.FailureMarks = function ({ stats }: { stats: RunStats }) {
   );
 };
 
-Stats.Throughput = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
+Stats.Throughput = function ({ stats, bands, height }: { stats: RunStats; bands: PhaseBand[]; height: number }) {
   const ceiling = niceCeiling(stats.peakRps);
   return (
     <div className="px-3 pt-3">
@@ -323,10 +353,10 @@ Stats.Throughput = function ({ stats, bands }: { stats: RunStats; bands: PhaseBa
         <span className="text-xs text-muted-foreground">Requests / s</span>
         <span className="font-mono text-xs text-muted-foreground">peak {formatRps(stats.peakRps)}</span>
       </div>
-      <div data-testid="stats-throughput" className="relative mt-1 flex items-end gap-0.5 rounded border border-border px-1" style={{ height: RPS_HEIGHT }}>
+      <div data-testid="stats-throughput" className="relative mt-1 flex items-end gap-0.5 rounded border border-border px-1" style={{ height }}>
         <Stats.PhaseBands bands={bands} />
         {stats.slots.map((slot, index) => (
-          <Stats.Bar key={index} slot={slot} ceiling={ceiling} height={RPS_HEIGHT} />
+          <Stats.Bar key={index} slot={slot} ceiling={ceiling} height={height} />
         ))}
       </div>
     </div>
@@ -355,17 +385,17 @@ Stats.Bar = function ({ slot, ceiling, height }: { slot: StatsSlot; ceiling: num
  * it. Flatlining at one is the honest reading of a serial loop and explains a low rps
  * better than the throughput chart does.
  */
-Stats.InFlight = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand[] }) {
+Stats.InFlight = function ({ stats, bands, height }: { stats: RunStats; bands: PhaseBand[]; height: number }) {
   const ceiling = Math.max(MIN_IN_FLIGHT_CEILING, stats.maxInFlight);
   const ticks = timeTicks(stats.spanMs);
   return (
     <div className="px-3 pt-3">
       <span className="text-xs text-muted-foreground">In flight</span>
-      <div data-testid="stats-in-flight" className="relative mt-1 rounded border border-border" style={{ height: IN_FLIGHT_HEIGHT }}>
+      <div data-testid="stats-in-flight" className="relative mt-1 rounded border border-border" style={{ height }}>
         <Stats.PhaseBands bands={bands} />
-        <svg viewBox={`0 0 ${CHART_WIDTH} ${IN_FLIGHT_HEIGHT}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
           <polyline
-            points={stepPoints(stats.slots, ceiling, IN_FLIGHT_HEIGHT)}
+            points={stepPoints(stats.slots, ceiling, height)}
             fill="none"
             stroke="currentColor"
             strokeWidth={1.25}
@@ -373,14 +403,14 @@ Stats.InFlight = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        <span className="absolute right-1.5 top-1 font-mono text-[9px] text-muted-foreground">max {stats.maxInFlight}</span>
+        <span className="absolute right-1.5 top-1 font-mono text-[9px] text-muted-foreground max-sm:text-[11px]">max {stats.maxInFlight}</span>
       </div>
       {/* The one axis the three charts share, stated once under all of them. */}
       <div className="relative h-[16px] pt-1 pb-2">
         {ticks.map((tick) => (
           <span
             key={tick.position}
-            className="absolute top-1 font-mono text-[10px] text-muted-foreground"
+            className="absolute top-1 font-mono text-[10px] text-muted-foreground max-sm:text-[11px]"
             style={tick.position === 0 ? { left: 0 } : tick.position === 1 ? { right: 0 } : { left: `${tick.position * 100}%`, transform: "translateX(-50%)" }}
           >
             {tick.label}
@@ -396,13 +426,13 @@ Stats.InFlight = function ({ stats, bands }: { stats: RunStats; bands: PhaseBand
  * rather than as one bar at the far left and nothing else. The percentiles sit on it
  * as the three lines they are.
  */
-Stats.Distribution = function ({ stats }: { stats: RunStats }) {
+Stats.Distribution = function ({ stats, height }: { stats: RunStats; height: number }) {
   if (stats.distribution.length === 0) return null;
   const tallest = Math.max(...stats.distribution.map((bar) => bar.calls), 1);
   return (
     <div className="border-t border-border px-3 pt-2">
       <span className="text-xs text-muted-foreground">Distribution</span>
-      <div data-testid="stats-distribution" className="relative mt-1 flex items-end gap-0.5" style={{ height: DISTRIBUTION_HEIGHT }}>
+      <div data-testid="stats-distribution" className="relative mt-1 flex items-end gap-0.5" style={{ height }}>
         {stats.distribution.map((bar) => (
           <span
             key={bar.position}
@@ -419,7 +449,7 @@ Stats.Distribution = function ({ stats }: { stats: RunStats }) {
         {stats.markers.map((marker) => (
           <span
             key={marker.label}
-            className="absolute top-1 font-mono text-[9px] text-muted-foreground"
+            className="absolute top-1 font-mono text-[9px] text-muted-foreground max-sm:text-[11px]"
             style={{ left: `${marker.position * 100}%`, transform: marker.position > 0.9 ? "translateX(-100%)" : undefined }}
             title={formatMs(marker.valueMs)}
           >
@@ -432,25 +462,27 @@ Stats.Distribution = function ({ stats }: { stats: RunStats }) {
 };
 
 const COLUMN = "w-[56px] shrink-0 text-right";
+const COLUMNS = ["calls", "err", "p50 ms", "p95 ms", "p99 ms", "max ms", "rps"];
 
 /**
- * The breakdown per method, and the one call worth naming. One method and one row is
- * fine — the table is where a run with no shape to it earns the page.
+ * The breakdown per method, and the one call worth naming. On a phone a row is a card,
+ * the name over its numbers, because seven columns leave a 390px screen no room for
+ * the name the row is about.
  */
-Stats.Methods = function ({ stats }: { stats: RunStats }) {
+Stats.Methods = function ({ stats, phone }: { stats: RunStats; phone: boolean }) {
   return (
     <div className="border-t border-border">
-      <div className="flex h-[22px] items-center gap-2 border-b border-border px-3">
-        <span className="min-w-0 flex-1 text-xs text-muted-foreground">Method</span>
-        {["calls", "err", "p50", "p95", "p99", "max", "rps"].map((column) => (
-          <span key={column} className={cn(COLUMN, "text-xs text-muted-foreground")}>
-            {column}
-          </span>
-        ))}
-      </div>
-      {stats.methods.map((row) => (
-        <Stats.MethodRow key={row.method} row={row} />
-      ))}
+      {!phone && (
+        <div className="flex h-[22px] items-center gap-2 border-b border-border px-3">
+          <span className="min-w-0 flex-1 text-xs text-muted-foreground">Method</span>
+          {COLUMNS.map((column) => (
+            <span key={column} className={cn(COLUMN, "text-xs text-muted-foreground")}>
+              {column}
+            </span>
+          ))}
+        </div>
+      )}
+      {stats.methods.map((row) => (phone ? <Stats.MethodCard key={row.method} row={row} /> : <Stats.MethodRow key={row.method} row={row} />))}
       {stats.slowest && (
         <div className="flex h-[24px] items-center gap-2 px-3">
           <span className="shrink-0 text-xs text-muted-foreground">slowest</span>
@@ -476,6 +508,32 @@ Stats.MethodRow = function ({ row }: { row: MethodRow }) {
       <span className={cn(COLUMN, "font-mono text-xs text-foreground")}>{formatMsBare(row.p99)}</span>
       <span className={cn(COLUMN, "font-mono text-xs text-foreground")}>{formatMsBare(row.max)}</span>
       <span className={cn(COLUMN, "font-mono text-xs text-foreground")}>{formatRps(row.rps)}</span>
+    </div>
+  );
+};
+
+Stats.MethodCard = function ({ row }: { row: MethodRow }) {
+  const cells: TileCell[] = [
+    { label: "calls", value: row.calls.toLocaleString() },
+    { label: "err", value: row.failures.toLocaleString(), className: row.failures > 0 ? "text-destructive" : "text-muted-foreground" },
+    { label: "rps", value: formatRps(row.rps) },
+    { label: "p50", value: formatMs(row.p50) },
+    { label: "p95", value: formatMs(row.p95) },
+    { label: "p99", value: formatMs(row.p99) },
+    { label: "max", value: formatMs(row.max) },
+  ];
+  return (
+    <div data-testid="stats-method-row" className="border-b border-border px-3 py-2">
+      <div className="truncate font-mono text-xs text-foreground">{row.method}</div>
+      <div className="mt-1 grid grid-cols-4 gap-x-3 gap-y-1">
+        {cells.map((cell) => (
+          // rps takes two columns so the four latencies share the second line.
+          <div key={cell.label} className={cn("flex min-w-0 flex-col", cell.label === "rps" && "col-span-2")}>
+            <span className="text-xs text-muted-foreground">{cell.label}</span>
+            <span className={cn("truncate font-mono text-xs", cell.className ?? "text-foreground")}>{cell.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
