@@ -14,7 +14,7 @@ import { useMediaQuery } from "./useMediaQuery";
 import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, authNote, authSchemes, deriveAppName, eraLabel } from "./mcpServer";
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
-import { KnownServer, knownServerFor, knownServers, matchingServers } from "./knownServers";
+import { KnownServer, knownServerFor, matchingServers, withKaja } from "./knownServers";
 import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -99,6 +99,7 @@ export function McpForm({
   readOnly,
   onSurfaceChange,
   onReadyChange,
+  kaja,
 }: CustomFormProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [state, setState] = useState<ReadState>({ status: "idle" });
@@ -116,12 +117,13 @@ export function McpForm({
   const [highlight, setHighlight] = useState(0);
 
   const url = parameters.url ?? "";
-  const known = useMemo(() => knownServerFor(url), [url]);
-  const offered = useMemo(() => matchingServers(url), [url]);
+  const servers = useMemo(() => withKaja(kaja), [kaja]);
+  const known = useMemo(() => knownServerFor(url, servers), [url, servers]);
+  const offered = useMemo(() => matchingServers(url, servers), [url, servers]);
   // The list is an offer of what to type, so it goes the moment the field holds one of
   // them: what a matched endpoint has to say is said by the chip and the read below it.
   const picking = picker && !readOnly && !known && offered.length > 0;
-  const marks = !readOnly && !url.trim() && knownServers.length > 0;
+  const marks = !readOnly && !url.trim() && servers.length > 0;
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   // The endpoint names a variable this kaja doesn't define. The server is read where
@@ -229,9 +231,10 @@ export function McpForm({
   // the sign-in it is set up for, which is the whole of what being on that list buys.
   useEffect(() => {
     if (readOnly || problem?.kind !== McpProblemKind.MCP_PROBLEM_UNAUTHORIZED) return;
-    const wanted = knownServerFor(parametersRef.current.url ?? "") ? AUTH_OAUTH : AUTH_BEARER;
+    const match = knownServerFor(parametersRef.current.url ?? "", servers);
+    const wanted = match && !match.connect ? AUTH_OAUTH : AUTH_BEARER;
     onParametersChange((previous) => ((previous.auth ?? "") === "" ? { ...previous, auth: wanted } : previous));
-  }, [problem, readOnly, onParametersChange]);
+  }, [problem, readOnly, servers, onParametersChange]);
 
   useEffect(() => {
     onReadyChange((Boolean(server) || unresolved) && isReadableUrl(parametersRef.current.url ?? ""));
@@ -241,10 +244,17 @@ export function McpForm({
 
   // Taking a row is the address and the credential at once: an entry exists because
   // Kaja can sign in to it, so selecting anything else would be undoing the offer.
-  const pick = (chosen: KnownServer) => {
+  // Kaja's own server is the exception, whose credential is the token it already holds.
+  const pick = async (chosen: KnownServer) => {
     setPicker(false);
     typedRef.current = false;
-    onParametersChange((previous) => ({ ...previous, url: chosen.endpoint, auth: AUTH_OAUTH }));
+    if (!chosen.connect) {
+      onParametersChange((previous) => ({ ...previous, url: chosen.endpoint, auth: AUTH_OAUTH }));
+      return;
+    }
+    // The token has to be stored before the endpoint is set, which is what reads it.
+    const token = await chosen.connect();
+    onParametersChange((previous) => ({ ...withEndpoint(previous, chosen.endpoint), auth: AUTH_BEARER, token }));
   };
 
   // An app that names no credential sends none, and the form says so rather than
@@ -279,12 +289,12 @@ export function McpForm({
               variables={variables}
               placeholder="https://example.com/mcp"
               disabled={readOnly}
-              className={known ? "pr-28" : marks ? knownMarksPadding(knownServers.length, phone) : undefined}
+              className={known ? "pr-28" : marks ? knownMarksPadding(servers.length, phone) : undefined}
               trailingAction={
                 known ? (
                   <KnownChip entry={known} />
                 ) : (
-                  marks && <KnownMarks entries={knownServers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
+                  marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
                 )
               }
               onFocus={() => setPicker(true)}
@@ -302,7 +312,7 @@ export function McpForm({
                 }
                 if (event.key !== "Enter") return;
                 event.preventDefault();
-                if (picking) pick(offered[highlight % offered.length]);
+                if (picking) void pick(offered[highlight % offered.length]);
                 else read({ fresh: true });
               }}
             />
@@ -310,11 +320,16 @@ export function McpForm({
               <KnownList
                 heading="Servers Kaja is set up for"
                 note="sign-in ready"
-                entries={offered.map((server) => ({ name: server.name, address: server.endpoint, mark: server.mark }))}
+                entries={offered.map((server) => ({
+                  name: server.name,
+                  address: server.endpoint,
+                  mark: server.mark,
+                  note: server.connect ? "this Kaja" : undefined,
+                }))}
                 query={url}
                 highlight={highlight % offered.length}
                 onHighlight={setHighlight}
-                onPick={(index) => pick(offered[index])}
+                onPick={(index) => void pick(offered[index])}
                 footer={
                   !url.trim() || isReadableUrl(url) ? (
                     <>
@@ -371,7 +386,7 @@ export function McpForm({
                     ...(value !== AUTH_OAUTH && signsIn(previous.token ?? "", variables) ? { token: "" } : {}),
                   }))
                 }
-                known={known}
+                known={known?.connect ? undefined : known}
                 parameters={parameters}
                 onParameterChange={setParameter}
                 variables={variables}

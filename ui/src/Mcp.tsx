@@ -21,7 +21,7 @@ const ARMED_MS = 4000;
 
 // The address this build answers on, which is what the page names before a server has
 // reported one of its own.
-function idleUrl(): string {
+export function idleUrl(): string {
   return isWailsEnvironment() ? "http://127.0.0.1:41521/mcp" : `${window.location.origin}/mcp`;
 }
 

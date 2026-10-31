@@ -13,7 +13,13 @@
  * and nothing else.
  */
 
+import { KajaTrace } from "./KajaTrace";
+
 export type BrandMark = (props: { size?: number; className?: string }) => React.ReactElement;
+
+// Kaja's own, for its own MCP server. It keeps its gradient: it is the mark the chrome
+// already draws, and in currentColor it would be a squiggle nobody recognises.
+export const KajaMark: BrandMark = ({ size = 16, className }) => <KajaTrace width={size} height={Math.round((size * 26) / 48)} className={className} />;
 
 // mark-github-16 from Primer's octicons (MIT).
 export const GitHubMark: BrandMark = ({ size = 16, className }) => (

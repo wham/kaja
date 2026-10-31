@@ -44,6 +44,9 @@ export interface CustomFormProps {
   // What the form last read, for the receipt in the footer.
   onSurfaceChange: (surface: AppSurface | undefined) => void;
   onReadyChange: (ready: boolean) => void;
+  // This window's own MCP server, where it has one and the workspace can be written:
+  // `connect` stores its token in a variable and hands back the reference to it.
+  kaja?: { endpoint: string; connect: () => Promise<string> };
 }
 
 export interface AppTypeDefinition {

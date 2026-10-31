@@ -1,4 +1,4 @@
-import { AtlassianMark, GitHubMark, SentryMark, type BrandMark } from "./brandMarks";
+import { AtlassianMark, GitHubMark, KajaMark, SentryMark, type BrandMark } from "./brandMarks";
 
 // A server Kaja is set up for: a name, the endpoint it is reached at, and the mark it
 // is recognised by. An entry exists where signing in is something Kaja can carry
@@ -11,6 +11,10 @@ export interface KnownServer {
   name: string;
   endpoint: string;
   mark: BrandMark;
+  // Where the server is Kaja's own, which needs no sign-in: the credential is the token
+  // this window's MCP server already holds, and this is what puts it somewhere the app
+  // can name it. It resolves to the reference the app's bearer token is written as.
+  connect?: () => Promise<string>;
 }
 
 export const knownServers: KnownServer[] = [
@@ -42,16 +46,24 @@ export function canonicalEndpoint(value: string): string {
 // The match is on the endpoint and nothing else, so it is exact: what a server calls
 // itself is not read, and an address that is a ${VARIABLE}, a localhost port or
 // anything else nobody bundled simply isn't one of these.
-export function knownServerFor(url: string): KnownServer | undefined {
+export function knownServerFor(url: string, servers: KnownServer[] = knownServers): KnownServer | undefined {
   const canonical = canonicalEndpoint(url);
   if (!canonical) return undefined;
-  return knownServers.find((server) => canonicalEndpoint(server.endpoint) === canonical);
+  return servers.find((server) => canonicalEndpoint(server.endpoint) === canonical);
 }
 
 // What the field offers while it is being typed into: a name or an address the query
 // appears in.
-export function matchingServers(query: string): KnownServer[] {
+export function matchingServers(query: string, servers: KnownServer[] = knownServers): KnownServer[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return knownServers;
-  return knownServers.filter((server) => (server.name + " " + endpointLabel(server.endpoint)).toLowerCase().includes(needle));
+  if (!needle) return servers;
+  return servers.filter((server) => (server.name + " " + endpointLabel(server.endpoint)).toLowerCase().includes(needle));
+}
+
+// withKaja is the list with Kaja's own MCP server in it, where this window has one to
+// offer. It is not bundled, because its address is this installation's or this
+// browser's, so it is matched like the rest and only where it is.
+export function withKaja(kaja: Omit<KnownServer, "name" | "mark"> | undefined): KnownServer[] {
+  if (!kaja) return knownServers;
+  return [...knownServers, { name: "Kaja", mark: KajaMark, ...kaja }].sort((a, b) => a.name.localeCompare(b.name));
 }

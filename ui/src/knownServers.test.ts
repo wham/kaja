@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { canonicalEndpoint, endpointLabel, knownServerFor, knownServers, matchingServers } from "./knownServers";
+import { canonicalEndpoint, endpointLabel, knownServerFor, knownServers, matchingServers, withKaja } from "./knownServers";
 
 describe("knownServerFor", () => {
   it("matches the endpoint as it is bundled", () => {
@@ -57,5 +57,20 @@ describe("matchingServers", () => {
 describe("endpointLabel", () => {
   it("drops the scheme and nothing else", () => {
     expect(endpointLabel("https://api.githubcopilot.com/mcp/")).toBe("api.githubcopilot.com/mcp/");
+  });
+});
+
+describe("withKaja", () => {
+  const connect = async () => "${KAJA_MCP_TOKEN}";
+
+  it("is the bundled list where this window has no server to offer", () => {
+    expect(withKaja(undefined)).toBe(knownServers);
+  });
+
+  it("offers this window's own server by its address", () => {
+    const servers = withKaja({ endpoint: "http://127.0.0.1:41521/mcp", connect });
+    expect(servers.map((server) => server.name)).toEqual(["Atlassian", "GitHub", "Kaja", "Sentry"]);
+    expect(knownServerFor("http://127.0.0.1:41521/mcp/", servers)?.connect).toBe(connect);
+    expect(matchingServers("kaja", servers).map((server) => server.name)).toEqual(["Kaja"]);
   });
 });

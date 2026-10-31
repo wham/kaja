@@ -8,6 +8,8 @@ export interface KnownEntry {
   name: string;
   address: string;
   mark: (props: { size?: number; className?: string }) => React.ReactNode;
+  // What this row says at its end in place of the list's note.
+  note?: string;
 }
 
 interface KnownListProps {
@@ -51,7 +53,7 @@ export function KnownList({ heading, note, entries, query, highlight, onHighligh
           </span>
           <span className="shrink-0 text-sm text-foreground">{entry.name}</span>
           <span className="truncate font-mono text-xs text-muted-foreground">{endpointLabel(entry.address)}</span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{typed && index === highlight ? "⏎" : note}</span>
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{typed && index === highlight ? "⏎" : (entry.note ?? note)}</span>
         </button>
       ))}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{footer}</p>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   environmentReferences,
   expandVariables,
+  kajaTokenVariable,
   setVariables,
   signInCredential,
   signsIn,
@@ -78,6 +79,14 @@ describe("variableValueError", () => {
     expect(variableValueError("${secret}")).toBeUndefined();
     expect(variableValueError("https://api.example.com")).toBeUndefined();
     expect(variableValueError("Bearer ${secret}")).toBeDefined();
+  });
+});
+
+describe("kajaTokenVariable", () => {
+  it("reuses the stored one and numbers past anything else", () => {
+    expect(kajaTokenVariable({})).toBe("KAJA_MCP_TOKEN");
+    expect(kajaTokenVariable({ KAJA_MCP_TOKEN: "${secret}" })).toBe("KAJA_MCP_TOKEN");
+    expect(kajaTokenVariable({ KAJA_MCP_TOKEN: "abc", KAJA_MCP_TOKEN_2: "${env:X}" })).toBe("KAJA_MCP_TOKEN_3");
   });
 });
 

@@ -109,6 +109,16 @@ export function signInCredential(credential: string, appName: string, variables:
   }
 }
 
+// kajaTokenVariable is the variable Kaja's own MCP token is stored under: one already
+// stored there is the same token being stored again, and a name holding anything else
+// is numbered past.
+export function kajaTokenVariable(variables: { [key: string]: string }): string {
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? "KAJA_MCP_TOKEN" : `KAJA_MCP_TOKEN_${n}`;
+    if (!(name in variables) || variables[name].trim() === SECRET_SOURCE) return name;
+  }
+}
+
 // signsIn reports whether a credential names a variable holding a sign-in.
 export function signsIn(credential: string, variables: { [key: string]: string }): boolean {
   const named = WHOLE_REFERENCE.exec(credential.trim())?.[1];
