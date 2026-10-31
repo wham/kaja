@@ -1,7 +1,7 @@
 import { Bot, Check, ChevronsUpDown, Logs, Maximize2, Minimize2, Trash2 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture, CellRun } from "./blocks";
-import { dotClass, formatDuration } from "./callFormat";
+import { callErrorCode, dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { Canvas } from "./Canvas";
 import { cn } from "./cn";
@@ -10,6 +10,7 @@ import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
+import { callLabel } from "./kaja";
 import { PhoneConsole } from "./PhoneFrame";
 import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
@@ -203,8 +204,13 @@ export function Console({
     [selectedGroup, selectedGroup?.calls.length, selectedGroup?.printed.length, logFloor],
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
-  const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
   const activeView = file.activeView;
+  // A log of one call has nothing to choose between, so the run names the call and the
+  // log draws no row. It comes back the moment a second row lands, and at full screen,
+  // whose bar names the run without a pill.
+  const soleCall = !fullScreen && activeView === "calls" && rows.length === 1 && rows[0].call ? rows[0] : undefined;
+  const selectedItem = (selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined) ?? soleCall;
+  const runCall = soleCall?.call && { name: callLabel(soleCall.call), errorCode: callErrorCode(soleCall.call) };
   const waiting = selectedGroup?.awaiting;
   const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
   const onShowLogs = useCallback(() => onLogFloorChange("all"), [onLogFloorChange]);
@@ -331,6 +337,7 @@ export function Console({
       activeTab={activeTab}
       embedded={embedded}
       selectedItem={selectedItem}
+      sole={soleCall !== undefined}
       waiting={waiting !== undefined}
       logFloor={logFloor}
       printed={printed}
@@ -377,7 +384,7 @@ export function Console({
         {/* What the console header and the strip say on the desktop: which run, and
             its calls. */}
         <div className="flex h-[28px] shrink-0 items-center gap-3 border-y border-border px-3">
-          <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} compact />
+          <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} call={runCall} compact />
           {selectedGroup && activeView === "canvas" && selectedGroup.strip.calls > 0 && (
             <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} inline />
           )}
@@ -414,7 +421,7 @@ export function Console({
           Everything leaves in order of what it is worth as the panel narrows,
           and the run pill truncates through all of it. */}
       <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
-        <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
+        <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} call={runCall} />
         <div className="h-4 w-px shrink-0 bg-border" />
         <Console.ViewSelect activeView={activeView} waiting={waiting !== undefined} onChange={onViewChange} />
         {/* Only there when the run printed something, on the same rule as
@@ -663,13 +670,15 @@ interface RunSelectProps {
   onSelect: (group: RunGroup) => void;
   onClear?: () => void;
   now: number;
+  // The run's only call, said here because the log draws no row for it.
+  call?: { name: string; errorCode?: string };
   // Bare text in a row of its own rather than a pill, on the phone's strip.
   compact?: boolean;
 }
 
 // The pill inherits the status of the run it names, so a waiting or failed run is
 // legible without opening the menu.
-Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, compact }: RunSelectProps) {
+Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, call, compact }: RunSelectProps) {
   const [open, setOpen] = useState(false);
   const summary = selectedGroup ? runSummary(selectedGroup, groups, now) : undefined;
 
@@ -696,6 +705,8 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
           )}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
+          {call && <span className="min-w-0 truncate font-mono text-xs text-foreground">{call.name}</span>}
+          {call?.errorCode && <span className="shrink-0 font-mono text-xs text-destructive">{call.errorCode}</span>}
           {/* What the run carried, because Run repeats it: the values the next press
               will send have to be readable without opening the sheet that sets them. */}
           {summary?.input && (
@@ -709,7 +720,8 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
               {summary.detail}
             </span>
           )}
-          <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
+          {/* Until there is an earlier run, the menu has nothing to pick. */}
+          {groups.length > 1 && <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" className="w-[300px] p-0">
