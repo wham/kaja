@@ -52,6 +52,8 @@ interface RunLogProps {
   // Whether the payload pane reads the documents its strings carry.
   embedded: boolean;
   selectedItem?: ConsoleItem;
+  // The run's only call, which the console header names instead of a row.
+  sole: boolean;
   waiting: boolean;
   // So the tail bar can say what is being left out.
   logFloor: LogFloor;
@@ -86,6 +88,7 @@ export const RunLog = memo(function RunLog({
   activeTab,
   embedded,
   selectedItem,
+  sole,
   waiting,
   logFloor,
   printed,
@@ -149,11 +152,16 @@ export const RunLog = memo(function RunLog({
   const visible = rows.slice(first, first + count);
   // The log is never collapsed or summarised away, so this says what is out of sight
   // rather than standing in for it.
-  const rowsBelow = Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
+  const rowsBelow = sole ? 0 : Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} data-testid="console-log" className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
+      <div
+        ref={scrollRef}
+        data-testid="console-log"
+        className={cn("@container shrink overflow-y-auto", sole && "hidden")}
+        style={{ maxHeight: MAX_LOG_HEIGHT }}
+      >
         {total === 0 ? (
           <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
             {/* A run parked on a question is in flight but is not on its way to
@@ -201,7 +209,8 @@ export const RunLog = memo(function RunLog({
       <TailBar
         waiting={waiting}
         scriptFailed={scriptFailed}
-        running={group.running && !waiting}
+        // The run's own pill counts the clock; the count is news from the second call.
+        running={group.running && !waiting && (group.calls.length > 1 || group.heldCalls > 0)}
         calls={group.calls.length}
         held={group.heldCalls}
         elapsedMs={now - group.run.startedAt}
