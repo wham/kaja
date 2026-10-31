@@ -9,10 +9,11 @@
  *
  * The rule the other way round is the one worth stating: **a failure that already has
  * a place is written to `deviceConsole`; a failure with nowhere else to go goes
- * through the patched console and lands here.** A compilation that failed is on the
- * app's row in the compile status, and a script that threw is a row in its own run, so
- * neither is repeated in the footer. A write to IndexedDB that was refused has nowhere
- * else at all, which is what this exists for.
+ * through the patched console and lands here.** A script that threw is a row in its
+ * own run, so it is not repeated in the footer. A compilation that failed is reported
+ * here, its whole log under the reason, since there is no compile log to read it in;
+ * the app's row only marks which app it was. A write to IndexedDB that was refused has
+ * nowhere else at all.
  *
  * Errors only. A warning is something Kaja carried on past, and a footer item that
  * counted them would be lit in a session where nothing went wrong.

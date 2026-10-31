@@ -1,4 +1,4 @@
-import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, buildApp, getAppType } from "./appTypes";
 import { Script } from "./apps";
@@ -19,10 +19,6 @@ interface ViewBase {
   // Creation order. Bodies are rendered in it, so a live Monaco editor is never moved
   // in the DOM when the visit order changes.
   seq: number;
-}
-
-export interface CompilerView extends ViewBase {
-  type: "compiler";
 }
 
 // Where the window opens and where "back" ends up. It holds nothing of its own, so it
@@ -80,7 +76,7 @@ export interface ShortcutsView extends ViewBase {
   type: "shortcuts";
 }
 
-export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
+export type View = DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
 
 let sequence = 0;
 
@@ -216,12 +212,6 @@ export function showShortcuts(views: View[]): View[] {
   return show(views, { ...nextView("shortcuts"), type: "shortcuts" });
 }
 
-export function showCompiler(views: View[]): View[] {
-  const existing = views.find((view) => view.type === "compiler");
-  if (existing) return visit(views, existing.id);
-  return show(views, { ...nextView("compiler"), type: "compiler" });
-}
-
 export interface ViewIdentity {
   name: string;
   // Where it sits, for the finder's list: "github / Repos", "Drafts".
@@ -272,8 +262,6 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: "MCP server", path: "Settings", origin: "", icon: Plug };
     case "shortcuts":
       return { name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard };
-    case "compiler":
-      return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
     // No qualifier: it is one view of its own, and the finder row saying so twice is
     // the icon treatment it is not supposed to have.
     case "start":
@@ -331,12 +319,8 @@ export function persistedDraftId(view: PersistedView): string | undefined {
   return undefined;
 }
 
-// The visit order is the order of the list, so nothing else has to be stored.
-//
-// The compile log is not among them: it is a report on this session's apps rather
-// than a document, so starting on it means starting on an account of a compilation
-// that hasn't run — and with no apps, on one that never can. Neither is Start, which
-// is recreated on every launch by definition.
+// The visit order is the order of the list, so nothing else has to be stored. Start
+// is not among them, being recreated on every launch by definition.
 export interface PersistedViewState {
   views: PersistedView[];
 }
@@ -378,7 +362,7 @@ export function restoreViews(state: PersistedViewState | undefined, drafts: Draf
       continue;
     }
 
-    // State written by a build that persisted the compile log still names it.
+    // State written by a build that persisted the retired compile log still names it.
     const draftId = persistedDraftId(persisted);
     if (draftId === undefined) continue;
 

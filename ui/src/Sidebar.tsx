@@ -2,13 +2,11 @@ import { memo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
-import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { TreeView } from "./components/tree-view";
 import {
   Ban,
   Braces,
-  Check,
   ChevronRight,
   CircleX,
   Ellipsis,
@@ -26,7 +24,7 @@ import {
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
-import { firstErrorMessage, summarizeCompilation, warningCount } from "./compileSummary";
+import { firstErrorMessage, warningCount } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
 import { pluralCount } from "./plural";
 import { unsupportedReason } from "./streaming";
@@ -128,8 +126,6 @@ export interface SidebarProps {
   // Clicking goes to the call; ⌥click (or the + on the row) adds it to the script
   // already on screen.
   onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
-  workspaceLoaded: boolean;
-  onShowCompileLog: (appName?: string) => void;
   onRecompileApp: (appName: string) => void;
   onNewAppClick: () => void;
   onNewScript?: () => void;
@@ -167,8 +163,6 @@ export const Sidebar = memo(function Sidebar({
   scriptsRegion,
   canUpdateWorkspace = true,
   onSelect,
-  workspaceLoaded,
-  onShowCompileLog,
   onRecompileApp,
   onNewAppClick,
   onNewScript,
@@ -312,7 +306,6 @@ export const Sidebar = memo(function Sidebar({
       <TabRow
         tab={tab}
         onTabChange={onTabChange}
-        marker={(apps.length > 0 || !workspaceLoaded) && <CompileMarker apps={apps} workspaceLoaded={workspaceLoaded} onShowCompileLog={onShowCompileLog} />}
         action={
           tab === "apps"
             ? canUpdateWorkspace && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
@@ -417,7 +410,7 @@ export const Sidebar = memo(function Sidebar({
                   </button>
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
-                  <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
+                  <AppCompileMarker app={app} />
                   {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} />}
                   <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
                     {(touch || active) && (
@@ -664,22 +657,8 @@ export function sidebarTabId(tab: SidebarTab): string {
  * The row under the band: the two tabs, and the verb that belongs to the one that is
  * on. The active tab is a filled pill and nothing divides the row from the list, so
  * the panel is one plane that the tone step alone sets apart from the work area.
- *
- * The compile marker rides inside the Apps tab whichever tab is on, because it reports
- * on the apps rather than on the list in front of you. It is a sibling of the tab
- * button rather than a child, since a button can't hold another one.
  */
-function TabRow({
-  tab,
-  onTabChange,
-  marker,
-  action,
-}: {
-  tab: SidebarTab;
-  onTabChange: (tab: SidebarTab) => void;
-  marker?: React.ReactNode;
-  action?: React.ReactNode;
-}) {
+function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (tab: SidebarTab) => void; action?: React.ReactNode }) {
   return (
     <div className="flex h-7 shrink-0 items-center pr-5 pl-2.5">
       <div
@@ -697,27 +676,23 @@ function TabRow({
       >
         {SIDEBAR_TABS.map((candidate) => {
           const selected = candidate === tab;
-          const tabMarker = candidate === "apps" && marker ? marker : undefined;
           return (
-            <span key={candidate} className={cn("flex h-6 items-center rounded-md", selected && "bg-muted", tabMarker !== undefined && "pr-1")}>
-              <button
-                type="button"
-                role="tab"
-                id={sidebarTabId(candidate)}
-                aria-selected={selected}
-                aria-controls={`${candidate}-panel`}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => onTabChange(candidate)}
-                className={cn(
-                  "flex h-full cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
-                  selected ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
-                  tabMarker !== undefined && "pr-1.5",
-                )}
-              >
-                {TAB_LABEL[candidate]}
-              </button>
-              {tabMarker}
-            </span>
+            <button
+              key={candidate}
+              type="button"
+              role="tab"
+              id={sidebarTabId(candidate)}
+              aria-selected={selected}
+              aria-controls={`${candidate}-panel`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onTabChange(candidate)}
+              className={cn(
+                "flex h-6 cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
+                selected ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {TAB_LABEL[candidate]}
+            </button>
           );
         })}
       </div>
@@ -725,48 +700,6 @@ function TabRow({
           and adding an app are the two verbs somebody comes to this panel for. */}
       <div className="ml-auto flex shrink-0 items-center">{action}</div>
     </div>
-  );
-}
-
-/**
- * What compiling the apps came to, as one 18px glyph on the Apps tab: a check when
- * every app is ready, a spinner while any is compiling, a dot when one failed or
- * warned. Clicking opens the compile log, on the first failure if there is one.
- */
-export function CompileMarker({
-  apps,
-  workspaceLoaded,
-  onShowCompileLog,
-  large = false,
-}: {
-  apps: App[];
-  workspaceLoaded: boolean;
-  onShowCompileLog: (appName?: string) => void;
-  large?: boolean;
-}) {
-  const summary = summarizeCompilation(apps, workspaceLoaded);
-  const label = summary.state === "ready" ? `${pluralCount(summary.total, "app")} compiled` : summary.label;
-  const firstFailure = apps.find((app) => app.compilation.status === "error") ?? apps.find((app) => warningCount(app) > 0);
-
-  return (
-    <SimpleTooltip text={`${label} · Show compile log`} side="bottom">
-      <button
-        type="button"
-        aria-label={`${label}. Show compile log`}
-        onClick={() => onShowCompileLog(firstFailure?.configuration.name)}
-        className={cn("flex shrink-0 items-center justify-center rounded-sm hover:bg-accent", large ? "size-7 rounded-full" : "size-[18px]")}
-      >
-        {summary.state === "loading" || summary.state === "compiling" ? (
-          <Spinner size="sm" className={cn("text-muted-foreground", large ? "size-4" : "size-3")} />
-        ) : summary.state === "failed" ? (
-          <span className={cn("rounded-full bg-destructive", large ? "size-2" : "size-[7px]")} />
-        ) : summary.state === "warning" ? (
-          <span className={cn("rounded-full bg-amber-500", large ? "size-2" : "size-[7px]")} />
-        ) : (
-          <Check size={large ? 16 : 12} className="text-emerald-600 dark:text-emerald-400" />
-        )}
-      </button>
-    </SimpleTooltip>
   );
 }
 
@@ -802,8 +735,6 @@ function TabPane({
   );
 }
 
-// A failed app otherwise looks like an app with no services. The marker says which
-// app is broken and opens its log.
 // A method Kaja won't call still has a row — hiding it would make the tree say the
 // app has less than it does — so the row says why instead.
 export function UnsupportedMarker({ reason, size = 12 }: { reason: string; size?: number }) {
@@ -827,31 +758,32 @@ export function MethodName({ name, unsupported, deprecated }: { name: string; un
   return deprecated ? <SimpleTooltip text={DEPRECATION_NOTE}>{label}</SimpleTooltip> : label;
 }
 
-export function AppCompileMarker({ app, onShowCompileLog, size = 12 }: { app: App; onShowCompileLog: (appName: string) => void; size?: number }) {
+// A failed app otherwise looks like an app with no services. The marker says which
+// app is broken; what the compiler said is in the footer's errors.
+export function AppCompileMarker({ app, size = 12 }: { app: App; size?: number }) {
   const failed = app.compilation.status === "error";
   const warned = warningCount(app);
   if (!failed && warned === 0) return null;
 
-  const label = failed ? (firstErrorMessage(app) ?? "Compilation failed") : pluralCount(warned, "warning");
+  const label = failed
+    ? (firstErrorMessage(app) ?? "Compilation failed")
+    : [pluralCount(warned, "warning"), app.compilation.warning].filter(Boolean).join(": ");
 
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={`${app.configuration.name}: ${label}. Show compile log`}
-      className={cn("ml-1 inline-flex shrink-0 items-center", failed ? "text-destructive" : "text-amber-600 dark:text-amber-400")}
-      onClick={(e: React.MouseEvent) => {
-        e.stopPropagation();
-        onShowCompileLog(app.configuration.name);
-      }}
-    >
-      {failed ? <CircleX size={size} /> : <TriangleAlert size={size} />}
-    </button>
+    <SimpleTooltip text={label}>
+      <span
+        role="img"
+        aria-label={`${app.configuration.name}: ${label}`}
+        className={cn("ml-1 inline-flex shrink-0 items-center", failed ? "text-destructive" : "text-amber-600 dark:text-amber-400")}
+      >
+        {failed ? <CircleX size={size} /> : <TriangleAlert size={size} />}
+      </span>
+    </SimpleTooltip>
   );
 }
 
 // Beside the compile marker rather than folded into it: the app compiled, and what it
-// is missing is a value on this machine rather than anything the compile log can say.
+// is missing is a value on this machine rather than anything the compiler can say.
 export function AppVariableMarker({
   appName,
   missing,

@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Spinner } from "./components/spinner";
 import { App, Method, Service } from "./apps";
 import { appType } from "./appTypes";
+import { firstErrorMessage } from "./compileSummary";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
@@ -12,7 +13,6 @@ import { PHONE_ICON, PhoneLevelHeader, PhoneRow, PhoneRowAction, PhoneSection } 
 import {
   AppCompileMarker,
   AppVariableMarker,
-  CompileMarker,
   MethodName,
   SIDEBAR_TABS,
   sidebarTabId,
@@ -47,8 +47,6 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   scriptsRegion,
   canUpdateWorkspace = true,
   onSelect,
-  workspaceLoaded,
-  onShowCompileLog,
   onRecompileApp,
   onNewAppClick,
   onNewScript,
@@ -122,30 +120,23 @@ export const PhoneSidebar = memo(function PhoneSidebar({
         >
           {SIDEBAR_TABS.map((candidate) => {
             const selected = candidate === tab;
-            const marker =
-              candidate === "apps" && (apps.length > 0 || !workspaceLoaded) ? (
-                <CompileMarker apps={apps} workspaceLoaded={workspaceLoaded} onShowCompileLog={onShowCompileLog} large />
-              ) : undefined;
             return (
-              <span key={candidate} className={cn("flex h-10 items-center rounded-full", selected && "bg-muted", marker && "pr-1.5")}>
-                <button
-                  type="button"
-                  role="tab"
-                  id={sidebarTabId(candidate)}
-                  aria-selected={selected}
-                  aria-controls={`${candidate}-panel`}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => onTabChange(candidate)}
-                  className={cn(
-                    "flex h-full select-none items-center rounded-full px-4 text-[16px] outline-none focus-visible:bg-accent/50",
-                    selected ? "font-medium text-foreground" : "text-muted-foreground",
-                    marker && "pr-1",
-                  )}
-                >
-                  {TAB_LABEL[candidate]}
-                </button>
-                {marker}
-              </span>
+              <button
+                key={candidate}
+                type="button"
+                role="tab"
+                id={sidebarTabId(candidate)}
+                aria-selected={selected}
+                aria-controls={`${candidate}-panel`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => onTabChange(candidate)}
+                className={cn(
+                  "flex h-10 select-none items-center rounded-full px-4 text-[16px] outline-none focus-visible:bg-accent/50",
+                  selected ? "bg-muted font-medium text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {TAB_LABEL[candidate]}
+              </button>
             );
           })}
         </div>
@@ -165,7 +156,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
             onSelect={onSelect}
             onEditApp={onEditApp}
             settingsCurrent={selectedApp === app.configuration.name}
-            onShowCompileLog={onShowCompileLog}
+            onRecompileApp={onRecompileApp}
             missingVariables={missingVariables}
             onRevealVariable={onRevealVariable}
           />
@@ -212,7 +203,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
                   }
                 >
                   <span className="truncate">{appName}</span>
-                  <AppCompileMarker app={candidate} onShowCompileLog={onShowCompileLog} size={16} />
+                  <AppCompileMarker app={candidate} size={16} />
                   {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} size={16} />}
                 </PhoneRow>
               );
@@ -234,7 +225,7 @@ function AppLevel({
   onSelect,
   onEditApp,
   settingsCurrent,
-  onShowCompileLog,
+  onRecompileApp,
   missingVariables,
   onRevealVariable,
 }: {
@@ -244,7 +235,7 @@ function AppLevel({
   onSelect: SidebarProps["onSelect"];
   onEditApp: (appName: string) => void;
   settingsCurrent: boolean;
-  onShowCompileLog: (appName?: string) => void;
+  onRecompileApp: (appName: string) => void;
   missingVariables?: SidebarProps["missingVariables"];
   onRevealVariable?: (name: string) => void;
 }) {
@@ -277,7 +268,7 @@ function AppLevel({
       trailing={
         !level.pkg && (
           <>
-            <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} size={18} />
+            <AppCompileMarker app={app} size={18} />
             {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} size={18} />}
           </>
         )
@@ -335,9 +326,13 @@ function AppLevel({
         );
       })}
       {services.length === 0 && app.compilation.status === "error" && (
-        <PhoneRow onClick={() => onShowCompileLog(appName)} className="text-destructive">
-          Show compile log
-        </PhoneRow>
+        <>
+          {/* A phone has no hover for the marker's tooltip, so the reason is stated. */}
+          <p className="px-3 py-2 text-[15px] break-words text-destructive">{firstErrorMessage(app) ?? "Compilation failed"}</p>
+          <PhoneRow icon={<RotateCw size={PHONE_ICON} />} onClick={() => onRecompileApp(appName)}>
+            Recompile
+          </PhoneRow>
+        </>
       )}
     </nav>
   );

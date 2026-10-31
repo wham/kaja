@@ -64,16 +64,17 @@ export function createPendingApp(configuration: WorkspaceApp): App {
 }
 
 // "cached" is a surface read back from the last session and not yet checked against
-// the server, which reads as ready everywhere but the compile log.
+// the server, which reads as ready everywhere.
 export type CompilationStatus = "pending" | "running" | "cached" | "success" | "error";
 
 export interface Compilation {
   status: CompilationStatus;
   duration?: string;
-  // What the surface keeps of the compile log: how many warnings it ended with, and
+  // What the surface keeps of the compiler's log: how many warnings it ended with, and
   // the line a failure is stated by. The lines themselves are the store's
   // (appStore.ts), so a line arriving never moves the surface.
   warnings: number;
+  warning?: string;
   error?: string;
 }
 
