@@ -5,7 +5,7 @@ describe("knownServerFor", () => {
   it("matches the endpoint as it is bundled", () => {
     expect(knownServerFor("https://api.githubcopilot.com/mcp/")?.name).toBe("GitHub");
     expect(knownServerFor("https://mcp.sentry.dev/mcp")?.name).toBe("Sentry");
-    expect(knownServerFor("https://mcp.atlassian.com/v1/mcp")?.name).toBe("Atlassian");
+    expect(knownServerFor("https://mcp.atlassian.com/v2/mcp")?.name).toBe("Atlassian");
   });
 
   it("matches the same address written differently", () => {
