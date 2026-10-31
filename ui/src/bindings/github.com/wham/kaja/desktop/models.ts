@@ -6,6 +6,35 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * AssistantStatus says whether the phone's own model can be asked anything, and
+ * if not, why: the person can fix two of the three reasons in Settings.
+ */
+export class AssistantStatus {
+    "available": boolean;
+    "reason": string;
+
+    /** Creates a new AssistantStatus instance. */
+    constructor($$source: Partial<AssistantStatus> = {}) {
+        if (!("available" in $$source)) {
+            this["available"] = false;
+        }
+        if (!("reason" in $$source)) {
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AssistantStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AssistantStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AssistantStatus($$parsedSource as Partial<AssistantStatus>);
+    }
+}
+
+/**
  * MCPInfo is reported to the UI so it can show and control the MCP server and attach
  * its window to the session that server reaches. Error is set when the server couldn't
  * start (e.g. the fixed port was already in use).

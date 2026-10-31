@@ -10,6 +10,20 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * AskAssistant hands the prompt to the conversation the model is already in and
+ * waits for its answer, which may take several tool calls into the agent session.
+ */
+export function AskAssistant(prompt: string): $CancellablePromise<string> {
+    return $Call.ByID(3215864358, prompt);
+}
+
+export function AssistantStatus(): $CancellablePromise<$models.AssistantStatus> {
+    return $Call.ByID(736767721).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * LogFromUI appends a log line from the frontend to <kajaHome>/logs/kaja.log, tagged
  * "[ui]". The webview console is otherwise only reachable through Web Inspector, so
  * this is how a TestFlight user captures frontend errors.
@@ -23,7 +37,7 @@ export function LogFromUI(level: string, message: string): $CancellablePromise<v
  */
 export function MCPServerInfo(): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(222308020).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -59,8 +73,16 @@ export function OpenInBrowser(url: string): $CancellablePromise<void> {
  */
 export function RegenerateMCPToken(): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(1152023458).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
+}
+
+/**
+ * ResetAssistant starts the next prompt on an empty transcript. The model's
+ * context is a few thousand tokens, so a new topic is worth a new conversation.
+ */
+export function ResetAssistant(): $CancellablePromise<void> {
+    return $Call.ByID(2421053352);
 }
 
 /**
@@ -71,7 +93,7 @@ export function RegenerateMCPToken(): $CancellablePromise<$models.MCPInfo> {
  */
 export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(1757369242).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -81,7 +103,7 @@ export function ResolvedVariables(): $CancellablePromise<{ [_ in string]?: strin
  */
 export function SetMCPServerEnabled(enabled: boolean): $CancellablePromise<$models.MCPInfo> {
     return $Call.ByID(2384720219, enabled).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -97,7 +119,7 @@ export function SetShortcuts(shortcuts: { [_ in string]?: string }): $Cancellabl
  */
 export function Shortcuts(): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(2006984344).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -115,16 +137,21 @@ export function ShowFileInFinder(path: string): $CancellablePromise<void> {
     return $Call.ByID(1900569253, path);
 }
 
+export function StopAssistant(): $CancellablePromise<void> {
+    return $Call.ByID(359995247);
+}
+
 /**
  * Workspaces reports the open workspace and every known one. Desktop only.
  */
 export function Workspaces(): $CancellablePromise<$models.WorkspacesInfo> {
     return $Call.ByID(3410208231).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
 // Private type creation functions
-const $$createType0 = $models.MCPInfo.createFrom;
-const $$createType1 = $Create.Map($Create.Any, $Create.Any);
-const $$createType2 = $models.WorkspacesInfo.createFrom;
+const $$createType0 = $models.AssistantStatus.createFrom;
+const $$createType1 = $models.MCPInfo.createFrom;
+const $$createType2 = $Create.Map($Create.Any, $Create.Any);
+const $$createType3 = $models.WorkspacesInfo.createFrom;

@@ -42,11 +42,11 @@ func serveIntents(a *App) { intentsApp.Store(a) }
 //
 //export kajaCallTool
 func kajaCallTool(tool, arguments *C.char) *C.char {
-	encoded, _ := json.Marshal(callTool(C.GoString(tool), C.GoString(arguments)))
+	encoded, _ := json.Marshal(callTool(intentClient, C.GoString(tool), C.GoString(arguments)))
 	return C.CString(string(encoded))
 }
 
-func callTool(tool, arguments string) agent.ToolResult {
+func callTool(client, tool, arguments string) agent.ToolResult {
 	args := map[string]any{}
 	if arguments != "" {
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
@@ -57,7 +57,7 @@ func callTool(tool, arguments string) agent.ToolResult {
 	if session == nil {
 		return agent.ToolResult{Text: "Kaja's window did not come up in time. Open Kaja and try again.", IsError: true}
 	}
-	result, err := session.Call(context.Background(), intentClient, tool, args)
+	result, err := session.Call(context.Background(), client, tool, args)
 	if err != nil {
 		return agent.ToolResult{Text: err.Error(), IsError: true}
 	}

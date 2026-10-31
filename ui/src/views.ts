@@ -1,4 +1,4 @@
-import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, Settings, Sparkles, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, buildApp, getAppType } from "./appTypes";
 import { Script } from "./apps";
@@ -71,12 +71,18 @@ export interface McpView extends ViewBase {
   type: "mcp";
 }
 
+// The phone's own model. The conversation is kept outside the view (`assistantStore.ts`),
+// so eviction loses nothing.
+export interface AssistantView extends ViewBase {
+  type: "assistant";
+}
+
 // The keys the window states. It saves as you go like the variables do.
 export interface ShortcutsView extends ViewBase {
   type: "shortcuts";
 }
 
-export type View = DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | ShortcutsView | StartView;
+export type View = DraftView | DefinitionView | AppFormView | ScriptView | VariablesView | McpView | AssistantView | ShortcutsView | StartView;
 
 let sequence = 0;
 
@@ -206,6 +212,12 @@ export function showMcp(views: View[]): View[] {
   return show(views, { ...nextView("mcp"), type: "mcp" });
 }
 
+export function showAssistant(views: View[]): View[] {
+  const existing = views.find((view) => view.type === "assistant");
+  if (existing) return visit(views, existing.id);
+  return show(views, { ...nextView("assistant"), type: "assistant" });
+}
+
 export function showShortcuts(views: View[]): View[] {
   const existing = views.find((view) => view.type === "shortcuts");
   if (existing) return visit(views, existing.id);
@@ -260,6 +272,8 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
     case "mcp":
       return { name: "MCP server", path: "Settings", origin: "", icon: Plug };
+    case "assistant":
+      return { name: "Assistant", path: "Apple Intelligence", origin: "", icon: Sparkles };
     case "shortcuts":
       return { name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard };
     // No qualifier: it is one view of its own, and the finder row saying so twice is

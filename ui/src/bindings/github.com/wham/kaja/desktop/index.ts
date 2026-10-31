@@ -7,6 +7,7 @@ export {
 };
 
 export {
+    AssistantStatus,
     MCPInfo,
     WorkspaceFolder,
     WorkspacesInfo

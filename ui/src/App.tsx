@@ -3,13 +3,14 @@ import { PHONE_QUERY, isIPhone, methodTag } from "./phone";
 import { PhoneFinder, PhoneLocation } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
 import { PhoneSidebar } from "./PhoneSidebar";
+import { Assistant } from "./Assistant";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
+import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, Sparkles, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -70,6 +71,7 @@ import {
   showDefinition,
   showDraft,
   showMcp,
+  showAssistant,
   showScript,
   showShortcuts,
   showVariables,
@@ -2501,6 +2503,11 @@ export function App() {
     applyViews(showMcp);
   }, [applyViews]);
 
+  const onAssistantClick = useCallback(() => {
+    applyViews(showAssistant);
+  }, [applyViews]);
+  const assistantOffered = isIOSApp();
+
   const onShortcutsClick = useCallback(() => {
     applyViews(showShortcuts);
   }, [applyViews]);
@@ -2645,6 +2652,9 @@ export function App() {
     if (mcpControl && !views.some((view) => view.type === "mcp")) {
       destinations.push({ key: "mcp", name: "MCP server", path: "Settings", origin: "", icon: Plug, go: onMcpClick });
     }
+    if (assistantOffered && !views.some((view) => view.type === "assistant")) {
+      destinations.push({ key: "assistant", name: "Assistant", path: "Apple Intelligence", origin: "", icon: Sparkles, go: onAssistantClick });
+    }
     // An iPhone has no keyboard to press them on.
     if (!isIPhone() && !views.some((view) => view.type === "shortcuts")) {
       destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard, go: onShortcutsClick });
@@ -2699,6 +2709,8 @@ export function App() {
     onMethodSelect,
     onVariablesClick,
     onMcpClick,
+    onAssistantClick,
+    assistantOffered,
     onShortcutsClick,
     workspaces,
     onOpenWorkspace,
@@ -2851,6 +2863,7 @@ export function App() {
           phone={isPhone}
         />
       )}
+      {view.type === "assistant" && <Assistant active={view.id === currentView?.id} />}
       {view.type === "mcp" && mcpControl && <Mcp info={mcpConnection} control={mcpControl} active={mcpActive} />}
       {view.type === "shortcuts" && (
         <KeyboardShortcuts
@@ -2996,6 +3009,7 @@ export function App() {
         onRevealVariable={phoneClosing(onRevealVariable)}
         onMcpClick={mcpControl ? phoneClosing(onMcpClick) : undefined}
         mcpState={mcpBandState}
+        onAssistantClick={assistantOffered ? phoneClosing(onAssistantClick) : undefined}
         autoExpandApp={autoExpandApp}
         reserveTrafficLights={isDesktopMac}
         workspace={workspaceControl}
