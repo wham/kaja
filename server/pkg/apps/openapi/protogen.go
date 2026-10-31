@@ -131,6 +131,8 @@ type generator struct {
 	seenMsg      map[string]bool
 	refMsgName   map[string]string // component schema name -> allocated proto message name
 	resolvingRef map[string]bool
+	// buildingInline maps an inline schema whose fields are being walked to its name.
+	buildingInline map[string]string
 
 	services     []*serviceDef
 	serviceIndex map[string]*serviceDef
@@ -166,6 +168,7 @@ func generateProto(s *spec) (*generated, error) {
 		seenMsg:            map[string]bool{},
 		refMsgName:         map[string]string{},
 		resolvingRef:       map[string]bool{},
+		buildingInline:     map[string]string{},
 		serviceIndex:       map[string]*serviceDef{},
 		namespace:          sharedNamespace(s),
 	}
@@ -799,9 +802,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		if g.allObjectLike(vs) {
 			// All variants are objects (a discriminated union): merge their
 			// properties into one message so any variant can be expressed.
-			name := g.uniqueMessageName(parent + hint)
-			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
-			return name, false
+			return g.inlineMessage(parent+hint, s), false
 		}
 		if g.unionMapsToValue(vs) {
 			// Variants mix categories including a primitive (e.g. string|bool or
@@ -820,9 +821,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 			return g.protoType(parent, hint, s.AllOf[0])
 		}
 		// Composition: merge every entry's properties with the schema's own.
-		name := g.uniqueMessageName(parent + hint)
-		g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
-		return name, false
+		return g.inlineMessage(parent+hint, s), false
 	}
 	switch s.Type {
 	case "array":
@@ -834,9 +833,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		return elem, true
 	case "object", "":
 		if len(s.Properties) > 0 {
-			name := g.uniqueMessageName(parent + hint)
-			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
-			return name, false
+			return g.inlineMessage(parent+hint, s), false
 		}
 		if ap := s.AdditionalProperties; ap != nil && ap.Allowed {
 			value := "string"
@@ -913,6 +910,39 @@ func (g *generator) addMessage(m *messageDef) {
 	}
 	g.seenMsg[m.name] = true
 	g.messages = append(g.messages, m)
+}
+
+// inlineMessage generates the message for a schema declared in place. A merged
+// union can hold itself without a $ref of its own - CompoundFilter's filters are
+// oneOf[ComparisonFilter, CompoundFilter], merged into a message whose filters are
+// that union again - so the name is reserved before the fields are walked, the way
+// refMessage does for a component, and a schema met again inside itself reuses it.
+func (g *generator) inlineMessage(base string, s *schema) string {
+	key := inlineKey(s)
+	if name, ok := g.buildingInline[key]; ok {
+		return name
+	}
+	name := g.uniqueMessageName(base)
+	g.seenMsg[name] = true
+	g.buildingInline[key] = name
+	fields := g.fieldsFromSchema(name, s)
+	delete(g.buildingInline, key)
+	g.messages = append(g.messages, &messageDef{name: name, fields: fields})
+	return name
+}
+
+// inlineKey names a schema by identity. A union is named by its variants, because a
+// property two variants declare is merged into a union built afresh each time.
+func inlineKey(s *schema) string {
+	vs := unionOf(s)
+	if len(vs) == 0 {
+		return fmt.Sprintf("%p", s)
+	}
+	keys := make([]string, len(vs))
+	for i, v := range vs {
+		keys[i] = fmt.Sprintf("%p", v)
+	}
+	return strings.Join(keys, "|")
 }
 
 func (g *generator) uniqueMessageName(base string) string {

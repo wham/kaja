@@ -1,4 +1,4 @@
-import { BenchlingMark, GitHubMark, SwaggerMark } from "./brandMarks";
+import { BenchlingMark, GitHubMark, OpenAIMark, SwaggerMark } from "./brandMarks";
 import { canonicalEndpoint, endpointLabel } from "./knownServers";
 
 // An API whose OpenAPI document Kaja knows the address of, so naming it is enough to
@@ -16,6 +16,7 @@ export const knownApis: KnownApi[] = [
     specUrl: "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
     mark: GitHubMark,
   },
+  { name: "OpenAI", specUrl: "https://raw.githubusercontent.com/openai/openai-openapi/main/openapi.yaml", mark: OpenAIMark },
   { name: "Petstore", specUrl: "https://petstore3.swagger.io/api/v3/openapi.json", mark: SwaggerMark },
   { name: "Benchling", specUrl: "https://benchling.com/api/v3/openapi.yaml", mark: BenchlingMark },
 ];
