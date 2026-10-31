@@ -4,6 +4,9 @@ package main
 
 /*
 #include <stdlib.h>
+
+// Implemented in build/ios/intents/Intents.swift.
+extern void kajaRefreshShortcuts(void);
 */
 import "C"
 
@@ -35,7 +38,10 @@ const readyWait = 30 * time.Second
 
 var intentsApp atomic.Pointer[App]
 
-func serveIntents(a *App) { intentsApp.Store(a) }
+func serveIntents(a *App) {
+	intentsApp.Store(a)
+	go func() { C.kajaRefreshShortcuts() }()
+}
 
 // kajaCallTool is what every App Intent calls: one MCP tool, its arguments as JSON,
 // answered with a JSON ToolResult the caller frees.
