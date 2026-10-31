@@ -66,8 +66,6 @@ export interface AppTypeDefinition {
   // parameter list is still the contract with the config: it says which fields the type
   // has, and the custom form supplies its own labels.
   customForm?: boolean;
-  // Optional one-click demo that prefills the form.
-  demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
 // In the order shown in the New dialog, most used first. Keep in sync with the app
@@ -76,7 +74,7 @@ export const appTypes: AppTypeDefinition[] = [
   {
     type: "openapi",
     label: "OpenAPI",
-    description: "Call a REST API from its OpenAPI 3.x document.",
+    description: "A REST API, from its OpenAPI 3.x document.",
     icon: OpenApiMark,
     // OpenApiForm renders these: it reads the document first and then offers what it declares.
     customForm: true,
@@ -96,7 +94,7 @@ export const appTypes: AppTypeDefinition[] = [
   {
     type: "mcp",
     label: "MCP",
-    description: "Explore another Model Context Protocol server: its tools, resources and prompts.",
+    description: "Another MCP server’s tools, resources and prompts.",
     icon: McpMark,
     // McpForm renders these: it reads the server first and then shows what it exposes.
     customForm: true,
@@ -108,16 +106,11 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "clientId", label: "OAuth client ID", type: "text", optional: true },
       { key: "scope", label: "OAuth scopes", type: "text", optional: true },
     ],
-    demo: {
-      label: "try the DeepWiki demo server",
-      name: "DeepWiki",
-      parameters: { url: "https://mcp.deepwiki.com/mcp" },
-    },
   },
   {
     type: "grpc",
     label: "gRPC",
-    description: "Call a gRPC service from its proto files or via server reflection.",
+    description: "A gRPC service, from proto files or reflection.",
     icon: GrpcMark,
     // GrpcForm renders these: it reaches the server first and then offers what answered.
     customForm: true,
@@ -144,7 +137,7 @@ export const appTypes: AppTypeDefinition[] = [
     // says, and the app spoke only that API when it was written.
     type: "openai",
     label: "Chat",
-    description: "Call a chat model over the OpenAI or the Claude API.",
+    description: "A chat model over the OpenAI or Claude API.",
     icon: Sparkles,
     // OpenAiForm renders these: which API it is decides the endpoint and the credential.
     customForm: true,
@@ -160,7 +153,7 @@ export const appTypes: AppTypeDefinition[] = [
     preview: true,
     type: "folder",
     label: "Folder",
-    description: "List, create, read and append to files in a folder on disk.",
+    description: "Read and write files in a folder on disk.",
     icon: FolderOpen,
     parameters: [
       {
@@ -177,7 +170,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "twirp",
     minor: true,
     label: "Twirp",
-    description: "Call a Twirp service from its proto files.",
+    description: "A Twirp service, from its proto files.",
     icon: TwirpMark,
     parameters: [
       {

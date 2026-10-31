@@ -31,17 +31,18 @@ export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDi
         {rows.map((type, index) => {
           const Icon = type.icon;
           return (
-            <ActionList.Item key={type.type} ref={index === 0 ? firstItemRef : undefined} onSelect={() => onSelect(type.type)}>
-              <ActionList.LeadingVisual>
-                <Icon />
-              </ActionList.LeadingVisual>
-              {type.label}
-              {type.preview && (
-                <ActionList.TrailingVisual>
-                  <PreviewPill />
-                </ActionList.TrailingVisual>
-              )}
-              <ActionList.Description variant="block">{type.description}</ActionList.Description>
+            <ActionList.Item
+              key={type.type}
+              ref={index === 0 ? firstItemRef : undefined}
+              onSelect={() => onSelect(type.type)}
+              className="grid h-[50px] grid-cols-[20px_minmax(0,1fr)_auto] gap-x-2.5 gap-y-0 py-0 max-sm:h-14"
+            >
+              <span className="row-span-2 text-muted-foreground">
+                <Icon className="size-4 max-sm:size-[18px]" />
+              </span>
+              <span className="self-end">{type.label}</span>
+              <span className="row-span-2">{type.preview && <PreviewPill />}</span>
+              <span className="self-start truncate text-xs text-muted-foreground">{type.description}</span>
             </ActionList.Item>
           );
         })}

@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { AppNameField } from "./AppNameField";
-import { DemoLink, ReadingRow } from "./InspectStatus";
+import { ReadingRow } from "./InspectStatus";
 import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
 import { FormSection } from "./FormSection";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { buildApp, CustomFormProps, getAppType } from "./appTypes";
+import { buildApp, CustomFormProps } from "./appTypes";
 import { cn } from "./cn";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
@@ -15,7 +15,7 @@ import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, 
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
 import { KnownServer, knownServerFor, matchingServers, withKaja } from "./knownServers";
-import { KnownChip, KnownList } from "./KnownList";
+import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -123,6 +123,7 @@ export function McpForm({
   // The list is an offer of what to type, so it goes the moment the field holds one of
   // them: what a matched endpoint has to say is said by the chip and the read below it.
   const picking = picker && !readOnly && !known && offered.length > 0;
+  const marks = !readOnly && !url.trim() && servers.length > 0;
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   // The endpoint names a variable this kaja doesn't define. The server is read where
@@ -186,7 +187,7 @@ export function McpForm({
     read({ fresh: true });
   }, [read]);
 
-  // Read once the endpoint settles. The demo link, ⏎, or the app this form was opened
+  // Read once the endpoint settles. A picked server, ⏎, or the app this form was opened
   // on are already complete and read at once.
   useEffect(() => {
     const typed = typedRef.current;
@@ -256,7 +257,6 @@ export function McpForm({
     onParametersChange((previous) => ({ ...withEndpoint(previous, chosen.endpoint), auth: AUTH_BEARER, token }));
   };
 
-  const demo = getAppType("mcp")?.demo;
   // An app that names no credential sends none, and the form says so rather than
   // showing a bearer card with nothing in it. A token with no scheme beside it is a
   // bearer token, which is what the server reads it as.
@@ -289,8 +289,14 @@ export function McpForm({
               variables={variables}
               placeholder="https://example.com/mcp"
               disabled={readOnly}
-              className={known ? "pr-28" : undefined}
-              trailingAction={known && <KnownChip entry={known} />}
+              className={known ? "pr-28" : marks ? knownMarksPadding(servers.length, phone) : undefined}
+              trailingAction={
+                known ? (
+                  <KnownChip entry={known} />
+                ) : (
+                  marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
+                )
+              }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
               onKeyDown={(event) => {
@@ -340,8 +346,6 @@ export function McpForm({
           <EndpointStatus
             state={state}
             readOnly={readOnly}
-            demoLabel={demo?.label}
-            onDemo={demo ? () => onParametersChange((previous) => ({ ...previous, ...demo.parameters })) : undefined}
             onCancel={() => {
               readIdRef.current++;
               setState({ status: "idle" });
@@ -403,23 +407,13 @@ export function McpForm({
 interface EndpointStatusProps {
   state: ReadState;
   readOnly: boolean;
-  demoLabel?: string;
-  onDemo?: () => void;
   onCancel: () => void;
   onRetry: () => void;
 }
 
-// EndpointStatus is the one slot under the endpoint carrying every state: the caption,
-// the read in progress, the server that answered, and each way reaching it can fail.
-function EndpointStatus({ state, readOnly, demoLabel, onDemo, onCancel, onRetry }: EndpointStatusProps) {
-  if (state.status === "idle") {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Kaja asks the server what it exposes and fills in the rest.
-        {demoLabel && onDemo && !readOnly && <DemoLink label={demoLabel} onDemo={onDemo} />}
-      </p>
-    );
-  }
+// EndpointStatus is the one slot under the endpoint carrying every state: the read in progress, the server that answered, and each way reaching it can fail.
+function EndpointStatus({ state, readOnly, onCancel, onRetry }: EndpointStatusProps) {
+  if (state.status === "idle") return null;
 
   if (state.status === "reading") {
     return <ReadingRow label="Reaching the server…" onCancel={onCancel} />;

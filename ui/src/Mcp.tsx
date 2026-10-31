@@ -1,4 +1,4 @@
-import { Copy, RefreshCw, RotateCw, type LucideIcon } from "lucide-react";
+import { Check, Copy, RefreshCw, RotateCw, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { copyText } from "./clipboard";
@@ -215,9 +215,9 @@ function Field({ label, value, lit, copied, onCopy }: { label: string; value: st
           size="xs"
           variant="ghost"
           tooltip="native"
-          icon={Copy}
+          icon={copied ? Check : Copy}
           aria-label={copied ? `Copied the ${label.toLowerCase()}` : `Copy the ${label.toLowerCase()}`}
-          className={cn("h-5 w-5 [&_svg]:size-3", copied && "text-foreground")}
+          className={cn("h-5 w-5 [&_svg]:size-3", copied && "text-emerald-600 dark:text-emerald-400")}
           onClick={onCopy}
         />
       )}
