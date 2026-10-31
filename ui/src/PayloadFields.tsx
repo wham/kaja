@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { timeAgo } from "./cellTime";
 import { cn } from "./cn";
-import { countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, Path } from "./payloadRows";
+import { countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, pageList, Path } from "./payloadRows";
 
 interface PayloadFieldsProps {
   value: unknown;
@@ -14,8 +14,15 @@ interface PayloadFieldsProps {
 
 // A phone's reading of a payload: one level as a list of fields, the key over its
 // value at the whole width, and a nested object or list as a row that opens it.
-export function PayloadFields({ value, root, path, onPathChange }: PayloadFieldsProps) {
-  const node = nodeAt(value, path);
+export function PayloadFields({ value, root, path: requested, onPathChange }: PayloadFieldsProps) {
+  const list = pageList(value);
+  // The page's list is the top level, so a step to it is a step to the top.
+  const lands = (path: Path) => (list !== undefined && path.length === 1 && path[0] === list ? [] : path);
+  const path = lands(requested);
+  const go = (next: Path) => onPathChange(lands(next));
+  const inPlace = list !== undefined && path.length === 0;
+  const beside = inPlace ? fields(value).filter((field) => field.key !== list) : [];
+  const node = nodeAt(value, inPlace ? [list] : path);
   const rows = fields(node);
   const total = fieldCount(node);
   const level = path.join("\u0000");
@@ -34,16 +41,28 @@ export function PayloadFields({ value, root, path, onPathChange }: PayloadFields
       // Read as it moves rather than on the way out, by which time the next level has replaced the rows.
       onScroll={(event) => offsets.current.set(level, event.currentTarget.scrollTop)}
     >
-      {path.length > 0 && <Trail root={root} path={path} onPathChange={onPathChange} />}
+      {path.length > 0 && <Trail root={root} path={path} onPathChange={go} />}
       {/* Keyed by the level, so its long values open folded. */}
       <div key={level}>
+        {inPlace && (
+          <div className="border-b border-border px-4 pt-2 pb-1.5 text-xs text-muted-foreground">
+            {list} · {countLabel({ kind: "array", count: total })}
+          </div>
+        )}
         {rows.length === 0 ? (
           <div className="px-4 py-3 text-[15px] text-muted-foreground">{Array.isArray(node) ? "No items" : "No fields"}</div>
         ) : (
-          rows.map((field) => <FieldRow key={field.key} field={field} onOpen={() => onPathChange([...path, field.key])} />)
+          rows.map((field) => <FieldRow key={field.key} field={field} onOpen={() => go([...(inPlace ? [list] : path), field.key])} />)
         )}
         {total > rows.length && (
           <div className="px-4 py-3 text-xs text-muted-foreground">{(total - MAX_FIELDS).toLocaleString()} more not shown. Copy to get all of it.</div>
+        )}
+        {beside.length > 0 && (
+          <div className="mt-6 border-t border-border">
+            {beside.map((field) => (
+              <FieldRow key={field.key} field={field} onOpen={() => go([field.key])} />
+            ))}
+          </div>
         )}
       </div>
     </div>
