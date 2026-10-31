@@ -1,4 +1,4 @@
-import { ArrowDown, Braces, Check, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
+import { ArrowDown, Braces, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
@@ -12,6 +12,9 @@ import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { callDurationMs, callLabel, MethodCall } from "./kaja";
 import { ArchivedPayload, readArchivedPayload } from "./payloadArchive";
+import { PayloadFields } from "./PayloadFields";
+import { isContainer, nodeAt, Path } from "./payloadRows";
+import { printJson } from "./payloadText";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { useShortcutLabel } from "./shortcuts";
 import { PHONE_QUERY } from "./phone";
@@ -604,6 +607,9 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const phone = useMediaQuery(PHONE_QUERY);
+  // A phone reads the payload as fields, a level at a time; the JSON is a tap away.
+  const [rawJson, setRawJson] = useState(false);
+  const [path, setPath] = useState<Path>([]);
   const answered = hasResponse(methodCall);
   const hasError = methodCall.error !== undefined;
   // Fold, unfold and copy act on the JSON viewer, so they exist exactly when it
@@ -614,7 +620,8 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
   const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : undefined;
 
   const copy = async () => {
-    if (!(await jsonViewerRef.current?.copyToClipboard())) return;
+    const copiedText = readsFields ? await copyText(printJson(nodeAt(content, levelPath))) : await jsonViewerRef.current?.copyToClipboard();
+    if (!copiedText) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
@@ -634,6 +641,15 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [methodCall, methodCall.input, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete, activeTab, embedded],
   );
+
+  // A stream is printed as its messages one after another, which is text rather than
+  // a payload to walk.
+  const readsFields = phone && !rawJson && rawText === undefined;
+  useEffect(() => setPath([]), [methodCall.id, activeTab]);
+  // A level the payload no longer has, a new message or the embedded reading
+  // having moved it, falls back to the nearest one it still has.
+  let levelPath = path;
+  while (levelPath.length > 0 && !isContainer(nodeAt(content, levelPath))) levelPath = levelPath.slice(0, -1);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -656,6 +672,16 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
                 size="sm"
                 className={cn(utilityButtonClass, embedded && "bg-accent text-foreground")}
                 onClick={() => onEmbeddedChange(!embedded)}
+              />
+            )}
+            {phone && rawText === undefined && (
+              <IconButton
+                icon={CodeXml}
+                aria-label={rawJson ? "Show as fields" : "Show as JSON"}
+                variant="ghost"
+                size="sm"
+                className={cn(utilityButtonClass, rawJson && "bg-accent text-foreground")}
+                onClick={() => setRawJson(!rawJson)}
               />
             )}
             {/* Folding is a desktop gesture; on a phone it would push Copy off the row. */}
@@ -697,7 +723,11 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
             methodCall.missingVariables?.map((variable) => (
               <MissingVariableLine key={variable.name} variable={variable} onReveal={() => onRevealVariable(variable.name)} />
             ))}
-          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
+          {readsFields ? (
+            <PayloadFields key={`${methodCall.id}:${activeTab}`} value={content} root={activeTab} path={levelPath} onPathChange={setPath} />
+          ) : (
+            <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
+          )}
         </>
       )}
     </div>
