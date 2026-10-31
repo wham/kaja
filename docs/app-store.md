@@ -103,7 +103,7 @@ has no caption field, so a caption is drawn into the image.
 | --- | --- | --- |
 | 1 | Connect. Run. Inspect. | The whole window: the GitHub tree expanded, `trending.ts` in the editor, the canvas underneath showing this week's most-starred repositories. |
 | 2 | Let an agent write the script | An agent's draft at the top of Drafts, the script it wrote in the editor, and its run in the Calls log. |
-| 3 | Connect your API | The New app dialog listing gRPC, OpenAPI, MCP and Twirp. |
+| 3 | Connect your API | The New app form asking for the type: OpenAPI, MCP, gRPC and Twirp. |
 | 4 | Click a method, get a typed script | A drafted GitHub `Licenses.GetAllCommonlyUsed` call with the completion list open on a request field. |
 | 5 | See exactly what happened | The Calls log with the response JSON and the status, duration and size strip. |
 | 6 | Tables, not JSON | Full-screen canvas: the `good-first-issues.ts` table paging through GitHub's search, a page at a time. |

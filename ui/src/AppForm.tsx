@@ -6,7 +6,9 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { cn } from "./cn";
 import { useState, useRef, useEffect, useCallback, useMemo, type ComponentType } from "react";
-import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { AppSurface, CustomFormProps, appHeaders, appParameters, appType, appTypes, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
+import { PreviewPill } from "./PreviewPill";
 import { deriveGenericName, uniqueAppName } from "./appForms";
 import { FormHints, FormHintsContext, FormSection } from "./FormSection";
 import { AppNameField } from "./AppNameField";
@@ -46,16 +48,17 @@ interface AppFormProps {
   // What the agent that opened the form read up on about the API.
   agentNotes?: AgentNotes;
   kaja?: CustomFormProps["kaja"];
+  // The experimental built-ins are offered only under the Apps feature preview.
+  appsPreviewEnabled?: boolean;
+  // A new app's type is asked here. Absent where the type was handed over with the
+  // form, which is an agent's.
+  onTypeChange?: (type: string) => void;
 }
 
 export interface AppFormSaveControl {
   label: string;
   disabled: boolean;
   onSave: () => void;
-}
-
-function createEmptyApp(): WorkspaceApp {
-  return buildApp("", "grpc", {}, {});
 }
 
 // missingRequiredParameter returns the label of the first required parameter left
@@ -162,10 +165,12 @@ export function AppForm({
   onDelete,
   agentNotes,
   kaja,
+  appsPreviewEnabled = false,
+  onTypeChange,
 }: AppFormProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [name, setName] = useState("");
-  const [type, setType] = useState("grpc");
+  const [type, setType] = useState("");
   const [parameters, setParameters] = useState<Record<string, string>>({});
   const [headers, setHeaders] = useState<HeaderEntry[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -193,11 +198,12 @@ export function AppForm({
     [type, parameters, headers],
   );
 
-  const updateFormFromApp = useCallback((app: WorkspaceApp) => {
-    setName(app.name);
-    setType(appType(app) || "grpc");
-    setParameters(appParameters(app));
-    setHeaders(Object.entries(appHeaders(app)).map(([headerName, value]) => ({ name: headerName, value })));
+  // No app is a new one whose type hasn't been picked yet.
+  const updateFormFromApp = useCallback((app: WorkspaceApp | undefined) => {
+    setName(app?.name ?? "");
+    setType(app ? appType(app) : "");
+    setParameters(app ? appParameters(app) : {});
+    setHeaders(Object.entries(app ? appHeaders(app) : {}).map(([headerName, value]) => ({ name: headerName, value })));
     setUploadNames({});
     setSurface(undefined);
     setCustomReady(false);
@@ -213,14 +219,14 @@ export function AppForm({
     reader.readAsText(file);
   }, []);
 
-  // In create mode initialData carries just the type picked in the New dialog; in edit
+  // In create mode initialData carries just the type picked above the form; in edit
   // mode it is the full app. This runs during render rather than in an effect so the
   // fields are already the new app's when a keyed custom form below mounts — otherwise
   // it would mount against the previous app's parameters and read the wrong document.
   const [loaded, setLoaded] = useState<{ mode: string; app?: WorkspaceApp; generation: number } | null>(null);
   if (loaded?.mode !== mode || loaded?.app !== initialData) {
     setLoaded({ mode, app: initialData, generation: (loaded?.generation ?? 0) + 1 });
-    updateFormFromApp(initialData ?? createEmptyApp());
+    updateFormFromApp(initialData);
   }
 
   const submitLabel = mode === "edit" ? "Save" : "Add app";
@@ -278,9 +284,14 @@ export function AppForm({
         <FormHintsContext.Provider value={formHints}>
           <div className={cn(formHints ? "max-w-[1000px]" : "max-w-[640px]", phone ? "px-4 py-5" : "px-6 py-7")}>
             <div className={cn("flex flex-col", phone ? "gap-5" : "gap-7")}>
-              {customForm ? (
-                // Keyed by the app being loaded: switching apps in the sidebar, or picking a type
-                // in the New dialog again, starts the form over rather than reading the next
+              {mode === "create" && onTypeChange && !readOnly && (
+                <FormSection>
+                  <TypeChoice type={type} appsPreviewEnabled={appsPreviewEnabled} onTypeChange={onTypeChange} />
+                </FormSection>
+              )}
+              {!type ? null : customForm ? (
+                // Keyed by the app being loaded: switching apps in the sidebar, or picking another
+                // type above, starts the form over rather than reading the next
                 // server behind the previous one's transport and credentials.
                 <CustomForm
                   key={loaded?.generation}
@@ -378,7 +389,7 @@ export function AppForm({
                 </>
               )}
 
-              {typeForwardsHeaders(type) && (!customForm || surface) && (
+              {type && typeForwardsHeaders(type) && (!customForm || surface) && (
                 <FormSection>
                   <AdvancedSection
                     open={advancedOpen}
@@ -402,18 +413,47 @@ export function AppForm({
         </FormHintsContext.Provider>
       </div>
 
+      {/* Ends where the fields do rather than at the window's edge, which on a wide
+          screen was a long way from what Save saves. */}
       {!phone && (
-        <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <Button variant="outline" onClick={handleCancel}>
-            {readOnly ? "Close" : "Cancel"}
-          </Button>
-          {!readOnly && (
-            <Button onClick={handleSubmit} disabled={!isValid}>
-              {submitLabel}
+        <div className="border-t border-border">
+          <div className="flex max-w-[640px] items-center justify-end gap-2 px-6 py-4">
+            <Button variant="outline" onClick={handleCancel}>
+              {readOnly ? "Close" : "Cancel"}
             </Button>
-          )}
+            {!readOnly && (
+              <Button onClick={handleSubmit} disabled={!isValid}>
+                {submitLabel}
+              </Button>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// TypeChoice asks what a new app speaks, as the first question on its form rather than
+// in a dialog in front of it, so the app has one place from the + to Add app.
+function TypeChoice({ type, appsPreviewEnabled, onTypeChange }: { type: string; appsPreviewEnabled: boolean; onTypeChange: (type: string) => void }) {
+  const offered = appTypes.filter((candidate) => !candidate.preview || appsPreviewEnabled);
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-foreground">Type</label>
+      <ChoiceList label="Type">
+        {offered.map((candidate) => {
+          const selected = candidate.type === type;
+          return (
+            <ChoiceCard key={candidate.type} selected={selected}>
+              <ChoiceRow selected={selected} disabled={false} onSelect={() => onTypeChange(candidate.type)} icon={candidate.icon}>
+                <span className={cn("shrink-0", choiceLabel(selected))}>{candidate.label}</span>
+                <span className="truncate text-xs text-muted-foreground">{candidate.description}</span>
+                {candidate.preview && <PreviewPill />}
+              </ChoiceRow>
+            </ChoiceCard>
+          );
+        })}
+      </ChoiceList>
     </div>
   );
 }

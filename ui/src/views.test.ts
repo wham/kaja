@@ -4,6 +4,7 @@ import {
   restoreViews,
   serializeViews,
   showAppForm,
+  setAppFormType,
   showCompiler,
   showDefinition,
   showMcp,
@@ -76,6 +77,23 @@ describe("the mounted cache", () => {
 
     expect(openapi).toHaveLength(1);
     expect(viewIdentity(openapi[0]).name).toBe("New OpenAPI app");
+  });
+
+  it("goes back to a new app already started rather than starting another", () => {
+    const started = showAppForm(showAppForm([], "create"), "create", buildApp("", "mcp", { url: "https://example.com/mcp" }, {}));
+    const again = showAppForm(started, "create");
+
+    expect(again).toHaveLength(1);
+    expect(again[0].type === "appForm" && again[0].initialData).toEqual(started[0].type === "appForm" && started[0].initialData);
+  });
+
+  it("names a new app for the type picked in its form, and asks again with none", () => {
+    const blank = showAppForm([], "create");
+    expect(viewIdentity(blank[0]).name).toBe("New app");
+
+    const picked = setAppFormType(blank, blank[0].id, "openapi");
+    expect(viewIdentity(picked[0]).name).toBe("New OpenAPI app");
+    expect(viewIdentity(setAppFormType(picked, blank[0].id, "")[0]).name).toBe("New app");
   });
 });
 

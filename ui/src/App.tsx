@@ -45,9 +45,8 @@ import { unsupportedReason } from "./streaming";
 import { RunButton } from "./RunButton";
 import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
 import { useSyntaxErrors } from "./syntaxErrors";
-import { Sidebar, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
+import { Sidebar, type PendingApp, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
-import { NewAppDialog } from "./NewAppDialog";
 import { SidebarFoot, ColorMode } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
@@ -68,6 +67,7 @@ import {
   restoreViews,
   serializeViews,
   showAppForm,
+  setAppFormType,
   showCompiler,
   showDefinition,
   showDraft,
@@ -404,7 +404,6 @@ export function App() {
     resolve: (decision: ApproveDecision) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
-  const [newAppOpen, setNewAppOpen] = useState(false);
   // Each mounted app form's Save, which a phone draws in the header; keyed by view
   // because the cache keeps several forms mounted at once.
   const [appFormSaves, setAppFormSaves] = useState<{ [viewId: string]: AppFormSaveControl }>({});
@@ -2418,15 +2417,10 @@ export function App() {
 
   const onNewAppClick = useCallback(() => {
     if (!runtimeRef.current.canUpdateWorkspace) return;
-    setNewAppOpen(true);
-  }, []);
+    applyViews((views) => showAppForm(views, "create"));
+  }, [applyViews]);
   const onNewAppClickRef = useRef(onNewAppClick);
   onNewAppClickRef.current = onNewAppClick;
-
-  const onSelectAppType = (type: string) => {
-    setNewAppOpen(false);
-    applyViews((views) => showAppForm(views, "create", buildApp("", type, {}, {})));
-  };
 
   const onEditApp = useCallback(
     (appName: string) => {
@@ -2439,14 +2433,14 @@ export function App() {
   );
 
   // Drops the form and answers with who was waiting on it, if an agent was.
-  const dropAppForm = (): string | undefined => {
-    const form = viewsRef.current.find((view) => view.type === "appForm");
-    applyViews((views) => (form ? dropView(views, form.id) : views));
+  const dropAppForm = (viewId: string): string | undefined => {
+    const form = viewsRef.current.find((view) => view.id === viewId);
+    applyViews((views) => dropView(views, viewId));
     return form?.type === "appForm" ? form.agentRequest : undefined;
   };
 
-  const onAppFormSubmit = async (app: WorkspaceApp, originalName?: string) => {
-    const agentRequest = dropAppForm();
+  const onAppFormSubmit = async (viewId: string, app: WorkspaceApp, originalName?: string) => {
+    const agentRequest = dropAppForm(viewId);
 
     if (!workspace) {
       if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: false });
@@ -2473,13 +2467,27 @@ export function App() {
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: true, name: app.name });
   };
 
-  const onAppFormCancel = () => {
-    const agentRequest = dropAppForm();
+  const onAppFormCancel = (viewId: string) => {
+    const agentRequest = dropAppForm(viewId);
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: false });
   };
 
-  const onAppFormDelete = (appName: string) => {
-    onAppFormCancel();
+  // A new app nobody has picked a type for holds nothing, so Esc takes it back off the
+  // panel the way it came; past that, Cancel is the way out.
+  const onAppFormCancelRef = useRef(onAppFormCancel);
+  onAppFormCancelRef.current = onAppFormCancel;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const view = viewsRef.current[0];
+      if (view?.type === "appForm" && view.mode === "create" && !view.initialData && !view.agentRequest) onAppFormCancelRef.current(view.id);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const onAppFormDelete = (viewId: string, appName: string) => {
+    onAppFormCancel(viewId);
     void onDeleteApp(appName);
   };
 
@@ -2851,12 +2859,14 @@ export function App() {
           allApps={workspace?.apps ?? []}
           variables={workspace?.variables ?? {}}
           readOnly={!runtime.canUpdateWorkspace}
-          onSubmit={onAppFormSubmit}
-          onCancel={onAppFormCancel}
-          onDelete={onAppFormDelete}
+          onSubmit={(app, originalName) => void onAppFormSubmit(view.id, app, originalName)}
+          onCancel={() => onAppFormCancel(view.id)}
+          onDelete={(appName) => onAppFormDelete(view.id, appName)}
           onSaveControlChange={(control) => reportAppFormSave(view.id, control)}
           agentNotes={view.agentNotes}
           kaja={kajaMcp}
+          appsPreviewEnabled={previewApps}
+          onTypeChange={view.mode === "create" && !view.agentRequest ? (type) => applyViews((views) => setAppFormType(views, view.id, type)) : undefined}
         />
       )}
       {view.type === "start" && (
@@ -2997,6 +3007,11 @@ export function App() {
   // On a phone the sidebar covers the page, so whatever it opens has to put it away.
   const phoneClosing = <A extends unknown[]>(fn: (...args: A) => unknown) => (isPhone ? closingSidebar(fn) : fn);
   const SidebarList = isPhone ? PhoneSidebar : Sidebar;
+  const pendingApps: PendingApp[] = bodies.flatMap((view) =>
+    view.type === "appForm" && view.mode === "create"
+      ? [{ viewId: view.id, name: viewIdentity(view).name, type: view.initialData ? appType(view.initialData) : "" }]
+      : [],
+  );
   const sidebar = (
     <>
       <SidebarList
@@ -3010,7 +3025,7 @@ export function App() {
         onRecompileApp={onRecompile}
         onNewAppClick={phoneClosing(onNewAppClick)}
         onNewScript={phoneClosing(onNewDraft)}
-        onFinderClick={isPhone ? closingSidebar(() => setFinder("first")) : undefined}
+        onFinderClick={isPhone ? closingSidebar(() => setFinder("first")) : () => setFinder("first")}
         onVariablesClick={phoneClosing(onVariablesClick)}
         variablesMissing={missing.length > 0}
         missingVariables={missingApps}
@@ -3022,6 +3037,11 @@ export function App() {
         workspace={workspaceControl}
         onEditApp={phoneClosing(onEditApp)}
         onDeleteApp={onDeleteApp}
+        pendingApps={pendingApps}
+        currentViewId={currentView?.id}
+        selectedApp={currentView?.type === "appForm" && currentView.mode === "edit" ? currentView.editingAppName : undefined}
+        onPendingAppSelect={phoneClosing((viewId: string) => applyViews((views) => visit(views, viewId)))}
+        onPendingAppDiscard={onAppFormCancel}
         scriptsRegion={scriptsRegion}
       />
       <SidebarFoot
@@ -3369,7 +3389,6 @@ export function App() {
           onClose={() => setRunPrompt(null)}
         />
       )}
-      {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
       {/* A floating surface, so it is opaque: at 10% the destructive tint let the
           console header read straight through the message it was covering. */}
       {fileError && (

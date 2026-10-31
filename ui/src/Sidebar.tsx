@@ -16,9 +16,11 @@ import {
   Plus,
   Plus as PlusIcon,
   RotateCw,
+  Search,
   Settings,
   Trash2,
   TriangleAlert,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { appType } from "./appTypes";
@@ -57,8 +59,8 @@ import {
  *
  * A control's scope decides where it lives: **+** is the active list's, so it sits on
  * the tab row beside the tab it adds to, and `{ }` is about the window, so it lives
- * in the band above. There is no search here — `⌘P` and the command row's trigger
- * are the one search, and they reach strictly more than a panel filter could.
+ * in the band above. The magnifier there is the finder's, not a filter of the panel's
+ * own: `⌘P` is the one search, and it reaches strictly more than a filter could.
  *
  * The left of the band belongs to the platform: the traffic lights on macOS, the
  * Kaja mark everywhere else. Where there is more than one workspace to be in, its name
@@ -102,6 +104,15 @@ export function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: s
   );
 }
 
+// A new app is a row from the + to Add app, so the form being filled in is somewhere
+// in the panel rather than a page nothing points at.
+export interface PendingApp {
+  viewId: string;
+  name: string;
+  // Empty until one is picked on the form.
+  type: string;
+}
+
 export interface SidebarProps {
   apps: App[];
   // Which list the panel shows. Held by the window rather than here, because the keys
@@ -141,6 +152,12 @@ export interface SidebarProps {
   workspace?: WorkspaceControl;
   onEditApp: (appName: string) => void;
   onDeleteApp: (appName: string) => void;
+  pendingApps?: PendingApp[];
+  // What is on screen, so its row is the one lit: a pending app's view, or an app's settings.
+  currentViewId?: string;
+  selectedApp?: string;
+  onPendingAppSelect?: (viewId: string) => void;
+  onPendingAppDiscard?: (viewId: string) => void;
 }
 
 export const Sidebar = memo(function Sidebar({
@@ -155,6 +172,7 @@ export const Sidebar = memo(function Sidebar({
   onRecompileApp,
   onNewAppClick,
   onNewScript,
+  onFinderClick,
   onVariablesClick,
   variablesMissing = false,
   missingVariables,
@@ -166,6 +184,11 @@ export const Sidebar = memo(function Sidebar({
   workspace,
   onEditApp,
   onDeleteApp,
+  pendingApps = [],
+  currentViewId,
+  selectedApp,
+  onPendingAppSelect,
+  onPendingAppDiscard,
 }: SidebarProps) {
   // Each tab keeps its own scroll. The pane that is not on screen has no box, so its
   // offset is kept here and put back when the tab returns.
@@ -179,6 +202,7 @@ export const Sidebar = memo(function Sidebar({
   const [appMenu, setAppMenu] = useState<{ appName: string; top: number; left: number } | null>(null);
   const appMenuAnchorRef = useRef<HTMLDivElement>(null);
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
+  const [hoveredPending, setHoveredPending] = useState<string | null>(null);
   const [hoveredMethod, setHoveredMethod] = useState<string | null>(null);
   // A row's verbs are revealed by the cursor, and a finger has none: on a touch screen
   // the row simply carries them. Nothing moves under the pointer — there is no pointer.
@@ -278,6 +302,7 @@ export const Sidebar = memo(function Sidebar({
       <GlobalBand
         reserveTrafficLights={reserveTrafficLights}
         workspace={workspace}
+        onFinderClick={onFinderClick}
         onVariablesClick={onVariablesClick}
         variablesMissing={variablesMissing}
         onMcpClick={onMcpClick}
@@ -302,7 +327,30 @@ export const Sidebar = memo(function Sidebar({
           {/* Where there is an action, the empty list shows the action rather than
               a sentence about it: this list can be filled from here, so its one row
               is the verb, at the same 24px as the app rows it will be replaced by. */}
+          {pendingApps.map((pending) => {
+            const current = pending.viewId === currentViewId;
+            const active = hoveredPending === pending.viewId;
+            return (
+              <div
+                key={pending.viewId}
+                className={cn(SECTION_ROW, "font-normal", current ? "bg-accent/60 text-accent-foreground" : active ? "bg-accent/40" : "hover:bg-accent/40")}
+                onMouseEnter={() => setHoveredPending(pending.viewId)}
+                onMouseLeave={() => setHoveredPending((prev) => (prev === pending.viewId ? null : prev))}
+                onClick={() => onPendingAppSelect?.(pending.viewId)}
+              >
+                <span className="w-3 shrink-0" />
+                {pending.type ? <AppTypeIcon type={pending.type} size={13} /> : <Plus size={13} className="shrink-0 text-muted-foreground" />}
+                <span className="truncate italic">{pending.name}</span>
+                <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
+                  {(touch || active) && onPendingAppDiscard && (
+                    <RowAction icon={X} label={`Discard ${pending.name}`} onClick={() => onPendingAppDiscard(pending.viewId)} />
+                  )}
+                </span>
+              </div>
+            );
+          })}
           {apps.length === 0 &&
+            pendingApps.length === 0 &&
             (canUpdateWorkspace ? (
               <button
                 type="button"
@@ -326,6 +374,7 @@ export const Sidebar = memo(function Sidebar({
             // The row's own highlight stays the cursor's; only the verb on it is unconditional
             // where there is no cursor to reveal it with.
             const active = hoveredApp === appName || appMenu?.appName === appName;
+            const current = selectedApp === appName;
 
             return (
               <nav
@@ -340,19 +389,32 @@ export const Sidebar = memo(function Sidebar({
                   the glyph says something the indent can't — gRPC or OpenAPI or
                   Folder. Everything below repeats itself, so it goes. */}
                 <div
-                  className={cn(SECTION_ROW, active ? "bg-accent/60" : "hover:bg-accent/40")}
+                  className={cn(SECTION_ROW, current ? "bg-accent/60 text-accent-foreground" : active ? "bg-accent/40" : "hover:bg-accent/40")}
                   onMouseEnter={() => setHoveredApp(appName)}
                   onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
-                  onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
+                  // The row is the app, so it opens the app's settings the way a file's row
+                  // opens the file; the chevron is what folds it.
+                  onClick={(e: React.MouseEvent) => {
+                    if (!isExpanded) setFold(treeApp, appId, "open", e.altKey);
+                    onEditApp(appName);
+                  }}
                   onContextMenu={(e: React.MouseEvent) => {
                     e.preventDefault();
                     setAppMenu({ appName, top: e.clientY, left: e.clientX });
                   }}
                 >
-                  <ChevronRight
-                    size={12}
-                    className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", isExpanded && "rotate-90")}
-                  />
+                  <button
+                    type="button"
+                    aria-label={isExpanded ? `Collapse ${appName}` : `Expand ${appName}`}
+                    aria-expanded={isExpanded}
+                    className="-my-1 -ml-1 flex size-5 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground/70 hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey);
+                    }}
+                  >
+                    <ChevronRight size={12} className={cn("transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                  </button>
                   <AppTypeIcon type={appType(app.configuration)} size={13} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
@@ -516,6 +578,7 @@ export const Sidebar = memo(function Sidebar({
 function GlobalBand({
   reserveTrafficLights,
   workspace,
+  onFinderClick,
   onVariablesClick,
   variablesMissing,
   onMcpClick,
@@ -523,6 +586,7 @@ function GlobalBand({
 }: {
   reserveTrafficLights?: boolean;
   workspace?: WorkspaceControl;
+  onFinderClick?: () => void;
   onVariablesClick?: () => void;
   variablesMissing?: boolean;
   onMcpClick?: () => void;
@@ -548,6 +612,11 @@ function GlobalBand({
         )
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1" style={noDrag}>
+        {onFinderClick && (
+          <SimpleTooltip text="Go to a file or call" side="bottom">
+            <IconButton icon={Search} size="sm" variant="ghost" tooltip="none" aria-label="Go to a file or call" onClick={onFinderClick} />
+          </SimpleTooltip>
+        )}
         {onVariablesClick && (
           <SimpleTooltip text={variablesMissing ? "Variables: a value is missing on this machine" : "Variables"} side="bottom">
             <span className="relative inline-flex">
