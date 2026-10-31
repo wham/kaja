@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { App, CompilationStatus, createPendingApp } from "./apps";
 import { LogLevel } from "./server/api";
-import { countMethods, countWarnings, firstErrorLine, firstErrorMessage, summarizeCompilation, warningCount } from "./compileSummary";
+import { countMethods, countWarnings, firstErrorLine, firstErrorMessage, warningCount } from "./compileSummary";
 
 // The surface keeps what the store read off the log, which is what the store writes
 // when a compile lands (appStore.ts).
@@ -14,69 +14,6 @@ function app(name: string, status: CompilationStatus, logs: { level: LogLevel; m
 const WARN = { level: LogLevel.LEVEL_WARN, message: "deprecated option" };
 const ERROR = { level: LogLevel.LEVEL_ERROR, message: "unknown type Foo" };
 
-describe("summarizeCompilation", () => {
-  test("no apps yet and no workspace is still loading", () => {
-    expect(summarizeCompilation([], false)).toMatchObject({ state: "loading", label: "Loading…" });
-  });
-
-  test("a workspace with no apps says nothing", () => {
-    expect(summarizeCompilation([], true)).toMatchObject({ state: "empty", label: "" });
-  });
-
-  test("all ready counts the apps", () => {
-    expect(summarizeCompilation([app("a", "success"), app("b", "success")], true)).toMatchObject({ state: "ready", label: "2 apps", ready: 2 });
-  });
-
-  test("a single app is not pluralized", () => {
-    expect(summarizeCompilation([app("a", "success")], true)).toMatchObject({ state: "ready", label: "1 app" });
-  });
-
-  test("one app compiling is named", () => {
-    expect(summarizeCompilation([app("quirks", "running"), app("b", "success")], true)).toMatchObject({
-      state: "compiling",
-      label: "Compiling quirks…",
-    });
-  });
-
-  test("several apps compiling are counted", () => {
-    expect(summarizeCompilation([app("a", "running"), app("b", "pending")], true)).toMatchObject({ state: "compiling", label: "Compiling 2 apps…" });
-  });
-
-  test("some failed reports the share of the workspace", () => {
-    const apps = [app("a", "error", [ERROR]), app("b", "success"), app("c", "success")];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "failed", label: "1 of 3 apps failed", failed: 1 });
-  });
-
-  test("all failed says so", () => {
-    const apps = [app("a", "error", [ERROR]), app("b", "error", [ERROR])];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "failed", label: "All 2 apps failed" });
-  });
-
-  test("the only app is named when it fails", () => {
-    expect(summarizeCompilation([app("quirks", "error", [ERROR])], true)).toMatchObject({ state: "failed", label: "quirks failed" });
-  });
-
-  test("failure outranks a compile still in flight", () => {
-    const apps = [app("a", "error", [ERROR]), app("b", "running")];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "failed", label: "1 of 2 apps failed" });
-  });
-
-  test("warnings surface once everything settles", () => {
-    const apps = [app("a", "success", [WARN]), app("b", "success")];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "warning", label: "2 apps · 1 warning" });
-  });
-
-  test("progress outranks a warning", () => {
-    const apps = [app("a", "success", [WARN]), app("b", "running")];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "compiling" });
-  });
-
-  test("warnings on an app that failed are not counted twice", () => {
-    const apps = [app("a", "error", [WARN, ERROR]), app("b", "success")];
-    expect(summarizeCompilation(apps, true)).toMatchObject({ state: "failed", warnings: 0 });
-  });
-});
-
 describe("app details", () => {
   test("warnings are only read off a successful compile", () => {
     expect(warningCount(app("a", "success", [WARN]))).toBe(1);
@@ -84,7 +21,7 @@ describe("app details", () => {
   });
 
   test("a surface read back from the last session reads as ready", () => {
-    expect(summarizeCompilation([app("a", "cached"), app("b", "success")], true)).toMatchObject({ state: "ready", label: "2 apps", ready: 2 });
+    expect(warningCount(app("a", "cached", [WARN]))).toBe(1);
   });
 
   test("the first error is the line worth showing", () => {

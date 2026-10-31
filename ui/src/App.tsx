@@ -9,7 +9,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, ScrollText, TriangleAlert, X } from "lucide-react";
+import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -18,7 +18,6 @@ import { Console, RunPresentation } from "./Console";
 import { newRunId, Run } from "./runs";
 import { consoles } from "./consoles";
 import { dropStoredFile, flushDeferredSaves, loadRuns, renameStoredFile, saveRunsLater } from "./runStore";
-import { CompileLog } from "./CompileLog";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
@@ -68,7 +67,6 @@ import {
   serializeViews,
   showAppForm,
   setAppFormType,
-  showCompiler,
   showDefinition,
   showDraft,
   showMcp,
@@ -416,8 +414,6 @@ export function App() {
   // One-shot signal that a workspace write moved the modules a script imports: what
   // it renamed, and whether anything an import resolves against moved at all.
   const [appsMoved, setAppsMoved] = useState<{ renames: Map<string, string>; modulesMoved: boolean }>();
-  // One-shot signal to expand an app's logs when the compile log is opened for it.
-  const [compileLogExpandApp, setCompileLogExpandApp] = useState<{ name: string }>();
   // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
@@ -2397,22 +2393,6 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onRunCurrentTab]);
 
-  useEffect(() => {
-    if (!workspaceLoaded || apps.length > 0) return;
-    applyViews((views) => {
-      const compiler = views.find((view) => view.type === "compiler");
-      return compiler ? dropView(views, compiler.id) : views;
-    });
-  }, [apps.length, workspaceLoaded, applyViews]);
-
-  const onShowCompileLog = useCallback(
-    (appName?: string) => {
-      setCompileLogExpandApp(appName ? { name: appName } : undefined);
-      applyViews(showCompiler);
-    },
-    [applyViews],
-  );
-
   const onRecompile = useCallback((appName?: string) => appStore.recompile(appName), []);
 
   const onNewAppClick = useCallback(() => {
@@ -2669,9 +2649,6 @@ export function App() {
     if (!isIPhone() && !views.some((view) => view.type === "shortcuts")) {
       destinations.push({ key: "shortcuts", name: "Keyboard shortcuts", path: "Settings", origin: "", icon: Keyboard, go: onShortcutsClick });
     }
-    if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
-      destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
-    }
     for (const known of workspaces?.known ?? []) {
       if (known.dir === workspaces?.current.dir) continue;
       destinations.push({
@@ -2723,7 +2700,6 @@ export function App() {
     onVariablesClick,
     onMcpClick,
     onShortcutsClick,
-    onShowCompileLog,
     workspaces,
     onOpenWorkspace,
   ]);
@@ -2810,16 +2786,6 @@ export function App() {
 
   const renderBody = (view: View) => (
     <>
-      {view.type === "compiler" && (
-        <CompileLog
-          apps={apps}
-          workspaceLoaded={workspaceLoaded}
-          onNewAppClick={onNewAppClick}
-          onConnectAgentClick={mcpControl ? onMcpClick : undefined}
-          canUpdateWorkspace={runtime.canUpdateWorkspace}
-          expandApp={compileLogExpandApp}
-        />
-      )}
       {(view.type === "draft" || view.type === "script") && (
         <div className="relative flex min-h-0 flex-1 flex-col">
           {/* Somebody else is writing in this one, so the editor
@@ -3020,8 +2986,6 @@ export function App() {
         onTabChange={setSidebarTab}
         canUpdateWorkspace={runtime.canUpdateWorkspace}
         onSelect={phoneClosing(onMethodSelect)}
-        workspaceLoaded={workspaceLoaded}
-        onShowCompileLog={phoneClosing(onShowCompileLog)}
         onRecompileApp={onRecompile}
         onNewAppClick={phoneClosing(onNewAppClick)}
         onNewScript={phoneClosing(onNewDraft)}

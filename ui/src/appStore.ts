@@ -1,6 +1,6 @@
 import { loadApp } from "./appLoader";
 import { App, createPendingApp, isReady } from "./apps";
-import { countWarnings, firstErrorLine } from "./compileSummary";
+import { countWarnings, firstErrorLine, firstWarningLine } from "./compileSummary";
 import { matchesStored, storeManifest, StoredManifest } from "./manifestCache";
 import { CompileRequest, CompileResponse, CompileStatus, Log, LogLevel, WorkspaceApp } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -16,8 +16,8 @@ import { deviceConsole } from "./uiLog";
  * configuration, services, clients, sources, reflection and the status the rest of
  * the window reads — and it moves when an app compiles, is added, removed, renamed
  * or remapped, and at no other time. The **progress** is what the compiler has said
- * about one app so far, its log above all, and it moves once per line. The compile
- * log reads the second; the root reads the first.
+ * about one app so far, its log above all, which nothing draws: it is what a failure
+ * is reported with.
  */
 
 export type Compiler = (request: CompileRequest, signal: AbortSignal) => AsyncIterable<CompileResponse>;
@@ -48,8 +48,6 @@ export class AppStore {
   readonly #startedAt = new Map<string, number>();
   readonly #controllers = new Map<string, AbortController>();
   readonly #surfaceListeners = new Set<() => void>();
-  readonly #progressListeners = new Set<() => void>();
-  #progressVersion = 0;
   #scheduled = false;
   // Overridable so tests can compile without a server.
   compiler: Compiler = defaultCompiler;
@@ -60,13 +58,6 @@ export class AppStore {
   };
 
   getSnapshot = (): App[] => this.#apps;
-
-  subscribeProgress = (listener: () => void): (() => void) => {
-    this.#progressListeners.add(listener);
-    return () => this.#progressListeners.delete(listener);
-  };
-
-  progressVersion = (): number => this.#progressVersion;
 
   progressOf(name: string): CompileProgress {
     return this.#progress.get(name) ?? IDLE;
@@ -179,9 +170,7 @@ export class AppStore {
       if (!signal.aborted) this.#fail(name, "Compilation ended without a verdict");
     } catch (error: any) {
       if (signal.aborted) return;
-      // Stated on the app's row in the compile status and in its log, two glyphs from
-      // the footer's error count; through `deviceConsole` so one failure doesn't light
-      // both.
+      // `#fail` reports it to the footer; this is the error object for devtools.
       deviceConsole.error("Compilation error:", error);
       this.#fail(name, `Compilation failed: ${error?.message ?? error}`);
     } finally {
@@ -199,9 +188,10 @@ export class AppStore {
     const duration = this.#elapsed(name);
     if (response.status !== CompileStatus.STATUS_READY) {
       this.#setApp(name, (app) => ({ ...app, compilation: { status: "error", duration, warnings: 0, error: firstErrorLine(logs) } }));
+      reportFailure(name, logs);
       return;
     }
-    const compilation = { status: "success" as const, duration, warnings: countWarnings(logs) };
+    const compilation = { status: "success" as const, duration, warnings: countWarnings(logs), warning: firstWarningLine(logs) };
     if (this.#manifests.get(name) === response.manifest && isReady(current.compilation.status)) {
       // The surface the window already holds, so nothing re-reads the models.
       this.#setApp(name, (app) => ({ ...app, compilation }));
@@ -211,7 +201,7 @@ export class AppStore {
     try {
       loaded = loadApp(parseManifest(response.manifest), current.configuration);
     } catch (error) {
-      console.error(`Failed to load the compiled ${name}`, error);
+      deviceConsole.error(`Failed to load the compiled ${name}`, error);
       this.#fail(name, `Failed to load the compiled app: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
@@ -224,6 +214,7 @@ export class AppStore {
     this.#appendLogs(name, [{ level: LogLevel.LEVEL_ERROR, message }]);
     const logs = this.progressOf(name).logs;
     this.#setApp(name, (app) => ({ ...app, compilation: { status: "error", duration: this.#elapsed(name), warnings: 0, error: firstErrorLine(logs) } }));
+    reportFailure(name, logs);
   }
 
   #elapsed(name: string): string {
@@ -242,8 +233,6 @@ export class AppStore {
 
   #setProgress(name: string, progress: CompileProgress): void {
     this.#progress.set(name, progress);
-    this.#progressVersion++;
-    for (const listener of this.#progressListeners) listener();
   }
 
   #appendLogs(name: string, logs: Log[]): void {
@@ -265,6 +254,16 @@ export class AppStore {
       }
     });
   }
+}
+
+/**
+ * A failed compile, in the footer's errors: the line that says why, then the whole log
+ * as the row's detail. Through the patched console, so the desktop writes it to
+ * kaja.log as well.
+ */
+function reportFailure(name: string, logs: Log[]): void {
+  const reason = firstErrorLine(logs) ?? "no reason given";
+  console.error(`${name} failed to compile: ${reason}\n${logs.map((log) => log.message).join("\n")}`);
 }
 
 export const appStore = new AppStore();

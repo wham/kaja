@@ -5,9 +5,9 @@ import {
   serializeViews,
   showAppForm,
   setAppFormType,
-  showCompiler,
   showDefinition,
   showMcp,
+  showShortcuts,
   showVariables,
   startView,
   View,
@@ -19,7 +19,7 @@ import { buildApp } from "./appTypes";
 // Views carry Monaco models in the app; here they are stubs, so they are built
 // by hand rather than through the openers that create models.
 function view(id: string, seq: number): View {
-  return { type: "compiler", id, seq };
+  return { type: "shortcuts", id, seq };
 }
 
 function draftView(id: string, draftId: string): View {
@@ -44,7 +44,7 @@ describe("the mounted cache", () => {
 
   it("keeps at most ten views, dropping the least recently visited", () => {
     let views: View[] = [];
-    for (let i = 0; i < 14; i++) views = showCompiler(dropView(views, views.find((v) => v.type === "compiler")?.id ?? ""));
+    for (let i = 0; i < 14; i++) views = showShortcuts(dropView(views, views.find((v) => v.type === "shortcuts")?.id ?? ""));
     expect(views.length).toBeLessThanOrEqual(10);
   });
 
@@ -59,11 +59,11 @@ describe("the mounted cache", () => {
   });
 
   it("goes back to a surface it already has instead of mounting a second one", () => {
-    const once = showCompiler(showVariables([]));
-    const twice = showCompiler(showVariables(once));
+    const once = showShortcuts(showVariables([]));
+    const twice = showShortcuts(showVariables(once));
 
     expect(twice).toHaveLength(2);
-    expect(twice[0].type).toBe("compiler");
+    expect(twice[0].type).toBe("shortcuts");
   });
 
   it("names an app's settings after the app, and a new one after its type", () => {
@@ -161,13 +161,7 @@ describe("serializeViews", () => {
     expect(result.views).toEqual([{ type: "draft", draftId: "s1", viewState: undefined }]);
   });
 
-  // The log reports on this session's apps, so it is not somewhere kaja can
-  // start: it is left out on the way down, and skipped on the way back up when
-  // an older build wrote one.
-  it("leaves the compile log out, and doesn't restore a stored one", () => {
-    const views: View[] = [view("compiler-1", 1), draftView("draft-1", "s1")];
-    expect(serializeViews(views, () => undefined).views).toEqual([{ type: "draft", draftId: "s1", viewState: undefined }]);
-
+  it("skips the compile log an older build stored", () => {
     expect(restoreViews({ views: [{ type: "compiler" } as any] }, []).map((v) => v.type)).toEqual(["start"]);
   });
 

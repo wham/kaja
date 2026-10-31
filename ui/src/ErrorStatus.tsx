@@ -29,8 +29,7 @@ function detail(error: AppError): string | undefined {
  * What has been reported, newest first.
  *
  * The footer asks as well, because an item that draws nothing still has a separator
- * drawn beside it — the same reason the bar asks `summarizeCompilation` before it
- * pushes the compile status.
+ * drawn beside it.
  */
 export function useAppErrors(): readonly AppError[] {
   return useSyncExternalStore(subscribeAppErrors, getAppErrors, getAppErrors);
@@ -65,8 +64,7 @@ function ErrorRow({ error }: { error: AppError }) {
 /**
  * What Kaja failed at, in the sidebar's foot.
  *
- * Absent while there is nothing to say, the way the compile marker is absent with no
- * apps: a permanent `0` is a promise that a number is coming, and in most sessions it
+ * Absent while there is nothing to say: a permanent `0` is a promise that a number is coming, and in most sessions it
  * never does. It does not open itself either — an error arrives while you are working
  * on something else, and a panel over that work is a worse interruption than a red
  * count in the corner.

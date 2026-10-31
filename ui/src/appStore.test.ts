@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { AppStore, Compiler } from "./appStore";
 import { createPendingApp } from "./apps";
 import { manifestFingerprint } from "./manifestCache";
@@ -85,23 +85,20 @@ beforeEach(() => {
   store.compiler = compiler.compiler;
 });
 
-describe("the two subscriptions", () => {
-  it("move the progress on a log line and leave the surface where it was", async () => {
+describe("the surface and the progress", () => {
+  it("keep a log line in the progress and leave the surface where it was", async () => {
     let surface = 0;
-    let progress = 0;
     store.subscribe(() => surface++);
-    store.subscribeProgress(() => progress++);
 
     store.replace([createPendingApp(github)]);
     await tick();
-    const afterStart = { surface, progress };
+    const afterStart = surface;
 
     compiler.log("Reading the document");
     compiler.log("Writing the protos");
     await tick();
 
-    expect(progress).toBeGreaterThan(afterStart.progress);
-    expect(surface).toBe(afterStart.surface);
+    expect(surface).toBe(afterStart);
     expect(store.progressOf("github").logs.map((log) => log.message)).toEqual(["Reading the document", "Writing the protos"]);
     expect(store.getSnapshot()[0].compilation.status).toBe("running");
   });
@@ -132,7 +129,7 @@ describe("the two subscriptions", () => {
     await tick();
 
     const app = store.getSnapshot()[0];
-    expect(app.compilation.warnings).toBe(1);
+    expect(app.compilation).toMatchObject({ warnings: 1, warning: "deprecated" });
     expect("logs" in app.compilation).toBe(false);
   });
 });
@@ -170,6 +167,21 @@ describe("what the compiler is asked", () => {
     await tick();
 
     expect(store.getSnapshot()[0].compilation).toMatchObject({ status: "error", error: "unknown type Foo" });
+  });
+
+  it("reports a failure to the footer with the whole log under the reason", async () => {
+    const reported = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      store.replace([createPendingApp(github)]);
+      await tick();
+      compiler.log("Reading the document");
+      compiler.error("unknown type Foo");
+      await tick();
+
+      expect(reported.mock.calls).toEqual([["github failed to compile: unknown type Foo\nReading the document\nunknown type Foo"]]);
+    } finally {
+      reported.mockRestore();
+    }
   });
 });
 
