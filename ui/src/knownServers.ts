@@ -18,7 +18,7 @@ export interface KnownServer {
 }
 
 export const knownServers: KnownServer[] = [
-  { name: "Atlassian", endpoint: "https://mcp.atlassian.com/v1/mcp", mark: AtlassianMark },
+  { name: "Atlassian", endpoint: "https://mcp.atlassian.com/v2/mcp", mark: AtlassianMark },
   { name: "GitHub", endpoint: "https://api.githubcopilot.com/mcp/", mark: GitHubMark },
   { name: "Sentry", endpoint: "https://mcp.sentry.dev/mcp", mark: SentryMark },
 ];
