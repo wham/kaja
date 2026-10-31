@@ -30,7 +30,7 @@ export interface PagesOptions<P = any, T = unknown> {
 export const CURSOR_KEYS = ["nextPageToken", "nextToken", "nextCursor", "endCursor"] as const;
 export const TOTAL_KEYS = ["totalSize", "totalCount", "total"] as const;
 
-function lists(page: object): string[] {
+export function lists(page: object): string[] {
   return Object.entries(page)
     .filter(([, value]) => Array.isArray(value))
     .map(([key]) => key);

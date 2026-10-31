@@ -1,4 +1,5 @@
 import { readInstant } from "./cellTime";
+import { lists } from "./pages";
 
 /**
  * A payload read as a list of fields, one level at a time: what a phone draws in
@@ -55,6 +56,20 @@ export function fields(node: unknown): Field[] {
     .filter(([, item]) => item !== undefined)
     .slice(0, MAX_FIELDS)
     .map(([key, item]) => ({ key, value: readValue(item) }));
+}
+
+// The list a page is about, on kaja.pages' reading of a page: the one list on it, the
+// rest being plain values such as a cursor or a total. Drawn in place at the top, so
+// the rows are not a tap away; an empty list is left a row, a blank screen reading as
+// the whole response.
+export function pageList(node: unknown): string | undefined {
+  if (!isContainer(node) || Array.isArray(node)) return undefined;
+  const keys = lists(node);
+  if (keys.length !== 1) return undefined;
+  const items = node[keys[0]] as unknown[];
+  if (items.length === 0) return undefined;
+  const plain = Object.entries(node).every(([key, item]) => key === keys[0] || !isContainer(item));
+  return plain ? keys[0] : undefined;
 }
 
 export function fieldCount(node: unknown): number {

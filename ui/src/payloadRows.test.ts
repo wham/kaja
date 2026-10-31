@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { fields, MAX_FIELDS, nodeAt, objectLabel, readValue } from "./payloadRows";
+import { fields, MAX_FIELDS, nodeAt, objectLabel, pageList, readValue } from "./payloadRows";
 
 describe("fields", () => {
   it("keeps the order the payload holds and skips what it left unset", () => {
@@ -70,5 +70,23 @@ describe("nodeAt", () => {
   it("answers nothing once the payload no longer has the path", () => {
     expect(nodeAt(payload, ["owner", "login", "x"])).toBeUndefined();
     expect(nodeAt(payload, ["license", "key"])).toBeUndefined();
+  });
+});
+
+describe("pageList", () => {
+  it("finds the one list beside plain values", () => {
+    expect(pageList({ items: [{ id: 1 }], nextToken: "abc", total: 3 })).toBe("items");
+    expect(pageList({ items: [1] })).toBe("items");
+  });
+
+  it("is not a page where it could be a guess", () => {
+    expect(pageList({ items: [1], users: [2] })).toBeUndefined();
+    expect(pageList({ items: [1], meta: { next: "abc" } })).toBeUndefined();
+    expect(pageList({ name: "x" })).toBeUndefined();
+    expect(pageList([1, 2])).toBeUndefined();
+  });
+
+  it("leaves an empty list a row", () => {
+    expect(pageList({ items: [], nextToken: "" })).toBeUndefined();
   });
 });
