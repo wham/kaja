@@ -14,6 +14,8 @@ import (
 type ToolResult struct {
 	Text    string `json:"text"`
 	IsError bool   `json:"isError"`
+	// The tool's structuredContent, where it has one: run_script's is the run report.
+	Structured json.RawMessage `json:"structured,omitempty"`
 }
 
 // Call answers one tool call from inside this process, as the named client. It goes
@@ -54,7 +56,8 @@ func (s *Session) Call(ctx context.Context, client, tool string, arguments map[s
 				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"content"`
-			IsError bool `json:"isError"`
+			IsError           bool            `json:"isError"`
+			StructuredContent json.RawMessage `json:"structuredContent"`
 		} `json:"result"`
 		Error *struct {
 			Message string `json:"message"`
@@ -75,5 +78,5 @@ func (s *Session) Call(ctx context.Context, client, tool string, arguments map[s
 			text = append(text, block.Text)
 		}
 	}
-	return ToolResult{Text: strings.Join(text, "\n\n"), IsError: response.Result.IsError}, nil
+	return ToolResult{Text: strings.Join(text, "\n\n"), IsError: response.Result.IsError, Structured: response.Result.StructuredContent}, nil
 }

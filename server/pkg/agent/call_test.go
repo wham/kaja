@@ -33,6 +33,9 @@ func TestACallInTheProcessRunsAsTheNamedClient(t *testing.T) {
 	if result.IsError || !strings.Contains(result.Text, "2 issues") {
 		t.Errorf("expected the window's report, got %+v", result)
 	}
+	if !strings.Contains(string(result.Structured), `"console":["[INFO] 2 issues"]`) {
+		t.Errorf("expected the structured report beside the text, got %s", result.Structured)
+	}
 	if client := <-clients; client != "Siri" {
 		t.Errorf("the run was made as %q, want Siri", client)
 	}

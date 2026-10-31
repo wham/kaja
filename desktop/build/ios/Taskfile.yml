@@ -173,7 +173,7 @@ tasks:
         xcrun -sdk {{.IOS_SDK}} clang -target {{.IOS_TARGET}} -isysroot {{.SDK_PATH}}
         -framework Foundation -framework UIKit -framework WebKit
         -framework Security -framework CoreFoundation
-        -framework UniformTypeIdentifiers -weak_framework AppIntents -lresolv
+        -framework UniformTypeIdentifiers -framework SwiftUI -weak_framework AppIntents -lresolv
         -L{{.SDK_PATH}}/usr/lib/swift -L{{.TOOLCHAIN}}/usr/lib/swift/{{.IOS_SDK}}
         -Wl,-rpath,/usr/lib/swift
         -o "{{.BIN}}/{{.NAME}}" build/ios/xcode/main/main.m "{{.BIN}}/intents/Intents.o"

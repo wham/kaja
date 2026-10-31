@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import SwiftUI
 
 // Every intent is one of Kaja's MCP tools, called through kajaCallTool in the Go
 // archive, so what Siri and Shortcuts get is what an agent gets.
@@ -12,7 +13,21 @@ struct KajaFailure: Error, CustomLocalizedStringResourceConvertible {
 
 @available(iOS 16.0, *)
 enum Kaja {
+    struct Result: Decodable {
+        let text: String
+        let isError: Bool
+        let structured: RunReport?
+    }
+
     static func call(_ tool: String, _ arguments: [String: Any?] = [:]) async throws -> String {
+        let result = try await answer(tool, arguments)
+        if result.isError {
+            throw KajaFailure(message: result.text)
+        }
+        return result.text
+    }
+
+    static func answer(_ tool: String, _ arguments: [String: Any?] = [:]) async throws -> Result {
         let data = try JSONSerialization.data(withJSONObject: arguments.compactMapValues { $0 })
         let json = String(decoding: data, as: UTF8.self)
         // kajaCallTool blocks until the window is up and the tool has answered, which is
@@ -32,17 +47,20 @@ enum Kaja {
                 free(raw)
             }
         }
-        struct Result: Decodable {
-            let text: String
-            let isError: Bool
-        }
         guard let result = try? JSONDecoder().decode(Result.self, from: Data(answer.utf8)) else {
             throw KajaFailure(message: "Kaja gave no answer.")
         }
-        if result.isError {
+        return result
+    }
+
+    // A run that failed still has a report worth showing, so it comes back as a card
+    // rather than as an error; only a run that never started is thrown.
+    static func run(_ arguments: [String: Any?]) async throws -> (String, RunReport) {
+        let result = try await answer("run_script", arguments)
+        guard let report = result.structured else {
             throw KajaFailure(message: result.text)
         }
-        return result.text
+        return (result.text, report)
     }
 
     // What Siri says aloud; the whole answer is the intent's value, for a Shortcut to use.
@@ -139,7 +157,9 @@ struct ListScripts: AppIntent {
     static var description = IntentDescription("The scripts saved in the Kaja workspace.")
 
     func perform() async throws -> some IntentResult & ReturnsValue<[ScriptEntity]> {
-        .result(value: try await ScriptQuery().suggestedEntities())
+        let scripts = try await ScriptQuery().suggestedEntities()
+        KajaShortcuts.updateAppShortcutParameters()
+        return .result(value: scripts)
     }
 }
 
@@ -173,9 +193,9 @@ struct RunScript: AppIntent {
         Summary("Run \(\.$script)")
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
-        let text = try await Kaja.call("run_script", ["path": script.id])
-        return .result(value: text, dialog: Kaja.headline(text))
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
+        let (text, report) = try await Kaja.run(["path": script.id])
+        return .result(value: text, dialog: Kaja.headline(text), view: RunCard(name: script.name, report: report))
     }
 }
 
@@ -188,9 +208,9 @@ struct RunCode: AppIntent {
     @Parameter(title: "Code", inputOptions: String.IntentInputOptions(multiline: true))
     var code: String
 
-    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
-        let text = try await Kaja.call("run_script", ["code": code])
-        return .result(value: text, dialog: Kaja.headline(text))
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
+        let (text, report) = try await Kaja.run(["code": code])
+        return .result(value: text, dialog: Kaja.headline(text), view: RunCard(name: report.script, report: report))
     }
 }
 
@@ -242,7 +262,7 @@ struct KajaShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: RunScript(),
-            phrases: ["Run a script in \(.applicationName)", "Run \(.applicationName)"],
+            phrases: ["Run \(\.$script) in \(.applicationName)", "Run a script in \(.applicationName)", "Run \(.applicationName)"],
             shortTitle: "Run Script",
             systemImageName: "play"
         )
@@ -258,5 +278,114 @@ struct KajaShortcuts: AppShortcutsProvider {
             shortTitle: "Add API",
             systemImageName: "plus"
         )
+    }
+}
+
+// Siri and Spotlight offer one phrase per saved script, which they learn by asking the
+// script query again. Called once the process is up, since that is when the folder can
+// first be read.
+@_cdecl("kajaRefreshShortcuts")
+public func kajaRefreshShortcuts() {
+    guard #available(iOS 16.0, *) else { return }
+    KajaShortcuts.updateAppShortcutParameters()
+}
+
+@available(iOS 16.0, *)
+struct RunReport: Decodable {
+    struct Failure: Decodable {
+        let message: String
+        let status: Int?
+        let code: String?
+    }
+
+    struct Call: Decodable {
+        let label: String
+        let durationMs: Double?
+        let failure: Failure?
+    }
+
+    struct Block: Decodable {
+        let kind: String
+        let label: String?
+        let rows: Int?
+    }
+
+    let script: String
+    let calls: [Call]?
+    let console: [String]?
+    let blocks: [Block]?
+    let stopped: String?
+}
+
+// What Siri and Shortcuts show under a run: the verdict, the calls it made and what it
+// drew. The contents of what it drew are the window's, so a table is its size.
+@available(iOS 16.0, *)
+struct RunCard: View {
+    let name: String
+    let report: RunReport
+
+    private static let shown = 4
+
+    private var calls: [RunReport.Call] { report.calls ?? [] }
+    private var failed: Int { calls.filter { $0.failure != nil }.count }
+    private var succeeded: Bool { report.stopped == nil && failed == 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: succeeded ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .foregroundStyle(succeeded ? .green : .red)
+                Text(name).font(.headline).lineLimit(1)
+                Spacer()
+                Text(summary).font(.caption).foregroundStyle(.secondary)
+            }
+            if let stopped = report.stopped {
+                Text(stopped).font(.caption).foregroundStyle(.red).lineLimit(3)
+            }
+            if !calls.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(calls.prefix(Self.shown).enumerated()), id: \.offset) { _, call in
+                        HStack {
+                            Text(call.label).font(.caption.monospaced()).lineLimit(1)
+                            Spacer()
+                            Text(outcome(call)).font(.caption.monospaced())
+                                .foregroundStyle(call.failure == nil ? Color.secondary : Color.red)
+                        }
+                    }
+                    if calls.count > Self.shown {
+                        Text("\(calls.count - Self.shown) more").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            ForEach(Array((report.blocks ?? []).filter { $0.kind == "table" }.prefix(2).enumerated()), id: \.offset) { _, block in
+                Label(drawn(block), systemImage: "tablecells").font(.caption)
+            }
+            if let console = report.console, !console.isEmpty {
+                Text(console.prefix(3).joined(separator: "\n"))
+                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(3)
+            }
+        }
+        .padding()
+    }
+
+    private var summary: String {
+        let count = calls.count == 1 ? "1 call" : "\(calls.count) calls"
+        return failed == 0 ? count : "\(count), \(failed) failed"
+    }
+
+    private func outcome(_ call: RunReport.Call) -> String {
+        if let failure = call.failure {
+            if let status = failure.status { return "\(status)" }
+            return failure.code ?? "failed"
+        }
+        guard let ms = call.durationMs else { return "" }
+        return ms < 1000 ? "\(Int(ms.rounded())) ms" : String(format: "%.1f s", ms / 1000)
+    }
+
+    private func drawn(_ block: RunReport.Block) -> String {
+        let rows = block.rows ?? 0
+        let size = rows == 1 ? "1 row" : "\(rows) rows"
+        if let label = block.label, !label.isEmpty { return "\(label): \(size)" }
+        return "A table of \(size)"
     }
 }
