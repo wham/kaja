@@ -144,11 +144,11 @@ tasks:
       - rm -rf "{{.OUT}}" && mkdir -p "{{.OUT}}"
       - >-
         xcrun swiftc -target {{.IOS_TARGET}} -sdk {{.SDK_PATH}} -module-name {{.NAME}}
-        -parse-as-library -O -import-objc-header build/ios/intents/bridge.h
-        -c "$PWD/build/ios/intents/Intents.swift" -o "{{.OUT}}/Intents.o"
+        -parse-as-library -O -wmo -import-objc-header build/ios/intents/bridge.h
+        -c "$PWD/build/ios/intents/Intents.swift" "$PWD/build/ios/intents/Assistant.swift" -o "{{.OUT}}/Intents.o"
         -emit-const-values-path "$PWD/{{.OUT}}/Intents.swiftconstvalues"
         -Xfrontend -const-gather-protocols-file -Xfrontend build/ios/intents/const-protocols.json
-      - echo "$PWD/build/ios/intents/Intents.swift" > "{{.OUT}}/sources"
+      - printf '%s\n' "$PWD/build/ios/intents/Intents.swift" "$PWD/build/ios/intents/Assistant.swift" > "{{.OUT}}/sources"
       - echo "$PWD/{{.OUT}}/Intents.swiftconstvalues" > "{{.OUT}}/consts"
       - >-
         xcrun appintentsmetadataprocessor --output "{{.OUT}}" --toolchain-dir "{{.TOOLCHAIN}}"
@@ -166,14 +166,15 @@ tasks:
         sh: dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")"
     cmds:
       # -force_load, because the archive's entry points are only reached from
-      # Objective-C and the linker would drop them as unreferenced. AppIntents is
-      # weak because it arrived in iOS 16 and the bundle runs on 15; the Swift
-      # object names its own libraries, and these are where they are found.
+      # Objective-C and the linker would drop them as unreferenced. AppIntents and
+      # FoundationModels are weak because they arrived in iOS 16 and 26 and the
+      # bundle runs on 15; the Swift object names its own libraries, and these are
+      # where they are found.
       - >-
         xcrun -sdk {{.IOS_SDK}} clang -target {{.IOS_TARGET}} -isysroot {{.SDK_PATH}}
         -framework Foundation -framework UIKit -framework WebKit
         -framework Security -framework CoreFoundation
-        -framework UniformTypeIdentifiers -weak_framework AppIntents -lresolv
+        -framework UniformTypeIdentifiers -weak_framework AppIntents -weak_framework FoundationModels -lresolv
         -L{{.SDK_PATH}}/usr/lib/swift -L{{.TOOLCHAIN}}/usr/lib/swift/{{.IOS_SDK}}
         -Wl,-rpath,/usr/lib/swift
         -o "{{.BIN}}/{{.NAME}}" build/ios/xcode/main/main.m "{{.BIN}}/intents/Intents.o"

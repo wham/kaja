@@ -16,6 +16,7 @@ import {
   RotateCw,
   Search,
   Settings,
+  Sparkles,
   Trash2,
   TriangleAlert,
   X,
@@ -140,6 +141,8 @@ export interface SidebarProps {
   // with the one tool it always had.
   onMcpClick?: () => void;
   mcpState?: McpState;
+  // The iOS app alone, where the phone's own model is.
+  onAssistantClick?: () => void;
   // One-shot signal to auto-expand a just-added app (and its first service).
   autoExpandApp?: { name: string };
   // macOS desktop: inset the band to clear the traffic lights and make its empty parts
@@ -173,6 +176,7 @@ export const Sidebar = memo(function Sidebar({
   onRevealVariable,
   onMcpClick,
   mcpState,
+  onAssistantClick,
   autoExpandApp,
   reserveTrafficLights = false,
   workspace,
@@ -301,6 +305,7 @@ export const Sidebar = memo(function Sidebar({
         variablesMissing={variablesMissing}
         onMcpClick={onMcpClick}
         mcpState={mcpState}
+        onAssistantClick={onAssistantClick}
       />
 
       <TabRow
@@ -576,6 +581,7 @@ function GlobalBand({
   variablesMissing,
   onMcpClick,
   mcpState,
+  onAssistantClick,
 }: {
   reserveTrafficLights?: boolean;
   workspace?: WorkspaceControl;
@@ -584,6 +590,7 @@ function GlobalBand({
   variablesMissing?: boolean;
   onMcpClick?: () => void;
   mcpState?: McpState;
+  onAssistantClick?: () => void;
 }) {
   const noDrag = reserveTrafficLights ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined;
 
@@ -616,6 +623,11 @@ function GlobalBand({
               <IconButton icon={Braces} size="sm" variant="ghost" tooltip="none" aria-label="Variables" onClick={onVariablesClick} />
               {variablesMissing && <span aria-hidden className="pointer-events-none absolute top-1 right-1 size-[5px] rounded-full bg-amber-500" />}
             </span>
+          </SimpleTooltip>
+        )}
+        {onAssistantClick && (
+          <SimpleTooltip text="Assistant" side="bottom">
+            <IconButton icon={Sparkles} size="sm" variant="ghost" tooltip="none" aria-label="Assistant" onClick={onAssistantClick} />
           </SimpleTooltip>
         )}
         {onMcpClick && mcpState && <McpTool state={mcpState} onClick={onMcpClick} />}

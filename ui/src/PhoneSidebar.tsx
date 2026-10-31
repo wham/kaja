@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Sparkles, Trash2, X } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
@@ -57,6 +57,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   onRevealVariable,
   onMcpClick,
   mcpState,
+  onAssistantClick,
   autoExpandApp,
   workspace,
   onEditApp,
@@ -100,6 +101,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
           {onVariablesClick && (
             <BandButton icon={<Braces size={PHONE_ICON} />} label="Variables" onClick={onVariablesClick} dot={variablesMissing ? "bg-amber-500" : undefined} />
           )}
+          {onAssistantClick && <BandButton icon={<Sparkles size={PHONE_ICON} />} label="Assistant" onClick={onAssistantClick} />}
           {onMcpClick && mcpState && <McpBandButton state={mcpState} onClick={onMcpClick} />}
         </div>
       </div>
