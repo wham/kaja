@@ -456,7 +456,7 @@ shot 01-start
 say "02  New app"
 # The one native control in the demo. File → New App… is the same call the
 # sidebar's + makes, and a menu item is addressable by name where a webview
-# control is not.
+# control is not. Esc after the shot discards the form, no type having been picked.
 act '        click (first menu item of menu 1 of menu bar item "File" of menu bar 1 whose name starts with "New App")'
 pause 1
 shot 02-new-app

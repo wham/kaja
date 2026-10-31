@@ -1,6 +1,6 @@
-import { Braces, FileCode, House, Keyboard, PenLine, Plug, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
-import { appType, appTypeLabel, getAppType } from "./appTypes";
+import { appType, appTypeLabel, buildApp, getAppType } from "./appTypes";
 import { Script } from "./apps";
 import { AgentNotes } from "./agentHints";
 import { isUntouched, Draft } from "./drafts";
@@ -169,10 +169,11 @@ export function showDefinition(views: View[], model: monaco.editor.ITextModel, s
 }
 
 export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp, agentRequest?: string, agentNotes?: AgentNotes): View[] {
-  const existing = views.find((view) => view.type === "appForm" && view.mode === mode && view.editingAppName === initialData?.name);
-  // A form an agent opened is refilled with what the agent sent, and a type picked in
-  // the New dialog starts the new app over, whatever was being typed into the last one.
-  if (existing && (agentRequest || mode === "create")) {
+  const editingAppName = initialData?.name || undefined;
+  const existing = views.find((view) => view.type === "appForm" && view.mode === mode && view.editingAppName === editingAppName);
+  // A form an agent opened is refilled with what the agent sent. A new app started
+  // without a type is the pending row being gone back to, so whatever was typed stays.
+  if (existing && (agentRequest || (mode === "create" && initialData))) {
     return visit(update<AppFormView>(views, existing.id, "appForm", { initialData, agentRequest, agentNotes }), existing.id);
   }
   if (existing) return visit(views, existing.id);
@@ -181,10 +182,19 @@ export function showAppForm(views: View[], mode: "create" | "edit", initialData?
     ...nextView("appForm"),
     type: "appForm",
     mode,
-    editingAppName: initialData?.name,
+    editingAppName,
     initialData,
     agentRequest,
     agentNotes,
+  });
+}
+
+// Picking a type in a new app's form starts it over as that type; no type is the
+// choice being asked again.
+export function setAppFormType(views: View[], id: string, type: string): View[] {
+  return views.map((view) => {
+    if (view.id !== id || view.type !== "appForm" || view.mode !== "create") return view;
+    return { ...view, initialData: type ? buildApp(view.initialData?.name ?? "", type, {}, {}) : undefined };
   });
 }
 
@@ -255,7 +265,7 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
     case "definition":
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
-      return { name: appFormName(view), path: "Workspace", origin: "", icon: appFormIcon(view) };
+      return { name: appFormName(view), path: "Apps", origin: "", icon: appFormIcon(view) };
     case "variables":
       return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
     case "mcp":
@@ -279,13 +289,13 @@ function appFormName(view: AppFormView): string {
   if (view.mode === "edit" && view.editingAppName) {
     return view.editingAppName;
   }
-  // In create mode the type is picked in the New dialog, so name it for that.
+  // A new app is named for its type once one is picked.
   const type = view.initialData ? appType(view.initialData) : "";
   return type ? `New ${appTypeLabel(type)} app` : "New app";
 }
 
 function appFormIcon(view: AppFormView): LucideIcon {
-  return (view.initialData ? getAppType(appType(view.initialData))?.icon : undefined) ?? Settings;
+  return (view.initialData ? getAppType(appType(view.initialData))?.icon : undefined) ?? (view.mode === "create" ? Plus : Settings);
 }
 
 interface PersistedDraftView {

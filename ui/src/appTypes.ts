@@ -60,15 +60,13 @@ export interface AppTypeDefinition {
   requireOneOf?: string[][];
   // Experimental built-ins are gated behind the Apps feature preview.
   preview?: boolean;
-  // Offered as a line under the New dialog's list rather than as a row in it.
-  minor?: boolean;
   // Types whose form is written by hand rather than rendered from `parameters`. The
   // parameter list is still the contract with the config: it says which fields the type
   // has, and the custom form supplies its own labels.
   customForm?: boolean;
 }
 
-// In the order shown in the New dialog, most used first. Keep in sync with the app
+// In the order the New app form offers them, most used first. Keep in sync with the app
 // types registered on the server (server/pkg/api/api.go).
 export const appTypes: AppTypeDefinition[] = [
   {
@@ -168,7 +166,6 @@ export const appTypes: AppTypeDefinition[] = [
   },
   {
     type: "twirp",
-    minor: true,
     label: "Twirp",
     description: "A Twirp service, from its proto files.",
     icon: TwirpMark,

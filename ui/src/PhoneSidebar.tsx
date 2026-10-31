@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2 } from "lucide-react";
+import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
@@ -63,6 +63,11 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   workspace,
   onEditApp,
   onDeleteApp,
+  pendingApps = [],
+  currentViewId,
+  selectedApp,
+  onPendingAppSelect,
+  onPendingAppDiscard,
 }: SidebarProps) {
   const [level, setLevel] = useState<AppsLevel | undefined>(undefined);
   const appsPane = useRef<HTMLDivElement>(null);
@@ -158,13 +163,29 @@ export const PhoneSidebar = memo(function PhoneSidebar({
             level={level}
             onLevel={setLevel}
             onSelect={onSelect}
+            onEditApp={onEditApp}
+            settingsCurrent={selectedApp === app.configuration.name}
             onShowCompileLog={onShowCompileLog}
             missingVariables={missingVariables}
             onRevealVariable={onRevealVariable}
           />
         ) : (
           <nav aria-label="Apps">
+            {pendingApps.map((pending) => (
+              <PhoneRow
+                key={pending.viewId}
+                icon={pending.type ? <AppTypeIcon type={pending.type} size={PHONE_ICON} /> : <Plus size={PHONE_ICON} />}
+                current={pending.viewId === currentViewId}
+                onClick={() => onPendingAppSelect?.(pending.viewId)}
+                trailing={
+                  onPendingAppDiscard && <PhoneRowAction icon={X} label={`Discard ${pending.name}`} onClick={() => onPendingAppDiscard(pending.viewId)} />
+                }
+              >
+                <span className="truncate italic">{pending.name}</span>
+              </PhoneRow>
+            ))}
             {apps.length === 0 &&
+              pendingApps.length === 0 &&
               (canUpdateWorkspace ? (
                 <PhoneRow icon={<Plus size={PHONE_ICON} />} onClick={onNewAppClick} className="text-muted-foreground">
                   New app
@@ -211,6 +232,8 @@ function AppLevel({
   level,
   onLevel,
   onSelect,
+  onEditApp,
+  settingsCurrent,
   onShowCompileLog,
   missingVariables,
   onRevealVariable,
@@ -219,6 +242,8 @@ function AppLevel({
   level: AppsLevel;
   onLevel: (level: AppsLevel | undefined) => void;
   onSelect: SidebarProps["onSelect"];
+  onEditApp: (appName: string) => void;
+  settingsCurrent: boolean;
   onShowCompileLog: (appName?: string) => void;
   missingVariables?: SidebarProps["missingVariables"];
   onRevealVariable?: (name: string) => void;
@@ -260,10 +285,18 @@ function AppLevel({
     />
   );
 
+  // The app's own settings are a row of its level, as everything else you can be at is.
+  const settings = !level.pkg && (
+    <PhoneRow icon={<Settings size={PHONE_ICON} />} current={settingsCurrent} onClick={() => onEditApp(appName)}>
+      Settings
+    </PhoneRow>
+  );
+
   if (compiling) {
     return (
       <nav aria-label={appName}>
         {header}
+        {settings}
         <div className="flex min-h-11 items-center gap-3 px-3 text-[17px] text-muted-foreground">
           <Spinner className="size-5" />
           Compiling…
@@ -276,6 +309,7 @@ function AppLevel({
     return (
       <nav aria-label={appName}>
         {header}
+        {settings}
         <PhoneSection>Packages</PhoneSection>
         {groupServicesByPackage(app.services).map(([packageName]) => (
           <PhoneRow key={packageName} opens onClick={() => onLevel({ app: appName, pkg: packageName })}>
@@ -290,6 +324,7 @@ function AppLevel({
   return (
     <nav aria-label={appName}>
       {header}
+      {settings}
       {services.length > 0 && <PhoneSection>Services</PhoneSection>}
       {services.map((candidate) => {
         const id = serviceNodeId(appName, candidate);
