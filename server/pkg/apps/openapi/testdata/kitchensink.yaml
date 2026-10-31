@@ -23,6 +23,7 @@
 # - a $ref response resolving to an array (mixed-shape union), a text/plain
 #   response, and a 204 empty response
 # - uint32/uint64 integer formats, maps, free-form objects, self-references
+# - an inline union that holds the schema declaring it, with no $ref of its own
 # - an http security scheme with a capitalized "Bearer" scheme name
 openapi: 3.0.0
 info:
@@ -305,6 +306,22 @@ components:
           description: Arbitrary JSON payload with no declared type.
         interval:
           $ref: "#/components/schemas/Interval"
+        match:
+          $ref: "#/components/schemas/MatchAll"
+    MatchAll:
+      type: object
+      properties:
+        filters:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/MatchField"
+              - $ref: "#/components/schemas/MatchAll"
+    MatchField:
+      type: object
+      properties:
+        field: { type: string }
+        equals: { type: string }
     Interval:
       anyOf:
         - type: string

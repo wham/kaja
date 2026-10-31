@@ -49,6 +49,10 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`uint64 total = `,
 		`uint32 count = `,
 		`map<string, string> labels = `,
+		// MatchAll's filters are oneOf[MatchField, MatchAll]: the merged message
+		// holds the union again, so it names itself rather than nesting forever.
+		"message MatchAllFiltersItem {",
+		"repeated MatchAllFiltersItem filters = 3",
 		// Interval is "anyOf: [string, IntervalEnum]" - a same-category (all
 		// string) scalar union expands to its first variant in place.
 		`string interval = `,
