@@ -252,7 +252,6 @@ export function PhoneFrame({
         style={{
           width: "var(--drawer-width)",
           paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
           transform: "translateX(calc((var(--drawer-progress) - 1) * var(--drawer-width) * 0.3))",
         }}
       >
