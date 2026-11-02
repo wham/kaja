@@ -26,7 +26,6 @@ import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { reportDiagnostics } from "./syntaxErrors";
 import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
-import { timestampPicker } from "./TimestampPickerWidget";
 import { ScalarValue } from "./typeMemory";
 import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, subscribeProgram } from "./typescriptService";
 import { suggestValues } from "./valueCompletions";
@@ -525,7 +524,6 @@ export function Editor({
         }),
         typescriptLinter(buffer),
         typescriptHover(buffer),
-        timestampPicker(),
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
             const modified = isMacPlatform() ? event.metaKey : event.ctrlKey;
