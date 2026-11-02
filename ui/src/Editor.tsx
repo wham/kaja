@@ -12,8 +12,21 @@ import { javascript } from "@codemirror/lang-javascript";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
 import { Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect } from "@codemirror/state";
-import { crosshairCursor, drawSelection, dropCursor, EditorView, hoverTooltip, KeyBinding, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
+import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect, StateField } from "@codemirror/state";
+import {
+  crosshairCursor,
+  Decoration,
+  DecorationSet,
+  drawSelection,
+  dropCursor,
+  EditorView,
+  hoverTooltip,
+  KeyBinding,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+  ViewPlugin,
+} from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
@@ -318,8 +331,119 @@ function typescriptHover(buffer: TextBuffer) {
   return hoverTooltip(async (_view, pos) => {
     const info = await askTypeScript("quickInfo", buffer.path, pos);
     if (!info) return null;
-    return { pos: info.start, end: info.end, above: true, create: () => ({ dom: infoElement(info.signature, info.documentation) }) };
+    return {
+      pos: info.start,
+      end: info.end,
+      above: true,
+      create: () => {
+        const dom = infoElement(info.signature, info.documentation);
+        dom.classList.add("px-2.5", "py-1.5");
+        return { dom };
+      },
+    };
   });
+}
+
+function isDefinitionModifier(event: MouseEvent | KeyboardEvent): boolean {
+  return isMacPlatform() ? event.metaKey : event.ctrlKey;
+}
+
+const showLink = StateEffect.define<{ from: number; to: number } | null>();
+const linkMark = Decoration.mark({ class: "cm-definition-link" });
+
+const definitionLink = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(link, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(showLink)) return effect.value ? Decoration.set([linkMark.range(effect.value.from, effect.value.to)]) : Decoration.none;
+    }
+    return transaction.docChanged ? Decoration.none : link;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+/**
+ * Holding the modifier turns a name with a definition into a link, which is how a
+ * ⌘-click is found at all. The worker is asked per word, so a name it cannot place
+ * stays plain rather than promising a jump that goes nowhere.
+ */
+function definitionLinks(buffer: TextBuffer): Extension {
+  const plugin = ViewPlugin.fromClass(
+    class {
+      pointer: { x: number; y: number } | undefined;
+      shown: { from: number; to: number } | undefined;
+      asked = 0;
+      held = false;
+
+      constructor(readonly view: EditorView) {
+        window.addEventListener("keydown", this.onKey);
+        window.addEventListener("keyup", this.onKey);
+        window.addEventListener("blur", this.onBlur);
+      }
+
+      onKey = (event: KeyboardEvent) => {
+        this.held = isDefinitionModifier(event);
+        if (this.held && this.pointer) this.probe();
+        else this.clear();
+      };
+
+      onBlur = () => {
+        this.held = false;
+        this.clear();
+      };
+
+      move(event: MouseEvent) {
+        this.pointer = { x: event.clientX, y: event.clientY };
+        this.held = isDefinitionModifier(event);
+        if (this.held) this.probe();
+        else this.clear();
+      }
+
+      leave() {
+        this.pointer = undefined;
+        this.clear();
+      }
+
+      probe() {
+        const pos = this.pointer && this.view.posAtCoords(this.pointer);
+        const word = pos === null || pos === undefined ? null : this.view.state.wordAt(pos);
+        if (!word || pos === null || pos === undefined) return this.clear();
+        if (this.shown && this.shown.from === word.from && this.shown.to === word.to) return;
+        const asking = ++this.asked;
+        void askTypeScript("definition", buffer.path, pos).then((definitions) => {
+          if (asking !== this.asked || !this.held) return;
+          this.show(definitions.length > 0 ? { from: word.from, to: word.to } : undefined);
+        });
+      }
+
+      show(range: { from: number; to: number } | undefined) {
+        this.shown = range;
+        this.view.dispatch({ effects: showLink.of(range ?? null) });
+      }
+
+      clear() {
+        this.asked++;
+        if (this.shown) this.show(undefined);
+      }
+
+      destroy() {
+        window.removeEventListener("keydown", this.onKey);
+        window.removeEventListener("keyup", this.onKey);
+        window.removeEventListener("blur", this.onBlur);
+      }
+    },
+    {
+      eventHandlers: {
+        mousemove(event) {
+          this.move(event);
+        },
+        mouseleave() {
+          this.leave();
+        },
+      },
+    },
+  );
+  return [definitionLink, plugin];
 }
 
 /**
@@ -524,10 +648,10 @@ export function Editor({
         }),
         typescriptLinter(buffer),
         typescriptHover(buffer),
+        definitionLinks(buffer),
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
-            const modified = isMacPlatform() ? event.metaKey : event.ctrlKey;
-            if (!modified || event.button !== 0) return false;
+            if (!isDefinitionModifier(event) || event.button !== 0) return false;
             const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
             if (pos === null) return false;
             event.preventDefault();

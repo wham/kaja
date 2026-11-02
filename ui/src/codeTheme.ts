@@ -55,6 +55,10 @@ export const codeTheme = EditorView.theme({
     boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
     overflow: "hidden",
   },
+  // Off the line it describes, so the code under it stays readable.
+  ".cm-tooltip-hover.cm-tooltip-above": { marginTop: "-6px" },
+  ".cm-tooltip-hover.cm-tooltip-below": { marginTop: "6px" },
+  ".cm-definition-link": { textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer" },
   ".cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-mono)", maxHeight: "16em" },
   ".cm-tooltip-autocomplete > ul > li": { padding: "2px 8px" },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
