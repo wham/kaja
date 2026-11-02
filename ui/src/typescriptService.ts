@@ -15,16 +15,21 @@ import type { MethodName, WorkerReply, WorkerRequest } from "./typescriptProtoco
 let worker: Worker | undefined;
 let nextId = 0;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
-const programListeners = new Set<() => void>();
+const programListeners = new Set<(changed: Set<string>) => void>();
 let programTimer: ReturnType<typeof setTimeout> | undefined;
+let changedPaths = new Set<string>();
+let failure: Error | undefined;
 
 // The program moved: any file's text changed, so what was said about every other file
 // may be stale. Coalesced, because an app landing writes every one of its modules.
-function programMoved() {
+function programMoved(path: string) {
+  changedPaths.add(path);
   if (programTimer) clearTimeout(programTimer);
   programTimer = setTimeout(() => {
     programTimer = undefined;
-    for (const listener of programListeners) listener();
+    const changed = changedPaths;
+    changedPaths = new Set();
+    for (const listener of programListeners) listener(changed);
   }, 250);
 }
 
@@ -46,11 +51,20 @@ function start(): Worker {
     if (reply.error !== undefined) waiting.reject(new Error(reply.error));
     else waiting.resolve(reply.result);
   };
+  // A worker that died answers nothing, and a question nobody answers is a check that
+  // never ends, so everything waiting is told.
+  // A question is answered or thrown inside the worker, so an error reaching here is the
+  // worker failing to load or dying; nothing after it would be answered either.
+  worker.onerror = (event) => {
+    failure = new Error(`The TypeScript worker failed: ${event.message}`);
+    for (const waiting of pending.values()) waiting.reject(failure);
+    pending.clear();
+  };
   for (const buffer of allBuffers()) worker.postMessage({ type: "update", path: buffer.path, text: buffer.getValue() } satisfies WorkerRequest);
   subscribeBuffers((buffer, event) => {
     if (event === "dispose") post({ type: "remove", path: buffer.path });
     else post({ type: "update", path: buffer.path, text: buffer.getValue() });
-    programMoved();
+    programMoved(buffer.path);
   });
   return worker;
 }
@@ -58,6 +72,7 @@ function start(): Worker {
 type Result<M extends MethodName> = ReturnType<TypeScriptMethods[M]>;
 
 export function askTypeScript<M extends MethodName>(method: M, ...args: Parameters<TypeScriptMethods[M]>): Promise<Result<M>> {
+  if (failure) return Promise.reject(failure);
   const id = ++nextId;
   return new Promise<Result<M>>((resolve, reject) => {
     pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
@@ -70,7 +85,8 @@ export function writeTypeScriptFile(path: string, text: string): void {
   post({ type: "update", path, text });
 }
 
-export function subscribeProgram(listener: () => void): () => void {
+// Told which files moved since it was last told.
+export function subscribeProgram(listener: (changed: Set<string>) => void): () => void {
   start();
   programListeners.add(listener);
   return () => programListeners.delete(listener);

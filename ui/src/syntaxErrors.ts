@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { TextBuffer } from "./textBuffer";
+import { subscribeBuffers, TextBuffer } from "./textBuffer";
 import { DIAGNOSTIC_ERROR, isSyntaxCode } from "./typescriptService";
 
 interface Found {
@@ -10,6 +10,10 @@ interface Found {
 
 const syntaxErrors = new Map<string, { count: number; first?: string }>();
 const listeners = new Set<(path: string) => void>();
+
+subscribeBuffers((buffer, event) => {
+  if (event === "dispose") syntaxErrors.delete(buffer.path);
+});
 
 // What the editor's linter last heard from TypeScript about a buffer, kept for the parts
 // of the window that are not the editor.

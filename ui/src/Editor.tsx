@@ -58,22 +58,27 @@ registerKajaModule([]);
 openBuffer("/kaja-scripts.d.ts", runInputDeclaration([]));
 subscribeScriptParameters(() => openBuffer("/kaja-scripts.d.ts", runInputDeclaration(knownScriptInputs())));
 
-// Every editor on the page, so a change elsewhere (an app compiling, the folder being
-// listed) can ask each of them to check its text again.
-const liveViews = new Set<EditorView>();
+// Every editor on the page and the buffer it shows, so a change elsewhere (an app
+// compiling, the folder being listed) can ask each of them to check its text again.
+const liveViews = new Map<EditorView, string>();
 
 // `forceLinting` only hurries a check that is already scheduled, so a check that has
 // finished has to be asked for again: this effect is what the linter refreshes on.
 const recheck = StateEffect.define<null>();
 
 function relintAll() {
-  for (const view of liveViews) {
+  for (const view of liveViews.keys()) {
     view.dispatch({ effects: recheck.of(null) });
     forceLinting(view);
   }
 }
 
-subscribeProgram(relintAll);
+// A script's text is nothing another script is checked against, so an edit in one
+// editor is that editor's own linter's business.
+subscribeProgram((changed) => {
+  const shown = new Set(liveViews.values());
+  if ([...changed].some((path) => !shown.has(path))) relintAll();
+});
 
 // Apps the value completions resolve service names against. Kept in sync from
 // App.tsx as apps compile.
@@ -169,10 +174,15 @@ function typescriptCompletions(buffer: TextBuffer) {
     if (!context.explicit && !afterDot && (!word || word.from === word.to)) return null;
     const result = await askTypeScript("completions", buffer.path, context.pos);
     if (!result || context.aborted) return null;
+    // A parameter typed `T extends string` infers the literal being typed, and TypeScript
+    // offers that literal back as if it were a choice.
+    const typed = context.matchBefore(/[^"'`]*/)?.text;
+    const entries = result.entries.filter((entry) => !(entry.kind === "string" && entry.name === typed));
+    if (entries.length === 0) return null;
     return {
       from: result.from,
       validFor: /^[\w$]*$/,
-      options: result.entries.map((entry): Completion => ({
+      options: entries.map((entry): Completion => ({
         label: entry.name,
         type: COMPLETION_TYPE[entry.kind] ?? "variable",
         // TypeScript ranks by sort text, which is a number as a string: locals before
@@ -547,8 +557,10 @@ function gutterExtensions(phone: boolean): Extension {
   return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
 }
 
-function editableExtensions(readOnly: boolean): Extension {
-  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+// Read-only text still takes the focus, so it can be searched and walked with the keys,
+// except on a phone, where a focused field is a keyboard over the code.
+function editableExtensions(readOnly: boolean, phone: boolean): Extension {
+  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly || !phone)];
 }
 
 export function Editor({
@@ -621,7 +633,7 @@ export function Editor({
       doc: buffer.getValue(),
       extensions: [
         gutter.of(gutterExtensions(phone)),
-        editable.of(editableExtensions(readOnly)),
+        editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
         history(),
         // The native selection on a phone, which is what its handles, its callout and
@@ -682,7 +694,7 @@ export function Editor({
 
     const view = new EditorView({ state, parent: container });
     viewRef.current = view;
-    liveViews.add(view);
+    liveViews.set(view, buffer.path);
 
     const unsubscribeBuffer = buffer.onDidChange((origin) => {
       if (origin === view) return;
@@ -741,8 +753,8 @@ export function Editor({
   // Without this the file that was open when the window last closed stays read-only for
   // the session.
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: editable.reconfigure(editableExtensions(readOnly)) });
-  }, [readOnly]);
+    viewRef.current?.dispatch({ effects: editable.reconfigure(editableExtensions(readOnly, phone)) });
+  }, [readOnly, phone]);
 
   useEffect(() => {
     viewRef.current?.dispatch({ effects: gutter.reconfigure(gutterExtensions(phone)) });

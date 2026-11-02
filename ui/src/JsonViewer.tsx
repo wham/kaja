@@ -1,7 +1,8 @@
 import { json } from "@codemirror/lang-json";
 import { foldAll, foldGutter, unfoldAll } from "@codemirror/language";
 import { Compartment, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { search, searchKeymap } from "@codemirror/search";
+import { EditorView, keymap } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { copyText } from "./clipboard";
 import { codeHighlighting, codeTheme, foldMarker } from "./codeTheme";
@@ -21,6 +22,7 @@ export interface JsonViewerHandle {
 }
 
 const wrapping = new Compartment();
+const focusable = new Compartment();
 
 const viewerTheme = EditorView.theme({
   ".cm-content": { padding: "12px 0" },
@@ -54,7 +56,11 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
         doc: jsonTextRef.current,
         extensions: [
           EditorState.readOnly.of(true),
-          EditorView.editable.of(false),
+          // Focusable where there is a keyboard, so a payload can be searched; a phone
+          // would raise its keyboard over one.
+          focusable.of(EditorView.editable.of(!wrap)),
+          keymap.of(searchKeymap),
+          search({ top: true }),
           json(),
           foldGutter({ markerDOM: foldMarker }),
           wrapping.of(wrap ? EditorView.lineWrapping : []),
@@ -74,7 +80,9 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
   }, []);
 
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: wrapping.reconfigure(wrap ? EditorView.lineWrapping : []) });
+    viewRef.current?.dispatch({
+      effects: [wrapping.reconfigure(wrap ? EditorView.lineWrapping : []), focusable.reconfigure(EditorView.editable.of(!wrap))],
+    });
   }, [wrap]);
 
   // Print the payload into the viewer. Synchronous on purpose: the selection follows a
