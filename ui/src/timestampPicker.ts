@@ -1,42 +1,29 @@
-import * as monaco from "monaco-editor";
-
 export interface TimestampMatch {
   fieldName: string;
   seconds: string;
   nanos: number;
-  range: monaco.Range;
-  fullRange: monaco.Range;
+  // Offsets into the text: where the picker is anchored (the brace), and the whole
+  // `field: { … }` it rewrites.
+  anchor: number;
+  from: number;
+  to: number;
 }
 
-export function findTimestamps(model: monaco.editor.ITextModel): TimestampMatch[] {
+export function findTimestamps(text: string): TimestampMatch[] {
   const matches: TimestampMatch[] = [];
-  const text = model.getValue();
 
-  // Use multi-line regex to find timestamp objects regardless of formatting
-  // Matches: fieldName: { ... seconds: "digits" ... nanos: digits ... }
+  // Matches: fieldName: { ... seconds: "digits" ... nanos: digits ... }, however it is laid out.
   const regex = /(\w+):\s*\{([^{}]*seconds:\s*"(\d+)"[^{}]*nanos:\s*(\d+)[^{}]*)\}/gs;
 
   let match;
   while ((match = regex.exec(text)) !== null) {
-    const fieldName = match[1];
-    const seconds = match[3];
-    const nanos = parseInt(match[4], 10);
-
-    // Find positions in the document
-    const startOffset = match.index;
-    const endOffset = startOffset + match[0].length;
-    const braceOffset = text.indexOf("{", startOffset);
-
-    const startPos = model.getPositionAt(startOffset);
-    const endPos = model.getPositionAt(endOffset);
-    const bracePos = model.getPositionAt(braceOffset);
-
     matches.push({
-      fieldName,
-      seconds,
-      nanos,
-      range: new monaco.Range(bracePos.lineNumber, bracePos.column, bracePos.lineNumber, bracePos.column + 1),
-      fullRange: new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+      fieldName: match[1],
+      seconds: match[3],
+      nanos: parseInt(match[4], 10),
+      anchor: text.indexOf("{", match.index),
+      from: match.index,
+      to: match.index + match[0].length,
     });
   }
 

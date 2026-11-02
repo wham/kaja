@@ -1,6 +1,6 @@
-import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { readInputKeys } from "./scriptInputs";
+import { TextBuffer } from "./textBuffer";
 
 // Reading the AST costs a parse, and the answer only decides whether a caret is
 // drawn — so it lags the keystroke by a beat rather than riding it.
@@ -13,32 +13,32 @@ const DEBOUNCE_MS = 400;
  * nothing to be asked for, so it gets a bare Run button. Read from the buffer
  * rather than from disk, because the script as it is now is the one Run runs.
  */
-export function useInputKeys(model: monaco.editor.ITextModel | undefined): string[] {
+export function useInputKeys(buffer: TextBuffer | undefined): string[] {
   const [keys, setKeys] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!model) {
+    if (!buffer) {
       setKeys([]);
       return;
     }
     const read = () =>
       setKeys((previous) => {
         // A buffer mid-keystroke keeps the caret it had until it parses again.
-        const next = readInputKeys(model.getValue());
+        const next = readInputKeys(buffer.getValue());
         if (!next) return previous;
         return next.length === previous.length && next.every((key, index) => key === previous[index]) ? previous : next;
       });
     read();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const disposable = model.onDidChangeContent(() => {
+    const unsubscribe = buffer.onDidChange(() => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(read, DEBOUNCE_MS);
     });
     return () => {
       if (timer) clearTimeout(timer);
-      disposable.dispose();
+      unsubscribe();
     };
-  }, [model]);
+  }, [buffer]);
 
   return keys;
 }

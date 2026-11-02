@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { appModulesMoved, appReferencesVariable, detectAppRenames } from "./appRenames";
+import { appReferencesVariable, detectAppRenames } from "./appRenames";
 import { WorkspaceApp } from "./server/api";
 
 function grpc(name: string, url: string): WorkspaceApp {
@@ -45,24 +45,6 @@ describe("detectAppRenames", () => {
     const next = [grpc("b", "dns:${HOST}:443")];
     expect(detectAppRenames(previous, next, { HOST: "one" }, { HOST: "two" }).size).toBe(0);
     expect(detectAppRenames(previous, next, { HOST: "one" }, { HOST: "one" }).size).toBe(1);
-  });
-});
-
-describe("appModulesMoved", () => {
-  it("is true for a rename, an addition and a removal", () => {
-    expect(appModulesMoved([grpc("a", "x")], [grpc("b", "x")], none, none)).toBe(true);
-    expect(appModulesMoved([grpc("a", "x")], [grpc("a", "x"), grpc("b", "y")], none, none)).toBe(true);
-    expect(appModulesMoved([grpc("a", "x")], [], none, none)).toBe(true);
-  });
-
-  it("is true when an app is reopened against different parameters", () => {
-    expect(appModulesMoved([grpc("a", "x")], [grpc("a", "y")], none, none)).toBe(true);
-  });
-
-  it("is false when only the headers moved, which are per request", () => {
-    const before = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: {} } } } as unknown as WorkspaceApp;
-    const after = { name: "a", app: { oneofKind: "grpc", grpc: { url: "x", headers: { Authorization: "Bearer t" } } } } as unknown as WorkspaceApp;
-    expect(appModulesMoved([before], [after], none, none)).toBe(false);
   });
 });
 

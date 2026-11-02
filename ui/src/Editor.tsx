@@ -1,235 +1,60 @@
-import * as monaco from "monaco-editor";
+import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  Completion,
+  CompletionContext,
+  CompletionResult,
+  completionKeymap,
+} from "@codemirror/autocomplete";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { javascript } from "@codemirror/lang-javascript";
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
+import { Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { Annotation, Compartment, EditorSelection, EditorState, Extension } from "@codemirror/state";
+import { crosshairCursor, drawSelection, dropCursor, EditorView, hoverTooltip, KeyBinding, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
+import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
-import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
-import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
-import { codeFontSize } from "./monacoTheme";
-import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { noSuchScript } from "./scriptLink";
 import { runInputDeclaration } from "./scriptInputs";
 import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
 import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
+import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
+import { reportDiagnostics } from "./syntaxErrors";
+import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
+import { timestampPicker } from "./TimestampPickerWidget";
 import { ScalarValue } from "./typeMemory";
+import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, subscribeProgram } from "./typescriptService";
 import { suggestValues } from "./valueCompletions";
 
-self.MonacoEnvironment = {
-  getWorkerUrl: function (_, label) {
-    if (label === "typescript" || label === "javascript") {
-      return "./monaco.ts.worker.js";
-    }
-    if (label === "json") {
-      return "./monaco.json.worker.js";
-    }
-    return "./monaco.editor.worker.js";
-  },
-};
-
-monaco.languages.registerDocumentFormattingEditProvider("typescript", {
-  async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
-    return [
-      {
-        text: await formatTypeScript(model.getValue()),
-        range: model.getFullModelRange(),
-      },
-    ];
-  },
-});
-
-/**
- * Every chord the window states is unbound in Monaco, because Monaco matches first
- * and then stops the event at the editor — ⌘⏎ ran Insert Line Below rather than the
- * script, and a rebind onto ⌘/ or ⌘D would go the same way. The rule is scoped to the
- * context the editor actions claim, so the same chord elsewhere in Monaco (⌘⏎ is
- * Replace All in the find widget) is left alone.
- *
- * Monaco's registry only takes rules, so a chord the window has claimed **this
- * session** stays out of its way even after being rebound away. Re-registering is
- * what a rebind costs; a reload is what settles it back to the configured set.
- */
-function claimWindowKeys() {
-  const rules = claimedBindings()
-    .map(monacoKeybinding)
-    .filter((keybinding): keybinding is number => keybinding !== undefined)
-    .map((keybinding) => ({ keybinding, command: null, when: "editorTextFocus" }));
-  if (rules.length > 0) monaco.editor.addKeybindingRules(rules);
-}
-
-const MONACO_MODIFIER: Record<string, number> = {
-  Mod: monaco.KeyMod.CtrlCmd,
-  // On a Mac this is the Ctrl key; off one, Mod and Ctrl are the same key and
-  // WinCtrl is the Windows key, which no binding here means.
-  Ctrl: isMacPlatform() ? monaco.KeyMod.WinCtrl : monaco.KeyMod.CtrlCmd,
-  Alt: monaco.KeyMod.Alt,
-  Shift: monaco.KeyMod.Shift,
-};
-
-const MONACO_NAMED_KEY: Record<string, number> = {
-  Enter: monaco.KeyCode.Enter,
-  Escape: monaco.KeyCode.Escape,
-  Tab: monaco.KeyCode.Tab,
-  Backspace: monaco.KeyCode.Backspace,
-  Delete: monaco.KeyCode.Delete,
-  Space: monaco.KeyCode.Space,
-  Home: monaco.KeyCode.Home,
-  End: monaco.KeyCode.End,
-  PageUp: monaco.KeyCode.PageUp,
-  PageDown: monaco.KeyCode.PageDown,
-  ArrowUp: monaco.KeyCode.UpArrow,
-  ArrowDown: monaco.KeyCode.DownArrow,
-  ArrowLeft: monaco.KeyCode.LeftArrow,
-  ArrowRight: monaco.KeyCode.RightArrow,
-  // Monaco names the physical key where the window names the character that was
-  // typed, so these agree on a US layout and are a best effort on any other. A chord
-  // this cannot place is one Monaco is left holding, which is the state every chord
-  // but ⌘⏎ was in before.
-  ";": monaco.KeyCode.Semicolon,
-  "=": monaco.KeyCode.Equal,
-  ",": monaco.KeyCode.Comma,
-  "-": monaco.KeyCode.Minus,
-  ".": monaco.KeyCode.Period,
-  "/": monaco.KeyCode.Slash,
-  "`": monaco.KeyCode.Backquote,
-  "[": monaco.KeyCode.BracketLeft,
-  "\\": monaco.KeyCode.Backslash,
-  "]": monaco.KeyCode.BracketRight,
-  "'": monaco.KeyCode.Quote,
-};
-
-// A binding as Monaco says it. Undefined for a key it has no code for, which is a
-// chord it was never going to match anyway.
-function monacoKeybinding(binding: string): number | undefined {
-  const parts = binding.split("+");
-  const key = parts.pop() ?? "";
-  let keybinding = 0;
-  for (const part of parts) {
-    const modifier = MONACO_MODIFIER[part];
-    if (modifier === undefined) return undefined;
-    keybinding |= modifier;
-  }
-
-  const named = MONACO_NAMED_KEY[key];
-  if (named !== undefined) return keybinding | named;
-  if (/^[A-Z]$/.test(key)) return keybinding | (monaco.KeyCode.KeyA + key.charCodeAt(0) - "A".charCodeAt(0));
-  if (/^[0-9]$/.test(key)) return keybinding | (monaco.KeyCode.Digit0 + key.charCodeAt(0) - "0".charCodeAt(0));
-  const functionKey = /^F([1-9]|1[0-2])$/.exec(key);
-  if (functionKey) return keybinding | (monaco.KeyCode.F1 + Number(functionKey[1]) - 1);
-  return undefined;
-}
-
-claimWindowKeys();
-subscribeShortcuts(claimWindowKeys);
-
-monaco.typescript.typescriptDefaults.setCompilerOptions({
-  target: monaco.typescript.ScriptTarget.ESNext,
-  module: monaco.typescript.ModuleKind.ESNext,
-  // ModuleDetectionKind.Force, which monaco's typescript namespace doesn't export.
-  // The task runner reads every script as a module (scriptSyntax), so without it here
-  // a script with no import is a global script to the editor alone: top-level await is
-  // an error in it, and its top-level names collide with every other such script.
-  moduleDetection: 3,
-});
-
-// Scripts get the kaja object through `import { kaja } from "kaja"` — the task
-// runner resolves the import at run time (see scriptRunner). Back the import with
-// a model (not an extra lib) so autocomplete can auto-import it and
-// go-to-definition lands here. Called again whenever the configured variables
-// change (see App.tsx) to refresh the typed `variables` member.
+// Scripts get the kaja object through `import { kaja } from "kaja"` — the task runner
+// resolves the import at run time (see scriptRunner). Backed by a buffer so TypeScript
+// resolves the import to it and go-to-definition lands here. Called again whenever the
+// configured variables change (see App.tsx) to refresh the typed `variables` member.
 export function registerKajaModule(variableNames: string[]): void {
-  const content = kajaModuleDeclaration(variableNames);
-  const uri = monaco.Uri.parse("ts:/kaja.ts");
-  const existing = monaco.editor.getModel(uri);
-  if (existing) {
-    existing.setValue(content);
-  } else {
-    monaco.editor.createModel(content, "typescript", uri);
-  }
+  openBuffer("/kaja.ts", kajaModuleDeclaration(variableNames));
 }
 
 registerKajaModule([]);
 
 // What each script in the folder takes, as a declaration file so the global it declares
-// is in scope in `ts:/kaja.ts` and in every script. A model rather than an extra lib for
-// the reason the kaja module is one: this is how the editor's own program is written.
-const RUN_INPUTS_URI = "ts:/kaja-scripts.d.ts";
+// is in scope in the kaja module and in every script.
+openBuffer("/kaja-scripts.d.ts", runInputDeclaration([]));
+subscribeScriptParameters(() => openBuffer("/kaja-scripts.d.ts", runInputDeclaration(knownScriptInputs())));
 
-function registerRunInputs(declaration: string): void {
-  const uri = monaco.Uri.parse(RUN_INPUTS_URI);
-  const existing = monaco.editor.getModel(uri);
-  if (!existing) {
-    monaco.editor.createModel(declaration, "typescript", uri);
-  } else if (existing.getValue() !== declaration) {
-    existing.setValue(declaration);
-  }
+// Every editor on the page, so a change elsewhere (an app compiling, the folder being
+// listed) can ask each of them to check its text again.
+const liveViews = new Set<EditorView>();
+
+function relintAll() {
+  for (const view of liveViews) forceLinting(view);
 }
 
-registerRunInputs(runInputDeclaration([]));
-subscribeScriptParameters(() => registerRunInputs(runInputDeclaration(knownScriptInputs())));
-
-const KAJA_IMPORT_COMMAND = "kaja.addImport";
-const KAJA_IMPORT_LINE = 'import { kaja } from "kaja";\n';
-
-function hasKajaImport(text: string): boolean {
-  return /from\s+["']kaja["']/.test(text);
-}
-
-// The import is inserted from a command rather than as the completion's
-// `additionalTextEdits`: Monaco places the cursor from the main edit alone, so
-// an edit that adds a line above it leaves the cursor a line behind the word it
-// just completed. Here the edit and the selection it moves are applied together.
-monaco.editor.registerCommand(KAJA_IMPORT_COMMAND, (_accessor, modelUri: string) => {
-  const model = monaco.editor.getModel(monaco.Uri.parse(modelUri));
-  if (!model || hasKajaImport(model.getValue())) {
-    return;
-  }
-
-  const edit = { range: new monaco.Range(1, 1, 1, 1), text: KAJA_IMPORT_LINE };
-  const editor = monaco.editor.getEditors().find((candidate) => candidate.getModel() === model);
-  if (!editor) {
-    model.pushEditOperations(null, [edit], () => null);
-    return;
-  }
-
-  const selections = editor.getSelections() ?? [];
-  editor.executeEdits(
-    KAJA_IMPORT_COMMAND,
-    [edit],
-    selections.map(
-      (selection) =>
-        new monaco.Selection(
-          selection.selectionStartLineNumber + 1,
-          selection.selectionStartColumn,
-          selection.positionLineNumber + 1,
-          selection.positionColumn,
-        ),
-    ),
-  );
-});
-
-// Monaco's TypeScript worker doesn't auto-import from other models, so offer
-// `kaja` as a completion that also inserts the import when it's missing.
-monaco.languages.registerCompletionItemProvider("typescript", {
-  provideCompletionItems(model, position) {
-    if (model.uri.path === "/kaja.ts" || hasKajaImport(model.getValue())) {
-      return { suggestions: [] };
-    }
-    const word = model.getWordUntilPosition(position);
-    return {
-      suggestions: [
-        {
-          label: { label: "kaja", description: 'import from "kaja"' },
-          kind: monaco.languages.CompletionItemKind.Variable,
-          detail: 'Add import from "kaja"',
-          documentation: "The Kaja runtime object (kaja.table, kaja.text, kaja.askStr, kaja.variables, kaja.value).",
-          insertText: "kaja",
-          range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-          command: { id: KAJA_IMPORT_COMMAND, title: 'Add import from "kaja"', arguments: [model.uri.toString()] },
-        },
-      ],
-    };
-  },
-});
+subscribeProgram(relintAll);
 
 // Apps the value completions resolve service names against. Kept in sync from
 // App.tsx as apps compile.
@@ -251,264 +76,353 @@ let runDestinations: string[] | undefined;
 
 export function setRunDestinations(names: string[] | undefined): void {
   runDestinations = names;
-  for (const model of monaco.editor.getModels()) markRuns(model);
+  relintAll();
 }
 
-const RUN_MARKER_OWNER = "kaja.run";
-
-const RUN_MARK_MS = 300;
-
-// A model that cannot be holding one is not parsed. Every model is walked again
-// whenever the listing moves, and a generated app module is large.
+// A buffer that cannot be holding one is not parsed.
 const MIGHT_RUN = /\.run\s*\(/;
 
 /**
- * The squiggle under a destination that reaches nothing — the failure a click on the
- * cell would have raised, said where the name is written instead of where it is
- * pressed. It stops nothing: a script's types are erased rather than checked, so the
- * rest of it runs exactly as it did, which is the same thing Run already does with a
- * type error.
+ * The mark under a destination that reaches nothing — the failure a click on the cell
+ * would have raised, said where the name is written instead of where it is pressed. It
+ * stops nothing: a script's types are erased rather than checked, so the rest of it
+ * runs exactly as it did, which is the same thing Run already does with a type error.
  */
-export function markRuns(model: monaco.editor.ITextModel): void {
-  if (model.isDisposed() || model.getLanguageId() !== "typescript") return;
-  const code = model.getValue();
+function runDiagnostics(code: string): Diagnostic[] {
   const references = MIGHT_RUN.test(code) ? readRunReferences(code) : [];
-  // A buffer mid-keystroke keeps the marks it had until it parses again.
-  if (!references) return;
+  if (!references || references.length === 0) return [];
   // The destinations on screen are the ones worth knowing the parameters of, and this
   // is the one pass that has read them. What comes back rewrites the declaration the
   // editor checks a `kaja.run`'s input against.
-  if (references.length > 0) void demandScriptParameters(references.map((reference) => reference.name));
+  void demandScriptParameters(references.map((reference) => reference.name));
   const unresolved = runDestinations ? unresolvedIn(references, runDestinations) : [];
-  monaco.editor.setModelMarkers(
-    model,
-    RUN_MARKER_OWNER,
-    unresolved.map((reference) => {
-      const start = model.getPositionAt(reference.start);
-      const end = model.getPositionAt(reference.end);
-      return {
-        severity: monaco.MarkerSeverity.Error,
-        message: noSuchScript(reference.name),
-        startLineNumber: start.lineNumber,
-        startColumn: start.column,
-        endLineNumber: end.lineNumber,
-        endColumn: end.column,
-      };
-    }),
-  );
+  return unresolved.map((reference) => ({ from: reference.start, to: reference.end, severity: "error", message: noSuchScript(reference.name) }));
+}
+
+// TypeScript's kind names, as the completion list draws them.
+const COMPLETION_TYPE: { [kind: string]: string } = {
+  method: "method",
+  function: "function",
+  "local function": "function",
+  constructor: "class",
+  property: "property",
+  getter: "property",
+  setter: "property",
+  var: "variable",
+  let: "variable",
+  "local var": "variable",
+  parameter: "variable",
+  const: "constant",
+  class: "class",
+  interface: "interface",
+  type: "type",
+  "type parameter": "type",
+  enum: "enum",
+  "enum member": "constant",
+  module: "namespace",
+  "external module name": "namespace",
+  keyword: "keyword",
+  string: "text",
+};
+
+function infoElement(signature: string, documentation: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "flex max-w-[36em] flex-col gap-1.5 whitespace-normal";
+  if (signature) {
+    const code = document.createElement("pre");
+    code.className = "m-0 whitespace-pre-wrap font-mono text-xs";
+    code.innerHTML = printCode(signature);
+    element.appendChild(code);
+  }
+  if (documentation) {
+    const text = document.createElement("div");
+    text.className = "whitespace-pre-wrap font-sans text-xs text-muted-foreground";
+    text.textContent = documentation;
+    element.appendChild(text);
+  }
+  return element;
+}
+
+function typescriptCompletions(buffer: TextBuffer) {
+  return async (context: CompletionContext): Promise<CompletionResult | null> => {
+    const word = context.matchBefore(/[\w$]*/);
+    const afterDot = context.state.sliceDoc(context.pos - 1, context.pos) === ".";
+    if (!context.explicit && !afterDot && (!word || word.from === word.to)) return null;
+    const result = await askTypeScript("completions", buffer.path, context.pos);
+    if (!result || context.aborted) return null;
+    return {
+      from: result.from,
+      validFor: /^[\w$]*$/,
+      options: result.entries.map((entry): Completion => ({
+        label: entry.name,
+        type: COMPLETION_TYPE[entry.kind] ?? "variable",
+        // TypeScript ranks by sort text, which is a number as a string: locals before
+        // members before globals.
+        boost: Math.max(-99, 10 - (parseInt(entry.sortText, 10) || 10)),
+        apply: entry.insertText,
+        info: async () => {
+          const details = await askTypeScript("completionDetails", buffer.path, context.pos, entry.name, entry.source);
+          return details ? infoElement(details.signature, details.documentation) : null;
+        },
+      })),
+    };
+  };
+}
+
+const KAJA_IMPORT_LINE = 'import { kaja } from "kaja";\n';
+
+function hasKajaImport(text: string): boolean {
+  return /from\s+["']kaja["']/.test(text);
+}
+
+// The TypeScript service offers no import from another file, so `kaja` is offered as a
+// completion that also writes the import. One transaction, so the cursor stays at the
+// end of the word it completed while a line is added above it.
+function kajaImportCompletion(buffer: TextBuffer) {
+  return (context: CompletionContext): CompletionResult | null => {
+    if (buffer.path === "/kaja.ts") return null;
+    const word = context.matchBefore(/[\w$]+/);
+    if (!word || !"kaja".startsWith(word.text) || hasKajaImport(context.state.doc.toString())) return null;
+    return {
+      from: word.from,
+      options: [
+        {
+          label: "kaja",
+          type: "variable",
+          detail: 'import from "kaja"',
+          info: "The Kaja runtime object (kaja.table, kaja.text, kaja.askStr, kaja.variables, kaja.value).",
+          boost: 99,
+          apply: (view, _completion, from, to) => {
+            view.dispatch({
+              changes: [
+                { from: 0, insert: KAJA_IMPORT_LINE },
+                { from, to, insert: "kaja" },
+              ],
+              selection: { anchor: from + KAJA_IMPORT_LINE.length + "kaja".length },
+              userEvent: "input.complete",
+            });
+          },
+        },
+      ],
+    };
+  };
 }
 
 // A destination is a name rather than a handle, so the names are the whole of what the
-// editor can offer. The list offered and the list the marker checks against are one
-// list, so what completion writes is what resolves.
-monaco.languages.registerCompletionItemProvider("typescript", {
-  triggerCharacters: ['"', "'", "/"],
-  provideCompletionItems(model, position) {
-    const destinations = runDestinations;
-    if (!destinations || destinations.length === 0) {
-      return { suggestions: [] };
-    }
-    const code = model.getValue();
-    if (!MIGHT_RUN.test(code)) {
-      return { suggestions: [] };
-    }
-    const reference = runNameAt(code, model.getOffsetAt(position));
-    if (!reference) {
-      return { suggestions: [] };
-    }
-
-    const start = model.getPositionAt(reference.start);
-    const end = model.getPositionAt(reference.end);
-    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-    return {
-      suggestions: destinations.map((name, index) => ({
-        label: name,
-        kind: monaco.languages.CompletionItemKind.File,
-        insertText: name,
-        filterText: name,
-        // The listing's own order, which is the order the sidebar is read in.
-        sortText: String(index).padStart(4, "0"),
-        range,
-      })),
-    };
-  },
-});
+// editor can offer. The list offered and the list the mark checks against are one list,
+// so what completion writes is what resolves.
+function runDestinationCompletions(context: CompletionContext): CompletionResult | null {
+  const destinations = runDestinations;
+  if (!destinations || destinations.length === 0) return null;
+  const code = context.state.doc.toString();
+  if (!MIGHT_RUN.test(code)) return null;
+  const reference = runNameAt(code, context.pos);
+  if (!reference) return null;
+  return {
+    from: reference.start,
+    to: reference.end,
+    // The listing's own order, which is the order the sidebar is read in.
+    options: destinations.map((name, index) => ({ label: name, type: "text", boost: 99 - Math.min(index, 198) })),
+    filter: true,
+  };
+}
 
 function truncate(text: string): string {
   return text.length > 60 ? text.slice(0, 59) + "…" : text;
 }
 
-// Escape a value so it survives being dropped between quotes, whichever quote
-// style the literal under the cursor uses.
+// Escape a value so it survives being dropped between quotes, whichever quote style the
+// literal under the cursor uses.
 function escapeForStringLiteral(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
 }
 
-// The values a field takes are offered here rather than written into the
-// generated request, so filling a field in stays a deliberate keystroke. An API
-// that declares a closed set is where this earns its keep: the one string out of
-// three it accepts is otherwise only in its documentation.
-monaco.languages.registerCompletionItemProvider("typescript", {
-  triggerCharacters: ['"', "'", ":", " "],
-  provideCompletionItems(model, position) {
-    if (valueCompletionApps.length === 0) {
-      return { suggestions: [] };
-    }
+// The values a field takes are offered here rather than written into the generated
+// request, so filling a field in stays a deliberate keystroke. An API that declares a
+// closed set is where this earns its keep: the one string out of three it accepts is
+// otherwise only in its documentation.
+function valueCompletions(context: CompletionContext): CompletionResult | null {
+  if (valueCompletionApps.length === 0) return null;
+  const suggested = suggestValues(context.state.doc.toString(), context.pos, valueCompletionApps);
+  if (!suggested) return null;
 
-    const suggested = suggestValues(model.getValue(), model.getOffsetAt(position), valueCompletionApps);
-    if (!suggested) {
-      return { suggestions: [] };
-    }
+  const stringRange = suggested.position.stringRange;
+  const word = context.matchBefore(/[\w$.-]*/);
+  const from = stringRange ? stringRange.start : (word?.from ?? context.pos);
+  const to = stringRange ? stringRange.end : context.pos;
 
-    const stringRange = suggested.position.stringRange;
-    let range: monaco.Range;
-    if (stringRange) {
-      const start = model.getPositionAt(stringRange.start);
-      const end = model.getPositionAt(stringRange.end);
-      range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-    } else {
-      const word = model.getWordUntilPosition(position);
-      range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-    }
+  const { typeName, fieldName } = suggested.position;
+  const shortTypeName = typeName.slice(typeName.lastIndexOf(".") + 1);
 
-    const { typeName, fieldName } = suggested.position;
-    const shortTypeName = typeName.slice(typeName.lastIndexOf(".") + 1);
+  // The API's own values first: a document is a better answer than a guess read off
+  // what happened to be sent before.
+  const offered: { value: ScalarValue; detail: string }[] = [
+    ...suggested.position.declared.map((value) => ({ value, detail: `${shortTypeName}.${fieldName} · declared by the API` })),
+    ...suggested.values.map((remembered) => ({
+      value: remembered.value,
+      detail: `${remembered.typeName.slice(remembered.typeName.lastIndexOf(".") + 1)}.${remembered.fieldName} · ${remembered.origin === "request" ? "sent to" : "returned by"} ${remembered.method}`,
+    })),
+  ];
+  if (offered.length === 0) return null;
 
-    // The API's own values first: a document is a better answer than a guess read
-    // off what happened to be sent before.
-    const offered: { value: ScalarValue; detail: string }[] = [
-      ...suggested.position.declared.map((value) => ({ value, detail: `${shortTypeName}.${fieldName} · declared by the API` })),
-      ...suggested.values.map((remembered) => ({
-        value: remembered.value,
-        detail: `${remembered.typeName.slice(remembered.typeName.lastIndexOf(".") + 1)}.${remembered.fieldName} · ${remembered.origin === "request" ? "sent to" : "returned by"} ${remembered.method}`,
-      })),
-    ];
-
-    return {
-      suggestions: offered.map(({ value, detail }, index) => {
-        const text = String(value);
-        return {
-          label: truncate(text),
-          kind: monaco.languages.CompletionItemKind.Value,
-          detail,
-          insertText: stringRange ? escapeForStringLiteral(text) : JSON.stringify(value),
-          filterText: text,
-          sortText: String(index).padStart(3, "0"),
-          range,
-        };
-      }),
-    };
-  },
-});
-
-const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
-let timestampCommandRegistered = false;
-let activeTimestampWidget: TimestampPickerContentWidget | null = null;
-let activeWidgetEditor: monaco.editor.IStandaloneCodeEditor | null = null;
-
-function registerTimestampCommand() {
-  if (timestampCommandRegistered) return;
-
-  monaco.editor.registerCommand(
-    TIMESTAMP_PICKER_COMMAND,
-    (_accessor, editorId: string, range: monaco.Range, fullRange: monaco.Range, fieldName: string, seconds: string, nanos: number) => {
-      const editors = monaco.editor.getEditors();
-      const codeEditor = editors.find((e) => e.getId() === editorId);
-      if (!codeEditor) return;
-
-      const editor = codeEditor as monaco.editor.IStandaloneCodeEditor;
-
-      if (activeTimestampWidget && activeWidgetEditor) {
-        activeWidgetEditor.removeContentWidget(activeTimestampWidget);
-        activeTimestampWidget.dispose();
-        activeTimestampWidget = null;
-        activeWidgetEditor = null;
-      }
-
-      const widget = new TimestampPickerContentWidget(editor, range, fullRange, fieldName, seconds, nanos, () => {
-        if (activeTimestampWidget && activeWidgetEditor) {
-          activeWidgetEditor.removeContentWidget(activeTimestampWidget);
-          activeTimestampWidget.dispose();
-          activeTimestampWidget = null;
-          activeWidgetEditor = null;
-        }
-      });
-
-      editor.addContentWidget(widget);
-      activeTimestampWidget = widget;
-      activeWidgetEditor = editor;
-    },
-  );
-
-  // Use a cached Code Lens provider that minimizes blink on updates
-  let cachedLenses: Map<string, monaco.languages.CodeLens[]> = new Map();
-
-  monaco.languages.registerCodeLensProvider("typescript", {
-    provideCodeLenses: (model) => {
-      const modelId = model.uri.toString();
-      const timestamps = findTimestamps(model);
-      const editors = monaco.editor.getEditors();
-      const editor = editors.find((e) => e.getModel() === model);
-      const editorId = editor?.getId() ?? "";
-
-      const lenses: monaco.languages.CodeLens[] = timestamps.map((ts) => {
-        const date = timestampToDate(ts.seconds, ts.nanos);
-        const displayDate = formatDateForDisplay(date);
-
-        return {
-          range: ts.range,
-          command: {
-            id: TIMESTAMP_PICKER_COMMAND,
-            title: `📅 ${displayDate}`,
-            arguments: [editorId, ts.range, ts.fullRange, ts.fieldName, ts.seconds, ts.nanos],
-          },
-        };
-      });
-
-      cachedLenses.set(modelId, lenses);
-      return { lenses, dispose: () => {} };
-    },
-  });
-
-  timestampCommandRegistered = true;
+  return {
+    from,
+    to,
+    filter: true,
+    options: offered.map(({ value, detail }, index) => {
+      const text = String(value);
+      return {
+        label: truncate(text),
+        type: "constant",
+        detail,
+        apply: stringRange ? escapeForStringLiteral(text) : JSON.stringify(value),
+        boost: 99 - Math.min(index, 198),
+      };
+    }),
+  };
 }
 
-registerTimestampCommand();
+function typescriptLinter(buffer: TextBuffer) {
+  return linter(
+    async (view) => {
+      const code = view.state.doc.toString();
+      const found = await askTypeScript("diagnostics", buffer.path).catch(() => []);
+      // The worker answered for the text it had, which is this text only if nothing was
+      // typed in between; the linter drops an answer about an older document itself.
+      reportDiagnostics(buffer.path, found);
+      const length = view.state.doc.length;
+      const diagnostics: Diagnostic[] = found
+        .filter((diagnostic) => diagnostic.category === DIAGNOSTIC_ERROR || diagnostic.category === DIAGNOSTIC_WARNING)
+        .map((diagnostic) => ({
+          from: Math.min(diagnostic.start, length),
+          to: Math.min(diagnostic.start + diagnostic.length, length),
+          severity: diagnostic.category === DIAGNOSTIC_ERROR ? "error" : "warning",
+          message: diagnostic.message,
+        }));
+      return [...diagnostics, ...runDiagnostics(code)];
+    },
+    { delay: 300 },
+  );
+}
+
+function typescriptHover(buffer: TextBuffer) {
+  return hoverTooltip(async (_view, pos) => {
+    const info = await askTypeScript("quickInfo", buffer.path, pos);
+    if (!info) return null;
+    return { pos: info.start, end: info.end, above: true, create: () => ({ dom: infoElement(info.signature, info.documentation) }) };
+  });
+}
+
+/**
+ * Every chord the window states is left out of the editor's keymap, because the editor
+ * matches first and then stops the event — ⌘⏎ would insert a line below rather than run
+ * the script. A binding the window claims later is taken out of every editor then.
+ */
+function normalizeKaja(binding: string): string {
+  const parts = binding.split("+");
+  const key = parts.pop() ?? "";
+  const modifiers = parts.map((part) => (part === "Mod" ? (isMacPlatform() ? "meta" : "ctrl") : part.toLowerCase()));
+  return [...modifiers.sort(), key.toLowerCase()].join("+");
+}
+
+function normalizeCodeMirror(binding: string): string {
+  const parts = binding.split(/-(?!$)/);
+  const key = parts.pop() ?? "";
+  const modifiers = parts.map((part) => {
+    const name = part.toLowerCase();
+    if (name === "mod") return isMacPlatform() ? "meta" : "ctrl";
+    if (name === "cmd") return "meta";
+    if (name === "c") return "ctrl";
+    if (name === "a") return "alt";
+    if (name === "s") return "shift";
+    if (name === "m") return "meta";
+    return name;
+  });
+  return [...modifiers.sort(), key.toLowerCase()].join("+");
+}
+
+function unclaimed(bindings: readonly KeyBinding[]): KeyBinding[] {
+  const claimed = new Set(claimedBindings().map(normalizeKaja));
+  return bindings.filter((binding) => {
+    const key = (isMacPlatform() ? binding.mac : undefined) ?? binding.key;
+    return !key || !claimed.has(normalizeCodeMirror(key));
+  });
+}
+
+const keys = new Compartment();
+const gutter = new Compartment();
+const editable = new Compartment();
+
+export interface EditorViewState {
+  anchor: number;
+  head: number;
+  scrollTop: number;
+}
+
+export interface EditorHandle {
+  getValue(): string;
+  saveViewState(): EditorViewState;
+}
+
+export interface onGoToDefinition {
+  (buffer: TextBuffer, startLineNumber: number, startColumn: number): void;
+}
 
 interface EditorProps {
-  model: monaco.editor.ITextModel;
+  buffer: TextBuffer;
   readOnly?: boolean;
   /**
-   * Whether to run the buffer through prettier as it is shown. Only a generated
-   * module is: it is printed by the TypeScript printer, lives in memory and is
-   * nobody's file. A script's buffer is never touched, because a script is a file
-   * on disk and this editor auto-saves — reformatting it here would rewrite
-   * somebody's file for the crime of being opened, in prettier's defaults rather
-   * than in the settings the file was written under.
+   * Whether to run the buffer through prettier as it is shown. Only a generated module
+   * is: it is printed by the TypeScript printer, lives in memory and is nobody's file. A
+   * script's buffer is never touched, because a script is a file on disk and this
+   * editor auto-saves — reformatting it here would rewrite somebody's file for the
+   * crime of being opened, in prettier's defaults rather than in the settings the file
+   * was written under.
    */
   format?: boolean;
-  onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onMount?: (handle: EditorHandle) => void;
+  // A change somebody made in this editor, rather than one written into its buffer.
+  onUserEdit?: () => void;
+  onContentHeight?: (height: number) => void;
   onGoToDefinition: onGoToDefinition;
   startLineNumber?: number;
   startColumn?: number;
-  viewState?: monaco.editor.ICodeEditorViewState;
+  viewState?: EditorViewState;
   // A phone's column has no room for a gutter: no line numbers, no folding.
   phone?: boolean;
 }
 
-function gutterOptions(phone: boolean): monaco.editor.IEditorOptions {
-  return phone
-    ? { lineNumbers: "off", folding: false, glyphMargin: false, lineDecorationsWidth: 8 }
-    : { lineNumbers: "on", folding: true, glyphMargin: false, lineDecorationsWidth: 10 };
+// Applied by the editor when its buffer was written by someone else, so the change is
+// not written back into the buffer it came from.
+const fromBuffer = Annotation.define<boolean>();
+
+// The smallest edit that turns one text into the other, so an edit written from outside
+// (a rename followed, a file re-read from disk) is one undo step that leaves the cursor
+// where it was unless the text under it moved.
+function minimalChange(before: string, after: string): { from: number; to: number; insert: string } {
+  let start = 0;
+  const shorter = Math.min(before.length, after.length);
+  while (start < shorter && before.charCodeAt(start) === after.charCodeAt(start)) start++;
+  let end = 0;
+  while (end < shorter - start && before.charCodeAt(before.length - 1 - end) === after.charCodeAt(after.length - 1 - end)) end++;
+  return { from: start, to: before.length - end, insert: after.slice(start, after.length - end) };
 }
 
-export interface onGoToDefinition {
-  (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
+const phoneMargins = EditorView.theme({ ".cm-content": { padding: "12px 16px" } });
+
+function gutterExtensions(phone: boolean): Extension {
+  return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
+}
+
+function editableExtensions(readOnly: boolean): Extension {
+  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
 }
 
 export function Editor({
-  model,
+  buffer,
   onMount,
+  onUserEdit,
+  onContentHeight,
   onGoToDefinition,
   readOnly = false,
   format = false,
@@ -518,150 +432,189 @@ export function Editor({
   phone = false,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  // Read through refs, so the editor is created once per buffer rather than per render.
+  const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition });
+  callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition };
 
-  // A destination is checked as it is written. The pause is what keeps a name being
-  // typed from going red between two keystrokes; a change to the listing marks every
-  // model at once (setRunDestinations), so this is only about this buffer's own text.
   useEffect(() => {
-    markRuns(model);
-    let pending: ReturnType<typeof setTimeout> | undefined;
-    const subscription = model.onDidChangeContent(() => {
-      if (pending) clearTimeout(pending);
-      pending = setTimeout(() => markRuns(model), RUN_MARK_MS);
-    });
-    return () => {
-      if (pending) clearTimeout(pending);
-      subscription.dispose();
+    const container = containerRef.current;
+    if (!container) return;
+
+    const goToDefinition = async (view: EditorView, pos: number) => {
+      const [definition] = await askTypeScript("definition", buffer.path, pos);
+      if (!definition) return;
+      if (definition.path === buffer.path) {
+        view.dispatch({ selection: { anchor: definition.start }, effects: EditorView.scrollIntoView(definition.start, { y: "center" }) });
+        view.focus();
+        return;
+      }
+      const target = getBuffer(definition.path);
+      if (!target) return;
+      const { line, column } = lineColumnAt(target.getValue(), definition.start);
+      callbacks.current.onGoToDefinition(target, line, column);
     };
-  }, [model]);
 
-  useEffect(() => {
-    if (!containerRef.current) {
-      return;
-    }
-
-    let isDisposing = false;
-
-    if (!editorRef.current) {
-      editorRef.current = monaco.editor.create(containerRef.current, {
-        model,
-        language: "typescript",
-        automaticLayout: true,
-        fontSize: codeFontSize(),
-        padding: {
-          top: 16,
-          bottom: 16,
-        },
-        minimap: {
-          enabled: false,
-        },
-        // The pane is deliberately short so the response gets the room. Vertical
-        // scrolling is the cost of that; horizontal scrolling would be worse, so
-        // a line too long to fit wraps instead.
-        wordWrap: "on",
-        readOnly,
-        ...gutterOptions(phone),
-        fixedOverflowWidgets: true,
-        renderLineHighlight: "none",
-        formatOnPaste: true,
-        formatOnType: true,
-        tabSize: 2,
-        inlineSuggest: {
-          enabled: true,
-          mode: "subwordSmart",
-          showToolbar: "always",
-        },
-        quickSuggestions: {
-          other: "inline",
-          comments: "inline",
-          strings: "inline",
-        },
-        suggest: {
-          preview: true,
-          showInlineDetails: true,
-          showMethods: true,
-          showFunctions: true,
-          showVariables: true,
-          showConstants: true,
-          showConstructors: true,
-          showFields: true,
-          showFiles: true,
-        },
+    const formatDocument = (view: EditorView) => {
+      const before = view.state.doc.toString();
+      formatTypeScript(before).then((formatted) => {
+        if (view.state.doc.toString() !== before) return;
+        view.dispatch({ changes: minimalChange(before, formatted), userEvent: "input.format" });
       });
+      return true;
+    };
 
-      const editorService = (editorRef.current as any)._codeEditorService;
-      editorService.openCodeEditor = async (input: { resource: monaco.Uri; options?: { selection?: { startLineNumber: number; startColumn: number } } }) => {
-        const model = monaco.editor.getModel(input.resource);
-        if (model) {
-          let startLineNumber = 0;
-          let startColumn = 0;
-          if (input.options?.selection) {
-            startLineNumber = input.options.selection.startLineNumber;
-            startColumn = input.options.selection.startColumn;
+    const ownKeys = (): KeyBinding[] =>
+      unclaimed([
+        ...closeBracketsKeymap,
+        ...defaultKeymap,
+        ...searchKeymap,
+        ...historyKeymap,
+        ...foldKeymap,
+        ...completionKeymap,
+        ...lintKeymap,
+        indentWithTab,
+        {
+          key: "F12",
+          run: (view) => {
+            void goToDefinition(view, view.state.selection.main.head);
+            return true;
+          },
+        },
+        { key: "Shift-Alt-f", run: formatDocument },
+      ]);
+
+    const state = EditorState.create({
+      doc: buffer.getValue(),
+      extensions: [
+        gutter.of(gutterExtensions(phone)),
+        editable.of(editableExtensions(readOnly)),
+        keys.of(keymap.of(ownKeys())),
+        history(),
+        // The native selection on a phone, which is what its handles, its callout and
+        // its paste act on; a drawn one is what makes multiple cursors possible.
+        phone ? [] : [drawSelection(), rectangularSelection(), crosshairCursor()],
+        dropCursor(),
+        indentOnInput(),
+        indentUnit.of("  "),
+        EditorState.tabSize.of(2),
+        bracketMatching(),
+        closeBrackets(),
+        highlightSelectionMatches(),
+        search({ top: true }),
+        // The pane is deliberately short so the response gets the room. Vertical
+        // scrolling is the cost of that; horizontal scrolling would be worse, so a line
+        // too long to fit wraps instead.
+        EditorView.lineWrapping,
+        javascript({ typescript: true }),
+        codeTheme,
+        codeHighlighting,
+        autocompletion({
+          override: [typescriptCompletions(buffer), kajaImportCompletion(buffer), runDestinationCompletions, valueCompletions],
+          icons: false,
+        }),
+        typescriptLinter(buffer),
+        typescriptHover(buffer),
+        timestampPicker(),
+        EditorView.domEventHandlers({
+          mousedown: (event, view) => {
+            const modified = isMacPlatform() ? event.metaKey : event.ctrlKey;
+            if (!modified || event.button !== 0) return false;
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos === null) return false;
+            event.preventDefault();
+            void goToDefinition(view, pos);
+            return true;
+          },
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && !update.transactions.some((transaction) => transaction.annotation(fromBuffer))) {
+            buffer.setValue(update.state.doc.toString(), update.view);
+            if (
+              update.transactions.some(
+                (transaction) =>
+                  transaction.isUserEvent("input") ||
+                  transaction.isUserEvent("delete") ||
+                  transaction.isUserEvent("undo") ||
+                  transaction.isUserEvent("redo") ||
+                  transaction.isUserEvent("move"),
+              )
+            ) {
+              callbacks.current.onUserEdit?.();
+            }
           }
-          onGoToDefinition(model, startLineNumber, startColumn);
-        }
-      };
+          if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(update.view.contentHeight);
+        }),
+      ],
+    });
 
-      onMount?.(editorRef.current);
-    }
+    const view = new EditorView({ state, parent: container });
+    viewRef.current = view;
+    liveViews.add(view);
 
+    const unsubscribeBuffer = buffer.onDidChange((origin) => {
+      if (origin === view) return;
+      const before = view.state.doc.toString();
+      const after = buffer.getValue();
+      if (before === after) return;
+      view.dispatch({ changes: minimalChange(before, after), annotations: fromBuffer.of(true) });
+    });
+
+    const unsubscribeShortcuts = subscribeShortcuts(() => view.dispatch({ effects: keys.reconfigure(keymap.of(ownKeys())) }));
+
+    let disposed = false;
+    const reveal = (offset: number) => {
+      view.dispatch({ selection: { anchor: offset }, effects: EditorView.scrollIntoView(offset, { y: "center" }) });
+    };
     const goingTo = !viewState && startLineNumber > 0;
 
-    if (format && goingTo) {
-      // startLineNumber/startColumn were resolved against the unformatted model
-      // text; formatting reflows lines, so remap the position through prettier.
-      const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
-      formatTypeScriptWithCursor(model.getValue(), cursorOffset).then((result) => {
-        if (!isDisposing && editorRef.current) {
-          editorRef.current.setValue(result.code);
-          const position = model.getPositionAt(result.cursorOffset);
-          editorRef.current.revealLineInCenter(position.lineNumber);
-          editorRef.current.setPosition(position);
-        }
+    if (format) {
+      const text = buffer.getValue();
+      const cursor = goingTo ? offsetAt(text, startLineNumber, startColumn) : 0;
+      formatTypeScriptWithCursor(text, cursor).then((result) => {
+        if (disposed) return;
+        buffer.setValue(result.code);
+        if (goingTo) reveal(Math.min(result.cursorOffset, view.state.doc.length));
       });
-    } else if (format) {
-      formatTypeScript(model.getValue()).then((formattedCode) => {
-        if (!isDisposing && editorRef.current) {
-          editorRef.current.setValue(formattedCode);
-          if (viewState) {
-            editorRef.current.restoreViewState(viewState);
-          }
-        }
+    } else if (viewState) {
+      const length = view.state.doc.length;
+      view.dispatch({ selection: EditorSelection.single(Math.min(viewState.anchor, length), Math.min(viewState.head, length)) });
+      // The scroll position is the layout's, which the first measure has to settle.
+      requestAnimationFrame(() => {
+        if (!disposed) view.scrollDOM.scrollTop = viewState.scrollTop;
       });
-    } else {
-      if (viewState) {
-        editorRef.current.restoreViewState(viewState);
-      } else if (goingTo) {
-        editorRef.current.revealLineInCenter(startLineNumber);
-        editorRef.current.setPosition({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
-      }
+    } else if (goingTo) {
+      reveal(offsetAt(buffer.getValue(), startLineNumber, startColumn));
     }
 
-    editorRef.current?.setModel(model);
+    onMount?.({
+      getValue: () => view.state.doc.toString(),
+      saveViewState: () => ({ anchor: view.state.selection.main.anchor, head: view.state.selection.main.head, scrollTop: view.scrollDOM.scrollTop }),
+    });
+    callbacks.current.onContentHeight?.(view.contentHeight);
 
     return () => {
-      isDisposing = true;
-      editorRef.current?.dispose();
-      editorRef.current = null;
+      disposed = true;
+      unsubscribeBuffer();
+      unsubscribeShortcuts();
+      liveViews.delete(view);
+      view.destroy();
+      viewRef.current = null;
     };
-  }, [model]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buffer]);
 
-  // The option is read once, when the editor is created, and a view mounts before
-  // the process has said whether it may write the workspace: a window restores its
-  // views synchronously and the answer arrives with the workspace. Without this
-  // the file that was open when the window last closed stays read-only for the
-  // session, and reopening it revisits the same editor.
+  // A view mounts before the process has said whether it may write the workspace: a
+  // window restores its views synchronously and the answer arrives with the workspace.
+  // Without this the file that was open when the window last closed stays read-only for
+  // the session.
   useEffect(() => {
-    editorRef.current?.updateOptions({ readOnly });
+    viewRef.current?.dispatch({ effects: editable.reconfigure(editableExtensions(readOnly)) });
   }, [readOnly]);
 
   useEffect(() => {
-    editorRef.current?.updateOptions(gutterOptions(phone));
+    viewRef.current?.dispatch({ effects: gutter.reconfigure(gutterExtensions(phone)) });
   }, [phone]);
 
-  // The context menu's shadow root is mounted in this element, outside .monaco-editor,
-  // and the theme declares its colors on .monaco-component; without it the menu has no background.
-  return <div ref={containerRef} className="monaco-component h-full w-full bg-background" />;
+  return <div ref={containerRef} className="h-full w-full bg-background text-xs" />;
 }

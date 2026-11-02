@@ -7,7 +7,7 @@ import { parseScript, walk } from "./scriptSyntax";
 export interface Source {
   path: string;
   importPath: string;
-  // The module Monaco is given for this source: its services are consts a script
+  // The module the editor is given for this source: its services are consts a script
   // calls, and its types carry no protobuf bookkeeping.
   text: string;
   serviceNames: string[];

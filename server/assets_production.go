@@ -4,7 +4,6 @@ package assets
 
 import (
 	"embed"
-	"fmt"
 
 	"github.com/wham/kaja/v2/internal/ui"
 )
@@ -18,34 +17,13 @@ var mainJs []byte
 //go:embed build/main.css
 var mainCss []byte
 
-//go:embed build/codicon-LTRFOK3N.ttf
-var codiconTtf []byte
-
-//go:embed build/monaco.ts.worker.js
-var monacoTsWorkerJs []byte
-
-//go:embed build/monaco.editor.worker.js
-var monacoEditorWorkerJs []byte
-
-//go:embed build/monaco.json.worker.js
-var monacoJsonWorkerJs []byte
+//go:embed build/typescript.worker.js
+var workerJs []byte
 
 func ReadUiBundle() *ui.UiBundle {
 	return &ui.UiBundle{
-		MainJs:     mainJs,
-		MainCss:    mainCss,
-		CodiconTtf: codiconTtf,
+		MainJs:   mainJs,
+		MainCss:  mainCss,
+		WorkerJs: workerJs,
 	}
-}
-
-func ReadMonacoWorker(name string) ([]byte, error) {
-	switch name {
-	case "ts":
-		return monacoTsWorkerJs, nil
-	case "editor":
-		return monacoEditorWorkerJs, nil
-	case "json":
-		return monacoJsonWorkerJs, nil
-	}
-	return nil, fmt.Errorf("unknown monaco worker: %s", name)
 }

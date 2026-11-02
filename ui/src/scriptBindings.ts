@@ -12,8 +12,8 @@ export function importedNames(file: File): Set<string> {
   return boundNames(file, () => true);
 }
 
-// Whatever the kaja runtime was bound to in this file, alias included — Monaco's
-// auto-import can write the relative form of the module.
+// Whatever the kaja runtime was bound to in this file, alias included — a script
+// written against the editor's old auto-import may name the relative form of the module.
 export function runtimeNames(file: File): Set<string> {
   return boundNames(file, (path) => path === "kaja" || path === "./kaja");
 }

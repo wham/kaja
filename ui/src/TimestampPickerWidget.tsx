@@ -1,10 +1,11 @@
-import * as monaco from "monaco-editor";
+import { Extension, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, DecorationSet, EditorView, keymap, showTooltip, Tooltip, WidgetType } from "@codemirror/view";
 import { useState } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
-import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
+import { dateToTimestamp, findTimestamps, formatDateForDisplay, formatTimestampCode, TimestampMatch, timestampToDate } from "./timestampPicker";
 
 interface TimestampPickerProps {
   initialSeconds: string;
@@ -84,64 +85,83 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
   );
 }
 
-export class TimestampPickerContentWidget implements monaco.editor.IContentWidget {
-  private domNode: HTMLDivElement;
-  private root: Root;
-  private position: monaco.IPosition;
-  private disposed = false;
+class TimestampChip extends WidgetType {
+  constructor(private match: TimestampMatch) {
+    super();
+  }
 
-  constructor(
-    private editor: monaco.editor.IStandaloneCodeEditor,
-    displayRange: monaco.Range,
-    private editRange: monaco.Range,
-    fieldName: string,
-    seconds: string,
-    nanos: number,
-    private onCloseCallback: () => void,
-  ) {
-    this.position = { lineNumber: displayRange.startLineNumber, column: displayRange.startColumn };
+  // A chip kept across an edit keeps the match its click opens, so it is kept only
+  // where every offset in that match still holds.
+  eq(other: TimestampChip): boolean {
+    const a = this.match;
+    const b = other.match;
+    return a.from === b.from && a.to === b.to && a.anchor === b.anchor && a.fieldName === b.fieldName && a.seconds === b.seconds && a.nanos === b.nanos;
+  }
 
-    this.domNode = document.createElement("div");
-    this.domNode.style.zIndex = "1000";
+  toDOM(view: EditorView): HTMLElement {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "ml-2 rounded-sm bg-muted px-1.5 font-sans text-[11px] text-muted-foreground hover:text-foreground";
+    chip.textContent = `📅 ${formatDateForDisplay(timestampToDate(this.match.seconds, this.match.nanos))}`;
+    chip.onmousedown = (event) => event.preventDefault();
+    chip.onclick = () => view.dispatch({ effects: openPicker.of(this.match) });
+    return chip;
+  }
 
-    this.root = createRoot(this.domNode);
-    this.root.render(
-      <TimestampPicker
-        initialSeconds={seconds}
-        initialNanos={nanos}
-        fieldName={fieldName}
-        onApply={(newCode) => {
-          if (this.disposed) return;
-          this.editor.executeEdits("timestamp-picker", [
-            {
-              range: this.editRange,
-              text: newCode,
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+function chips(text: string): DecorationSet {
+  return Decoration.set(findTimestamps(text).map((match) => Decoration.widget({ widget: new TimestampChip(match), side: 1 }).range(match.to)));
+}
+
+const openPicker = StateEffect.define<TimestampMatch | null>();
+
+const picker = StateField.define<TimestampMatch | null>({
+  create: () => null,
+  update(open, transaction) {
+    for (const effect of transaction.effects) if (effect.is(openPicker)) return effect.value;
+    // A picker is about the text it was opened on.
+    return transaction.docChanged ? null : open;
+  },
+  provide: (field) =>
+    showTooltip.from(field, (match): Tooltip | null =>
+      match
+        ? {
+            pos: match.anchor,
+            above: false,
+            create(view) {
+              const dom = document.createElement("div");
+              const root: Root = createRoot(dom);
+              root.render(
+                <TimestampPicker
+                  initialSeconds={match.seconds}
+                  initialNanos={match.nanos}
+                  fieldName={match.fieldName}
+                  onApply={(code) => view.dispatch({ changes: { from: match.from, to: match.to, insert: code }, effects: openPicker.of(null) })}
+                />,
+              );
+              return { dom, destroy: () => setTimeout(() => root.unmount()) };
             },
-          ]);
-          // Delay close to allow Code Lens to refresh first, reducing blink
-          setTimeout(() => this.onCloseCallback(), 100);
-        }}
-      />,
-    );
-  }
+          }
+        : null,
+    ),
+});
 
-  getId(): string {
-    return "timestamp.picker.widget";
-  }
-
-  getDomNode(): HTMLElement {
-    return this.domNode;
-  }
-
-  getPosition(): monaco.editor.IContentWidgetPosition {
-    return {
-      position: this.position,
-      preference: [monaco.editor.ContentWidgetPositionPreference.BELOW, monaco.editor.ContentWidgetPositionPreference.ABOVE],
-    };
-  }
-
-  dispose(): void {
-    this.disposed = true;
-    this.root.unmount();
-  }
+/**
+ * A `Timestamp` written as seconds and nanos is a date nobody can read, so each one is
+ * followed by the date it is and a click that opens a picker over it.
+ */
+export function timestampPicker(): Extension {
+  return [
+    picker,
+    StateField.define<DecorationSet>({
+      create: (state) => chips(state.doc.toString()),
+      update: (decorations, transaction) => (transaction.docChanged ? chips(transaction.state.doc.toString()) : decorations),
+      provide: (field) => EditorView.decorations.from(field),
+    }),
+    keymap.of([{ key: "Escape", run: (view) => (view.state.field(picker) ? (view.dispatch({ effects: openPicker.of(null) }), true) : false) }]),
+  ];
 }

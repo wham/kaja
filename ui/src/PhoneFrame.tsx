@@ -1,5 +1,4 @@
 import { Check, TextAlignStart } from "lucide-react";
-import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CodePane } from "./CodePane";
@@ -8,6 +7,7 @@ import { Console } from "./Console";
 import { consoles } from "./consoles";
 import { snapDrawer } from "./phone";
 import { ConsoleView } from "./runs";
+import { TextBuffer } from "./textBuffer";
 
 // How far in from the left edge a swipe has to start to open the drawer.
 const EDGE = 24;
@@ -36,7 +36,7 @@ export interface PhoneConsole {
 
 export interface PhoneScript {
   fileId: string;
-  model: monaco.editor.ITextModel;
+  buffer: TextBuffer;
   readOnly: boolean;
 }
 
@@ -321,7 +321,7 @@ export function PhoneFrame({
           {/* Always mounted, because it holds the editors. */}
           <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
             <CodePane
-              model={onScript ? script?.model : undefined}
+              buffer={onScript ? script?.buffer : undefined}
               readOnly={script?.readOnly ?? true}
               editing={editing}
               onEditingChange={setEditing}

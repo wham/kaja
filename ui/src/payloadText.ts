@@ -1,5 +1,5 @@
 /**
- * The most a response is drawn at. Past it Monaco spends longer tokenizing than
+ * The most a response is drawn at. Past it the viewer spends longer parsing than
  * anyone spends reading, so the tail is cut and the cut says so — the same
  * bargain the store makes with expired payloads, and better than a pane that
  * takes a second to paint something nobody scrolls to the end of.

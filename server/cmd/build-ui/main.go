@@ -15,7 +15,7 @@ func main() {
 	var watch bool
 	var outDir string
 	var staticSrc string
-	flag.BoolVar(&watch, "watch", false, "watch source files and re-bundle main.{js,css}+codicon on every change")
+	flag.BoolVar(&watch, "watch", false, "watch source files and re-bundle main.{js,css} and the worker on every change")
 	flag.StringVar(&outDir, "out", "build", "output directory")
 	flag.StringVar(&staticSrc, "static", "", "directory to copy alongside the bundle (index.html lifted to root, rest under static/)")
 	flag.Parse()
@@ -31,9 +31,9 @@ func main() {
 	}
 }
 
-// watchMain re-bundles the main entry point on every source change. Monaco
-// workers and static files are not watched - they're written by build() and
-// don't change between rebuilds.
+// watchMain re-bundles the UI and its worker on every source change. Static
+// files are not watched - they're written by build() and don't change between
+// rebuilds.
 func watchMain(outDir string) error {
 	if err := os.MkdirAll(outDir, os.ModePerm); err != nil {
 		slog.Error("Failed to create output directory", "error", err)
@@ -72,23 +72,10 @@ func build(outputDirectory string, staticSrc string) error {
 		return err
 	}
 
-	outputFile = path.Join(outputDirectory, data.CodiconTtfName)
-	if err := os.WriteFile(outputFile, data.CodiconTtf, 0644); err != nil {
+	outputFile = path.Join(outputDirectory, "typescript.worker.js")
+	if err := os.WriteFile(outputFile, data.WorkerJs, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err
-	}
-
-	for _, worker := range ui.MonacoWorkerNames {
-		workerData, err := ui.BuildMonacoWorker(worker)
-		if err != nil {
-			return err
-		}
-		outputFile = path.Join(outputDirectory, "monaco."+worker+".worker.js")
-		if err := os.WriteFile(outputFile, workerData, 0644); err != nil {
-			slog.Error("Failed to write worker file", "error", err)
-			return err
-		}
-		slog.Info("Monaco worker built", "file", outputFile)
 	}
 
 	if staticSrc != "" {

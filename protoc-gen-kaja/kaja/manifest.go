@@ -19,7 +19,7 @@ type manifest struct {
 
 type moduleManifest struct {
 	Path string `json:"path"`
-	// EditorText is the module Monaco is given: the types, and a const per service
+	// EditorText is the module the editor is given: the types, and a const per service
 	// whose methods take an Input and hand back a Call.
 	EditorText   string             `json:"editorText"`
 	Messages     []*messageManifest `json:"messages"`
@@ -208,7 +208,7 @@ func fieldManifestOf(f *field) *fieldManifest {
 	return out
 }
 
-// editorText is the module Monaco checks a script against. A method that streams from
+// editorText is the module the editor checks a script against. A method that streams from
 // the client is left off its service, since it takes no input a script could write.
 func (m *module) editorText() string {
 	var imports, statements []string

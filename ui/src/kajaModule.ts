@@ -3,7 +3,7 @@ import { REFUSED_GLOBALS } from "./scriptGlobals";
 // The declaration of the `kaja` module — what a script gets from
 // `import { kaja } from "kaja"`.
 //
-// Written once and read twice: Monaco backs the import with it (registerKajaModule
+// Written once and read twice: the editor backs the import with it (registerKajaModule
 // in Editor.tsx) and the MCP catalog carries it to an agent (mcpCatalog.ts). The
 // answer is the TypeScript a script is checked against, because a second model of
 // it can disagree with the code, and did.
