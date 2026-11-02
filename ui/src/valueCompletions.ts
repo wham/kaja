@@ -1,6 +1,7 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import type { CallExpression, File, Node, OptionalCallExpression } from "@babel/types";
+import { appFor, resolve } from "./appImports";
 import { App } from "./apps";
 import { declaredValues } from "./declarations";
 import { Source } from "./sources";
@@ -145,13 +146,16 @@ function importPathOf(file: File, localName: string): string | undefined {
 function findServiceInfo(apps: App[], serviceName: string, importPath: string | undefined): ServiceInfo | undefined {
   const candidates: { app: App; source: Source }[] = [];
 
-  for (const app of apps) {
-    for (const source of app.sources) {
-      if (!source.serviceNames.includes(serviceName)) {
-        continue;
-      }
-      if (importPath === undefined || source.importPath === importPath) {
-        candidates.push({ app, source });
+  // An import names the app, and only a name two of its modules declare is imported by
+  // a module path, so the module is resolved by the rule the runner uses.
+  const importedFrom = importPath === undefined ? undefined : appFor(apps, importPath);
+  if (importedFrom && importPath !== undefined) {
+    const resolution = resolve(importedFrom, importPath, serviceName);
+    if ("source" in resolution) candidates.push({ app: importedFrom, source: resolution.source });
+  } else if (importPath === undefined) {
+    for (const app of apps) {
+      for (const source of app.sources) {
+        if (source.serviceNames.includes(serviceName)) candidates.push({ app, source });
       }
     }
   }
