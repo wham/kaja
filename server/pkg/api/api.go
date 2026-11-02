@@ -1000,6 +1000,34 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 	return &StoredValueResponse{VariableStatus: s.variables(ctx).Statuses()}, nil
 }
 
+// RenameStoredValue moves a variable's value to its new name. A name holding
+// nothing is not a failure, since a rename made before a value was typed has
+// nothing to carry.
+func (s *ApiService) RenameStoredValue(ctx context.Context, req *RenameStoredValueRequest) (*StoredValueResponse, error) {
+	if err := s.checkStoredValueAllowed(req.From); err != nil {
+		return nil, err
+	}
+	if err := s.checkStoredValueAllowed(req.To); err != nil {
+		return nil, err
+	}
+
+	if workspaceID := s.snapshot().workspace.GetId(); workspaceID != "" && req.From != req.To && s.variableStoreAvailable(ctx) {
+		store := s.valueStore(ctx)
+		if value, ok := store.Get(workspaceID, req.From); ok {
+			slog.Info("Renaming stored variable value", "from", req.From, "to", req.To)
+			if err := store.Set(workspaceID, req.To, value); err != nil {
+				return nil, fmt.Errorf("failed to store the value for %q: %w", req.To, err)
+			}
+			if err := store.Delete(workspaceID, req.From); err != nil {
+				return nil, fmt.Errorf("failed to clear the value for %q: %w", req.From, err)
+			}
+			s.invalidateSnapshot()
+		}
+	}
+
+	return &StoredValueResponse{VariableStatus: s.variables(ctx).Statuses()}, nil
+}
+
 // EnsureWorkspaceID is the id the workspace's stored values are filed under, giving
 // the workspace one if it has none yet.
 func (s *ApiService) EnsureWorkspaceID() (string, error) {
