@@ -12,7 +12,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
 import { Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorSelection, EditorState, Extension } from "@codemirror/state";
+import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect } from "@codemirror/state";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, hoverTooltip, KeyBinding, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
@@ -50,8 +50,15 @@ subscribeScriptParameters(() => openBuffer("/kaja-scripts.d.ts", runInputDeclara
 // listed) can ask each of them to check its text again.
 const liveViews = new Set<EditorView>();
 
+// `forceLinting` only hurries a check that is already scheduled, so a check that has
+// finished has to be asked for again: this effect is what the linter refreshes on.
+const recheck = StateEffect.define<null>();
+
 function relintAll() {
-  for (const view of liveViews) forceLinting(view);
+  for (const view of liveViews) {
+    view.dispatch({ effects: recheck.of(null) });
+    forceLinting(view);
+  }
 }
 
 subscribeProgram(relintAll);
@@ -301,7 +308,10 @@ function typescriptLinter(buffer: TextBuffer) {
         }));
       return [...diagnostics, ...runDiagnostics(code)];
     },
-    { delay: 300 },
+    {
+      delay: 300,
+      needsRefresh: (update) => update.transactions.some((transaction) => transaction.effects.some((effect) => effect.is(recheck))),
+    },
   );
 }
 
