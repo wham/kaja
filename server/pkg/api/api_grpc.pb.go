@@ -33,6 +33,7 @@ const (
 	Api_UpdateWorkspace_FullMethodName            = "/Api/UpdateWorkspace"
 	Api_SetStoredValue_FullMethodName             = "/Api/SetStoredValue"
 	Api_ClearStoredValue_FullMethodName           = "/Api/ClearStoredValue"
+	Api_RenameStoredValue_FullMethodName          = "/Api/RenameStoredValue"
 	Api_ListScripts_FullMethodName                = "/Api/ListScripts"
 	Api_ReadScript_FullMethodName                 = "/Api/ReadScript"
 	Api_WriteScript_FullMethodName                = "/Api/WriteScript"
@@ -78,6 +79,7 @@ type ApiClient interface {
 	UpdateWorkspace(ctx context.Context, in *UpdateWorkspaceRequest, opts ...grpc.CallOption) (*UpdateWorkspaceResponse, error)
 	SetStoredValue(ctx context.Context, in *SetStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ClearStoredValue(ctx context.Context, in *ClearStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
+	RenameStoredValue(ctx context.Context, in *RenameStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error)
 	ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error)
 	ReadScript(ctx context.Context, in *ReadScriptRequest, opts ...grpc.CallOption) (*ReadScriptResponse, error)
 	WriteScript(ctx context.Context, in *WriteScriptRequest, opts ...grpc.CallOption) (*WriteScriptResponse, error)
@@ -277,6 +279,16 @@ func (c *apiClient) ClearStoredValue(ctx context.Context, in *ClearStoredValueRe
 	return out, nil
 }
 
+func (c *apiClient) RenameStoredValue(ctx context.Context, in *RenameStoredValueRequest, opts ...grpc.CallOption) (*StoredValueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StoredValueResponse)
+	err := c.cc.Invoke(ctx, Api_RenameStoredValue_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) ListScripts(ctx context.Context, in *ListScriptsRequest, opts ...grpc.CallOption) (*ListScriptsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListScriptsResponse)
@@ -437,6 +449,7 @@ type ApiServer interface {
 	UpdateWorkspace(context.Context, *UpdateWorkspaceRequest) (*UpdateWorkspaceResponse, error)
 	SetStoredValue(context.Context, *SetStoredValueRequest) (*StoredValueResponse, error)
 	ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error)
+	RenameStoredValue(context.Context, *RenameStoredValueRequest) (*StoredValueResponse, error)
 	ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error)
 	ReadScript(context.Context, *ReadScriptRequest) (*ReadScriptResponse, error)
 	WriteScript(context.Context, *WriteScriptRequest) (*WriteScriptResponse, error)
@@ -500,6 +513,9 @@ func (UnimplementedApiServer) SetStoredValue(context.Context, *SetStoredValueReq
 }
 func (UnimplementedApiServer) ClearStoredValue(context.Context, *ClearStoredValueRequest) (*StoredValueResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearStoredValue not implemented")
+}
+func (UnimplementedApiServer) RenameStoredValue(context.Context, *RenameStoredValueRequest) (*StoredValueResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameStoredValue not implemented")
 }
 func (UnimplementedApiServer) ListScripts(context.Context, *ListScriptsRequest) (*ListScriptsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListScripts not implemented")
@@ -784,6 +800,24 @@ func _Api_ClearStoredValue_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_RenameStoredValue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameStoredValueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).RenameStoredValue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_RenameStoredValue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).RenameStoredValue(ctx, req.(*RenameStoredValueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Api_ListScripts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListScriptsRequest)
 	if err := dec(in); err != nil {
@@ -1064,6 +1098,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearStoredValue",
 			Handler:    _Api_ClearStoredValue_Handler,
+		},
+		{
+			MethodName: "RenameStoredValue",
+			Handler:    _Api_RenameStoredValue_Handler,
 		},
 		{
 			MethodName: "ListScripts",

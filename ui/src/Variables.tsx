@@ -25,12 +25,22 @@ import { pluralCount } from "./plural";
 import { isIOSApp } from "./wails";
 
 interface VariableRow {
+  id: number;
   key: string;
   value: string;
+  // The name the file holds this row under, which is how a save tells a rename
+  // from a variable deleted and another added.
+  saved?: string;
+}
+
+export interface VariableRename {
+  from: string;
+  to: string;
 }
 
 export interface VariablesSave {
   variables: { [key: string]: string };
+  renamed: VariableRename[];
   cleared: string[];
 }
 
@@ -69,6 +79,44 @@ function keptInStore(kind: VariableKind): boolean {
 
 const AUTOSAVE_MS = 600;
 
+let nextRowId = 0;
+
+function newRow(key = "", value = ""): VariableRow {
+  return { id: nextRowId++, key, value };
+}
+
+/**
+ * What a write of `next` over `previous` does to the values kept in the store. A
+ * row renamed with its source unchanged takes its value to the new name, since
+ * the value never travels back out for the window to store again; any other
+ * stored name that left, or stopped being stored, is cleared unless the delete
+ * dialog was told to keep it.
+ */
+export function storedValueChanges(
+  previous: { [key: string]: string },
+  next: { [key: string]: string },
+  rows: { saved?: string; key: string }[],
+  retain: Set<string>,
+): { renamed: VariableRename[]; cleared: string[] } {
+  const renamed: VariableRename[] = [];
+  for (const row of rows) {
+    const from = row.saved;
+    const to = row.key.trim();
+    if (from === undefined || from === to || !(from in previous) || from in next || !(to in next) || to in previous) continue;
+    const kind = variableKind(previous[from]);
+    if (keptInStore(kind) && variableKind(next[to]) === kind) renamed.push({ from, to });
+  }
+  const moved = new Set(renamed.map((rename) => rename.from));
+  const cleared = Object.keys(previous).filter(
+    (name) =>
+      keptInStore(variableKind(previous[name])) &&
+      !moved.has(name) &&
+      !retain.has(name) &&
+      (!(name in next) || variableKind(next[name]) !== variableKind(previous[name])),
+  );
+  return { renamed, cleared };
+}
+
 function toRows(variables: { [key: string]: string }): VariableRow[] {
   // A variable you just added stays where you added it because the rows are the
   // table's own state and a save is not re-adopted. This is what an *external*
@@ -77,7 +125,7 @@ function toRows(variables: { [key: string]: string }): VariableRow[] {
   // reload would shuffle the table.
   return Object.entries(variables)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => ({ key, value }));
+    .map(([key, value]) => ({ ...newRow(key, value), saved: key }));
 }
 
 function toVariables(rows: VariableRow[]): { [key: string]: string } {
@@ -203,7 +251,7 @@ export function Variables({
       return;
     }
     markEdited();
-    setRows((prev) => [...prev, { key: "", value: "" }]);
+    setRows((prev) => [...prev, newRow()]);
     setFocusRow(rows.length);
   };
 
@@ -261,21 +309,18 @@ export function Variables({
       // A name that is back in the table is a variable again, so whatever the
       // delete dialog was told about the last one of that name no longer applies.
       for (const name of Object.keys(snapshot)) retainStoredRef.current.delete(name);
-      const cleared = Object.keys(variables).filter(
-        (name) =>
-          keptInStore(variableKind(variables[name])) &&
-          !retainStoredRef.current.has(name) &&
-          (!(name in snapshot) || variableKind(snapshot[name]) !== variableKind(variables[name])),
-      );
+      const { renamed, cleared } = storedValueChanges(variables, snapshot, rows, retainStoredRef.current);
+      const written = new Map(rows.filter((row) => row.key.trim() in snapshot).map((row) => [row.id, row.key.trim()]));
 
       void onSaveRef
-        .current({ variables: snapshot, cleared })
+        .current({ variables: snapshot, renamed, cleared })
+        .then(() => setRows((prev) => prev.map((row) => (written.has(row.id) ? { ...row, saved: written.get(row.id) } : row))))
         .catch((error) => console.error(`Saving variables failed: ${rpcErrorMessage(error)}`))
         .finally(() => setSaving(false));
     }, AUTOSAVE_MS);
 
     return () => clearTimeout(timer);
-  }, [dirty, editVersion, edited, invalid, readOnly, saving, variables]);
+  }, [dirty, editVersion, edited, invalid, readOnly, rows, saving, variables]);
 
   const storeValue = async (name: string, value: string) => {
     if (!name) return;
@@ -292,10 +337,16 @@ export function Variables({
     }
   };
 
-  const held = (row: VariableRow) => {
+  // Mid-rename the value is still under the name the file has, and goes with the row.
+  const statusOf = (row: VariableRow) => {
     const name = row.key.trim();
-    const source = statusByName.get(name)?.source;
-    return source === VariableSource.KEYCHAIN || source === VariableSource.SIGN_IN || justStored.has(name);
+    const renaming = row.saved !== undefined && row.saved !== name && row.saved in variables && variableKind(variables[row.saved]) === variableKind(row.value);
+    return statusByName.get(renaming ? row.saved! : name);
+  };
+
+  const held = (row: VariableRow) => {
+    const source = statusOf(row)?.source;
+    return source === VariableSource.KEYCHAIN || source === VariableSource.SIGN_IN || justStored.has(row.key.trim());
   };
 
   useEffect(() => {
@@ -374,7 +425,7 @@ export function Variables({
                     variant="outline"
                     onClick={() => {
                       markEdited();
-                      setRows((prev) => [...prev, { key: name, value: "" }]);
+                      setRows((prev) => [...prev, newRow(name)]);
                     }}
                   >
                     Define it
@@ -414,7 +465,7 @@ export function Variables({
               index={index}
               row={row}
               error={rowErrors[index]}
-              status={statusByName.get(name)}
+              status={statusOf(row)}
               storeAvailable={storeAvailable}
               held={held(row)}
               usedBy={usedBy}

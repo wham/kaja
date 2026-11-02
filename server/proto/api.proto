@@ -29,6 +29,7 @@ service Api {
   rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
+  rpc RenameStoredValue(RenameStoredValueRequest) returns (StoredValueResponse);
   rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
   rpc ReadScript(ReadScriptRequest) returns (ReadScriptResponse);
   rpc WriteScript(WriteScriptRequest) returns (WriteScriptResponse);
@@ -513,6 +514,14 @@ message SetStoredValueRequest {
 
 message ClearStoredValueRequest {
   string name = 1;
+}
+
+// RenameStoredValue files a variable's stored value under its new name, which is
+// what renaming a variable on the Variables tab does instead of clearing it: the
+// value never travels back out, so the window could not move it itself.
+message RenameStoredValueRequest {
+  string from = 1;
+  string to = 2;
 }
 
 message StoredValueResponse {

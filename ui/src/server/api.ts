@@ -510,6 +510,16 @@ export interface ClearStoredValueRequest {
     name: string;
 }
 
+/**
+ * RenameStoredValue files a variable's stored value under its new name, which is
+ * what renaming a variable on the Variables tab does instead of clearing it: the
+ * value never travels back out, so the window could not move it itself.
+ */
+export interface RenameStoredValueRequest {
+    from: string;
+    to: string;
+}
+
 export interface StoredValueResponse {
     variableStatus: VariableStatus[];
 }
@@ -1382,6 +1392,11 @@ export const ClearStoredValueRequest: MessageType<ClearStoredValueRequest> = new
     { no: 1, name: "name", kind: "scalar", T: 9 }
 ]);
 
+export const RenameStoredValueRequest: MessageType<RenameStoredValueRequest> = new MessageType<RenameStoredValueRequest>("RenameStoredValueRequest", [
+    { no: 1, name: "from", kind: "scalar", T: 9 },
+    { no: 2, name: "to", kind: "scalar", T: 9 }
+]);
+
 export const StoredValueResponse: MessageType<StoredValueResponse> = new MessageType<StoredValueResponse>("StoredValueResponse", [
     { no: 1, name: "variable_status", kind: "message", repeat: 2, T: () => VariableStatus }
 ]);
@@ -1612,6 +1627,7 @@ export const Api = new ServiceType("Api", [
     { name: "UpdateWorkspace", options: {}, I: UpdateWorkspaceRequest, O: UpdateWorkspaceResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
     { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse },
+    { name: "RenameStoredValue", options: {}, I: RenameStoredValueRequest, O: StoredValueResponse },
     { name: "ListScripts", options: {}, I: ListScriptsRequest, O: ListScriptsResponse },
     { name: "ReadScript", options: {}, I: ReadScriptRequest, O: ReadScriptResponse },
     { name: "WriteScript", options: {}, I: WriteScriptRequest, O: WriteScriptResponse },
@@ -1710,55 +1726,59 @@ export class ApiClient {
         return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[13], this.#transport.mergeOptions(options), input);
     }
 
+    renameStoredValue(input: RenameStoredValueRequest, options?: RpcOptions): UnaryCall<RenameStoredValueRequest, StoredValueResponse> {
+        return stackIntercept<RenameStoredValueRequest, StoredValueResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
+    }
+
     listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse> {
-        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[14], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
     }
 
     readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
-        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[15], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
     }
 
     writeScript(input: WriteScriptRequest, options?: RpcOptions): UnaryCall<WriteScriptRequest, WriteScriptResponse> {
-        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[16], this.#transport.mergeOptions(options), input);
+        return stackIntercept<WriteScriptRequest, WriteScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
     }
 
     createScript(input: CreateScriptRequest, options?: RpcOptions): UnaryCall<CreateScriptRequest, CreateScriptResponse> {
-        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[17], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptRequest, CreateScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
     }
 
     renameScript(input: RenameScriptRequest, options?: RpcOptions): UnaryCall<RenameScriptRequest, RenameScriptResponse> {
-        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[18], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptRequest, RenameScriptResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
     }
 
     deleteScript(input: DeleteScriptRequest, options?: RpcOptions): UnaryCall<DeleteScriptRequest, DeleteScriptResponse> {
-        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[19], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptRequest, DeleteScriptResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
     }
 
     copyScript(input: CopyScriptRequest, options?: RpcOptions): UnaryCall<CopyScriptRequest, CopyScriptResponse> {
-        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[20], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptRequest, CopyScriptResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
     }
 
     listScriptFolders(input: ListScriptFoldersRequest, options?: RpcOptions): UnaryCall<ListScriptFoldersRequest, ListScriptFoldersResponse> {
-        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[21], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ListScriptFoldersRequest, ListScriptFoldersResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
     }
 
     createScriptFolder(input: CreateScriptFolderRequest, options?: RpcOptions): UnaryCall<CreateScriptFolderRequest, CreateScriptFolderResponse> {
-        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[22], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CreateScriptFolderRequest, CreateScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
     }
 
     renameScriptFolder(input: RenameScriptFolderRequest, options?: RpcOptions): UnaryCall<RenameScriptFolderRequest, RenameScriptFolderResponse> {
-        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[23], this.#transport.mergeOptions(options), input);
+        return stackIntercept<RenameScriptFolderRequest, RenameScriptFolderResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
     }
 
     deleteScriptFolder(input: DeleteScriptFolderRequest, options?: RpcOptions): UnaryCall<DeleteScriptFolderRequest, DeleteScriptFolderResponse> {
-        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[24], this.#transport.mergeOptions(options), input);
+        return stackIntercept<DeleteScriptFolderRequest, DeleteScriptFolderResponse>("unary", this.#transport, Api.methods[25], this.#transport.mergeOptions(options), input);
     }
 
     copyScriptFolder(input: CopyScriptFolderRequest, options?: RpcOptions): UnaryCall<CopyScriptFolderRequest, CopyScriptFolderResponse> {
-        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[25], this.#transport.mergeOptions(options), input);
+        return stackIntercept<CopyScriptFolderRequest, CopyScriptFolderResponse>("unary", this.#transport, Api.methods[26], this.#transport.mergeOptions(options), input);
     }
 
     scanScriptVariables(input: ScanScriptVariablesRequest, options?: RpcOptions): UnaryCall<ScanScriptVariablesRequest, ScanScriptVariablesResponse> {
-        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[26], this.#transport.mergeOptions(options), input);
+        return stackIntercept<ScanScriptVariablesRequest, ScanScriptVariablesResponse>("unary", this.#transport, Api.methods[27], this.#transport.mergeOptions(options), input);
     }
 }

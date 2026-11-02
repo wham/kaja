@@ -2514,7 +2514,7 @@ export function App() {
     return result;
   }, []);
 
-  const onVariablesSave = async ({ variables, cleared }: VariablesSave) => {
+  const onVariablesSave = async ({ variables, renamed, cleared }: VariablesSave) => {
     if (!workspace) {
       return;
     }
@@ -2523,6 +2523,9 @@ export function App() {
       const client = getApiClient();
       const { response } = await client.updateWorkspace({ workspace: { ...workspace, variables } });
       let status = response.variableStatus;
+      for (const { from, to } of renamed) {
+        status = (await client.renameStoredValue({ from, to })).response.variableStatus;
+      }
       for (const name of cleared) {
         status = (await client.clearStoredValue({ name })).response.variableStatus;
       }

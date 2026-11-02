@@ -376,3 +376,38 @@ func TestResolveSecretIsNeverASignIn(t *testing.T) {
 		t.Error("expected a sign-in left in the store not to be a secret's value")
 	}
 }
+
+// Renaming a stored variable carries its value to the new name rather than leaving
+// the new name empty and the old one holding a value nothing reads.
+func TestRenameStoredValueCarriesTheValue(t *testing.T) {
+	path := writeWorkspace(t, `{"variables": {"TOKEN": "${secret}"}}`)
+	store := &fakeStore{available: true}
+	service := NewApiService(path, true, "", "", store)
+	defer service.Close()
+	ctx := context.Background()
+
+	if _, err := service.SetStoredValue(ctx, &SetStoredValueRequest{Name: "TOKEN", Value: "s3cr3t"}); err != nil {
+		t.Fatalf("SetStoredValue: %v", err)
+	}
+	if _, err := service.UpdateWorkspace(ctx, &UpdateWorkspaceRequest{Workspace: &Workspace{
+		Variables: map[string]string{"API_TOKEN": "${secret}"},
+	}}); err != nil {
+		t.Fatalf("UpdateWorkspace: %v", err)
+	}
+	if _, err := service.RenameStoredValue(ctx, &RenameStoredValueRequest{From: "TOKEN", To: "API_TOKEN"}); err != nil {
+		t.Fatalf("RenameStoredValue: %v", err)
+	}
+
+	id := service.snapshot().workspace.GetId()
+	if len(store.values) != 1 || store.values[id+"#API_TOKEN"] != "s3cr3t" {
+		t.Errorf("the store holds %v, want the value under the new name alone", store.values)
+	}
+	if got := service.Variables().Expand("${API_TOKEN}"); got != "s3cr3t" {
+		t.Errorf("${API_TOKEN} expands to %q, want the stored value", got)
+	}
+
+	// A name holding nothing has nothing to carry.
+	if _, err := service.RenameStoredValue(ctx, &RenameStoredValueRequest{From: "MISSING", To: "OTHER"}); err != nil {
+		t.Errorf("renaming a name holding nothing: %v", err)
+	}
+}
