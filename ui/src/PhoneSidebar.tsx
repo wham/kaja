@@ -104,7 +104,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 px-3 pb-2">
+      <div className="flex shrink-0 items-center gap-1 pr-5 pl-3 pb-2">
         <div
           role="tablist"
           aria-label="Sidebar"
