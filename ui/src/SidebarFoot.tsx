@@ -12,6 +12,9 @@ export type ColorMode = "day" | "night";
 
 const footIconClass = "size-7 rounded-[7px] text-muted-foreground hover:text-foreground [&_svg]:size-[15px]";
 const phoneFootIconClass = "size-11 rounded-full text-muted-foreground [&_svg]:size-5";
+// The foot reaches into the home indicator's inset rather than sitting above all of it,
+// the way iOS's own bottom bars do; only the strip the indicator is drawn in stays clear.
+const phoneFootInset = "max(0px, calc(env(safe-area-inset-bottom) - 20px))";
 
 interface SidebarFootProps {
   colorMode: ColorMode;
@@ -53,7 +56,10 @@ export const SidebarFoot = memo(function SidebarFoot({
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
 
   return (
-    <div className={cn("flex shrink-0 items-center gap-1.5 text-muted-foreground", phone ? "h-14 pr-2 pl-5 text-[13px]" : "h-10 pr-2 pl-4 text-xs")}>
+    <div
+      className={cn("flex shrink-0 items-center gap-1.5 text-muted-foreground", phone ? "pr-2 pl-5 text-[13px]" : "h-10 pr-2 pl-4 text-xs")}
+      style={phone ? { height: `calc(3.5rem + ${phoneFootInset})`, paddingBottom: phoneFootInset } : undefined}
+    >
       {gitRef && shortRef && (
         <a
           href={`https://github.com/wham/kaja/tree/${gitRef}`}
