@@ -60,23 +60,3 @@ export function detectAppRenames(
 
   return renames;
 }
-
-/**
- * Whether the modules a script can import moved — an app added, removed, renamed, or
- * reopened against different parameters. TypeScript caches a module resolution and
- * never revalidates a file whose own text did not change, so a dangling import stays
- * green and a resolved one stays red until the editors holding them are poked.
- */
-export function appModulesMoved(
-  previous: WorkspaceApp[],
-  next: WorkspaceApp[],
-  previousVariables: { [key: string]: string },
-  nextVariables: { [key: string]: string },
-): boolean {
-  if (previous.length !== next.length) return true;
-  const previousByName = new Map(previous.map((app) => [app.name, app]));
-  return next.some((app) => {
-    const before = previousByName.get(app.name);
-    return before === undefined || appNeedsRecompile(before, app) || appReferencesChangedVariable(app, previousVariables, nextVariables);
-  });
-}

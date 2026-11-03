@@ -38,7 +38,7 @@ import { uuidV4 } from "./uuid";
  * The globals a script may not reach, each mapped to the sentence thrown in its place.
  *
  * Read twice: bound here, and printed into the `kaja` module's header
- * (`kajaModule.ts`), which is what Monaco checks a script against and what an agent
+ * (`kajaModule.ts`), which is what the editor checks a script against and what an agent
  * gets from `describe_type "kaja"`. A list an agent reads and a list the runtime
  * enforces have to be one list, or the one an agent reads is the one that rots.
  */

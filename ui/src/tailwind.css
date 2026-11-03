@@ -37,6 +37,18 @@
      redefined under .dark. */
   --brand-rust: #b0503f;
   --brand-violet: #8a35d8;
+
+  /* Code. Three hues, all of them Kaja's own — emerald for strings, amber for
+     numbers and literals, a muted blue for types and imports — at roughly half
+     the chroma of VS Dark+, so nothing in a request body outshines the Run
+     button; everything else is the neutral ramp. None is red, which is kept for
+     errors. */
+  --code-text: #3f3f46;
+  --code-type: #35558a;
+  --code-keyword: #71717a;
+  --code-string: #047857;
+  --code-number: #a15c07;
+  --code-punctuation: #a1a1aa;
 }
 
 .dark {
@@ -61,6 +73,13 @@
   --ring: oklch(0.556 0 0);
 
   --chrome: oklch(0.205 0 0);
+
+  --code-text: #d4d4d4;
+  --code-type: #7fa6cf;
+  --code-keyword: #9a9a9a;
+  --code-string: #35b981;
+  --code-number: #d19a4a;
+  --code-punctuation: #6b6b6b;
 }
 
 @theme inline {
@@ -151,12 +170,12 @@
      zooms back out — the window is then narrower than the layout, which is what
      a phone reads as the chrome overlapping itself. So on a touch screen a
      field is 16px; the density that costs is a density no finger wanted. The
-     editor's hidden input is the same field to iOS and is set the same way, in
-     Monaco's own options (see codeFontSize). */
+     editor is a contenteditable, which is the same field to iOS. */
   @media (pointer: coarse) {
     input:not([type="checkbox"]):not([type="radio"]),
     textarea,
-    select {
+    select,
+    .cm-editor {
       font-size: 16px;
     }
   }

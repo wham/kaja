@@ -1,11 +1,9 @@
-import "./monacoClipboard";
 import "../../server/build/tailwind.css";
-import * as monaco from "monaco-editor";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
-import { monacoTheme, surfaceColor } from "./monacoTheme";
+import { surfaceColor } from "./surfaces";
 import { resetPayloadArchive } from "./payloadArchive";
 import { startSettings } from "./settings";
 import { getPersistedValue, initializeStorage, WorkspaceStorage } from "./storage";
@@ -43,7 +41,6 @@ openWorkspace()
     declareZoom(getPersistedValue<number>("zoom") ?? DEFAULT_ZOOM);
 
     const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
-    monaco.editor.setTheme(monacoTheme(colorMode));
     document.body.style.backgroundColor = surfaceColor(colorMode);
     document.documentElement.classList.toggle("dark", colorMode === "night");
 

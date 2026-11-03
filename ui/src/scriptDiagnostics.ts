@@ -1,15 +1,16 @@
-import * as monaco from "monaco-editor";
 import { noSuchScript } from "./scriptLink";
 import { demandScriptParameters } from "./scriptParameters";
 import { readRunReferences, RunReference, unresolvedIn } from "./scriptRuns";
+import { lineColumnAt } from "./textBuffer";
+import { askTypeScript, DIAGNOSTIC_ERROR, isSyntaxCode, writeTypeScriptFile } from "./typescriptService";
 
 /**
  * What the editor says about a script nobody has open.
  *
  * A script's types are erased, not compiled (scriptRunner), so nothing on the run path
  * checks anything: a script with type errors runs, and one that doesn't parse stops
- * with no more than that to say. The person who opens the file sees the rest, because Monaco
- * checks every script model against the generated app modules — so this asks that
+ * with no more than that to say. The person who opens the file sees the rest, because the editor's
+ * TypeScript checks every script against the generated app modules — so this asks that
  * same worker rather than standing up a second checker, which is what keeps what an
  * agent is told from disagreeing with the squiggles in the window.
  *
@@ -27,14 +28,10 @@ export interface ScriptDiagnostic {
   message: string;
 }
 
-// Where a script with no editor of its own is checked. Flat, like every editor model
-// (ts:/draft-….ts), because the depth is what makes `import { Repos } from "github"`
-// resolve to the app's barrel model the way it does for an open script.
-const CHECK_URI = "ts:/agent-check.ts";
-
-// monaco's typescript namespace exports no DiagnosticCategory; the values are the
-// compiler's own (warning 0, error 1, suggestion 2, message 3).
-const ERROR = 1;
+// Where a script with no editor of its own is checked. Flat, like every script buffer,
+// because the depth is what makes `import { Repos } from "github"` resolve to the app's
+// barrel the way it does for an open script.
+const CHECK_PATH = "/agent-check.ts";
 
 // An import that names no app is left to the run, which refuses it by name — where
 // the compiler's own two codes for it answer with tsconfig options (`moduleResolution`,
@@ -68,40 +65,18 @@ function runDiagnostics(references: RunReference[], code: string, scriptNames: s
 
 async function diagnose(code: string): Promise<ScriptDiagnostic[]> {
   try {
-    const uri = monaco.Uri.parse(CHECK_URI);
-    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(code, "typescript", uri);
-    if (model.getValue() !== code) model.setValue(code);
-
-    const worker = await (await monaco.typescript.getTypeScriptWorker())(uri);
-    const file = uri.toString();
-
-    // A file that doesn't parse has no types to check, and what the checker says past a
-    // syntax error is noise.
-    const syntactic = (await worker.getSyntacticDiagnostics(file)).filter((diagnostic) => diagnostic.category === ERROR);
-    if (syntactic.length > 0) return syntactic.map((diagnostic) => locate(model, diagnostic));
-
-    const semantic = await worker.getSemanticDiagnostics(file);
-    return semantic
-      .filter((diagnostic) => diagnostic.category === ERROR && !MODULE_NOT_FOUND.includes(diagnostic.code))
-      .map((diagnostic) => locate(model, diagnostic));
+    writeTypeScriptFile(CHECK_PATH, code);
+    // The worker reports a file's syntax errors alone where it has any, since what the
+    // checker says past one is noise.
+    const found = await askTypeScript("diagnostics", CHECK_PATH);
+    return found
+      .filter((diagnostic) => diagnostic.category === DIAGNOSTIC_ERROR && (isSyntaxCode(diagnostic.code) || !MODULE_NOT_FOUND.includes(diagnostic.code)))
+      .map((diagnostic) => {
+        const { line, column } = lineColumnAt(code, diagnostic.start);
+        return { line, column, message: diagnostic.message };
+      });
   } catch {
-    // The worker belongs to the editor. A window without one says nothing rather than
-    // failing a run over it.
+    // A window whose worker failed says nothing rather than failing a run over it.
     return [];
   }
-}
-
-function locate(model: monaco.editor.ITextModel, diagnostic: monaco.typescript.Diagnostic): ScriptDiagnostic {
-  const position = model.getPositionAt(diagnostic.start ?? 0);
-  return { line: position.lineNumber, column: position.column, message: flatten(diagnostic.messageText) };
-}
-
-/**
- * A message is one string or a chain of them, and the chain is where the explanation
- * is — "Type X is not assignable to type Y" on its own doesn't say which property
- * disagreed.
- */
-function flatten(message: monaco.typescript.Diagnostic["messageText"]): string {
-  if (typeof message === "string") return message;
-  return [message.messageText, ...(message.next ?? []).map(flatten)].join(" ");
 }

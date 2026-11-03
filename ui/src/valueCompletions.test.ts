@@ -35,6 +35,7 @@ const updateRepoRequest = messageType("repos.v1.UpdateRepoRequest", [{ name: "re
 function reposApp(): App {
   const path = "demo/proto/repos.ts";
   return {
+    configuration: { name: "demo" },
     services: [{ name: "ReposService", packageName: "repos.v1", sourcePath: "demo/proto/repos", typeName: "repos.v1.Repos", methods: [] }],
     reflection: {
       messages: new Map(),
@@ -86,6 +87,13 @@ describe("resolveValuePosition", () => {
     expect(position?.fieldName).toBe("id");
     expect(position?.scalarType).toBe(ScalarType.STRING);
     expect(position?.stringRange).toBeDefined();
+  });
+
+  it("resolves a service imported by its app's name, which is how a script imports one", () => {
+    const position = resolveAt(`import { ReposService } from "demo";\n\nReposService.GetRepo({ id: "|" });`);
+
+    expect(position?.typeName).toBe("repos.v1.GetRepoRequest");
+    expect(position?.fieldName).toBe("id");
   });
 
   it("resolves a number field outside a string literal", () => {

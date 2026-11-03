@@ -10,7 +10,6 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
-import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
@@ -27,7 +26,7 @@ import { fetchRequestLine } from "./fetchCall";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appType, buildApp, getAppType, parameterKey } from "./appTypes";
-import { createPendingApp, isReady, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
+import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import { appStore } from "./appStore";
 import { forgetManifests, moveManifest, readStoredManifests } from "./manifestCache";
 import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
@@ -36,7 +35,7 @@ import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
 import { generateMethodEditorCode } from "./appLoader";
 import { barrel } from "./appImports";
-import { appModulesMoved, appNeedsRecompile, appReferencesChangedVariable, appReferencesVariable, detectAppRenames } from "./appRenames";
+import { appNeedsRecompile, appReferencesChangedVariable, appReferencesVariable, detectAppRenames } from "./appRenames";
 import { AgentRun, AgentScriptChange, agentSession } from "./agentSession";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -50,9 +49,10 @@ import { SidebarFoot, ColorMode } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm, type AppFormSaveControl } from "./AppForm";
-import { Editor, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
+import { Editor, EditorHandle, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
-import { chromeColor, monacoTheme, surfaceColor } from "./monacoTheme";
+import { chromeColor, surfaceColor } from "./surfaces";
+import { allBuffers, openBuffer, TextBuffer } from "./textBuffer";
 import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
 import { remapEditorCode, remapSourcesToNewName, Sources } from "./sources";
 import { logFileLevel } from "./scriptConsole";
@@ -203,21 +203,9 @@ function runDestinations(scripts: Script[]): string[] {
   return scripts.map((script) => linkName(scriptName(script)));
 }
 
-// writeSourceModel backs a generated module with a Monaco model, reporting whether
-// anything moved. A model that appears after a script's own does not retroactively
-// clear its "cannot find module", so the callers poke the open editors.
-function writeSourceModel(path: string, content: string): boolean {
-  const uri = monaco.Uri.parse("ts:/" + path);
-  const existing = monaco.editor.getModel(uri);
-  if (!existing) {
-    monaco.editor.createModel(content, "typescript", uri);
-    return true;
-  }
-  if (existing.getValue() !== content) {
-    existing.setValue(content);
-    return true;
-  }
-  return false;
+// A generated module, as a buffer TypeScript resolves an import against.
+function writeSourceBuffer(path: string, content: string): void {
+  openBuffer("/" + path, content);
 }
 
 export function App() {
@@ -278,8 +266,7 @@ export function App() {
   viewsRef.current = views;
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
-  const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
-  const viewsRestoredRef = useRef(views.some((view) => view.type === "draft"));
+  const editorRegistryRef = useRef(new Map<string, EditorHandle>());
   const [scripts, setScripts] = useState<Script[]>();
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
@@ -413,7 +400,7 @@ export function App() {
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal that a workspace write moved the modules a script imports: what
   // it renamed, and whether anything an import resolves against moved at all.
-  const [appsMoved, setAppsMoved] = useState<{ renames: Map<string, string>; modulesMoved: boolean }>();
+  const [appsMoved, setAppsMoved] = useState<Map<string, string>>();
   // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
@@ -428,9 +415,8 @@ export function App() {
   const stopRunRef = useRef<(runId: string) => void>(() => {});
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  // Tab ids whose next content change is a programmatic revalidation poke (see
-  // revalidateOpenEditors) or text that just came off disk, not a user edit —
-  // skip the debounced disk save.
+  // Tab ids whose next content change is text that just came off disk or a rename
+  // followed into it, not a user edit — skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
   // Pending debounced writes of draft text back to the store, keyed by draft id.
   const draftSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -466,7 +452,7 @@ export function App() {
     [applyDrafts],
   );
 
-  // Flush a script view's pending debounced write (e.g. before its model is disposed).
+  // Flush a script view's pending debounced write (e.g. before its buffer is disposed).
   const flushScriptWrite = useCallback(
     (view: View) => {
       if (view.type !== "script" || !canWriteFiles) return;
@@ -474,7 +460,7 @@ export function App() {
       if (!timer) return;
       clearTimeout(timer);
       scriptSaveTimers.current.delete(view.id);
-      const content = view.model.getValue();
+      const content = view.buffer.getValue();
       setScriptSource(scriptName(view.script), content);
       writeScriptFile(view.script, content).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
     },
@@ -487,7 +473,7 @@ export function App() {
       flushScriptWrite(view);
       editorRegistryRef.current.delete(view.id);
       setEditorContentHeights(({ [view.id]: _removed, ...rest }) => rest);
-      view.model.dispose();
+      view.buffer.dispose();
     },
     [flushScriptWrite],
   );
@@ -498,7 +484,7 @@ export function App() {
       const current = previous[0];
       if (current?.type === "draft" || current?.type === "script") {
         const editor = editorRegistryRef.current.get(current.id);
-        if (editor) current.viewState = editor.saveViewState() ?? undefined;
+        if (editor) current.viewState = editor.saveViewState();
       }
 
       const next = update(previous);
@@ -727,48 +713,16 @@ export function App() {
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
 
-  const disposeMonacoModelsForApp = useCallback((appName: string) => {
-    monaco.editor.getModels().forEach((model) => {
-      if (model.uri.path.startsWith("/" + appName + "/") || model.uri.path === "/" + appName + ".ts") {
-        model.dispose();
-      }
-    });
+  const disposeBuffersForApp = useCallback((appName: string) => {
+    for (const buffer of allBuffers()) {
+      if (buffer.path.startsWith("/" + appName + "/") || buffer.path === "/" + appName + ".ts") buffer.dispose();
+    }
   }, []);
 
-  const createMonacoModelsForApp = useCallback((app: AppModel): boolean => {
-    let moved = false;
-    app.sources.forEach((source) => {
-      moved = writeSourceModel(source.path, source.text) || moved;
-    });
+  const createBuffersForApp = useCallback((app: AppModel) => {
+    app.sources.forEach((source) => writeSourceBuffer(source.path, source.text));
     const module = barrel(app);
-    return writeSourceModel(module.path, module.content) || moved;
-  }, []);
-
-  const refreshOpenDraftEditors = useCallback(() => {
-    viewsRef.current.forEach((view) => {
-      if (view.type === "draft") {
-        const value = view.model.getValue();
-        view.model.setValue(value);
-      }
-    });
-  }, []);
-
-  // TypeScript resolves a script's imports once and revalidates only when that script's
-  // own text changes, so a module appearing or going away under it moves nothing: an
-  // import of an app that has just been renamed away stays green, and one that was red
-  // before its app compiled stays red. Poke every editor with an identity edit — not
-  // setValue, which would lose undo history — and suppress the auto-save it would
-  // otherwise trigger. A draft's write-back is gated on the editor having focus, so
-  // only a script view needs suppressing.
-  const revalidateOpenEditors = useCallback(() => {
-    viewsRef.current.forEach((view) => {
-      if (view.type !== "draft" && view.type !== "script") return;
-      // onDidChangeContent fires synchronously within pushEditOperations, so bracketing
-      // the poke leaves the set empty afterwards.
-      suppressScriptSave.current.add(view.id);
-      view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
-      suppressScriptSave.current.delete(view.id);
-    });
+    writeSourceBuffer(module.path, module.content);
   }, []);
 
   const syncAppsFromWorkspace = useCallback(
@@ -807,9 +761,9 @@ export function App() {
         const renamedFrom = renameMap.get(newConfig.name);
 
         if (renamedFrom) {
-          disposeMonacoModelsForApp(renamedFrom.configuration.name);
+          disposeBuffersForApp(renamedFrom.configuration.name);
           const renamedApp = applyAppRename(renamedFrom, newConfig);
-          createMonacoModelsForApp(renamedApp);
+          createBuffersForApp(renamedApp);
           updatedApps.push(renamedApp);
           continue;
         }
@@ -820,7 +774,7 @@ export function App() {
         }
 
         if (appNeedsRecompile(existingApp.configuration, newConfig) || appReferencesChangedVariable(newConfig, previousVariables, newVariables)) {
-          disposeMonacoModelsForApp(existingApp.configuration.name);
+          disposeBuffersForApp(existingApp.configuration.name);
           updatedApps.push(createPendingApp(newConfig));
         } else {
           updateAppRef(existingApp.appRef, newConfig);
@@ -830,13 +784,13 @@ export function App() {
 
       const removedNames = new Set(orphans.map((p) => p.configuration.name));
       for (const orphan of orphans) {
-        disposeMonacoModelsForApp(orphan.configuration.name);
+        disposeBuffersForApp(orphan.configuration.name);
       }
 
       const renames = new Map([...renameMap].map(([newName, oldApp]) => [oldApp.configuration.name, newName]));
       return { updatedApps, removedNames, renames };
     },
-    [disposeMonacoModelsForApp, createMonacoModelsForApp],
+    [disposeBuffersForApp, createBuffersForApp],
   );
 
   // rewriteScripts runs every open buffer and every file on disk through remap, which is
@@ -847,13 +801,12 @@ export function App() {
       for (const view of viewsRef.current) {
         if (view.type !== "draft" && view.type !== "script") continue;
         if (view.type === "script") openScripts.add(view.script.path);
-        const value = view.model.getValue();
+        const value = view.buffer.getValue();
         const next = remap(value);
         if (next === value) continue;
-        // An edit rather than setValue, so undo history survives, and the disk write is
-        // made here rather than left to the debounce a poke is supposed to skip.
+        // The disk write is made here rather than left to the debounce.
         suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: next }], () => null);
+        view.buffer.setValue(next);
         suppressScriptSave.current.delete(view.id);
         if (view.type === "script" && canWriteFiles) {
           await writeScriptFile(view.script, next).catch((err) => showFileError(`Save failed: ${rpcErrorMessage(err)}`));
@@ -921,7 +874,6 @@ export function App() {
       // Read off the file rather than off what is compiled, so the answer is the same
       // whichever of the two the write reaches first.
       const renames = detectAppRenames(previousApps, newApps, previousVariables, newWorkspace.variables ?? {});
-      const modulesMoved = appModulesMoved(previousApps, newApps, previousVariables, newWorkspace.variables ?? {});
       setWorkspace(newWorkspace);
 
       // The app is open on the server under the name it had, and the name is the whole
@@ -944,9 +896,7 @@ export function App() {
 
       // Handed to an effect rather than done here: following a rename writes files, and
       // this runs inside the watch stream's callback.
-      if (renames.size > 0 || modulesMoved) {
-        setAppsMoved({ renames, modulesMoved });
-      }
+      if (renames.size > 0) setAppsMoved(renames);
     },
     [syncAppsFromWorkspace],
   );
@@ -954,11 +904,8 @@ export function App() {
   useEffect(() => {
     if (!appsMoved) return;
     setAppsMoved(undefined);
-    if (appsMoved.renames.size > 0) void followAppRenames(appsMoved.renames);
-    // The models an import resolves against have moved, and the editors holding them
-    // will not notice on their own.
-    if (appsMoved.modulesMoved) revalidateOpenEditors();
-  }, [appsMoved, followAppRenames, revalidateOpenEditors]);
+    void followAppRenames(appsMoved);
+  }, [appsMoved, followAppRenames]);
 
   useEffect(() => {
     if (workspaceRef.current) {
@@ -1067,7 +1014,6 @@ export function App() {
   }, [zoom]);
 
   useEffect(() => {
-    monaco.editor.setTheme(monacoTheme(colorMode));
     document.body.style.backgroundColor = surfaceColor(colorMode);
     // The class goes on <html> so Base UI portals (rendered into <body>) are themed too.
     document.documentElement.classList.toggle("dark", colorMode === "night");
@@ -1168,7 +1114,7 @@ export function App() {
       for (const view of viewsRef.current) {
         if (view.type === "script" && scriptSaveTimers.current.has(view.id)) {
           clearTimeout(scriptSaveTimers.current.get(view.id)!);
-          writeScriptFile(view.script, view.model.getValue()).catch(() => {});
+          writeScriptFile(view.script, view.buffer.getValue()).catch(() => {});
         }
       }
       scriptSaveTimers.current.clear();
@@ -1204,38 +1150,27 @@ export function App() {
     };
   }, []);
 
-  // The Monaco models behind an app's modules, written once per surface it lands on:
+  // The buffers behind an app's modules, written once per surface it lands on:
   // keyed on the sources' identity, so a compile that ended on the manifest the window
   // already holds moves nothing here, and a log line never reaches it.
   const writtenSourcesRef = useRef(new Map<string, Sources>());
   useEffect(() => {
-    let moved = false;
     const seen = new Set<string>();
     for (const app of apps) {
       const name = app.configuration.name;
       seen.add(name);
       if (writtenSourcesRef.current.get(name) === app.sources) continue;
       writtenSourcesRef.current.set(name, app.sources);
-      if (app.sources.length > 0) moved = createMonacoModelsForApp(app) || moved;
+      if (app.sources.length > 0) createBuffersForApp(app);
     }
     for (const name of [...writtenSourcesRef.current.keys()]) {
       if (!seen.has(name)) writtenSourcesRef.current.delete(name);
     }
-
-    // A source model appearing after a script's own model does not retroactively clear
-    // its stale "cannot find module" error, so poke the open editors.
-    if (moved) revalidateOpenEditors();
-
-    if (apps.length > 0 && apps.every((app) => isReady(app.compilation.status)) && viewsRestoredRef.current) {
-      viewsRestoredRef.current = false;
-      refreshOpenDraftEditors();
-    }
-  }, [apps, createMonacoModelsForApp, revalidateOpenEditors, refreshOpenDraftEditors]);
+  }, [apps, createBuffersForApp]);
 
   const onMethodSelect = useCallback(
     async (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
-      // Wrapped before it goes anywhere: the editor's format-on-open only fires when a
-      // model is created, and a takeover writes into one that already exists.
+      // Formatted before it goes anywhere, since generated code is the one text that is.
       const code = await formatTypeScript(generateMethodEditorCode(app, service, method));
       const originAppName = app.configuration.name;
       recordUse(methodUse(originAppName, service, method));
@@ -1244,8 +1179,8 @@ export function App() {
       const currentDraft = current?.type === "draft" ? draftsRef.current.find((s) => s.id === current.draftId) : undefined;
 
       if (mode === "append" && current?.type === "draft" && currentDraft) {
-        const merged = await formatTypeScript(appendCall(current.model.getValue(), code));
-        current.model.setValue(merged);
+        const merged = await formatTypeScript(appendCall(current.buffer.getValue(), code));
+        current.buffer.setValue(merged);
         updateDraft(currentDraft.id, (draft) => withCode(draft, merged, now));
         return;
       }
@@ -1259,7 +1194,7 @@ export function App() {
       }
 
       if (currentDraft && isUntouched(currentDraft)) {
-        current.type === "draft" && current.model.setValue(code);
+        current.type === "draft" && current.buffer.setValue(code);
         updateDraft(currentDraft.id, (draft) => takeOver(draft, code, originAppName, now));
         return;
       }
@@ -1315,7 +1250,7 @@ export function App() {
       const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentName };
       applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === draft.id ? draft : candidate)) : [draft, ...list]));
       const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === draft.id);
-      if (view?.type === "draft" && view.model.getValue() !== code) view.model.setValue(code);
+      if (view?.type === "draft" && view.buffer.getValue() !== code) view.buffer.setValue(code);
       return draft;
     },
     [applyDrafts],
@@ -1381,7 +1316,7 @@ export function App() {
     async (script: Script) => {
       try {
         const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
-        const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
+        const content = open?.type === "script" ? open.buffer.getValue() : (await readScriptFile(script))?.content;
         setLinkSheet({ script, parameters: (content ? readInputKeys(content) : undefined) ?? [] });
       } catch (err) {
         showFileError(`Copy deeplink failed: ${rpcErrorMessage(err)}`);
@@ -1542,12 +1477,12 @@ export function App() {
 
   useEffect(() => {
     if (!canWriteFiles) return;
-    const disposables: monaco.IDisposable[] = [];
+    const unsubscribes: (() => void)[] = [];
     for (const view of views) {
       if (view.type !== "script") continue;
-      const { id, model, script } = view;
-      disposables.push(
-        model.onDidChangeContent(() => {
+      const { id, buffer, script } = view;
+      unsubscribes.push(
+        buffer.onDidChange(() => {
           if (suppressScriptSave.current.has(id)) return;
           const existing = scriptSaveTimers.current.get(id);
           if (existing) clearTimeout(existing);
@@ -1555,7 +1490,7 @@ export function App() {
             id,
             setTimeout(() => {
               scriptSaveTimers.current.delete(id);
-              const content = model.getValue();
+              const content = buffer.getValue();
               // A parameter added to this script is one its callers may name, so what was
               // written is what the editor checks the next `kaja.run` against.
               setScriptSource(scriptName(script), content);
@@ -1565,7 +1500,7 @@ export function App() {
         }),
       );
     }
-    return () => disposables.forEach((disposable) => disposable.dispose());
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, [canWriteFiles, views, showFileError]);
 
   // Disk is a script view's source of truth, and the persisted view-state cache can
@@ -1579,10 +1514,10 @@ export function App() {
         if (view.type !== "script") continue;
         try {
           const file = await readScriptFile(view.script);
-          if (cancelled || !file || view.model.getValue() === file.content) continue;
+          if (cancelled || !file || view.buffer.getValue() === file.content) continue;
           // Suppress the auto-save this edit would trigger — the content is disk's.
           suppressScriptSave.current.add(view.id);
-          view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: file.content }], () => null);
+          view.buffer.setValue(file.content);
           suppressScriptSave.current.delete(view.id);
           reconciled = true;
         } catch {
@@ -1615,7 +1550,7 @@ export function App() {
     openNameSheet({
       name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
-      content: view.model.getValue(),
+      content: view.buffer.getValue(),
       draftId: view.draftId,
     });
   }, [canWriteFiles, openNameSheet, takenNames]);
@@ -2093,11 +2028,11 @@ export function App() {
         const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === change.path);
         const content = change.content ?? "";
         if (change.name !== undefined) setScriptSource(scriptName({ name: change.name, folder: change.folder ?? "" }), content);
-        if (view?.type === "script" && view.model.getValue() !== content) {
+        if (view?.type === "script" && view.buffer.getValue() !== content) {
           // Apply as an edit rather than setValue so undo history survives, and record it as
           // saved — an agent's write is a save.
           suppressScriptSave.current.add(view.id);
-          view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: content }], () => null);
+          view.buffer.setValue(content);
           suppressScriptSave.current.delete(view.id);
           // Keep the persisted view-state cache in step so a reload restores this content.
           persistViews();
@@ -2132,8 +2067,8 @@ export function App() {
     }
   };
 
-  const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
-    applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
+  const onGoToDefinition = (buffer: TextBuffer, startLineNumber: number, startColumn: number) => {
+    applyViews((views) => showDefinition(views, buffer, startLineNumber, startColumn));
   };
 
   const sidebarCollapseThreshold = 60;
@@ -2160,56 +2095,42 @@ export function App() {
 
   const onGoToView = useCallback((id: string) => applyViews((views) => visit(views, id)), [applyViews]);
 
-  // The last line's bottom rather than Monaco's content height: with
-  // scrollBeyondLastLine on, content height grows with the editor itself, so feeding
-  // it back would only ever settle at the maximum. The bottom is in view lines, so a
-  // line the editor wraps counts for what it draws, and a narrower pane wraps more,
-  // which is why the layout is watched. An editor created off screen has no width
-  // and wraps at one column, so until it is laid out the line count is the guess.
-  const onEditorReady = useCallback(
-    (viewId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
-      editorRegistryRef.current.set(viewId, editorInstance);
-      const report = () => {
-        const model = editorInstance.getModel();
-        if (!model) return;
-        const padding = editorInstance.getOption(monaco.editor.EditorOption.padding);
-        const height =
-          editorInstance.getLayoutInfo().width > 0
-            ? editorInstance.getBottomForLineNumber(model.getLineCount()) + padding.bottom
-            : model.getLineCount() * editorInstance.getOption(monaco.editor.EditorOption.lineHeight) + padding.top + padding.bottom;
-        setEditorContentHeights((heights) => (heights[viewId] === height ? heights : { ...heights, [viewId]: height }));
-      };
-      report();
-      editorInstance.onDidLayoutChange(report);
-      editorInstance.onDidChangeModelContent(() => {
-        report();
-        // Only a real edit writes back: the editor formats its model on open.
-        if (!editorInstance.hasTextFocus()) return;
+  const onEditorReady = useCallback((viewId: string, handle: EditorHandle) => {
+    editorRegistryRef.current.set(viewId, handle);
+  }, []);
 
-        const view = viewsRef.current.find((candidate) => candidate.id === viewId);
-        if (view?.type !== "draft") return;
-        // Debounced, because every keystroke would otherwise be a store write.
-        const pending = draftSaveTimers.current.get(view.draftId);
-        if (pending) clearTimeout(pending);
-        draftSaveTimers.current.set(
-          view.draftId,
-          setTimeout(() => {
-            draftSaveTimers.current.delete(view.draftId);
-            updateDraft(view.draftId, (draft) => ({ ...draft, code: view.model.getValue(), updatedAt: Date.now() }));
-          }, 400),
-        );
-      });
-      editorInstance.onDidChangeModel(report);
+  // How tall the code is as drawn, wrapped lines counted for what they take, so the
+  // layout can give a short script a short pane.
+  const onEditorContentHeight = useCallback((viewId: string, height: number) => {
+    setEditorContentHeights((heights) => (heights[viewId] === height ? heights : { ...heights, [viewId]: height }));
+  }, []);
+
+  // Only an edit somebody made writes a draft back: text written into its buffer from
+  // outside (a method click, an agent's run) is written to the store by whoever wrote it.
+  const onEditorUserEdit = useCallback(
+    (viewId: string) => {
+      const view = viewsRef.current.find((candidate) => candidate.id === viewId);
+      if (view?.type !== "draft") return;
+      // Debounced, because every keystroke would otherwise be a store write.
+      const pending = draftSaveTimers.current.get(view.draftId);
+      if (pending) clearTimeout(pending);
+      draftSaveTimers.current.set(
+        view.draftId,
+        setTimeout(() => {
+          draftSaveTimers.current.delete(view.draftId);
+          updateDraft(view.draftId, (draft) => ({ ...draft, code: view.buffer.getValue(), updatedAt: Date.now() }));
+        }, 400),
+      );
     },
-    [applyViews, updateDraft],
+    [updateDraft],
   );
 
   const currentView = views[0];
   const reportAppFormSave = useCallback((viewId: string, control: AppFormSaveControl | undefined) => {
     setAppFormSaves(({ [viewId]: _, ...others }) => (control ? { ...others, [viewId]: control } : others));
   }, []);
-  const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
-  const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
+  const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.buffer : undefined);
+  const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.buffer : undefined);
   // Read rather than depended on: the keys move with the buffer, and Run is not a new
   // function every time a parameter is typed.
   const inputKeysRef = useRef(inputKeys);
@@ -2809,8 +2730,10 @@ export function App() {
               keep. A draft beside it is unaffected: it lives in
               this browser, so it is as writable here as anywhere. */}
           <Editor
-            model={view.model}
-            onMount={(editor) => onEditorReady(view.id, editor)}
+            buffer={view.buffer}
+            onMount={(handle) => onEditorReady(view.id, handle)}
+            onUserEdit={() => onEditorUserEdit(view.id)}
+            onContentHeight={(height) => onEditorContentHeight(view.id, height)}
             onGoToDefinition={onGoToDefinition}
             viewState={view.viewState}
             readOnly={(view.type === "script" && !canWriteFiles) || (view.type === "draft" && agentViewName(view.draftId) !== undefined)}
@@ -2819,7 +2742,7 @@ export function App() {
         </div>
       )}
       {view.type === "definition" && (
-        <Definition model={view.model} onGoToDefinition={onGoToDefinition} startLineNumber={view.startLineNumber} startColumn={view.startColumn} />
+        <Definition buffer={view.buffer} onGoToDefinition={onGoToDefinition} startLineNumber={view.startLineNumber} startColumn={view.startColumn} />
       )}
       {view.type === "appForm" && (
         <AppForm
@@ -2895,7 +2818,7 @@ export function App() {
     phoneScriptView && (phoneScriptView.type === "draft" || phoneScriptView.type === "script")
       ? {
           fileId: phoneScriptView.type === "script" ? phoneScriptView.script.path : phoneScriptView.draftId,
-          model: phoneScriptView.model,
+          buffer: phoneScriptView.buffer,
           readOnly:
             (phoneScriptView.type === "script" && !canWriteFiles) || (phoneScriptView.type === "draft" && agentViewName(phoneScriptView.draftId) !== undefined),
         }

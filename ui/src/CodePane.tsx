@@ -1,12 +1,13 @@
 import { Pencil } from "lucide-react";
-import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { cn } from "./cn";
+import { printCode } from "./codeTheme";
 import { Button } from "./components/button";
+import { TextBuffer } from "./textBuffer";
 
 interface CodePaneProps {
   // Absent anywhere but on a script; the pane still holds the editors.
-  model?: monaco.editor.ITextModel;
+  buffer?: TextBuffer;
   // A file the server can't write, or an agent's draft: read and run, never Edit.
   readOnly: boolean;
   editing: boolean;
@@ -22,14 +23,14 @@ interface CodePaneProps {
  * rather than edited until Edit is pressed, because a page that opens a keyboard is a
  * page you cannot read.
  */
-export function CodePane({ model, readOnly, editing, onEditingChange, editor }: CodePaneProps) {
+export function CodePane({ buffer, readOnly, editing, onEditingChange, editor }: CodePaneProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {model && !editing && <CodeReading model={model} />}
+      {buffer && !editing && <CodeReading buffer={buffer} />}
       {/* Always in the document, editing or not: an editor unmounted is an editor
           disposed, and it is the one the window's view cache is holding. */}
       <div className={cn("flex min-h-0 flex-1 flex-col", !editing && "hidden")}>{editor}</div>
-      {model && !readOnly && !editing && (
+      {buffer && !readOnly && !editing && (
         <Button
           variant="outline"
           size="sm"
@@ -46,35 +47,24 @@ export function CodePane({ model, readOnly, editing, onEditingChange, editor }: 
   );
 }
 
-// Coloured by the editor's own tokenizer, so what is printed is what the editor
-// draws, in the theme it draws it in.
+// Coloured by the editor's own parser, so what is printed is what the editor draws.
 const PRINT_DELAY_MS = 150;
 
-function CodeReading({ model }: { model: monaco.editor.ITextModel }) {
-  const [html, setHtml] = useState("");
+function CodeReading({ buffer }: { buffer: TextBuffer }) {
+  const [html, setHtml] = useState(() => printCode(buffer.getValue()));
 
   useEffect(() => {
-    let latest = 0;
     let pending: ReturnType<typeof setTimeout> | undefined;
-    const print = () => {
-      const token = ++latest;
-      monaco.editor.colorize(model.getValue(), "typescript", { tabSize: 2 }).then((colorized) => {
-        // The tokenizer writes every space as one that never breaks, which is the one
-        // thing a line that has to wrap cannot carry.
-        if (token === latest) setHtml(colorized.replace(/ /g, " "));
-      });
-    };
-    print();
-    const subscription = model.onDidChangeContent(() => {
+    setHtml(printCode(buffer.getValue()));
+    const unsubscribe = buffer.onDidChange(() => {
       if (pending) clearTimeout(pending);
-      pending = setTimeout(print, PRINT_DELAY_MS);
+      pending = setTimeout(() => setHtml(printCode(buffer.getValue())), PRINT_DELAY_MS);
     });
     return () => {
-      latest++;
       if (pending) clearTimeout(pending);
-      subscription.dispose();
+      unsubscribe();
     };
-  }, [model]);
+  }, [buffer]);
 
   return (
     <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 pt-3 pb-20">

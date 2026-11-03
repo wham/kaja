@@ -1,11 +1,12 @@
 import { Braces, FileCode, House, Keyboard, PenLine, Plug, Plus, Settings, type LucideIcon } from "lucide-react";
-import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, buildApp, getAppType } from "./appTypes";
 import { Script } from "./apps";
 import { AgentNotes } from "./agentHints";
 import { isUntouched, Draft } from "./drafts";
 import { draftTitleText } from "./draftTitle";
+import type { EditorViewState } from "./Editor";
 import { WorkspaceApp } from "./server/api";
+import { openBuffer, TextBuffer } from "./textBuffer";
 
 // How many views the pane keeps mounted. There is no "open files" set: this is a
 // cache, so going back to something is instant and keeps its cursor. It has no UI and
@@ -16,7 +17,7 @@ const MOUNTED_LIMIT = 10;
 // is what ⌘P⏎ goes back to — and the tail is evicted once the cache is full.
 interface ViewBase {
   id: string;
-  // Creation order. Bodies are rendered in it, so a live Monaco editor is never moved
+  // Creation order. Bodies are rendered in it, so a live editor is never moved
   // in the DOM when the visit order changes.
   seq: number;
 }
@@ -31,13 +32,13 @@ export interface StartView extends ViewBase {
 export interface DraftView extends ViewBase {
   type: "draft";
   draftId: string;
-  model: monaco.editor.ITextModel;
-  viewState?: monaco.editor.ICodeEditorViewState;
+  buffer: TextBuffer;
+  viewState?: EditorViewState;
 }
 
 export interface DefinitionView extends ViewBase {
   type: "definition";
-  model: monaco.editor.ITextModel;
+  buffer: TextBuffer;
   startLineNumber: number;
   startColumn: number;
 }
@@ -57,8 +58,8 @@ export interface AppFormView extends ViewBase {
 export interface ScriptView extends ViewBase {
   type: "script";
   script: Script;
-  model: monaco.editor.ITextModel;
-  viewState?: monaco.editor.ICodeEditorViewState;
+  buffer: TextBuffer;
+  viewState?: EditorViewState;
 }
 
 export interface VariablesView extends ViewBase {
@@ -85,16 +86,10 @@ function nextView(type: string): ViewBase {
   return { id: `${type}-${sequence}`, seq: sequence };
 }
 
-// A draft keeps the same model URI across sessions, so its identity in the editor is
+// A draft keeps the same buffer path across sessions, so its identity in the editor is
 // the one the store uses.
-function editorModel(uri: string, code: string): monaco.editor.ITextModel {
-  const parsed = monaco.Uri.parse("ts:/" + uri + ".ts");
-  const existing = monaco.editor.getModel(parsed);
-  if (existing) {
-    if (existing.getValue() !== code) existing.setValue(code);
-    return existing;
-  }
-  return monaco.editor.createModel(code, "typescript", parsed);
+function editorBuffer(name: string, code: string): TextBuffer {
+  return openBuffer("/" + name + ".ts", code);
 }
 
 // A form holds edits that exist nowhere else, so it is never evicted to make room.
@@ -144,24 +139,24 @@ export function showDraft(views: View[], draft: Draft): View[] {
   const existing = views.find((view) => view.type === "draft" && view.draftId === draft.id);
   if (existing) return visit(views, existing.id);
 
-  return show(views, { ...nextView("draft"), type: "draft", draftId: draft.id, model: editorModel(draft.id, draft.code) });
+  return show(views, { ...nextView("draft"), type: "draft", draftId: draft.id, buffer: editorBuffer(draft.id, draft.code) });
 }
 
 export function showScript(views: View[], script: Script, content: string): View[] {
   const existing = views.find((view) => view.type === "script" && view.script.path === script.path);
   if (existing?.type === "script") {
     // Refresh contents in case the file changed on disk.
-    existing.model.setValue(content);
+    existing.buffer.setValue(content);
     existing.script = script;
     return visit([...views], existing.id);
   }
 
   const view = nextView("script");
-  return show(views, { ...view, type: "script", script, model: editorModel(view.id, content) });
+  return show(views, { ...view, type: "script", script, buffer: editorBuffer(view.id, content) });
 }
 
-export function showDefinition(views: View[], model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): View[] {
-  return show(views, { ...nextView("definition"), type: "definition", model, startLineNumber, startColumn });
+export function showDefinition(views: View[], buffer: TextBuffer, startLineNumber: number, startColumn: number): View[] {
+  return show(views, { ...nextView("definition"), type: "definition", buffer, startLineNumber, startColumn });
 }
 
 export function showAppForm(views: View[], mode: "create" | "edit", initialData?: WorkspaceApp, agentRequest?: string, agentNotes?: AgentNotes): View[] {
@@ -253,7 +248,7 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
         file: true,
       };
     case "definition":
-      return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
+      return { name: fileName(view.buffer.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
       return { name: appFormName(view), path: "Apps", origin: "", icon: appFormIcon(view) };
     case "variables":
@@ -325,7 +320,7 @@ export interface PersistedViewState {
   views: PersistedView[];
 }
 
-export function serializeViews(views: View[], getViewState: (id: string) => monaco.editor.ICodeEditorViewState | null | undefined): PersistedViewState {
+export function serializeViews(views: View[], getViewState: (id: string) => EditorViewState | undefined): PersistedViewState {
   const serialized: PersistedView[] = [];
 
   for (const view of views) {
@@ -337,7 +332,7 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
         scriptPath: view.script.path,
         scriptName: view.script.name,
         scriptFolder: view.script.folder,
-        code: view.model.getValue(),
+        code: view.buffer.getValue(),
         viewState: (getViewState(view.id) ?? view.viewState) as object | undefined,
       });
     }
@@ -356,8 +351,8 @@ export function restoreViews(state: PersistedViewState | undefined, drafts: Draf
         ...view,
         type: "script",
         script: { path: persisted.scriptPath, name: persisted.scriptName, folder: persisted.scriptFolder ?? "" },
-        model: editorModel(view.id, persisted.code),
-        viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
+        buffer: editorBuffer(view.id, persisted.code),
+        viewState: restoredViewState(persisted.viewState),
       });
       continue;
     }
@@ -374,8 +369,8 @@ export function restoreViews(state: PersistedViewState | undefined, drafts: Draf
       ...nextView("draft"),
       type: "draft",
       draftId: draft.id,
-      model: editorModel(draft.id, draft.code),
-      viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
+      buffer: editorBuffer(draft.id, draft.code),
+      viewState: restoredViewState(persisted.viewState),
     });
   }
 
@@ -383,4 +378,12 @@ export function restoreViews(state: PersistedViewState | undefined, drafts: Draf
   // makes it the view the window opens on.
   views.push(startView());
   return views;
+}
+
+// A view state written by the editor this one replaced is a shape this one cannot read,
+// and the cursor it held is not worth keeping over that.
+function restoredViewState(persisted: object | undefined): EditorViewState | undefined {
+  const state = persisted as Partial<EditorViewState> | undefined;
+  if (typeof state?.anchor !== "number" || typeof state.head !== "number") return undefined;
+  return { anchor: state.anchor, head: state.head, scrollTop: typeof state.scrollTop === "number" ? state.scrollTop : 0 };
 }

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	assets "github.com/wham/kaja/v2"
-	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/pkg/agent"
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/router"
@@ -80,23 +79,10 @@ func main() {
 		w.Write(assets.ReadUiBundle().MainCss)
 	})
 
-	mux.HandleFunc("GET /codicon-LTRFOK3N.ttf", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "font/ttf")
-		w.Write(assets.ReadUiBundle().CodiconTtf)
+	mux.HandleFunc("GET /typescript.worker.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write(assets.ReadUiBundle().WorkerJs)
 	})
-
-	for _, worker := range ui.MonacoWorkerNames {
-		mux.HandleFunc("GET /monaco."+worker+".worker.js", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/javascript")
-			data, err := assets.ReadMonacoWorker(worker)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				slog.Error("Failed to read monaco worker", "error", err)
-			} else {
-				w.Write(data)
-			}
-		})
-	}
 
 	mux.HandleFunc("GET /status", handleStatus)
 

@@ -52,8 +52,8 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
         ? [{ alias: specifier.local.name, name: specifier.imported.type === "Identifier" ? specifier.imported.name : specifier.imported.value }]
         : [],
     );
-    // Monaco backs the kaja module with a model at ts:/kaja.ts, so its auto-import and
-    // go-to-definition can emit the relative "./kaja" form.
+    // The kaja module is a file beside every script in the editor's program, so a script
+    // may name it in the relative "./kaja" form.
     if (path === "kaja" || path === "./kaja") {
       requireNamedImport(statement, path, "kaja");
       for (const { alias, name } of named) {

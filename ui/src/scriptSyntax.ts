@@ -3,7 +3,7 @@ import type { File, Node } from "@babel/types";
 
 /**
  * A script's syntax tree, or undefined where the code doesn't parse — which, in an
- * editor, is any file mid-keystroke. What is wrong with it is Monaco's to say; the
+ * editor, is any file mid-keystroke. What is wrong with it is TypeScript's to say; the
  * readers here have nothing to report about a file they cannot read.
  */
 export function parseScript(code: string): File | undefined {

@@ -1,17 +1,17 @@
-import { editor } from "monaco-editor";
 import { Editor, onGoToDefinition } from "./Editor";
+import { TextBuffer } from "./textBuffer";
 
 interface DefinitionProps {
-  model: editor.ITextModel;
+  buffer: TextBuffer;
   onGoToDefinition: onGoToDefinition;
   startLineNumber?: number;
   startColumn?: number;
 }
 
-export function Definition({ model, onGoToDefinition, startLineNumber, startColumn }: DefinitionProps) {
+export function Definition({ buffer, onGoToDefinition, startLineNumber, startColumn }: DefinitionProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} format startLineNumber={startLineNumber} startColumn={startColumn} />
+      <Editor buffer={buffer} onGoToDefinition={onGoToDefinition} readOnly={true} format startLineNumber={startLineNumber} startColumn={startColumn} />
     </div>
   );
 }

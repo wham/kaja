@@ -16,14 +16,14 @@ import {
 } from "./views";
 import { buildApp } from "./appTypes";
 
-// Views carry Monaco models in the app; here they are stubs, so they are built
-// by hand rather than through the openers that create models.
+// Views carry text buffers in the app; here they are stubs, so they are built
+// by hand rather than through the openers that create buffers.
 function view(id: string, seq: number): View {
   return { type: "shortcuts", id, seq };
 }
 
 function draftView(id: string, draftId: string): View {
-  return { type: "draft", id, seq: 1, draftId, model: {} as any };
+  return { type: "draft", id, seq: 1, draftId, buffer: {} as any };
 }
 
 describe("visit", () => {

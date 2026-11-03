@@ -2,6 +2,7 @@ package ui
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"hash"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -92,18 +94,6 @@ func stampUiSources() sourceStamp {
 	return sourceStamp{digest: string(digest.Sum(nil))}
 }
 
-// stampUiDependencies is the two files that decide what is in node_modules,
-// which is all a Monaco worker is built from.
-func stampUiDependencies() sourceStamp {
-	digest := sha256.New()
-
-	if !hashDependencies(digest) {
-		return sourceStamp{}
-	}
-
-	return sourceStamp{digest: string(digest.Sum(nil))}
-}
-
 func hashDependencies(digest hash.Hash) bool {
 	for _, path := range []string{"../ui/package.json", "../ui/bun.lock"} {
 		if err := hashFile(digest, path); err != nil {
@@ -131,21 +121,70 @@ func hashFile(digest hash.Hash, path string) error {
 }
 
 type UiBundle struct {
-	MainJs         []byte
-	MainCss        []byte
-	CodiconTtf     []byte
-	CodiconTtfName string
+	MainJs   []byte
+	MainCss  []byte
+	WorkerJs []byte
 }
 
-var MonacoWorkerNames = []string{"ts", "editor", "json"}
+// The editor's TypeScript runs in a worker, which is a second entry point of the
+// same build: it is the UI's own code, so it moves when ui/src does.
+var entryPoints = []string{"../ui/src/main.tsx", "../ui/src/typescript.worker.ts"}
 
-// One page load asks for main.css, main.js and the codicon font, which are
-// three outputs of one build - so the development server bundles the UI when
-// the sources have changed since it last did, rather than once per request.
-// That is still "recompiled on page load": an edit is picked up by the first
-// request after it, and a reload that follows no edit can only produce the
-// bytes already in hand. The esbuild context is kept alive across rebuilds so
-// the one after an edit reuses what it parsed for the one before.
+// tsLibs is the standard library the worker's TypeScript checks against, which a
+// browser has no file system to read it from. It is the closure of what
+// lib.esnext.full.d.ts references, read out of the JavaScript TypeScript the
+// worker bundles (the repo's own TypeScript 7 has no lib a browser can load).
+var tsLibs = esbuild.Plugin{
+	Name: "typescript-libs",
+	Setup: func(build esbuild.PluginBuild) {
+		build.OnResolve(esbuild.OnResolveOptions{Filter: `^kaja:typescript-libs$`}, func(args esbuild.OnResolveArgs) (esbuild.OnResolveResult, error) {
+			return esbuild.OnResolveResult{Path: args.Path, Namespace: "typescript-libs"}, nil
+		})
+		build.OnLoad(esbuild.OnLoadOptions{Filter: `.*`, Namespace: "typescript-libs"}, func(args esbuild.OnLoadArgs) (esbuild.OnLoadResult, error) {
+			const dir = "../ui/node_modules/typescript-js/lib/"
+			libs := map[string]string{}
+			var watched []string
+			var walk func(name string) error
+			walk = func(name string) error {
+				file := "lib." + name + ".d.ts"
+				if _, ok := libs[file]; ok {
+					return nil
+				}
+				content, err := os.ReadFile(dir + file)
+				if err != nil {
+					return err
+				}
+				libs[file] = string(content)
+				watched = append(watched, dir+file)
+				for _, match := range libReference.FindAllStringSubmatch(string(content), -1) {
+					if err := walk(strings.ToLower(match[1])); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			if err := walk("esnext.full"); err != nil {
+				return esbuild.OnLoadResult{}, err
+			}
+			encoded, err := json.Marshal(libs)
+			if err != nil {
+				return esbuild.OnLoadResult{}, err
+			}
+			contents := "export default " + string(encoded) + ";"
+			return esbuild.OnLoadResult{Contents: &contents, Loader: esbuild.LoaderJS, WatchFiles: watched}, nil
+		})
+	},
+}
+
+var libReference = regexp.MustCompile(`/// <reference lib="([^"]+)" />`)
+
+// One page load asks for main.css, main.js and the worker, which are three
+// outputs of one build - so the development server bundles the UI when the
+// sources have changed since it last did, rather than once per request. That
+// is still "recompiled on page load": an edit is picked up by the first request
+// after it, and a reload that follows no edit can only produce the bytes
+// already in hand. The esbuild context is kept alive across rebuilds so the one
+// after an edit reuses what it parsed for the one before.
 var (
 	devMu      sync.Mutex
 	devCtx     esbuild.BuildContext
@@ -164,15 +203,12 @@ func BuildForDevelopment() *UiBundle {
 
 	if devCtx == nil {
 		ctx, ctxErr := esbuild.Context(esbuild.BuildOptions{
-			EntryPoints: []string{"../ui/src/main.tsx"},
+			EntryPoints: entryPoints,
 			Bundle:      true,
 			Format:      esbuild.FormatESModule,
 			Sourcemap:   esbuild.SourceMapInline,
 			Outdir:      "build",
-			Plugins:     []esbuild.Plugin{tailwindPlugin},
-			Loader: map[string]esbuild.Loader{
-				".ttf": esbuild.LoaderFile,
-			},
+			Plugins:     []esbuild.Plugin{tailwindPlugin, tsLibs},
 		})
 		if ctxErr != nil {
 			slog.Error("Failed to create esbuild context", "error", ctxErr.Error())
@@ -201,16 +237,13 @@ func BuildForDevelopment() *UiBundle {
 // Blocks forever; the returned context is for cancellation by callers.
 func WatchForDevelopment(outDir string) (esbuild.BuildContext, error) {
 	ctx, ctxErr := esbuild.Context(esbuild.BuildOptions{
-		EntryPoints: []string{"../ui/src/main.tsx"},
+		EntryPoints: entryPoints,
 		Bundle:      true,
 		Format:      esbuild.FormatESModule,
 		Sourcemap:   esbuild.SourceMapInline,
 		Outdir:      outDir,
 		Write:       true,
-		Plugins:     []esbuild.Plugin{tailwindPlugin},
-		Loader: map[string]esbuild.Loader{
-			".ttf": esbuild.LoaderFile,
-		},
+		Plugins:     []esbuild.Plugin{tailwindPlugin, tsLibs},
 	})
 	if ctxErr != nil {
 		return nil, fmt.Errorf("failed to create esbuild context: %s", ctxErr.Error())
@@ -224,7 +257,7 @@ func WatchForDevelopment(outDir string) (esbuild.BuildContext, error) {
 
 func BuildForProduction() (*UiBundle, error) {
 	result := esbuild.Build(esbuild.BuildOptions{
-		EntryPoints:       []string{"../ui/src/main.tsx"},
+		EntryPoints:       entryPoints,
 		Bundle:            true,
 		Format:            esbuild.FormatESModule,
 		MinifyWhitespace:  true,
@@ -234,10 +267,7 @@ func BuildForProduction() (*UiBundle, error) {
 		// logs (uiLog.ts) stay readable instead of showing mangled identifiers.
 		KeepNames: true,
 		Outdir:    "build",
-		Plugins:   []esbuild.Plugin{tailwindPlugin},
-		Loader: map[string]esbuild.Loader{
-			".ttf": esbuild.LoaderFile,
-		},
+		Plugins:   []esbuild.Plugin{tailwindPlugin, tsLibs},
 	})
 
 	return buildResultToUiBundle(result)
@@ -258,68 +288,19 @@ func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	bundle := &UiBundle{}
 
 	for _, file := range result.OutputFiles {
-		fileName := file.Path[strings.LastIndex(file.Path, "/")+1:]
-		switch {
-		case fileName == "main.js":
+		switch file.Path[strings.LastIndex(file.Path, "/")+1:] {
+		case "main.js":
 			bundle.MainJs = file.Contents
-		case fileName == "main.css":
+		case "main.css":
 			bundle.MainCss = file.Contents
-		case strings.HasPrefix(fileName, "codicon-") && strings.HasSuffix(fileName, ".ttf"):
-			bundle.CodiconTtf = file.Contents
-			bundle.CodiconTtfName = fileName
+		case "typescript.worker.js":
+			bundle.WorkerJs = file.Contents
 		}
 	}
 
-	if bundle.MainJs == nil || bundle.MainCss == nil || bundle.CodiconTtf == nil {
+	if bundle.MainJs == nil || bundle.MainCss == nil || bundle.WorkerJs == nil {
 		return nil, fmt.Errorf("failed to find one of the output files")
 	}
 
 	return bundle, nil
-}
-
-// A worker is asked for on every page load and is bundled from node_modules
-// alone, so it is built again when the dependencies change and not when the UI
-// does - no edit to ui/src can reach one.
-var (
-	workerMu      sync.Mutex
-	workerBuilt   = map[string][]byte{}
-	workerSources sourceStamp
-)
-
-func BuildMonacoWorker(name string) ([]byte, error) {
-	path := "editor/editor.worker.js"
-	switch name {
-	case "ts":
-		path = "language/typescript/ts.worker.js"
-	case "json":
-		path = "language/json/json.worker.js"
-	}
-
-	workerMu.Lock()
-	defer workerMu.Unlock()
-
-	sources := stampUiDependencies()
-	if !workerSources.matches(sources) {
-		workerBuilt = map[string][]byte{}
-		workerSources = sources
-	}
-	if built, ok := workerBuilt[name]; ok {
-		return built, nil
-	}
-
-	result := esbuild.Build(esbuild.BuildOptions{
-		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
-		Bundle:      true,
-		Format:      esbuild.FormatIIFE,
-		Platform:    esbuild.PlatformBrowser,
-	})
-
-	if len(result.Errors) > 0 {
-		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
-		return nil, fmt.Errorf("failed to build monaco worker %s", name)
-	}
-
-	workerBuilt[name] = result.OutputFiles[0].Contents
-
-	return result.OutputFiles[0].Contents, nil
 }
