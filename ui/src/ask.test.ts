@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { answerPlaceholder, answerProblem, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
+import { answerPlaceholder, digitChoice, answerProblem, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
 
 describe("parseInteger", () => {
   it("reads a whole number, signed or padded", () => {
@@ -54,6 +54,26 @@ describe("answerPlaceholder", () => {
   it("says what the field is after", () => {
     expect(answerPlaceholder("int")).toBe("Whole number…");
     expect(answerPlaceholder("str")).toBe("Answer…");
+  });
+});
+
+describe("digitChoice", () => {
+  it("answers with the choice the digit numbers", () => {
+    expect(digitChoice("1", 3)).toBe(0);
+    expect(digitChoice("3", 3)).toBe(2);
+  });
+
+  it("has nothing past the last choice", () => {
+    expect(digitChoice("4", 3)).toBeUndefined();
+  });
+
+  it("numbers only the first nine", () => {
+    expect(digitChoice("0", 12)).toBeUndefined();
+    expect(digitChoice("9", 12)).toBe(8);
+  });
+
+  it("is not a letter's", () => {
+    expect(digitChoice("a", 3)).toBeUndefined();
   });
 });
 

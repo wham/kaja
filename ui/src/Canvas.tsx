@@ -1,6 +1,6 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
+import { answerPlaceholder, answerProblem, AskAnswerType, digitChoice, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
 import {
   ApproveBlock,
   ApproveGesture,
@@ -1206,6 +1206,12 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
           event.preventDefault();
           onCancel();
         } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          const numbered = digitChoice(event.key, choices.length);
+          if (numbered !== undefined) {
+            event.preventDefault();
+            onAnswer(choices[numbered]);
+            return;
+          }
           const now = Date.now();
           const text = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.text : "") + event.key;
           if (text.trim() === "") return;
@@ -1232,6 +1238,18 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
           onMouseEnter={() => setActive(index)}
           onClick={() => onAnswer(choice)}
         >
+          {index < 9 ? (
+            <kbd
+              className={cn(
+                "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 px-1 font-mono text-[11px]",
+                index === active ? "border-amber-500/50 text-amber-500" : "border-border text-muted-foreground",
+              )}
+            >
+              {index + 1}
+            </kbd>
+          ) : (
+            <span className="w-[18px] shrink-0" />
+          )}
           <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
           {index === active && <span className="shrink-0 text-muted-foreground">⏎</span>}
         </button>

@@ -53,6 +53,13 @@ export function answerPlaceholder(answerType: AskAnswerType): string {
 /** How long a typeahead keeps collecting letters before the next one starts a new search. */
 export const TYPEAHEAD_MS = 800;
 
+/** The choice a digit key answers with: 1 is the first, and only the first nine have one. */
+export function digitChoice(key: string, count: number): number | undefined {
+  if (!/^[1-9]$/.test(key)) return undefined;
+  const index = Number(key) - 1;
+  return index < count ? index : undefined;
+}
+
 /**
  * Where typing `typed` lands in a list of choices, or undefined if nothing starts
  * with it. A letter typed over and over is the one thing a prefix search reads
