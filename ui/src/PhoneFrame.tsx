@@ -1,13 +1,10 @@
-import { Check, TextAlignStart } from "lucide-react";
+import { TextAlignStart } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
-import { CodePane } from "./CodePane";
-import { Button } from "./components/button";
 import { Console } from "./Console";
 import { consoles } from "./consoles";
 import { snapDrawer } from "./phone";
 import { ConsoleView } from "./runs";
-import { TextBuffer } from "./textBuffer";
 
 // How far in from the left edge a swipe has to start to open the drawer.
 const EDGE = 24;
@@ -36,8 +33,6 @@ export interface PhoneConsole {
 
 export interface PhoneScript {
   fileId: string;
-  buffer: TextBuffer;
-  readOnly: boolean;
 }
 
 interface PhoneFrameProps {
@@ -79,7 +74,6 @@ export function PhoneFrame({
   children,
 }: PhoneFrameProps) {
   const [code, setCode] = useState(false);
-  const [editing, setEditing] = useState(false);
   const fileId = script?.fileId;
 
   // A file with no run to show opens on its code, which is what you came for; one
@@ -87,7 +81,6 @@ export function PhoneFrame({
   useLayoutEffect(() => {
     if (fileId === undefined) return;
     setCode(consoles.file(fileId).groups.length === 0);
-    setEditing(false);
   }, [fileId]);
 
   useSyncExternalStore(
@@ -96,10 +89,7 @@ export function PhoneFrame({
   );
   const file = consoles.file(fileId);
 
-  const showRun = useCallback(() => {
-    setCode(false);
-    setEditing(false);
-  }, []);
+  const showRun = useCallback(() => setCode(false), []);
 
   // A run starting is a request to watch it. Only a live one: the runs a file kept
   // from last time arrive settled.
@@ -126,9 +116,6 @@ export function PhoneFrame({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openRef = useRef(drawerOpen);
   openRef.current = drawerOpen;
-  // A swipe from the edge of a keyboard-sized editor is a selection, not a gesture.
-  const swipeRef = useRef(true);
-  swipeRef.current = !editing;
   const onDrawerOpenChangeRef = useRef(onDrawerOpenChange);
   onDrawerOpenChangeRef.current = onDrawerOpenChange;
 
@@ -159,7 +146,8 @@ export function PhoneFrame({
       if (event.touches.length !== 1) return;
       const touch = event.touches[0];
       const open = openRef.current;
-      if (!open && (touch.clientX > EDGE || !swipeRef.current)) return;
+      // A swipe from the edge of an editor holding the keyboard is a selection, not a gesture.
+      if (!open && (touch.clientX > EDGE || document.activeElement?.closest(".cm-editor"))) return;
       const width = drawerRef.current?.offsetWidth ?? 0;
       if (width === 0) return;
       const from = open ? 1 : 0;
@@ -295,18 +283,6 @@ export function PhoneFrame({
                 fullWidth
                 code={{ selected: code, onSelect: () => setCode(true) }}
               />
-              {editing && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-2 h-[32px] shrink-0 gap-1.5 px-3 text-xs"
-                  data-testid="code-pane-done"
-                  onClick={() => setEditing(false)}
-                >
-                  <Check size={13} className="text-muted-foreground" />
-                  Done
-                </Button>
-              )}
             </div>
           )}
           {onScript && (
@@ -318,15 +294,10 @@ export function PhoneFrame({
               {renderConsole(phone)}
             </div>
           )}
-          {/* Always mounted, because it holds the editors. */}
+          {/* Always in the document, because an editor unmounted is an editor disposed, and
+              it is the one the window's view cache is holding. */}
           <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
-            <CodePane
-              buffer={onScript ? script?.buffer : undefined}
-              readOnly={script?.readOnly ?? true}
-              editing={editing}
-              onEditingChange={setEditing}
-              editor={editor}
-            />
+            {editor}
           </div>
           <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {children}
