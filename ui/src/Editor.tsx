@@ -551,7 +551,7 @@ function minimalChange(before: string, after: string): { from: number; to: numbe
   return { from: start, to: before.length - end, insert: after.slice(start, after.length - end) };
 }
 
-const phoneMargins = EditorView.theme({ ".cm-content": { padding: "12px 16px" } });
+const phoneMargins = EditorView.theme({ ".cm-content": { padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" } });
 
 function gutterExtensions(phone: boolean): Extension {
   return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];

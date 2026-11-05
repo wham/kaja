@@ -2816,12 +2816,7 @@ export function App() {
   const phoneScriptView = views.find(isEditorView);
   const phoneScript =
     phoneScriptView && (phoneScriptView.type === "draft" || phoneScriptView.type === "script")
-      ? {
-          fileId: phoneScriptView.type === "script" ? phoneScriptView.script.path : phoneScriptView.draftId,
-          buffer: phoneScriptView.buffer,
-          readOnly:
-            (phoneScriptView.type === "script" && !canWriteFiles) || (phoneScriptView.type === "draft" && agentViewName(phoneScriptView.draftId) !== undefined),
-        }
+      ? { fileId: phoneScriptView.type === "script" ? phoneScriptView.script.path : phoneScriptView.draftId }
       : undefined;
 
   // Built once per change to what it shows, so the sidebar's memo holds across a run's
