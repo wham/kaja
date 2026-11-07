@@ -143,7 +143,6 @@ export interface RunGroup {
   // Wider than `inFlight`, and the one the chrome reports: a script sleeping between
   // two calls has nothing in flight and is very much still running.
   running: boolean;
-  failures: number;
 }
 
 /**
@@ -231,6 +230,14 @@ export function itemStatus(item: ConsoleItem): RunStatus {
   // the run succeeded.
   if (item.printed) return "success";
   return item.logs ? logsStatus(item.logs) : "success";
+}
+
+// With one call the run's pill already names it and its status. `stats` is not the count
+// to read: it also counts the script's own crash, which is not one of the calls.
+export function failedCallsLabel(group: Pick<RunGroup, "calls" | "strip" | "running">): string | undefined {
+  const failed = group.strip.failures;
+  if (failed === 0 || group.calls.length < 2) return undefined;
+  return group.running ? `${failed} failed` : `${failed} of ${group.calls.length} failed`;
 }
 
 // An item holds the lines of one call, so it is one level; the worst of them is the

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
 import { Block } from "./blocks";
-import { callRows, callStatus, ConsoleItem, ItemStats, itemStatus, presentRun, printedCounts, printedLevel, RunGroup, slowestOf, worstStatus } from "./runs";
+import { callRows, callStatus, ConsoleItem, failedCallsLabel, ItemStats, itemStatus, presentRun, printedCounts, printedLevel, RunGroup, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -285,5 +285,23 @@ describe("presentRun", () => {
   // already landed in.
   it("drops a run that ended without drawing", () => {
     expect(presentRun(running({ running: false }))).toBe("drop");
+  });
+});
+
+describe("failedCallsLabel", () => {
+  const run = (failures: number, calls: number, running = false) =>
+    ({ calls: Array.from({ length: calls }, (_, index) => call(`c${index}`, "r")), strip: { failures }, running }) as unknown as RunGroup;
+
+  it("says nothing the run's pill already names, or when nothing failed", () => {
+    expect(failedCallsLabel(run(1, 1))).toBeUndefined();
+    expect(failedCallsLabel(run(0, 5))).toBeUndefined();
+  });
+
+  it("states how many of the run's calls failed", () => {
+    expect(failedCallsLabel(run(2, 5))).toBe("2 of 5 failed");
+  });
+
+  it("states no total while the total is still moving", () => {
+    expect(failedCallsLabel(run(2, 5, true))).toBe("2 failed");
   });
 });

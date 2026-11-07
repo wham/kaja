@@ -107,10 +107,6 @@ class Group implements RunGroup {
     return !this.run.stale && this.run.durationMs === undefined;
   }
 
-  get failures(): number {
-    return this.stats.failures;
-  }
-
   get awaiting(): ConsoleItem | undefined {
     return this.#asked.find((item) => item.block !== undefined && isAwaitingUser(item.block));
   }

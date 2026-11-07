@@ -401,7 +401,7 @@ describe("what a run says about itself", () => {
     const group = store.file("a.ts").groups[0];
     expect(group.status).toBe(worstStatus(group.items));
     expect(group.stats.slowest).toBe(slowestOf(group.items));
-    expect(group.failures).toBe(1);
+    expect(group.stats.failures).toBe(1);
   });
 
   it("is pending while a call is still in flight", () => {
@@ -824,7 +824,7 @@ describe("what a script printed", () => {
     paint();
 
     expect(store.file("a.ts").groups[0].status).toBe("success");
-    expect(store.file("a.ts").groups[0].failures).toBe(0);
+    expect(store.file("a.ts").groups[0].stats.failures).toBe(0);
   });
 
   // A script error is a verdict Kaja wrote, and goes on being one.
