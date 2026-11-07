@@ -570,11 +570,8 @@ function pickers(onPick: (row: RequestRow) => void): Extension {
         const touch = event.changedTouches[0];
         if (!started || !touch || event.timeStamp - started.time > TAP_MS) return;
         if (Math.abs(touch.clientX - started.x) > TAP_SLOP || Math.abs(touch.clientY - started.y) > TAP_SLOP) return;
-        const pos = this.view.posAtCoords({ x: touch.clientX, y: touch.clientY });
-        if (pos === null) return;
-        const code = this.view.state.doc.toString();
-        const row = rowAt(code, valueCompletionApps, pos);
-        if (!row || !controlFor(row, code)) return;
+        const row = pickableAt(this.view, touch.clientX, touch.clientY);
+        if (!row) return;
         // Cancelled, the tap neither focuses the editor nor raises the keyboard.
         event.preventDefault();
         onPick(row);
@@ -586,7 +583,27 @@ function pickers(onPick: (row: RequestRow) => void): Extension {
       }
     },
   );
-  return [pickable, picking, pickerTheme, taps];
+  // A browser narrowed to a phone's width is still clicked with a mouse. A touch that
+  // was taken above never gets this far, its mousedown cancelled with it.
+  const clicks = EditorView.domEventHandlers({
+    mousedown: (event, view) => {
+      if (event.button !== 0 || view.hasFocus) return false;
+      const row = pickableAt(view, event.clientX, event.clientY);
+      if (!row) return false;
+      event.preventDefault();
+      onPick(row);
+      return true;
+    },
+  });
+  return [pickable, picking, pickerTheme, taps, clicks];
+}
+
+function pickableAt(view: EditorView, x: number, y: number): RequestRow | undefined {
+  const pos = view.posAtCoords({ x, y });
+  if (pos === null) return undefined;
+  const code = view.state.doc.toString();
+  const row = rowAt(code, valueCompletionApps, pos);
+  return row && controlFor(row, code) ? row : undefined;
 }
 
 const keys = new Compartment();
