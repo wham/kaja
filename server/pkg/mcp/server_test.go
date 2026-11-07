@@ -822,6 +822,24 @@ func TestRunScriptReportsWhatItDrew(t *testing.T) {
 	)
 }
 
+// A text block is the one whose contents come back: what Siri reads out of a run is
+// what the script wrote, not that it ran.
+func TestRunScriptReportsWhatItWrote(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.runValue = RunResult{
+		Blocks: []BlockLog{{Kind: "text", Label: "Why did the chicken", Text: "Why did the chicken\ncross the road?"}},
+	}
+	srv := NewServer(bridge, token, version)
+
+	contains(t, tool(t, srv, "run_script", map[string]string{"code": "kaja.text('x')"}),
+		"1. text\n     Why did the chicken\n     cross the road?",
+	)
+	report := reportRun("inline script", bridge.runValue)
+	if report.Blocks[0].Text != "Why did the chicken\ncross the road?" {
+		t.Fatalf("text = %q", report.Blocks[0].Text)
+	}
+}
+
 // The transpiler that runs a script does not type-check, so a script full of type
 // errors runs and every other part of this report reads as a clean run. The section
 // is what says otherwise.
