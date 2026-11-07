@@ -38,7 +38,7 @@ interface StoredCall {
   requestLine?: string;
   responseStatus?: number;
   responseStatusText?: string;
-  http?: { method: string; url: string };
+  http?: { method: string; url: string; bytes?: number };
   timestamp: number;
   durationMs?: number;
   upstreamDurationMs?: number;

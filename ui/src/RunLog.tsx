@@ -1,4 +1,4 @@
-import { ArrowDown, Braces, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
+import { AppWindow, ArrowDown, Braces, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
@@ -6,7 +6,7 @@ import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { spliceEmbedded } from "./embeddedJson";
-import { fetchRequestLine } from "./fetchCall";
+import { fetchRequestLine, htmlDocument, renderableHtml } from "./fetchCall";
 import { splitRequestLine } from "./requestLine";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
@@ -589,6 +589,16 @@ function hasResponse(methodCall: MethodCall): boolean {
  * anything else is the message with whatever encoding carried it taken off.
  */
 function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload {
+  const payload = messagePayload(methodCall, embedded);
+  if (!methodCall.http) return payload;
+  // A fetch's text is the file it fetched, so it is drawn as that text rather than as a
+  // JSON string of it, and its size is what came off the wire rather than the length
+  // of what the log made of it.
+  const text = typeof payload.content === "string" ? payload.content : undefined;
+  return { ...payload, rawText: payload.rawText ?? text, bytes: methodCall.http.bytes ?? payload.bytes };
+}
+
+function messagePayload(methodCall: MethodCall, embedded: boolean): PanePayload {
   if (methodCall.error !== undefined) return readPayload(unwrapFailure(methodCall.error), embedded);
   if (methodCall.streamOutputs !== undefined) {
     let embeddable = false;
@@ -611,6 +621,7 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
   const phone = useMediaQuery(PHONE_QUERY);
   // A phone reads the payload as fields, a level at a time; the JSON is a tap away.
   const [rawJson, setRawJson] = useState(false);
+  const [rendered, setRendered] = useState(false);
   const [path, setPath] = useState<Path>([]);
   const answered = hasResponse(methodCall);
   const hasError = methodCall.error !== undefined;
@@ -622,7 +633,12 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
   const requestLine = methodCall.http ? fetchRequestLine(methodCall.http.method, methodCall.http.url) : undefined;
 
   const copy = async () => {
-    const copiedText = readsFields ? await copyText(printJson(nodeAt(content, levelPath))) : await jsonViewerRef.current?.copyToClipboard();
+    const copiedText =
+      page !== undefined
+        ? await copyText(page)
+        : readsFields
+          ? await copyText(printJson(nodeAt(content, levelPath)))
+          : await jsonViewerRef.current?.copyToClipboard();
     if (!copiedText) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
@@ -647,6 +663,8 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
   // A stream is printed as its messages one after another, which is text rather than
   // a payload to walk.
   const readsFields = phone && !rawJson && rawText === undefined;
+  const html = activeTab === "response" && methodCall.http ? htmlDocument(content, methodCall.responseHeaders?.["content-type"]) : undefined;
+  const page = rendered ? html : undefined;
   useEffect(() => setPath([]), [methodCall.id, activeTab]);
   // A level the payload no longer has, a new message or the embedded reading
   // having moved it, falls back to the nearest one it still has.
@@ -666,6 +684,16 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
             {/* First in the cluster, because it decides what the other three act
                 on. Absent where there is no document to read, so the button
                 appearing is how you find out there is one. */}
+            {html !== undefined && (
+              <IconButton
+                icon={AppWindow}
+                aria-label={rendered ? "Show the source" : "Show the page"}
+                variant="ghost"
+                size="sm"
+                className={cn(utilityButtonClass, rendered && "bg-accent text-foreground")}
+                onClick={() => setRendered(!rendered)}
+              />
+            )}
             {embeddable && (
               <IconButton
                 icon={Braces}
@@ -687,7 +715,7 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
               />
             )}
             {/* Folding is a desktop gesture; on a phone it would push Copy off the row. */}
-            {!phone && (
+            {!phone && page === undefined && (
               <>
                 <IconButton
                   icon={FoldVertical}
@@ -725,7 +753,9 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
             methodCall.missingVariables?.map((variable) => (
               <MissingVariableLine key={variable.name} variable={variable} onReveal={() => onRevealVariable(variable.name)} />
             ))}
-          {readsFields ? (
+          {page !== undefined ? (
+            <RenderedPage html={page} url={methodCall.http!.url} />
+          ) : readsFields ? (
             <PayloadFields key={`${methodCall.id}:${activeTab}`} value={content} root={activeTab} path={levelPath} onPathChange={setPath} />
           ) : (
             <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
@@ -735,6 +765,14 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
     </div>
   );
 };
+
+// Sandboxed with nothing allowed: the page is drawn and its scripts, forms and
+// navigation of the window are not. Its own canvas is white whatever Kaja's theme is,
+// which is what the page was written against.
+function RenderedPage({ html, url }: { html: string; url: string }) {
+  const srcDoc = useMemo(() => renderableHtml(html, url), [html, url]);
+  return <iframe title="Rendered response" sandbox="" srcDoc={srcDoc} className="min-h-0 w-full flex-1 border-0 bg-white" style={{ colorScheme: "light" }} />;
+}
 
 // The response says the API refused the call; this says what it was sent, which is
 // the half of the story only Kaja knows.
