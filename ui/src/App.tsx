@@ -2,6 +2,7 @@ import { useMediaQuery } from "./useMediaQuery";
 import { PHONE_QUERY, isIPhone, methodTag } from "./phone";
 import { PhoneFinder, PhoneLocation } from "./PhoneFinder";
 import { PhoneFrame } from "./PhoneFrame";
+import { RequestFields } from "./RequestFields";
 import { PhoneSidebar } from "./PhoneSidebar";
 import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
@@ -2962,6 +2963,26 @@ export function App() {
             script={phoneScript}
             onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
             editor={editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}
+            request={(showCode) =>
+              phoneScriptView &&
+              (phoneScriptView.type === "draft" || phoneScriptView.type === "script") && (
+                <RequestFields
+                  key={phoneScriptView.id}
+                  buffer={phoneScriptView.buffer}
+                  apps={apps}
+                  readOnly={
+                    (phoneScriptView.type === "script" && !canWriteFiles) ||
+                    (phoneScriptView.type === "draft" && agentViewName(phoneScriptView.draftId) !== undefined)
+                  }
+                  onEdit={() => onEditorUserEdit(phoneScriptView.id)}
+                  onReveal={(offset) => {
+                    showCode();
+                    // The editor is shown in the same paint, and measures only once it is.
+                    requestAnimationFrame(() => editorRegistryRef.current.get(phoneScriptView.id)?.reveal(offset));
+                  }}
+                />
+              )
+            }
             console={(phone) => (
               <Console
                 fileId={currentFileId}

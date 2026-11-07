@@ -87,13 +87,10 @@ function createClients(services: Service[], reflection: Reflection, appRef: AppR
   return clients;
 }
 
-function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet, deprecated: boolean): string {
-  const imports = addImport({}, serviceName, source);
-  const input = defaultMessage(methodInfo.I, app.sources, imports, new Set(), fields);
-
-  // Imports are collected against the module each name is declared in, and only
-  // turned into specifiers here: two modules that both answer to the app's name
-  // are one import line, not two.
+// Imports are collected against the module each name is declared in, and only
+// turned into specifiers here: two modules that both answer to the app's name
+// are one import line, not two.
+export function importLines(app: App, imports: Imports): string[] {
   const bySpecifier: Imports = {};
   for (const path in imports) {
     const declaring = app.sources.find((s) => s.importPath === path);
@@ -102,8 +99,14 @@ function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: S
       (bySpecifier[specifier] ??= new Set()).add(name);
     }
   }
+  return Object.entries(bySpecifier).map(([path, names]) => `import { ${[...names].join(", ")} } from ${JSON.stringify(path)};`);
+}
 
-  const lines = Object.entries(bySpecifier).map(([path, names]) => `import { ${[...names].join(", ")} } from ${JSON.stringify(path)};`);
+function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, app: App, fields: FieldSet, deprecated: boolean): string {
+  const imports = addImport({}, serviceName, source);
+  const input = defaultMessage(methodInfo.I, app.sources, imports, new Set(), fields);
+
+  const lines = importLines(app, imports);
   lines.push("");
 
   // The call is written out even where Kaja won't make it, because the request is

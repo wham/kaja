@@ -158,6 +158,15 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
+/**
+ * The value a field added to a request by hand starts at: what a generated call would
+ * have written for it, so adding a field and clicking the method agree.
+ */
+export function defaultFieldValue(field: FieldInfo, sources: Sources, imports: Imports): string {
+  if (!field.repeat) return defaultMessageField(field, sources, imports, new Set(), "all");
+  return field.kind === "scalar" ? "[]" : `[${defaultMessageField(field, sources, imports, new Set(), "all")}]`;
+}
+
 function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, fields: FieldSet): string {
   // Scalars start at their zero value. Values from earlier calls are offered as editor
   // completions instead (valueCompletions), so what is generated here is only ever the
