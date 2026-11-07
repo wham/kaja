@@ -8,7 +8,7 @@ import { lists } from "./pages";
  *
  * Only the drawing changes. The fields come in the order the payload holds them,
  * a value is never rewritten into something the API did not send, and what is
- * copied is the JSON of the level on screen.
+ * copied is the JSON of the level on screen or the value a row was tapped on.
  */
 
 export type Path = (string | number)[];
@@ -118,6 +118,20 @@ function arrayLabel(items: unknown[]): string | undefined {
   if (head.length === 0 || !head.every((item) => typeof item === "string" || typeof item === "number")) return undefined;
   const text = head.join(", ");
   return items.length > head.length ? `${text}, …` : text;
+}
+
+// What a tap on a row copies: the text the API sent, so an instant is the instant
+// rather than its age. A URL is left out, a tap on one reading as a way to open it.
+export function copyableText(value: FieldValue): string | undefined {
+  switch (value.kind) {
+    case "text":
+    case "instant":
+    case "number":
+    case "boolean":
+      return value.text;
+    default:
+      return undefined;
+  }
 }
 
 export function countLabel(value: { kind: "object" | "array"; count: number }): string {

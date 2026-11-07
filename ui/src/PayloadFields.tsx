@@ -1,8 +1,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { timeAgo } from "./cellTime";
+import { copyText } from "./clipboard";
 import { cn } from "./cn";
-import { countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, pageList, Path } from "./payloadRows";
+import { copyableText, countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, pageList, Path } from "./payloadRows";
 
 interface PayloadFieldsProps {
   value: unknown;
@@ -110,22 +111,48 @@ function FieldRow({ field, onOpen }: { field: Field; onOpen: () => void }) {
   const opens = (value.kind === "object" || value.kind === "array") && value.count > 0;
   const [unfolded, setUnfolded] = useState(false);
   const long = "text" in value && value.text.length > LONG_TEXT;
+  const copyable = copyableText(value);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    // A long press that selected part of the value ends in a click too.
+    if (copyable === undefined || !window.getSelection()?.isCollapsed) return;
+    if (!(await copyText(copyable))) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
 
   const body = (
     <div className="min-w-0 flex-1">
-      <div className="truncate text-xs text-muted-foreground">{field.key}</div>
+      <div className={cn("truncate text-xs", copied ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>{copied ? "Copied" : field.key}</div>
       <div className={cn("text-[15px] wrap-anywhere", long && !unfolded && "line-clamp-4")}>
         <Value value={value} />
       </div>
       {long && (
-        <button type="button" className="mt-0.5 text-xs text-muted-foreground active:text-foreground" onClick={() => setUnfolded(!unfolded)}>
+        <button
+          type="button"
+          className="mt-0.5 text-xs text-muted-foreground active:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation();
+            setUnfolded(!unfolded);
+          }}
+        >
           {unfolded ? "Show less" : `Show all ${value.text.length.toLocaleString()} characters`}
         </button>
       )}
     </div>
   );
 
-  if (!opens) return <div className="flex min-h-12 items-center border-b border-border px-4 py-2 select-text">{body}</div>;
+  if (!opens) {
+    return (
+      <div
+        className={cn("flex min-h-12 items-center border-b border-border px-4 py-2 select-text", copyable !== undefined && "active:bg-accent/60")}
+        onClick={copyable !== undefined ? copy : undefined}
+      >
+        {body}
+      </div>
+    );
+  }
 
   return (
     <button type="button" className="flex min-h-12 w-full items-center gap-2 border-b border-border px-4 py-2 text-left active:bg-accent/60" onClick={onOpen}>
