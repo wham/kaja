@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { fields, MAX_FIELDS, nodeAt, objectLabel, pageList, readValue } from "./payloadRows";
+import { copyableText, fields, MAX_FIELDS, nodeAt, objectLabel, pageList, readValue } from "./payloadRows";
 
 describe("fields", () => {
   it("keeps the order the payload holds and skips what it left unset", () => {
@@ -17,6 +17,21 @@ describe("fields", () => {
   it("has nothing to list in a value", () => {
     expect(fields("text")).toEqual([]);
     expect(fields(new Uint8Array(3))).toEqual([]);
+  });
+});
+
+describe("copyableText", () => {
+  it("is the value as the API sent it", () => {
+    expect(copyableText(readValue("src_1"))).toBe("src_1");
+    expect(copyableText(readValue("2024-03-01T12:00:00Z"))).toBe("2024-03-01T12:00:00Z");
+    expect(copyableText(readValue(BigInt("9007199254740993")))).toBe("9007199254740993");
+    expect(copyableText(readValue(false))).toBe("false");
+  });
+
+  it("leaves out a URL and what has no text", () => {
+    for (const value of ["https://react.dev", "", null, new Uint8Array(4), { a: 1 }, [1]]) {
+      expect(copyableText(readValue(value))).toBeUndefined();
+    }
   });
 });
 
