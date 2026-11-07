@@ -322,11 +322,12 @@ func allToolDefinitions() []map[string]interface{} {
 				"blocks": array(obj(map[string]interface{}{
 					"kind":    str("text, code, table, an ask, approve or perfTest."),
 					"label":   str("What the block was titled, where it carries one."),
+					"text":    str("A text block's whole text."),
 					"columns": array(str("A column name."), "A table's columns."),
 					"rows":    num("How many rows a table drew."),
 					"pending": num("Cells that never landed. Nobody is there to draw the rest of a table for you."),
 					"failed":  num("Cells that failed to load."),
-				}), "What the script drew on the run's canvas. The contents are not echoed: you wrote them."),
+				}), "What the script drew on the run's canvas. Only a text block's contents are echoed: you wrote the rest."),
 				"diagnostics": array(obj(map[string]interface{}{
 					"line":    num("Line the error is on."),
 					"column":  num("Column the error is on."),

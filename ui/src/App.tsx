@@ -3386,6 +3386,7 @@ function toBlockLog(block: Block) {
   return {
     kind: block.kind,
     label: blockLabel(block),
+    text: block.kind === "text" ? block.text : undefined,
     columns: table?.columns,
     rows: table?.rows.length,
     // An agent has nobody to press Next, so it is told the rows are a page rather

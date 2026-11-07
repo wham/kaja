@@ -77,10 +77,12 @@ type CallFailure struct {
 }
 
 // BlockLog is something the script drew. The agent produced the contents already,
-// so this is the shape of what it made.
+// so this is the shape of what it made - except a text block's, which is what Siri
+// reads out of a run nobody is looking at.
 type BlockLog struct {
 	Kind    string   `json:"kind"`
 	Label   string   `json:"label,omitempty"`
+	Text    string   `json:"text,omitempty"`
 	Columns []string `json:"columns,omitempty"`
 	Rows    int      `json:"rows,omitempty"`
 	// Cells of a table that hold no value. A table with holes in it must say so rather

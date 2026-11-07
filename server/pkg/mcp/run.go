@@ -192,6 +192,11 @@ func callLabel(call MethodCallLog) string {
 func renderBlock(index int, block BlockLog) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "  %d. %s", index, block.Kind)
+	if strings.Contains(block.Text, "\n") {
+		b.WriteString("\n")
+		b.WriteString(indent(truncate(block.Text), "     "))
+		return b.String()
+	}
 	if block.Kind == "table" {
 		fmt.Fprintf(&b, "  %d column(s) × %d row(s)", len(block.Columns), block.Rows)
 		if len(block.Columns) > 0 {
@@ -281,7 +286,11 @@ type ReportedFailure struct {
 // reportRun shapes a run into the structured report. Everything it drops, it drops
 // where renderRun drops it too.
 func reportRun(label string, result RunResult) RunReport {
-	report := RunReport{Script: label, Stopped: result.Error, Blocks: result.Blocks}
+	report := RunReport{Script: label, Stopped: result.Error}
+	for _, block := range result.Blocks {
+		block.Text = truncate(block.Text)
+		report.Blocks = append(report.Blocks, block)
+	}
 
 	if len(result.Result) > 0 && string(result.Result) != "null" {
 		report.Returned = payload(result.Result)

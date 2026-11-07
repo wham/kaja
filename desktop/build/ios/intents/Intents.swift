@@ -67,6 +67,13 @@ enum Kaja {
     static func headline(_ text: String) -> IntentDialog {
         IntentDialog(stringLiteral: String(text.split(separator: "\n").first ?? "Done"))
     }
+
+    // A run's answer is the text it drew, where it drew any; the report's headline only
+    // says that it ran.
+    static func spoken(_ text: String, _ report: RunReport) -> IntentDialog {
+        let drawn = (report.blocks ?? []).compactMap { $0.kind == "text" ? $0.text : nil }
+        return drawn.isEmpty ? headline(text) : IntentDialog(stringLiteral: drawn.joined(separator: "\n"))
+    }
 }
 
 @available(iOS 16.0, *)
@@ -195,7 +202,7 @@ struct RunScript: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         let (text, report) = try await Kaja.run(["path": script.id])
-        return .result(value: text, dialog: Kaja.headline(text), view: RunCard(name: script.name, report: report))
+        return .result(value: text, dialog: Kaja.spoken(text, report), view: RunCard(name: script.name, report: report))
     }
 }
 
@@ -210,7 +217,7 @@ struct RunCode: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         let (text, report) = try await Kaja.run(["code": code])
-        return .result(value: text, dialog: Kaja.headline(text), view: RunCard(name: report.script, report: report))
+        return .result(value: text, dialog: Kaja.spoken(text, report), view: RunCard(name: report.script, report: report))
     }
 }
 
@@ -307,6 +314,7 @@ struct RunReport: Decodable {
     struct Block: Decodable {
         let kind: String
         let label: String?
+        let text: String?
         let rows: Int?
     }
 
