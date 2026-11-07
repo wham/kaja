@@ -16,7 +16,7 @@ import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
-import { callRows, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
+import { callRows, ConsoleTab, ConsoleView, defaultView, failedCallsLabel, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
@@ -634,7 +634,7 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
           )
         ) : (
           <span className={cn("shrink-0 font-mono text-xs", group.status === "error" ? "text-destructive" : "text-muted-foreground")}>
-            {group.status === "error" ? "failed" : formatDuration(group.run.durationMs)}
+            {failedCallsLabel(group) ?? (group.status === "error" ? "failed" : formatDuration(group.run.durationMs))}
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-3">
@@ -720,6 +720,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
               {summary.detail}
             </span>
           )}
+          {summary?.failed && <span className="shrink-0 font-mono text-xs text-destructive">{summary.failed}</span>}
           {/* Until there is an earlier run, the menu has nothing to pick. */}
           {groups.length > 1 && <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />}
         </button>
@@ -767,7 +768,7 @@ interface RunRowProps extends RunSummaryLine {
 
 // Memoized so the tick that counts up an in-flight run only re-renders that run's
 // row; every settled row holds a value that no longer changes.
-Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
+Console.RunRow = memo(function RunRow({ name, detail, failed, input, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
@@ -787,6 +788,7 @@ Console.RunRow = memo(function RunRow({ name, detail, input, dotClass: dot, pend
       <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
       </span>
+      {failed && <span className="-ml-1 shrink-0 font-mono text-xs text-destructive">{failed}</span>}
     </DropdownMenuItem>
   );
 });
@@ -795,6 +797,8 @@ interface RunSummaryLine {
   name: string;
   // `14:03 · 1.2 s`, `13:51 · waiting`, `13:44 · failed`.
   detail?: string;
+  // `2 of 5 failed`, drawn after the detail in the colour it is.
+  failed?: string;
   // `id=42 · month=2026-01`, absent on a run that carried nothing.
   input?: string;
   dotClass: string;
@@ -815,11 +819,14 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // every run of the file by, which makes it the one place a run not on screen can say
   // what it is doing.
   const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
-  const outcome = waiting ? "waiting" : group.running ? elapsed : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
+  const failed = failedCallsLabel(group);
+  const outcome = waiting ? "waiting" : group.running ? elapsed : failed ? undefined : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
+  const statement = outcome ? `${time} · ${outcome}` : time;
 
   return {
     name: runName(group, groups),
-    detail: outcome ? `${time} · ${outcome}` : time,
+    detail: failed ? `${statement} ·` : statement,
+    failed,
     input: runInputLabel(group.run.input),
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
     pending: group.running,

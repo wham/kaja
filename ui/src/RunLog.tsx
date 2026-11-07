@@ -112,7 +112,6 @@ export const RunLog = memo(function RunLog({
 
   const total = rows.length;
   const slowest = group.stats.slowest;
-  const failures = group.failures;
   const scriptFailed = group.scriptFailed;
   // With the floor off that is everything the script printed, which is exactly when
   // the tail bar has something to offer.
@@ -215,7 +214,6 @@ export const RunLog = memo(function RunLog({
         held={group.heldCalls}
         elapsedMs={now - group.run.startedAt}
         rowsBelow={rowsBelow}
-        failures={failures}
         dropped={group.dropped}
         hiddenLines={hidden.lines}
         hiddenErrors={hidden.errors}
@@ -397,7 +395,6 @@ interface TailBarProps {
   held: number;
   elapsedMs: number;
   rowsBelow: number;
-  failures: number;
   // The log says where it stops being complete rather than quietly ending there.
   dropped: number;
   // Left out of the list is not the same as never happened, and a clean list over a
@@ -422,7 +419,6 @@ const TailBar = function ({
   held,
   elapsedMs,
   rowsBelow,
-  failures,
   dropped,
   hiddenLines,
   hiddenErrors,
@@ -431,7 +427,7 @@ const TailBar = function ({
   onShowLogs,
   onGoToCanvas,
 }: TailBarProps) {
-  if (!waiting && !scriptFailed && !running && rowsBelow <= 0 && failures === 0 && dropped === 0 && hiddenLines === 0 && tailing) return null;
+  if (!waiting && !scriptFailed && !running && rowsBelow <= 0 && dropped === 0 && hiddenLines === 0 && tailing) return null;
 
   const state = waiting ? "waiting" : scriptFailed ? "failed" : running ? "running" : "counts";
 
@@ -471,14 +467,11 @@ const TailBar = function ({
             onClick={onShowLogs}
             title="Mix what the script printed into the calls"
           >
-            {/* A dot rather than a second "errors" — the failed-call count sits a
-                few pixels to the right and the two must not read as one number. */}
             {hiddenErrors > 0 && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
             {hiddenLines === 1 ? "1 log line" : `${hiddenLines} log lines`}
           </button>
         )}
         {dropped > 0 && <span className="text-muted-foreground">{dropped} not kept</span>}
-        {failures > 0 && <span className="text-amber-600 dark:text-amber-400">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
         {!tailing && (
           <button
             type="button"
