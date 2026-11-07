@@ -142,11 +142,58 @@ export function readBody(bytes: ArrayBuffer, contentType: string): unknown {
   if (bytes.byteLength > MAX_BODY_BYTES) {
     return `<${describeType(contentType)}, ${bytes.byteLength} bytes, too large to keep in the log>`;
   }
-  if (!isTextual(contentType)) {
-    return `<${describeType(contentType)}, ${bytes.byteLength} bytes>`;
-  }
-  const text = new TextDecoder().decode(bytes);
+  const text = isTextual(contentType) ? new TextDecoder().decode(bytes) : isUnnamed(contentType) ? sniffText(bytes) : undefined;
+  if (text === undefined) return `<${describeType(contentType)}, ${bytes.byteLength} bytes>`;
   return parseJson(text) ?? text;
+}
+
+// The types that say only that nobody named one. S3 answers `binary/octet-stream` for
+// an object uploaded without a type, so what is in it is read off the bytes instead.
+function isUnnamed(contentType: string): boolean {
+  const type = describeType(contentType).toLowerCase();
+  return type === "application/octet-stream" || type === "binary/octet-stream";
+}
+
+/**
+ * The bytes as text, where they are text: valid UTF-8 with no control character a
+ * text file would not hold. A NUL is what nearly every binary format has early on.
+ */
+export function sniffText(bytes: ArrayBuffer): string | undefined {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return undefined;
+  }
+  // eslint-disable-next-line no-control-regex
+  return /[\u0000-\u0008\u000B\u000E-\u001F\u007F]/.test(text) ? undefined : text;
+}
+
+/**
+ * The response as a page a browser would draw, where it is one: declared as HTML, or
+ * opening the way only an HTML document does — which is what an untyped download
+ * has to be recognised by.
+ */
+export function htmlDocument(body: unknown, contentType: string | undefined): string | undefined {
+  if (typeof body !== "string") return undefined;
+  if (contentType !== undefined && describeType(contentType).toLowerCase() === "text/html") return body;
+  return /^\s*(<!doctype\s+html|<html[\s>])/i.test(body) ? body : undefined;
+}
+
+/**
+ * The document as an iframe's `srcdoc`, with its relative references resolved
+ * against the URL it was fetched from rather than against Kaja's own page.
+ */
+export function renderableHtml(html: string, url: string): string {
+  if (/<base[\s>]/i.test(html)) return html;
+  const base = `<base href="${url.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">`;
+  const head = /<head(\s[^>]*)?>/i.exec(html);
+  if (head) return html.slice(0, head.index + head[0].length) + base + html.slice(head.index + head[0].length);
+  // Ahead of everything but the doctype, which has to come first to keep the page
+  // out of quirks mode.
+  const doctype = /^\s*<!doctype[^>]*>/i.exec(html);
+  const at = doctype ? doctype[0].length : 0;
+  return html.slice(0, at) + base + html.slice(at);
 }
 
 function describeType(contentType: string): string {
@@ -225,12 +272,12 @@ const NULL_BODY_STATUS = new Set([101, 103, 204, 205, 304]);
  * The whole body is read before the script sees any of it, which is what makes a
  * streamed response the one thing a script's fetch does not carry.
  */
-export async function holdResponse(response: Response): Promise<{ response: Response; body: unknown }> {
+export async function holdResponse(response: Response): Promise<{ response: Response; body: unknown; bytes?: number }> {
   // An opaque response (a no-cors request) has nothing to read and no status to
   // rebuild it under, so it is passed through as it came.
   if (response.type === "opaque" || response.status === 0) return { response, body: undefined };
   const bytes = await response.arrayBuffer();
-  return { response: replayResponse(response, bytes), body: readBody(bytes, response.headers.get("content-type") ?? "") };
+  return { response: replayResponse(response, bytes), body: readBody(bytes, response.headers.get("content-type") ?? ""), bytes: bytes.byteLength };
 }
 
 function replayResponse(response: Response, bytes: ArrayBuffer): Response {

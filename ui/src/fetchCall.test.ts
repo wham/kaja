@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { describeRequest, fetchKey, fetchLabel, holdResponse, rateLimitHost, readBody } from "./fetchCall";
+import { describeRequest, fetchKey, fetchLabel, holdResponse, htmlDocument, rateLimitHost, readBody, renderableHtml } from "./fetchCall";
 
 describe("how a fetch is named", () => {
   it("is the verb and the host, so a loop shares one name", () => {
@@ -82,6 +82,18 @@ describe("the body as the log holds it", () => {
     expect(readBody(bytes(" "), "image/png")).toBe("<image/png, 1 bytes>");
   });
 
+  it("reads an untyped body off its bytes", () => {
+    expect(readBody(bytes("<!doctype html><p>hi</p>"), "binary/octet-stream")).toBe("<!doctype html><p>hi</p>");
+    expect(readBody(bytes('{"id":1}'), "application/octet-stream")).toEqual({ id: 1 });
+    expect(readBody(bytes("naïve\tline\n"), "application/octet-stream")).toBe("naïve\tline\n");
+    expect(readBody(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer, "binary/octet-stream")).toBe("<binary/octet-stream, 4 bytes>");
+    expect(readBody(new Uint8Array([0x61, 0x00, 0x62]).buffer, "application/octet-stream")).toBe("<application/octet-stream, 3 bytes>");
+  });
+
+  it("trusts a type that names something", () => {
+    expect(readBody(bytes("hello"), "image/png")).toBe("<image/png, 5 bytes>");
+  });
+
   it("is nothing at all when the response had no body", () => {
     expect(readBody(new ArrayBuffer(0), "application/json")).toBeUndefined();
   });
@@ -107,5 +119,25 @@ describe("a response read once and handed over again", () => {
     const held = await holdResponse(new Response(null, { status: 204 }));
     expect(held.response.status).toBe(204);
     expect(held.body).toBeUndefined();
+  });
+});
+
+describe("a response that is a page", () => {
+  it("is one where it says so or opens like one", () => {
+    expect(htmlDocument("<p>hi</p>", "text/html; charset=utf-8")).toBe("<p>hi</p>");
+    expect(htmlDocument("\n<!DOCTYPE html><p>hi</p>", "binary/octet-stream")).toBeDefined();
+    expect(htmlDocument("<html lang=en></html>", undefined)).toBeDefined();
+    expect(htmlDocument("<p>hi</p>", "text/plain")).toBeUndefined();
+    expect(htmlDocument({ html: "<html>" }, "text/html")).toBeUndefined();
+  });
+
+  it("resolves its relative references against where it was fetched from", () => {
+    const url = "https://bucket.example.com/a/b.html?x=1&y=2";
+    expect(renderableHtml("<!doctype html><head><title>t</title></head>", url)).toBe(
+      '<!doctype html><head><base href="https://bucket.example.com/a/b.html?x=1&amp;y=2"><title>t</title></head>',
+    );
+    expect(renderableHtml("<!doctype html><p>hi</p>", url)).toStartWith('<!doctype html><base href="');
+    expect(renderableHtml("<p>hi</p>", url)).toStartWith("<base href=");
+    expect(renderableHtml('<head><base href="/x/"></head>', url)).toBe('<head><base href="/x/"></head>');
   });
 });

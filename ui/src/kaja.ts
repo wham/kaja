@@ -1223,6 +1223,7 @@ export function runFetch(kaja: Kaja, input: RequestInfo | URL, init?: RequestIni
     try {
       const response = await sendFetch(request, input as RequestInfo, signal ? { ...init, signal } : init);
       const held = await holdResponse(response);
+      call.http!.bytes = held.bytes;
       call.durationMs = Math.round(performance.now() - startedAt);
       call.responseHeaders = readResponseHeaders(response);
       call.responseStatus = response.status;
@@ -1329,7 +1330,9 @@ export interface MethodCall {
   // The HTTP call a script made itself, with the bare `fetch`. It has no app and no
   // generated request, so this is what says it was one — and its request line is what
   // identifies it, the way a service and a method identify every other call.
-  http?: { method: string; url: string };
+  // `bytes` is the response body as it came off the wire, which is its size whatever
+  // the log could make of it.
+  http?: { method: string; url: string; bytes?: number };
   timestamp: number;
   // Wall-clock time the call took, set once it succeeds, fails, or its stream
   // completes. Undefined while still in flight.

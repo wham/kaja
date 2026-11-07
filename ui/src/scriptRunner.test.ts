@@ -361,7 +361,7 @@ describe("the fetch a script sees", () => {
       expect(run.error).toBeUndefined();
       expect(run.result).toEqual({ ok: true });
       expect(calls).toHaveLength(2);
-      expect(calls[0].http).toEqual({ method: "GET", url: "https://api.example.com/status" });
+      expect(calls[0].http).toEqual({ method: "GET", url: "https://api.example.com/status", bytes: 11 });
     } finally {
       globalThis.fetch = real;
     }

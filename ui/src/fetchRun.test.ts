@@ -57,7 +57,7 @@ describe("the run's fetch", () => {
     expect(callLabel(call)).toBe("GET api.example.com");
     expect(callKey(call)).toBe("/orders/1");
     expect(call.appName).toBe("api.example.com");
-    expect(call.http).toEqual({ method: "GET", url: "https://api.example.com/orders/1" });
+    expect(call.http).toEqual({ method: "GET", url: "https://api.example.com/orders/1", bytes: 8 });
     expect(call.input).toEqual({ method: "GET", url: "https://api.example.com/orders/1" });
     expect(call.output).toEqual({ id: 1 });
     expect(call.error).toBeUndefined();
@@ -160,7 +160,7 @@ describe("the run's fetch", () => {
     try {
       const response = await runFetch(kaja, "https://api.example.com/orders/1");
       expect(response.ok).toBe(true);
-      expect(settled().http).toEqual({ method: "GET", url: "https://api.example.com/orders/1" });
+      expect(settled().http).toEqual({ method: "GET", url: "https://api.example.com/orders/1", bytes: 8 });
     } finally {
       globalThis.crypto = realCrypto;
     }
