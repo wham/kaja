@@ -1,5 +1,5 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import { ServiceInfo } from "@protobuf-ts/runtime-rpc";
+import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import type { CallExpression, File, Node, OptionalCallExpression } from "@babel/types";
 import { appFor, resolve } from "./appImports";
 import { App } from "./apps";
@@ -112,6 +112,14 @@ function enclosingCall(nodes: Node[], offset: number): { call: CallExpression | 
 // service identifier is matched through its import so two apps declaring the
 // same service name stay apart.
 function resolveInputType(file: File, call: CallExpression | OptionalCallExpression, apps: App[]): IMessageType<any> | undefined {
+  return resolveMethod(file, call, apps)?.method.I;
+}
+
+export function resolveMethod(
+  file: File,
+  call: CallExpression | OptionalCallExpression,
+  apps: App[],
+): { app: App; serviceName: string; method: MethodInfo } | undefined {
   const callee = memberAccess(call.callee);
   if (!callee || callee.object.type !== "Identifier") {
     return undefined;
@@ -121,14 +129,14 @@ function resolveInputType(file: File, call: CallExpression | OptionalCallExpress
   const methodName = callee.name;
   const importPath = importPathOf(file, serviceName);
 
-  const serviceInfo = findServiceInfo(apps, serviceName, importPath);
-  if (!serviceInfo) {
+  const found = findServiceInfo(apps, serviceName, importPath);
+  if (!found) {
     return undefined;
   }
 
-  const method = serviceInfo.methods.find((candidate) => candidate.name.toLowerCase() === methodName.toLowerCase());
+  const method = found.serviceInfo.methods.find((candidate) => candidate.name.toLowerCase() === methodName.toLowerCase());
 
-  return method?.I;
+  return method && { app: found.app, serviceName, method };
 }
 
 function importPathOf(file: File, localName: string): string | undefined {
@@ -143,7 +151,7 @@ function importPathOf(file: File, localName: string): string | undefined {
   return undefined;
 }
 
-function findServiceInfo(apps: App[], serviceName: string, importPath: string | undefined): ServiceInfo | undefined {
+function findServiceInfo(apps: App[], serviceName: string, importPath: string | undefined): { app: App; serviceInfo: ServiceInfo } | undefined {
   const candidates: { app: App; source: Source }[] = [];
 
   // An import names the app, and only a name two of its modules declare is imported by
@@ -164,7 +172,7 @@ function findServiceInfo(apps: App[], serviceName: string, importPath: string | 
     const service = app.services.find((candidate) => candidate.name === serviceName && candidate.sourcePath === source.importPath);
     const serviceInfo = service && app.reflection.services.get(service.typeName);
     if (serviceInfo) {
-      return serviceInfo;
+      return { app, serviceInfo };
     }
   }
 
