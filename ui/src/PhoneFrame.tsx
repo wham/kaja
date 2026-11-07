@@ -50,8 +50,6 @@ interface PhoneFrameProps {
   onScript: boolean;
   // The mounted editors, whichever view is current; they live in the code pane.
   editor: React.ReactNode;
-  // The script's requests as fields; handed the way back to the code.
-  request: (showCode: () => void) => React.ReactNode;
   console: (phone: PhoneConsole) => React.ReactNode;
   // Every other view's body.
   children: React.ReactNode;
@@ -72,20 +70,17 @@ export function PhoneFrame({
   script,
   onScript,
   editor,
-  request,
   console: renderConsole,
   children,
 }: PhoneFrameProps) {
-  // Which of the script's own panes is in front of the run, if either is.
-  const [pane, setPane] = useState<"code" | "request" | undefined>();
-  const code = pane === "code";
+  const [code, setCode] = useState(false);
   const fileId = script?.fileId;
 
   // A file with no run to show opens on its code, which is what you came for; one
   // with runs opens on the run.
   useLayoutEffect(() => {
     if (fileId === undefined) return;
-    setPane(consoles.file(fileId).groups.length === 0 ? "code" : undefined);
+    setCode(consoles.file(fileId).groups.length === 0);
   }, [fileId]);
 
   useSyncExternalStore(
@@ -94,8 +89,7 @@ export function PhoneFrame({
   );
   const file = consoles.file(fileId);
 
-  const showRun = useCallback(() => setPane(undefined), []);
-  const showCode = useCallback(() => setPane("code"), []);
+  const showRun = useCallback(() => setCode(false), []);
 
   // A run starting is a request to watch it. Only a live one: the runs a file kept
   // from last time arrive settled.
@@ -287,15 +281,14 @@ export function PhoneFrame({
                 waiting={file.selectedGroup?.awaiting !== undefined}
                 onChange={onRunView}
                 fullWidth
-                code={{ selected: code, onSelect: showCode }}
-                request={{ selected: pane === "request", onSelect: () => setPane("request") }}
+                code={{ selected: code, onSelect: () => setCode(true) }}
               />
             </div>
           )}
           {onScript && (
             <div
               data-testid="phone-run"
-              className={cn("flex min-h-0 flex-1 flex-col", pane !== undefined && "hidden")}
+              className={cn("flex min-h-0 flex-1 flex-col", code && "hidden")}
               style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
               {renderConsole(phone)}
@@ -303,12 +296,9 @@ export function PhoneFrame({
           )}
           {/* Always in the document, because an editor unmounted is an editor disposed, and
               it is the one the window's view cache is holding. */}
-          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>{editor}</div>
-          {onScript && pane === "request" && (
-            <div className="flex min-h-0 flex-1 flex-col" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-              {request(showCode)}
-            </div>
-          )}
+          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
+            {editor}
+          </div>
           <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {children}
           </div>

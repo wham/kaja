@@ -1,48 +1,146 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { FieldInfo } from "@protobuf-ts/runtime";
-import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CodeXml, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { App } from "./apps";
 import { cn } from "./cn";
+import { IconButton } from "./components/icon-button";
 import { FieldSheet } from "./FieldSheet";
 import { Trail } from "./PayloadFields";
 import { addField, controlFor, fieldType, readRequestCalls, readRequestLevel, removeField, replaceValue, RequestRow, rowAt, RowValue } from "./requestEdits";
 import { TextBuffer } from "./textBuffer";
 
-interface RequestFieldsProps {
-  buffer: TextBuffer;
+const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
+
+interface ScriptPaneProps {
+  // The script on screen, if one is.
+  buffer?: TextBuffer;
   apps: App[];
   readOnly: boolean;
-  // An edit made here, which a draft is saved on.
+  // An edit made in the form, which a draft is saved on.
   onEdit: () => void;
   // Shows the code at an offset: what a value no picker can change is edited in.
   onReveal: (offset: number) => void;
+  // The mounted editors, which stay in the document whichever reading is shown.
+  children: React.ReactNode;
 }
 
 /**
- * A phone's reading of the requests a script writes: each call's literal as fields, one
- * level at a time, the way a payload is read. The script's text is what is shown and what
- * is written, so an edit here is an edit of the file, and the editor beside it has it too.
+ * A phone's script pane: its code, or the requests it writes read as a form, a tap
+ * apart the way a payload is between its fields and its JSON. The script's text is
+ * what both show and what the form writes, so an edit in either is an edit of the
+ * file. The toggle is absent on a script that calls no app, there being nothing to
+ * read as a form.
  */
-export function RequestFields({ buffer, apps, readOnly, onEdit, onReveal }: RequestFieldsProps) {
+export function ScriptPane({ buffer, apps, readOnly, onEdit, onReveal, children }: ScriptPaneProps) {
   const code = useSyncExternalStore(
-    useCallback((notify: () => void) => buffer.onDidChange(notify), [buffer]),
-    () => buffer.getValue(),
+    useCallback((notify: () => void) => buffer?.onDidChange(notify) ?? (() => {}), [buffer]),
+    () => buffer?.getValue() ?? "",
   );
   const calls = useMemo(() => readRequestCalls(code, apps), [code, apps]);
+  const [form, setForm] = useState(false);
   const [callIndex, setCallIndex] = useState(0);
   const [path, setPath] = useState<string[]>([]);
-  const [editing, setEditing] = useState<{ start: number } | undefined>();
-  const [adding, setAdding] = useState(false);
+
+  // Another script starts at its first call, at the top.
+  useEffect(() => {
+    setCallIndex(0);
+    setPath([]);
+  }, [buffer]);
 
   const index = Math.min(callIndex, Math.max(calls.length - 1, 0));
   const call = calls[index];
-  const level = useMemo(() => (call ? readRequestLevel(code, apps, index, path) : undefined), [code, apps, index, path, call]);
+  const shown = form && buffer !== undefined && call !== undefined;
+
+  const reveal = (offset: number) => {
+    setForm(false);
+    onReveal(offset);
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {buffer && call && (
+        <div className="flex h-[28px] shrink-0 items-center gap-2 px-3">
+          {shown && (
+            <>
+              <span className="truncate text-xs font-medium text-foreground">{call.label}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">line {call.line}</span>
+              {calls.length > 1 && (
+                // A native select is the phone's own wheel, and the list is short.
+                <label className="relative flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+                  {index + 1} of {calls.length}
+                  <ChevronDown size={13} />
+                  <select
+                    aria-label="Call"
+                    value={index}
+                    onChange={(event) => {
+                      setCallIndex(Number(event.target.value));
+                      setPath([]);
+                    }}
+                    className="absolute inset-0 opacity-0"
+                  >
+                    {calls.map((candidate, position) => (
+                      <option key={position} value={position}>
+                        {candidate.label} · line {candidate.line}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
+          <IconButton
+            icon={CodeXml}
+            aria-label={shown ? "Show as code" : "Show as form"}
+            variant="ghost"
+            size="sm"
+            className={cn(utilityButtonClass, "ml-auto", !shown && "bg-accent text-foreground")}
+            onClick={() => setForm(!shown)}
+          />
+        </div>
+      )}
+      <div className={cn("flex min-h-0 flex-1 flex-col", shown && "hidden")}>{children}</div>
+      {shown && buffer && (
+        <RequestForm
+          key={index}
+          buffer={buffer}
+          code={code}
+          apps={apps}
+          index={index}
+          path={path}
+          onPathChange={setPath}
+          readOnly={readOnly}
+          onEdit={onEdit}
+          onReveal={reveal}
+        />
+      )}
+    </div>
+  );
+}
+
+interface RequestFormProps {
+  buffer: TextBuffer;
+  code: string;
+  apps: App[];
+  index: number;
+  path: string[];
+  onPathChange: (path: string[]) => void;
+  readOnly: boolean;
+  onEdit: () => void;
+  onReveal: (offset: number) => void;
+}
+
+// One call's request literal, a level at a time, the way a payload is read.
+function RequestForm({ buffer, code, apps, index, path, onPathChange: setPath, readOnly, onEdit, onReveal }: RequestFormProps) {
+  const [editing, setEditing] = useState<{ start: number } | undefined>();
+  const [adding, setAdding] = useState(false);
+  const call = readRequestCalls(code, apps)[index];
+  const level = useMemo(() => readRequestLevel(code, apps, index, path), [code, apps, index, path]);
 
   // A level an edit took away is let go of, back to the nearest one still there.
   useEffect(() => {
     if (call?.object && !level && path.length > 0) setPath(path.slice(0, -1));
-  }, [call, level, path]);
+  }, [call, level, path, setPath]);
 
   const editingRow = editing ? rowAt(code, apps, editing.start) : undefined;
   const control = editingRow && controlFor(editingRow, code);
@@ -52,9 +150,7 @@ export function RequestFields({ buffer, apps, readOnly, onEdit, onReveal }: Requ
     onEdit();
   };
 
-  if (calls.length === 0) {
-    return <Empty>No calls to an app in this script</Empty>;
-  }
+  if (!call) return null;
 
   const open = (row: RequestRow) => {
     if (row.value.kind === "object") {
@@ -78,33 +174,7 @@ export function RequestFields({ buffer, apps, readOnly, onEdit, onReveal }: Requ
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex min-h-11 shrink-0 items-center gap-2 border-b border-border px-4">
-        <span className="truncate text-[15px] font-semibold">{call.label}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">line {call.line}</span>
-        {calls.length > 1 && (
-          // A native select is the phone's own wheel, and the list is short.
-          <label className="relative ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-            {index + 1} of {calls.length}
-            <ChevronDown size={14} />
-            <select
-              aria-label="Call"
-              value={index}
-              onChange={(event) => {
-                setCallIndex(Number(event.target.value));
-                setPath([]);
-              }}
-              className="absolute inset-0 opacity-0"
-            >
-              {calls.map((candidate, position) => (
-                <option key={position} value={position}>
-                  {candidate.label} · line {candidate.line}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
         {path.length > 0 && <Trail root={call.label.slice(call.label.indexOf(".") + 1)} path={path} onPathChange={(next) => setPath(next.map(String))} />}
         {!call.object ? (
           <button
@@ -207,10 +277,6 @@ function Expression({ text }: { text: string }) {
   return (
     <span className="inline-block max-w-full truncate rounded bg-muted px-1.5 py-0.5 align-middle font-mono text-[12px] text-muted-foreground">{text}</span>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground">{children}</div>;
 }
 
 function AddFieldSheet({ open, fields, onAdd, onClose }: { open: boolean; fields: FieldInfo[]; onAdd: (field: FieldInfo) => void; onClose: () => void }) {

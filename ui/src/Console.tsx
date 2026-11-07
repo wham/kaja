@@ -16,19 +16,7 @@ import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
-import {
-  callRows,
-  ConsoleTab,
-  ConsoleView,
-  defaultView,
-  failedCallsLabel,
-  followSelection,
-  LogFloor,
-  presentRun,
-  printedCounts,
-  RunGroup,
-  RunSelection,
-} from "./runs";
+import { callRows, ConsoleTab, ConsoleView, defaultView, failedCallsLabel, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
@@ -483,8 +471,6 @@ interface ViewSelectProps {
   // The phone's code, a segment in front of the run's three; while it is selected
   // none of theirs is.
   code?: { selected: boolean; onSelect: () => void };
-  // The script's requests read as fields, beside its code.
-  request?: { selected: boolean; onSelect: () => void };
 }
 
 /**
@@ -492,19 +478,14 @@ interface ViewSelectProps {
  * rather than in the header because the full-screen bar carries it too — a size is
  * not a mode, so taking the screen may not take two thirds of the run with it.
  */
-Console.ViewSelect = function ({ activeView: runView, waiting, onChange, fullWidth, code, request }: ViewSelectProps) {
-  const segment = fullWidth ? "h-[26px] flex-1 justify-center px-1.5 py-0 text-xs" : "h-[20px] px-2.5 py-0 text-xs";
-  const activeView = code?.selected || request?.selected ? undefined : runView;
+Console.ViewSelect = function ({ activeView: runView, waiting, onChange, fullWidth, code }: ViewSelectProps) {
+  const segment = fullWidth ? "h-[26px] flex-1 justify-center px-2.5 py-0 text-xs" : "h-[20px] px-2.5 py-0 text-xs";
+  const activeView = code?.selected ? undefined : runView;
   return (
     <SegmentedControl className={fullWidth ? "flex h-[32px] w-full p-[2px]" : "h-[26px] shrink-0 p-[2px]"} aria-label="Run view">
       {code && (
         <SegmentedControl.Button selected={code.selected} className={segment} onClick={code.onSelect} data-testid="console-view-code">
           Code
-        </SegmentedControl.Button>
-      )}
-      {request && (
-        <SegmentedControl.Button selected={request.selected} className={segment} onClick={request.onSelect} data-testid="console-view-request">
-          Request
         </SegmentedControl.Button>
       )}
       {/* "Calls" rather than "Log": a row here is a call and only a call, and
@@ -839,15 +820,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // what it is doing.
   const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
   const failed = failedCallsLabel(group);
-  const outcome = waiting
-    ? "waiting"
-    : group.running
-      ? elapsed
-      : failed
-        ? undefined
-        : group.status === "error"
-          ? "failed"
-          : formatDuration(group.run.durationMs);
+  const outcome = waiting ? "waiting" : group.running ? elapsed : failed ? undefined : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
   const statement = outcome ? `${time} · ${outcome}` : time;
 
   return {
