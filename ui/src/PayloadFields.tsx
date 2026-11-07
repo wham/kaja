@@ -70,7 +70,7 @@ export function PayloadFields({ value, root, path: requested, onPathChange }: Pa
   );
 }
 
-function Trail({ root, path, onPathChange }: { root: string; path: Path; onPathChange: (path: Path) => void }) {
+export function Trail({ root, path, onPathChange }: { root: string; path: Path; onPathChange: (path: Path) => void }) {
   const steps = [root, ...path.map(String)];
   return (
     <div className="sticky top-0 z-10 flex min-h-10 items-center gap-1 border-b border-border bg-background pr-4 pl-1 text-[15px]">

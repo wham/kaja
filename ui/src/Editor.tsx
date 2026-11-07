@@ -27,8 +27,10 @@ import {
   rectangularSelection,
   ViewPlugin,
 } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { App } from "./apps";
+import { FieldSheet } from "./FieldSheet";
+import { controlFor, editableRows, removeField, RequestRow, rowAt } from "./requestEdits";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { kajaModuleDeclaration } from "./kajaModule";
@@ -86,6 +88,8 @@ let valueCompletionApps: App[] = [];
 
 export function setValueCompletionApps(apps: App[]): void {
   valueCompletionApps = apps;
+  // What can be picked is read against the apps, so an app landing underlines its calls.
+  for (const view of liveViews.keys()) view.dispatch({ effects: recheck.of(null) });
 }
 
 /**
@@ -492,9 +496,103 @@ function unclaimed(bindings: readonly KeyBinding[]): KeyBinding[] {
   });
 }
 
+// A tap moving further than this is a scroll, and one held longer is a selection.
+const TAP_SLOP = 8;
+const TAP_MS = 500;
+
+const pickableMark = Decoration.mark({ class: "cm-pickable" });
+const pickingMark = Decoration.mark({ class: "cm-picking" });
+const showPicking = StateEffect.define<{ from: number; to: number } | null>();
+
+function pickableRanges(state: EditorState): DecorationSet {
+  if (valueCompletionApps.length === 0) return Decoration.none;
+  const rows = editableRows(state.doc.toString(), valueCompletionApps);
+  return Decoration.set(
+    rows.map((row) => pickableMark.range(row.value.start, row.value.end)),
+    true,
+  );
+}
+
+const pickable = StateField.define<DecorationSet>({
+  create: pickableRanges,
+  update(ranges, transaction) {
+    if (transaction.docChanged || transaction.effects.some((effect) => effect.is(recheck))) return pickableRanges(transaction.state);
+    return ranges;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const picking = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(mark, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(showPicking)) return effect.value ? Decoration.set([pickingMark.range(effect.value.from, effect.value.to)]) : Decoration.none;
+    }
+    return transaction.docChanged ? Decoration.none : mark;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const pickerTheme = EditorView.theme({
+  ".cm-pickable": {
+    textDecorationLine: "underline",
+    textDecorationStyle: "dotted",
+    textDecorationColor: "color-mix(in oklab, currentColor 55%, transparent)",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-picking": { backgroundColor: "rgb(251 191 36 / 0.3)", borderRadius: "3px" },
+});
+
+/**
+ * On a phone, a value in a request is changed with a control of its kind rather than by
+ * typing into the code: a tap on one opens a picker instead of the keyboard. Only while
+ * the editor has no focus, so a tap made while typing still places the caret, and only
+ * a tap, so a drag still scrolls and a press held still selects.
+ */
+function pickers(onPick: (row: RequestRow) => void): Extension {
+  const taps = ViewPlugin.fromClass(
+    class {
+      touch: { x: number; y: number; time: number } | undefined;
+
+      constructor(readonly view: EditorView) {
+        view.contentDOM.addEventListener("touchstart", this.start, { passive: true });
+        view.contentDOM.addEventListener("touchend", this.end);
+      }
+
+      start = (event: TouchEvent) => {
+        const touch = event.touches[0];
+        this.touch = event.touches.length === 1 && !this.view.hasFocus ? { x: touch.clientX, y: touch.clientY, time: event.timeStamp } : undefined;
+      };
+
+      end = (event: TouchEvent) => {
+        const started = this.touch;
+        this.touch = undefined;
+        const touch = event.changedTouches[0];
+        if (!started || !touch || event.timeStamp - started.time > TAP_MS) return;
+        if (Math.abs(touch.clientX - started.x) > TAP_SLOP || Math.abs(touch.clientY - started.y) > TAP_SLOP) return;
+        const pos = this.view.posAtCoords({ x: touch.clientX, y: touch.clientY });
+        if (pos === null) return;
+        const code = this.view.state.doc.toString();
+        const row = rowAt(code, valueCompletionApps, pos);
+        if (!row || !controlFor(row, code)) return;
+        // Cancelled, the tap neither focuses the editor nor raises the keyboard.
+        event.preventDefault();
+        onPick(row);
+      };
+
+      destroy() {
+        this.view.contentDOM.removeEventListener("touchstart", this.start);
+        this.view.contentDOM.removeEventListener("touchend", this.end);
+      }
+    },
+  );
+  return [pickable, picking, pickerTheme, taps];
+}
+
 const keys = new Compartment();
 const gutter = new Compartment();
 const editable = new Compartment();
+const picker = new Compartment();
 
 export interface EditorViewState {
   anchor: number;
@@ -505,6 +603,8 @@ export interface EditorViewState {
 export interface EditorHandle {
   getValue(): string;
   saveViewState(): EditorViewState;
+  // Puts the caret at an offset and scrolls to it.
+  reveal(offset: number): void;
 }
 
 export interface onGoToDefinition {
@@ -581,6 +681,15 @@ export function Editor({
   // Read through refs, so the editor is created once per buffer rather than per render.
   const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition });
   callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition };
+  // The value a picker is open on, with the text it was read from: an edit that landed
+  // since (an agent writing, a reload) leaves it pointing at nothing.
+  const [picked, setPicked] = useState<{ row: RequestRow; code: string } | undefined>();
+  const pick = useRef((row: RequestRow) => {
+    const view = viewRef.current;
+    if (!view) return;
+    setPicked({ row, code: view.state.doc.toString() });
+    view.dispatch({ effects: showPicking.of({ from: row.value.start, to: row.value.end }) });
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -633,6 +742,7 @@ export function Editor({
       doc: buffer.getValue(),
       extensions: [
         gutter.of(gutterExtensions(phone)),
+        picker.of(phone && !readOnly ? pickers((row) => pick.current(row)) : []),
         editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
         history(),
@@ -734,6 +844,7 @@ export function Editor({
     onMount?.({
       getValue: () => view.state.doc.toString(),
       saveViewState: () => ({ anchor: view.state.selection.main.anchor, head: view.state.selection.main.head, scrollTop: view.scrollDOM.scrollTop }),
+      reveal: (offset) => reveal(Math.min(offset, view.state.doc.length)),
     });
     callbacks.current.onContentHeight?.(view.contentHeight);
 
@@ -760,5 +871,54 @@ export function Editor({
     viewRef.current?.dispatch({ effects: gutter.reconfigure(gutterExtensions(phone)) });
   }, [phone]);
 
-  return <div ref={containerRef} className="h-full w-full bg-background text-xs" />;
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: picker.reconfigure(phone && !readOnly ? pickers((row) => pick.current(row)) : []) });
+  }, [phone, readOnly]);
+
+  const current = picked && viewRef.current?.state.doc.toString() === picked.code ? picked : undefined;
+
+  const closePicker = () => {
+    setPicked(undefined);
+    viewRef.current?.dispatch({ effects: showPicking.of(null) });
+  };
+
+  const edit = (from: number, to: number, insert: string) => {
+    viewRef.current?.dispatch({ changes: { from, to, insert }, userEvent: "input.pick" });
+  };
+
+  return (
+    <>
+      <div ref={containerRef} className="h-full w-full bg-background text-xs" />
+      {phone && (
+        <FieldSheet
+          row={current?.row}
+          control={current && controlFor(current.row, current.code)}
+          onWrite={(text) => current && edit(current.row.value.start, current.row.value.end, text)}
+          onRemove={
+            current
+              ? () => {
+                  const change = minimalChange(current.code, removeField(current.code, current.row));
+                  edit(change.from, change.to, change.insert);
+                }
+              : undefined
+          }
+          onEditAsText={
+            current
+              ? () => {
+                  const view = viewRef.current;
+                  const { value } = current.row;
+                  closePicker();
+                  if (!view) return;
+                  // Inside the quotes, so what is typed replaces the text and not the literal.
+                  const quoted = value.kind === "string";
+                  view.focus();
+                  view.dispatch({ selection: { anchor: value.start + (quoted ? 1 : 0), head: value.end - (quoted ? 1 : 0) } });
+                }
+              : undefined
+          }
+          onClose={closePicker}
+        />
+      )}
+    </>
+  );
 }

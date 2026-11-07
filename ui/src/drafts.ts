@@ -129,11 +129,18 @@ export function appendCall(existingCode: string, generatedCode: string): string 
   const generated = parseScript(generatedCode);
   const body = generated ? statementsText(generated, generatedCode) : "";
   if (!generated || !body) return existingCode;
+  return `${mergeImports(existingCode, generatedCode).replace(/\s*$/, "")}\n\n${body}\n`;
+}
 
+/**
+ * The import lines of `importing` merged into `code`: a name a module already imports
+ * is left alone, a missing one joins its line, and a module with no line gets one.
+ */
+export function mergeImports(existingCode: string, importing: string): string {
   let code = existingCode;
   const additions: string[] = [];
 
-  for (const imported of importsOf(generated, generatedCode)) {
+  for (const imported of importsOf(parseScript(importing), importing)) {
     // A draft mid-edit has no import lines to merge into, so the call brings its own.
     const target = importsOf(parseScript(code), code).find((candidate) => candidate.module === imported.module);
 
@@ -156,10 +163,10 @@ export function appendCall(existingCode: string, generatedCode: string): string 
   if (additions.length > 0) {
     const last = importsOf(parseScript(code), code).at(-1);
     const at = last ? last.end : 0;
-    code = code.slice(0, at) + (at === 0 ? "" : "\n") + additions.join("\n") + code.slice(at);
+    code = code.slice(0, at) + (at === 0 ? "" : "\n") + additions.join("\n") + (at === 0 ? "\n" : "") + code.slice(at);
   }
 
-  return `${code.replace(/\s*$/, "")}\n\n${body}\n`;
+  return code;
 }
 
 interface ImportLine {
