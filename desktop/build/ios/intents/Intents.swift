@@ -69,10 +69,19 @@ enum Kaja {
     }
 
     // A run's answer is the text it drew, where it drew any; the report's headline only
-    // says that it ran.
+    // says that it ran. A dialog drops line breaks, so each line is closed as a sentence
+    // or two blocks are read as one.
     static func spoken(_ text: String, _ report: RunReport) -> IntentDialog {
-        let drawn = (report.blocks ?? []).compactMap { $0.kind == "text" ? $0.text : nil }
-        return drawn.isEmpty ? headline(text) : IntentDialog(stringLiteral: drawn.joined(separator: "\n"))
+        let lines = (report.blocks ?? [])
+            .compactMap { $0.kind == "text" ? $0.text : nil }
+            .flatMap { $0.split(separator: "\n") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return headline(text) }
+        let sentences = lines.map { line in
+            line.last.map { ".!?:;".contains($0) } == true ? line : line + "."
+        }
+        return IntentDialog(stringLiteral: sentences.joined(separator: " "))
     }
 }
 
