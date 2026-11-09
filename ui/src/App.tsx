@@ -1668,6 +1668,14 @@ export function App() {
       origin: "agent",
       collect,
     });
+    // On a phone the only agent is Siri, which opened the window for this run, so the
+    // run is presented the way a deeplink's is rather than left behind whatever was open.
+    if (isIOSApp()) {
+      const script = path ? (scriptsRef.current ?? []).find((candidate) => candidate.path === path) : undefined;
+      if (script) applyViews((views) => showScript(views, script, code));
+      else if (draft) applyViews((views) => showDraft(views, draft));
+      if (script || draft) setPresent({ runId: run.id, screen: "take" });
+    }
     // Aborting the signal is not enough to end a run: a script sleeping between two
     // calls never looks at it. So the abort is what Stop is, on this run alone.
     const stop = () => stopRunRef.current(run.id);

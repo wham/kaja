@@ -335,7 +335,9 @@ struct RunReport: Decodable {
 }
 
 // What Siri and Shortcuts show under a run: the verdict, the calls it made and what it
-// drew. The contents of what it drew are the window's, so a table is its size.
+// drew. A run that went through and wrote something is the verdict alone, what it wrote
+// being what Siri said. The contents of what it drew are the window's, so a table is
+// its size.
 @available(iOS 16.0, *)
 struct RunCard: View {
     let name: String
@@ -346,6 +348,7 @@ struct RunCard: View {
     private var calls: [RunReport.Call] { report.calls ?? [] }
     private var failed: Int { calls.filter { $0.failure != nil }.count }
     private var succeeded: Bool { report.stopped == nil && failed == 0 }
+    private var wrote: Bool { (report.blocks ?? []).contains { $0.kind == "text" && $0.text?.isEmpty == false } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -356,33 +359,39 @@ struct RunCard: View {
                 Spacer()
                 Text(summary).font(.caption).foregroundStyle(.secondary)
             }
-            if let stopped = report.stopped {
-                Text(stopped).font(.caption).foregroundStyle(.red).lineLimit(3)
-            }
-            if !calls.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(calls.prefix(Self.shown).enumerated()), id: \.offset) { _, call in
-                        HStack {
-                            Text(call.label).font(.caption.monospaced()).lineLimit(1)
-                            Spacer()
-                            Text(outcome(call)).font(.caption.monospaced())
-                                .foregroundStyle(call.failure == nil ? Color.secondary : Color.red)
-                        }
-                    }
-                    if calls.count > Self.shown {
-                        Text("\(calls.count - Self.shown) more").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            ForEach(Array((report.blocks ?? []).filter { $0.kind == "table" }.prefix(2).enumerated()), id: \.offset) { _, block in
-                Label(drawn(block), systemImage: "tablecells").font(.caption)
-            }
-            if let console = report.console, !console.isEmpty {
-                Text(console.prefix(3).joined(separator: "\n"))
-                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(3)
+            if !(succeeded && wrote) {
+                details
             }
         }
         .padding()
+    }
+
+    @ViewBuilder private var details: some View {
+        if let stopped = report.stopped {
+            Text(stopped).font(.caption).foregroundStyle(.red).lineLimit(3)
+        }
+        if !calls.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(calls.prefix(Self.shown).enumerated()), id: \.offset) { _, call in
+                    HStack {
+                        Text(call.label).font(.caption.monospaced()).lineLimit(1)
+                        Spacer()
+                        Text(outcome(call)).font(.caption.monospaced())
+                            .foregroundStyle(call.failure == nil ? Color.secondary : Color.red)
+                    }
+                }
+                if calls.count > Self.shown {
+                    Text("\(calls.count - Self.shown) more").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        ForEach(Array((report.blocks ?? []).filter { $0.kind == "table" }.prefix(2).enumerated()), id: \.offset) { _, block in
+            Label(drawn(block), systemImage: "tablecells").font(.caption)
+        }
+        if let console = report.console, !console.isEmpty {
+            Text(console.prefix(3).joined(separator: "\n"))
+                .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(3)
+        }
     }
 
     private var summary: String {
