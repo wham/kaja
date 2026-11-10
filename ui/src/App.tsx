@@ -24,7 +24,7 @@ import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellRun, CellStatus, TableBlock } from "./blocks";
 import { fetchRequestLine } from "./fetchCall";
-import { ApprovalRejectedError, ApproveDecision, AskCancelledError, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
+import { ApprovalRejectedError, ApproveDecision, AskCancelledError, AskReplay, callDurationMs, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appType, buildApp, getAppType, parameterKey } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
@@ -164,6 +164,9 @@ interface LiveRun {
   controller?: AbortController;
   // The script itself has returned. Its calls may still be landing.
   settled: boolean;
+  // Starts the same script again, for going back to one of its questions. A run with
+  // no way to be repeated, an agent's above all, has none.
+  rerun?: (replay: AskReplay) => void;
 }
 
 /**
@@ -527,7 +530,13 @@ export function App() {
       title: string,
       fileId?: string,
       controller?: AbortController,
-      options?: { origin?: Run["origin"]; input?: { [key: string]: string }; collect?: RunCollector },
+      options?: {
+        origin?: Run["origin"];
+        input?: { [key: string]: string };
+        collect?: RunCollector;
+        replay?: AskReplay;
+        rerun?: (replay: AskReplay) => void;
+      },
     ): LiveRun => {
       const input = options?.input !== undefined && Object.keys(options.input).length > 0 ? options.input : undefined;
       const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin, input };
@@ -536,6 +545,8 @@ export function App() {
       const collect = options?.collect;
       const kaja = host.run({
         input: options?.input,
+        reopenable: options?.rerun !== undefined,
+        replay: options?.replay,
         onMethodCallUpdate: (methodCall: MethodCall) => {
           if (collect) {
             const i = collect.calls.findIndex((m) => m.id === methodCall.id);
@@ -580,7 +591,7 @@ export function App() {
           }),
       });
 
-      const live: LiveRun = { run, kaja, controller, settled: false };
+      const live: LiveRun = { run, kaja, controller, settled: false, rerun: options?.rerun };
       setActiveRuns((runs) => [...runs, live]);
       return live;
     },
@@ -1407,11 +1418,14 @@ export function App() {
         // never a frame of the window it was carried from.
         if (options.open) applyViews((views) => showScript(views, file.script, file.content));
         rememberRunInput(file.script.path, input);
-        const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
-        if (options.screen) setPresent({ runId: run.id, screen: options.screen, fullScreen: options.fullScreen });
-        runScript(file.content, kaja, apps, reportScriptError(run))
-          .then(() => kaja.settleTables())
-          .finally(() => markSettled(run.id));
+        const start = (replay?: AskReplay) => {
+          const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input, replay, rerun: start });
+          if (!replay && options.screen) setPresent({ runId: run.id, screen: options.screen, fullScreen: options.fullScreen });
+          runScript(file.content, kaja, apps, reportScriptError(run))
+            .then(() => kaja.settleTables())
+            .finally(() => markSettled(run.id));
+        };
+        start();
       } catch (err) {
         showFileError(`Run failed: ${rpcErrorMessage(err)}`);
       }
@@ -2156,18 +2170,21 @@ export function App() {
         return;
       }
       const code = editor.getValue();
-      const controller = new AbortController();
       const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
       const fileId = view.type === "script" ? view.script.path : view.draftId;
       // The sheet's values where it asked, and otherwise the last run's: Run repeats
       // what the file last ran with, whichever door wrote it.
       const carried = input ?? repeatInput(lastRunInput(fileId), inputKeysRef.current);
       if (carried) rememberRunInput(fileId, carried);
-      const { run, kaja } = beginRun(title, fileId, controller, carried ? { input: carried } : undefined);
-      // A live table draws its first page itself, and those calls are the run's.
-      runScript(code, kaja, apps, reportScriptError(run), controller.signal)
-        .then(() => kaja.settleTables())
-        .finally(() => markSettled(run.id));
+      const start = (replay?: AskReplay) => {
+        const controller = new AbortController();
+        const { run, kaja } = beginRun(title, fileId, controller, { input: carried, replay, rerun: start });
+        // A live table draws its first page itself, and those calls are the run's.
+        runScript(code, kaja, apps, reportScriptError(run), controller.signal)
+          .then(() => kaja.settleTables())
+          .finally(() => markSettled(run.id));
+      };
+      start();
       if (view.type === "draft") {
         updateDraft(view.draftId, (draft) => markRun(draft, code, Date.now()));
       }
@@ -2233,6 +2250,19 @@ export function App() {
       endRuns(stopping, Date.now());
     },
     [onCancelAsk, endRuns],
+  );
+
+  const onReopenAsk = useCallback(
+    (blockId: string) => {
+      for (const live of activeRunsRef.current) {
+        const replay = live.kaja.reopen(blockId);
+        if (!replay || !live.rerun) continue;
+        stopRuns([live]);
+        live.rerun(replay);
+        return;
+      }
+    },
+    [stopRuns],
   );
 
   // Stop is about the file on screen: it has to end what it is showing.
@@ -2992,6 +3022,7 @@ export function App() {
                 fileId={currentFileId}
                 onAnswer={onAnswerAsk}
                 onCancelAsk={onCancelAsk}
+                onReopenAsk={onReopenAsk}
                 onDecide={onDecideApproval}
                 tableViews={tableViews}
                 onTableView={onTableView}
@@ -3098,6 +3129,7 @@ export function App() {
                         reserveTrafficLights={isDesktopMac}
                         onAnswer={onAnswerAsk}
                         onCancelAsk={onCancelAsk}
+                        onReopenAsk={onReopenAsk}
                         onDecide={onDecideApproval}
                         tableViews={tableViews}
                         onTableView={onTableView}

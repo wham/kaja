@@ -118,6 +118,11 @@ export interface AskBlock {
   // value is the script's copy rather than the run's record.
   answer?: string;
   cancelled?: boolean;
+  // Answered before the run made or held any call, so the run can be started again
+  // from here without anything being sent twice.
+  reopenable?: boolean;
+  // What the run this one was reopened from answered here.
+  previous?: string;
 }
 
 /**

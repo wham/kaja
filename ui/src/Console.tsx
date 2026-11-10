@@ -16,7 +16,19 @@ import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
-import { callRows, ConsoleTab, ConsoleView, defaultView, failedCallsLabel, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
+import {
+  callRows,
+  ConsoleTab,
+  ConsoleView,
+  defaultView,
+  failedCallsLabel,
+  followSelection,
+  LogFloor,
+  presentRun,
+  printedCounts,
+  RunGroup,
+  RunSelection,
+} from "./runs";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
@@ -55,6 +67,8 @@ interface ConsoleProps {
   reserveTrafficLights?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  // Back to an answered question: the run is started again and stops there.
+  onReopenAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
@@ -90,6 +104,7 @@ export function Console({
   reserveTrafficLights,
   onAnswer,
   onCancelAsk,
+  onReopenAsk,
   onDecide,
   tableViews,
   onTableView,
@@ -361,6 +376,7 @@ export function Console({
       fullScreen={fullScreen}
       onAnswer={onAnswer}
       onCancelAsk={onCancelAsk}
+      onReopenAsk={onReopenAsk}
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
       onFullScreen={() => enterFullScreen("canvas")}
@@ -820,7 +836,15 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // what it is doing.
   const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
   const failed = failedCallsLabel(group);
-  const outcome = waiting ? "waiting" : group.running ? elapsed : failed ? undefined : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
+  const outcome = waiting
+    ? "waiting"
+    : group.running
+      ? elapsed
+      : failed
+        ? undefined
+        : group.status === "error"
+          ? "failed"
+          : formatDuration(group.run.durationMs);
   const statement = outcome ? `${time} · ${outcome}` : time;
 
   return {

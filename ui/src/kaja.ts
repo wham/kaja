@@ -1,7 +1,7 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Methods, Service } from "./apps";
 import { APP_OF, RateLimiter, RateLimitOptions, RateLimitState } from "./rateLimit";
-import { parseInteger } from "./ask";
+import { answerProblem, parseInteger } from "./ask";
 import {
   ApproveBlock,
   ApproveGesture,
@@ -335,6 +335,17 @@ function padCells(cells: string[], width: number): string[] {
 }
 
 // A block is stored as JSON, so the request is text by the time it is one.
+function sameQuestion(a: AskBlock, b: AskBlock): boolean {
+  return a.question === b.question && a.answerType === b.answerType;
+}
+
+// A select's choices can be other choices the second time, so the answer is checked
+// against what is offered now rather than the list being compared.
+function fitsQuestion(question: AskBlock, answer: string): boolean {
+  if (question.answerType === "select") return question.choices?.includes(answer) ?? false;
+  return answerProblem(question.answerType, answer) === undefined;
+}
+
 function formatRequest(input: unknown): string {
   try {
     return JSON.stringify(input, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2) ?? String(input);
@@ -411,6 +422,19 @@ export interface RunContext {
   // Given at the start rather than assigned afterwards, so one link's parameters can
   // never be found by the next run.
   input?: { [key: string]: string };
+  // Whether the window can start this run again from one of its questions.
+  reopenable?: boolean;
+  replay?: AskReplay;
+}
+
+/**
+ * Going back to a question is running the script again from the top: nothing can
+ * resume an `await` that has already returned. These are the answers given again on
+ * the way, as long as the script asks what it asked the first time.
+ */
+export interface AskReplay {
+  answers: AskBlock[];
+  reopened: AskBlock;
 }
 
 /**
@@ -505,6 +529,10 @@ export class Kaja {
   #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
   #onPerfSchedule?: (schedule: PerfSchedule) => void;
+  #reopenable: boolean;
+  #replay?: AskReplay;
+  // By the order they were asked in, which is what a replay is matched against.
+  #asks: { blockId: string; block: AskBlock }[] = [];
 
   constructor(context: RunContext, host: KajaHost = new KajaHost()) {
     this._internal = new KajaInternal(context.onMethodCallUpdate, context.onLog, (app) => host.missingVariables.get(app));
@@ -514,6 +542,8 @@ export class Kaja {
     this.#onApprove = context.onApprove;
     this.#onBlockUpdate = context.onBlockUpdate;
     this.#onPerfSchedule = context.onPerfSchedule;
+    this.#reopenable = context.reopenable ?? false;
+    this.#replay = context.replay;
   }
 
   // Read through to the host, so every run in flight sees the same values.
@@ -552,15 +582,63 @@ export class Kaja {
   async #ask<T>(question: AskBlock, take: (answer: string) => T): Promise<T> {
     this.#refuseInsidePerfTest("kaja.ask*");
     const blockId = newBlockId();
-    this.#onBlockUpdate(blockId, question);
+    const index = this.#asks.length;
+    this.#asks.push({ blockId, block: question });
+    const replayed = this.#replayed(index, question);
+    if (replayed !== undefined) {
+      this.#answered(index, replayed);
+      return take(replayed);
+    }
+    const asked = this.#withPrevious(index, question);
+    this.#onBlockUpdate(blockId, asked);
     try {
-      const answer = await this.#onAsk(question, blockId);
-      this.#onBlockUpdate(blockId, { ...question, answer });
+      const answer = await this.#onAsk(asked, blockId);
+      this.#answered(index, answer);
       return take(answer);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...question, cancelled: true });
       throw error;
     }
+  }
+
+  // Judged when the answer lands rather than when the question is drawn: a call left
+  // unawaited above an ask goes out at the end of the tick the ask was drawn in.
+  #answered(index: number, answer: string): void {
+    const asked = this.#asks[index];
+    const reopenable = this.#reopenable && !this._internal.madeCall;
+    asked.block = { ...asked.block, answer, ...(reopenable ? { reopenable } : {}) };
+    this.#onBlockUpdate(asked.blockId, asked.block);
+  }
+
+  // The first question that differs from the run being replayed ends the replay, and
+  // everything from there is asked.
+  #replayed(index: number, question: AskBlock): string | undefined {
+    const before = this.#replay?.answers[index];
+    if (before === undefined) return undefined;
+    if (before.answer !== undefined && sameQuestion(before, question) && fitsQuestion(question, before.answer)) return before.answer;
+    this.#replay = undefined;
+    return undefined;
+  }
+
+  #withPrevious(index: number, question: AskBlock): AskBlock {
+    const replay = this.#replay;
+    if (replay === undefined || index !== replay.answers.length) return question;
+    this.#replay = undefined;
+    const previous = replay.reopened.answer;
+    return previous !== undefined && sameQuestion(replay.reopened, question) && fitsQuestion(question, previous) ? { ...question, previous } : question;
+  }
+
+  /**
+   * What starting this run again from one of its answered questions replays, or
+   * undefined where that would send a call a second time.
+   */
+  reopen(blockId: string): AskReplay | undefined {
+    const index = this.#asks.findIndex((asked) => asked.blockId === blockId);
+    if (index === -1) return undefined;
+    const before = this.#asks.slice(0, index).map((asked) => asked.block);
+    const reopened = this.#asks[index].block;
+    if (!reopened.reopenable || before.some((block) => block.answer === undefined)) return undefined;
+    return { answers: before, reopened };
   }
 
   /**
@@ -570,6 +648,8 @@ export class Kaja {
    */
   async approve<T>(call: Call<T>): Promise<T> {
     this.#refuseInsidePerfTest("kaja.approve");
+    // A decision about a call is as much a reason not to replay as the call itself.
+    this._internal.madeCall = true;
     if (call.started) {
       throw new Error(`kaja.approve: ${call.label} has already been sent. Write the call inside it: kaja.approve(${call.label}({ … })).`);
     }
@@ -1395,6 +1475,9 @@ class KajaInternal {
    * is a deadlock wearing a dialog, so the asks refuse rather than deadlock.
    */
   inPerfTest = false;
+  // Whether anything in the run has gone out, which is what decides that a question
+  // can no longer be gone back to.
+  madeCall = false;
   // Every call in the run passes through methodCallUpdate, which is what lets a perf
   // test total up its own calls without a second path for them to arrive by.
   readonly watchers = new Set<MethodCallUpdate>();
@@ -1459,6 +1542,7 @@ class KajaInternal {
   }
 
   methodCallUpdate(methodCall: MethodCall) {
+    this.madeCall = true;
     if (!isCallInFlight(methodCall)) this.#settleRateLimit(methodCall);
     if (methodCall.output && !methodCall.error) {
       const method = `${methodCall.service.name}.${methodCall.method.name}`;
