@@ -824,15 +824,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // what it is doing.
   const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
   const failed = failedCallsLabel(group);
-  const outcome = waiting
-    ? "waiting"
-    : group.running
-      ? elapsed
-      : failed
-        ? undefined
-        : group.status === "error"
-          ? "failed"
-          : formatDuration(group.run.durationMs);
+  const outcome = waiting ? "waiting" : group.running ? elapsed : failed ? undefined : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
   const statement = outcome ? `${time} · ${outcome}` : time;
 
   return {
