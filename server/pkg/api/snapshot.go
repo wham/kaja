@@ -48,9 +48,36 @@ func (s *ApiService) snapshot() *workspaceSnapshot {
 	if s.current != nil {
 		return s.current
 	}
-	s.current = buildSnapshot(s.workspaceFilePath(), s.variableStore)
-	s.ensureWatcher()
+	refused := refusedReads(s.variableStore)
+	snapshot := buildSnapshot(s.workspaceFilePath(), s.variableStore)
+	watcher := s.ensureWatcher()
+	if refusedReads(s.variableStore) != refused {
+		s.readWhileLocked = true
+		return snapshot
+	}
+	s.current = snapshot
+	if s.readWhileLocked {
+		s.readWhileLocked = false
+		if watcher != nil {
+			go watcher.notify()
+		}
+	}
 	return s.current
+}
+
+// lockedStore is a store the device can lock: a phone's keychain refuses every read
+// until the phone is unlocked, and Siri runs a script on a locked one. It counts the
+// reads it refused, so a reading that took a refusal for an unset value is not kept
+// as the answer - it was kept until the next restart, and every call sent ${NAME}.
+type lockedStore interface {
+	Refused() uint64
+}
+
+func refusedReads(store VariableStore) uint64 {
+	if locked, ok := store.(lockedStore); ok {
+		return locked.Refused()
+	}
+	return 0
 }
 
 // resolved is the snapshot as a request reads it: resolved against the values the

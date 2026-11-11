@@ -50,6 +50,9 @@ type ApiService struct {
 	// snapshotMu.
 	snapshotMu sync.Mutex
 	current    *workspaceSnapshot
+	// readWhileLocked is a reading the store refused, so the windows are told once
+	// one is kept. Guarded by snapshotMu.
+	readWhileLocked bool
 
 	// The workspace file's watcher, started with the first snapshot so an edit made
 	// outside kaja drops it. Guarded by watcherMu.
