@@ -111,3 +111,43 @@ func statusIn(statuses []*VariableStatus, name string) VariableSource {
 	}
 	return VariableSource(-1)
 }
+
+type lockingStore struct {
+	fakeStore
+	locked  bool
+	refused uint64
+}
+
+func (s *lockingStore) Get(workspaceID string, name string) (string, bool) {
+	if s.locked {
+		s.refused++
+		return "", false
+	}
+	return s.fakeStore.Get(workspaceID, name)
+}
+
+func (s *lockingStore) Refused() uint64 { return s.refused }
+
+// A phone's keychain refuses every read while the phone is locked, which is when Siri
+// runs a script. Kept, that reading said the value was unset until Kaja restarted.
+func TestSnapshotIsNotKeptWhileTheStoreIsLocked(t *testing.T) {
+	path := writeWorkspace(t, `{"id": "w", "variables": {"TOKEN": "${secret}"}}`)
+	store := &lockingStore{fakeStore: fakeStore{available: true, values: map[string]string{"w#TOKEN": "s3cr3t"}}, locked: true}
+	service := NewApiService(path, true, "", "", store)
+	defer service.Close()
+	ctx := context.Background()
+
+	locked, _ := service.GetWorkspace(ctx, &GetWorkspaceRequest{})
+	if got := statusIn(locked.VariableStatus, "TOKEN"); got != VariableSource_VARIABLE_SOURCE_UNSET {
+		t.Fatalf("TOKEN resolves %v on a locked store", got)
+	}
+
+	store.locked = false
+	unlocked, _ := service.GetWorkspace(ctx, &GetWorkspaceRequest{})
+	if got := statusIn(unlocked.VariableStatus, "TOKEN"); got != VariableSource_VARIABLE_SOURCE_KEYCHAIN {
+		t.Errorf("TOKEN resolves %v once unlocked, want the keychain", got)
+	}
+	if got := service.Variables().Expand("${TOKEN}"); got != "s3cr3t" {
+		t.Errorf("a call expands ${TOKEN} to %q once unlocked", got)
+	}
+}

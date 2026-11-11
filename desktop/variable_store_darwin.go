@@ -83,17 +83,41 @@ static int kajaKeychainSet(const char* service, const char* account, const char*
         CFMutableDictionaryRef update = CFDictionaryCreateMutable(NULL, 0,
             &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
         CFDictionarySetValue(update, kSecValueData, data);
+        CFDictionarySetValue(update, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock);
         err = SecItemUpdate(query, update);
         CFRelease(update);
     } else {
         CFDictionarySetValue(query, kSecValueData, data);
         CFDictionarySetValue(query, kSecAttrSynchronizable, kCFBooleanTrue);
-        // A ThisDeviceOnly class is one iCloud Keychain refuses to sync.
-        CFDictionarySetValue(query, kSecAttrAccessible, kSecAttrAccessibleWhenUnlocked);
+        // A ThisDeviceOnly class is one iCloud Keychain refuses to sync, and
+        // WhenUnlocked is one Siri can't read on a locked phone.
+        CFDictionarySetValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock);
         err = SecItemAdd(query, NULL);
     }
 
     CFRelease(data);
+    CFRelease(query);
+    return (int)err;
+}
+
+// kajaKeychainRelax moves every kaja item written WhenUnlocked to AfterFirstUnlock.
+static int kajaKeychainRelax(const char* service) {
+    CFMutableDictionaryRef query = CFDictionaryCreateMutable(NULL, 0,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFStringRef serviceRef = CFStringCreateWithCString(NULL, service, kCFStringEncodingUTF8);
+    CFDictionarySetValue(query, kSecClass, kSecClassGenericPassword);
+    CFDictionarySetValue(query, kSecAttrService, serviceRef);
+    CFDictionarySetValue(query, kSecUseDataProtectionKeychain, kCFBooleanTrue);
+    CFDictionarySetValue(query, kSecAttrSynchronizable, kSecAttrSynchronizableAny);
+    CFDictionarySetValue(query, kSecAttrAccessible, kSecAttrAccessibleWhenUnlocked);
+    CFRelease(serviceRef);
+
+    CFMutableDictionaryRef update = CFDictionaryCreateMutable(NULL, 0,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFDictionarySetValue(update, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock);
+
+    OSStatus err = SecItemUpdate(query, update);
+    CFRelease(update);
     CFRelease(query);
     return (int)err;
 }
@@ -114,8 +138,9 @@ import (
 )
 
 const (
-	errSecSuccess      = 0
-	errSecItemNotFound = -25300
+	errSecSuccess               = 0
+	errSecItemNotFound          = -25300
+	errSecInteractionNotAllowed = -25308
 )
 
 func keychainGet(account string) (string, bool) {
@@ -127,6 +152,9 @@ func keychainGet(account string) (string, bool) {
 	var status C.int
 	value := C.kajaKeychainGet(cService, cAccount, &status)
 	if value == nil {
+		if int(status) == errSecInteractionNotAllowed {
+			keychainRefused.Add(1)
+		}
 		if int(status) != errSecItemNotFound {
 			slog.Warn("Failed to read a stored variable value", "status", int(status))
 		}
@@ -178,9 +206,25 @@ func probeKeychain(account string) bool {
 		C.free(unsafe.Pointer(value))
 	}
 
-	available := int(status) == errSecSuccess || int(status) == errSecItemNotFound
+	// A locked device is a keychain that is there and answers once unlocked.
+	available := int(status) == errSecSuccess || int(status) == errSecItemNotFound || int(status) == errSecInteractionNotAllowed
+	if available {
+		relaxKeychain()
+	}
 	if !available {
 		slog.Warn("No usable keychain; ${secret} variables will only resolve from the environment", "status", int(status))
 	}
 	return available
+}
+
+// relaxKeychain moves the items written before AfterFirstUnlock was the class. On a
+// locked device it fails and is asked again at the next launch.
+func relaxKeychain() {
+	cService := C.CString(keychainService)
+	defer C.free(unsafe.Pointer(cService))
+
+	status := int(C.kajaKeychainRelax(cService))
+	if status != errSecSuccess && status != errSecItemNotFound {
+		slog.Warn("Failed to make stored variable values readable after first unlock", "status", status)
+	}
 }

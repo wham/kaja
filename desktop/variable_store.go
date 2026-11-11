@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // keychainService is the service name every kaja item is filed under.
@@ -40,6 +41,14 @@ func (s *keychainStore) Available() bool {
 	})
 	return s.available
 }
+
+// Refused counts the reads the keychain refused because the device was locked.
+func (s *keychainStore) Refused() uint64 {
+	return keychainRefused.Load()
+}
+
+// keychainRefused is counted where the keychain answers, which is below the store.
+var keychainRefused atomic.Uint64
 
 func (s *keychainStore) Get(workspaceID string, name string) (string, bool) {
 	return keychainGet(keychainAccount(workspaceID, name))
