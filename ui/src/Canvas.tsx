@@ -69,6 +69,7 @@ interface CanvasProps {
   fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  onReopenAsk?: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onSelectCall: (itemId: string) => void;
   onFullScreen?: () => void;
@@ -98,6 +99,7 @@ export function Canvas({
   fullScreen,
   onAnswer,
   onCancelAsk,
+  onReopenAsk,
   onDecide,
   onSelectCall,
   onFullScreen,
@@ -113,6 +115,7 @@ export function Canvas({
   // The calls a crash happened on are what explains it, so they are read first.
   const drawn = unreported.length === 0 ? group.drawn : [...group.drawn.filter((item) => !isScriptError(item))];
   const crashes = unreported.length === 0 ? [] : group.drawn.filter(isScriptError);
+  const back = askBack(group.drawn, onReopenAsk);
   const scroller = useRef<HTMLDivElement>(null);
 
   // The same document in another container, so the offset is carried rather than the
@@ -158,6 +161,7 @@ export function Canvas({
             fullScreen={fullScreen}
             onAnswer={onAnswer}
             onCancelAsk={onCancelAsk}
+            back={back}
             onDecide={onDecide}
             onFullScreen={onFullScreen}
             onOpenStats={onOpenStats}
@@ -181,6 +185,7 @@ export function Canvas({
             fullScreen={fullScreen}
             onAnswer={onAnswer}
             onCancelAsk={onCancelAsk}
+            back={back}
             onDecide={onDecide}
             onFullScreen={onFullScreen}
             onOpenStats={onOpenStats}
@@ -194,6 +199,26 @@ export function Canvas({
       ))}
     </div>
   );
+}
+
+interface AskBack {
+  reopen: (blockId: string) => void;
+  waiting: string;
+  previous?: string;
+}
+
+// Only while the run is parked on a later question: going back is a step in a
+// dialogue that is still going, not a way to start one that ended again.
+function askBack(items: ConsoleItem[], reopen: ((blockId: string) => void) | undefined): AskBack | undefined {
+  if (!reopen) return undefined;
+  let previous: string | undefined;
+  for (const item of items) {
+    const block = item.block;
+    if (block?.kind !== "ask") continue;
+    if (block.answer === undefined && !block.cancelled) return { reopen, waiting: item.id, previous };
+    previous = block.reopenable ? item.id : undefined;
+  }
+  return undefined;
 }
 
 interface RunStripProps {
@@ -297,6 +322,7 @@ interface BlockProps {
   fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  back?: AskBack;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
   // The perf block's way to the page its charts are on.
@@ -314,6 +340,7 @@ Canvas.Block = function ({
   fullScreen,
   onAnswer,
   onCancelAsk,
+  back,
   onDecide,
   onFullScreen,
   onOpenStats,
@@ -341,7 +368,16 @@ Canvas.Block = function ({
         />
       );
     case "ask":
-      return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
+      return (
+        <Canvas.Ask
+          id={id}
+          block={block}
+          onAnswer={onAnswer}
+          onCancelAsk={onCancelAsk}
+          onBack={back?.waiting === id && back.previous ? () => back.reopen(back.previous!) : undefined}
+          onReopen={back && block.reopenable && block.answer !== undefined ? () => back.reopen(id) : undefined}
+        />
+      );
     case "approve":
       return <Canvas.Approve id={id} block={block} onDecide={onDecide} onFullScreen={onFullScreen} />;
     case "perf":
@@ -882,6 +918,8 @@ interface AskProps {
   block: AskBlock;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  onBack?: () => void;
+  onReopen?: () => void;
 }
 
 /**
@@ -890,26 +928,58 @@ interface AskProps {
  * anything else refuses to submit until the answer is the kind that was asked for.
  * An answered one collapses to one row.
  */
-Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
+Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk, onBack, onReopen }: AskProps) {
   const waiting = block.answer === undefined && !block.cancelled;
 
-  if (!waiting) return <Canvas.AskSettled block={block} />;
+  if (!waiting) return <Canvas.AskSettled block={block} onReopen={onReopen} />;
 
   return (
     <div className="flex flex-col gap-2 rounded-r-md border-l-2 border-amber-500 bg-amber-500/10 py-2.5 pl-3 pr-3">
-      <div className="whitespace-pre-wrap break-words text-amber-600 dark:text-amber-400">{block.question}</div>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1 whitespace-pre-wrap break-words text-amber-600 dark:text-amber-400">{block.question}</div>
+        {onBack && (
+          <button
+            type="button"
+            data-testid="canvas-ask-back"
+            className="flex shrink-0 items-center gap-1.5 text-muted-foreground hover:text-foreground"
+            onClick={onBack}
+          >
+            Back<span aria-hidden>⌫</span>
+          </button>
+        )}
+      </div>
       {block.answerType === "select" ? (
-        <Canvas.AskChoices choices={block.choices ?? []} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
+        <Canvas.AskChoices
+          choices={block.choices ?? []}
+          initial={block.previous}
+          onAnswer={(answer) => onAnswer(id, answer)}
+          onCancel={() => onCancelAsk(id)}
+          onBack={onBack}
+        />
       ) : (
-        <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
+        <Canvas.AskField
+          answerType={block.answerType}
+          initial={block.previous}
+          onAnswer={(answer) => onAnswer(id, answer)}
+          onCancel={() => onCancelAsk(id)}
+          onBack={onBack}
+        />
       )}
     </div>
   );
 };
 
-Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
+Canvas.AskSettled = function ({ block, onReopen }: { block: AskBlock; onReopen?: () => void }) {
+  const Row = onReopen ? "button" : "div";
   return (
-    <div data-testid="canvas-ask-settled" className="flex h-[34px] items-center gap-3 rounded-md border border-border bg-card px-3">
+    <Row
+      data-testid="canvas-ask-settled"
+      {...(onReopen ? { type: "button" as const, onClick: onReopen } : {})}
+      className={cn(
+        "group flex h-[34px] w-full items-center gap-3 rounded-md border border-border bg-card px-3 text-left",
+        onReopen && "hover:border-amber-500/50",
+      )}
+    >
       {block.cancelled ? (
         <CircleX size={12} className="shrink-0 text-muted-foreground" />
       ) : (
@@ -921,11 +991,14 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
       {block.cancelled ? (
         <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled. The script stopped here</span>
       ) : (
-        <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
-          {block.answer}
+        <span className="ml-auto flex min-w-0 max-w-[50%] items-center gap-2">
+          {onReopen && <span className="hidden shrink-0 text-muted-foreground group-hover:inline">Change</span>}
+          <span className="min-w-0 truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
+            {block.answer}
+          </span>
         </span>
       )}
-    </div>
+    </Row>
   );
 };
 
@@ -1107,15 +1180,17 @@ Canvas.Payload = function ({ text, expanded, onExpand }: PayloadProps) {
 
 interface AskFieldProps {
   answerType: AskAnswerType;
+  initial?: string;
   onAnswer: (answer: string) => void;
   onCancel: () => void;
+  onBack?: () => void;
 }
 
 // A typed answer is checked here rather than in the script, which is the whole point
 // of asking for one: the problem is stated under the field while the person who
 // typed it is still looking at it.
-Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
-  const [value, setValue] = useState("");
+Canvas.AskField = function ({ answerType, initial, onAnswer, onCancel, onBack }: AskFieldProps) {
+  const [value, setValue] = useState(initial ?? "");
   const [problem, setProblem] = useState<string>();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1155,6 +1230,10 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
               // left wanting it, is the way out.
               event.preventDefault();
               onCancel();
+            } else if (event.key === "Backspace" && value === "" && !event.repeat && onBack) {
+              // Held down, it is still clearing the field.
+              event.preventDefault();
+              onBack();
             }
           }}
         />
@@ -1167,14 +1246,16 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
 
 interface AskChoicesProps {
   choices: string[];
+  initial?: string;
   onAnswer: (answer: string) => void;
   onCancel: () => void;
+  onBack?: () => void;
 }
 
 // A listbox rather than a Select popup: the canvas has the room, and a question the
 // run is parked on should not need a click to read.
-Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) {
-  const [active, setActive] = useState(0);
+Canvas.AskChoices = function ({ choices, initial, onAnswer, onCancel, onBack }: AskChoicesProps) {
+  const [active, setActive] = useState(() => Math.max(0, initial === undefined ? 0 : choices.indexOf(initial)));
   const listRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
   const typed = useRef({ text: "", at: 0 });
@@ -1205,6 +1286,9 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
         } else if (event.key === "Escape") {
           event.preventDefault();
           onCancel();
+        } else if (event.key === "Backspace" && !event.repeat && onBack) {
+          event.preventDefault();
+          onBack();
         } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
           const numbered = digitChoice(event.key, choices.length);
           if (numbered !== undefined) {

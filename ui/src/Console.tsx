@@ -55,6 +55,8 @@ interface ConsoleProps {
   reserveTrafficLights?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  // Back to an answered question: the run is started again and stops there.
+  onReopenAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
@@ -90,6 +92,7 @@ export function Console({
   reserveTrafficLights,
   onAnswer,
   onCancelAsk,
+  onReopenAsk,
   onDecide,
   tableViews,
   onTableView,
@@ -361,6 +364,7 @@ export function Console({
       fullScreen={fullScreen}
       onAnswer={onAnswer}
       onCancelAsk={onCancelAsk}
+      onReopenAsk={onReopenAsk}
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
       onFullScreen={() => enterFullScreen("canvas")}
