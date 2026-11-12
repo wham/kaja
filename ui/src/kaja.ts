@@ -134,10 +134,8 @@ export interface AskRequest {
   (question: AskBlock, blockId: string): Promise<string>;
 }
 
-/** An option askSelect offers when the label isn't the value. */
-export interface Choice<V> {
-  label: string;
-  value: V;
+export interface AskSelectOptions {
+  other?: boolean;
 }
 
 export type ApproveDecision = Exclude<ApproveGesture, "rejected">;
@@ -535,17 +533,27 @@ export class Kaja {
     return this.#ask({ kind: "ask", question, answerType: "int" }, (answer) => parseInteger(answer) ?? Number.NaN);
   }
 
-  askSelect(question: string, options: readonly string[]): Promise<string>;
-  askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
-  askSelect(question: string, options: readonly (string | Choice<any>)[]): Promise<any> {
-    if (options.length === 0) throw new Error("kaja.askSelect: options must not be empty");
-    const choices = options.map((option) => (typeof option === "string" ? option : formatCell(option.label)));
-    return this.#ask({ kind: "ask", question, answerType: "select", choices }, (answer) => {
+  askSelect(question: string, choices: readonly string[], options?: AskSelectOptions): Promise<string>;
+  askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options?: { other?: false }): Promise<T>;
+  askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options: { other: true }): Promise<T | string>;
+  askSelect(
+    question: string,
+    items: readonly unknown[],
+    labelOrOptions?: ((item: any) => string) | AskSelectOptions,
+    trailing?: AskSelectOptions,
+  ): Promise<any> {
+    const [label, options] = typeof labelOrOptions === "function" ? [labelOrOptions, trailing] : [undefined, labelOrOptions];
+    const other = options?.other === true;
+    if (items.length === 0) throw new Error("kaja.askSelect: choices must not be empty");
+    const choices = items.map((item) => formatCell(label ? label(item) : item));
+    return this.#ask({ kind: "ask", question, answerType: "select", choices, ...(other && { other }) }, (answer) => {
       // The answer comes back as the label — what was on the canvas, and what a stored run
-      // reads back without its script. Two options under one label are one option to
-      // whoever picked it, so the first is the honest reading.
-      const picked = options[choices.indexOf(answer)] ?? options[0];
-      return typeof picked === "string" ? picked : picked.value;
+      // reads back without its script. Two items under one label are one item to whoever
+      // picked it, so the first is the honest reading, and typed text that matches a label
+      // is that item.
+      const index = choices.indexOf(answer);
+      if (index === -1 && other) return answer;
+      return items[index] ?? items[0];
     });
   }
 

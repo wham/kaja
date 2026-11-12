@@ -46,7 +46,7 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"`prompt`/`alert`/`confirm` (nobody may be watching the window), `XMLHttpRequest`/`WebSocket`/`EventSource`, " +
 	"`localStorage`/`sessionStorage`/`indexedDB` and `document`/`window` (they are Kaja's own), and `require`/`process` (a script is not Node). " +
 	"`crypto.randomUUID()` works, which it does not in every page Kaja runs in. " +
-	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, options)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
+	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, items)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
 	"until it is approved, all park the run on a human, so use them only when a person is at the app."
 
 // Writing a file checks nothing, so a script that is kept has to be run at least
