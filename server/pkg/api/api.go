@@ -509,6 +509,33 @@ func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*I
 	return &InspectMcpResponse{Server: describeMcpServer(surface)}, nil
 }
 
+func (s *ApiService) InspectFolder(ctx context.Context, req *InspectFolderRequest) (*InspectFolderResponse, error) {
+	if req.Folder == nil {
+		return nil, fmt.Errorf("folder app is required")
+	}
+	path := folder.Resolve(s.variables(ctx).Expand(req.Folder.Path))
+	response := &InspectFolderResponse{Path: path}
+	if path == "" {
+		return response, nil
+	}
+	if problem := folder.Check(path); problem != nil {
+		response.Problem = &FolderProblem{Kind: folderProblemKind(problem.Kind), Message: problem.Message}
+	}
+	return response, nil
+}
+
+func folderProblemKind(kind folder.ProblemKind) FolderProblemKind {
+	switch kind {
+	case folder.Missing:
+		return FolderProblemKind_FOLDER_PROBLEM_MISSING
+	case folder.NotAFolder:
+		return FolderProblemKind_FOLDER_PROBLEM_NOT_A_FOLDER
+	case folder.Refused:
+		return FolderProblemKind_FOLDER_PROBLEM_REFUSED
+	}
+	return FolderProblemKind_FOLDER_PROBLEM_UNSPECIFIED
+}
+
 // AuthorizeMcp signs kaja in to the server an app names. The stream is the flow:
 // the page to open goes out first and on its own, because nothing can happen
 // until somebody opens it, and the verdict follows once the sign-in has been

@@ -437,6 +437,59 @@ func (VariableSource) EnumDescriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
+type FolderProblemKind int32
+
+const (
+	FolderProblemKind_FOLDER_PROBLEM_UNSPECIFIED  FolderProblemKind = 0
+	FolderProblemKind_FOLDER_PROBLEM_MISSING      FolderProblemKind = 1
+	FolderProblemKind_FOLDER_PROBLEM_NOT_A_FOLDER FolderProblemKind = 2
+	// The process may not read it. On the desktop, picking the folder is the fix.
+	FolderProblemKind_FOLDER_PROBLEM_REFUSED FolderProblemKind = 3
+)
+
+// Enum value maps for FolderProblemKind.
+var (
+	FolderProblemKind_name = map[int32]string{
+		0: "FOLDER_PROBLEM_UNSPECIFIED",
+		1: "FOLDER_PROBLEM_MISSING",
+		2: "FOLDER_PROBLEM_NOT_A_FOLDER",
+		3: "FOLDER_PROBLEM_REFUSED",
+	}
+	FolderProblemKind_value = map[string]int32{
+		"FOLDER_PROBLEM_UNSPECIFIED":  0,
+		"FOLDER_PROBLEM_MISSING":      1,
+		"FOLDER_PROBLEM_NOT_A_FOLDER": 2,
+		"FOLDER_PROBLEM_REFUSED":      3,
+	}
+)
+
+func (x FolderProblemKind) Enum() *FolderProblemKind {
+	p := new(FolderProblemKind)
+	*p = x
+	return p
+}
+
+func (x FolderProblemKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FolderProblemKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_api_proto_enumTypes[6].Descriptor()
+}
+
+func (FolderProblemKind) Type() protoreflect.EnumType {
+	return &file_proto_api_proto_enumTypes[6]
+}
+
+func (x FolderProblemKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FolderProblemKind.Descriptor instead.
+func (FolderProblemKind) EnumDescriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
+}
+
 type CompileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The app to open and compile. A "grpc" app describes a gRPC service (proto files
@@ -5058,6 +5111,159 @@ func (x *FolderApp) GetPath() string {
 	return ""
 }
 
+// InspectFolder says whether a folder app could open the folder it names, so the
+// form can say so beside the field rather than at the first call. On the
+// sandboxed desktop a folder nobody picked is refused, however valid the path.
+type InspectFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Folder        *FolderApp             `protobuf:"bytes,1,opt,name=folder,proto3" json:"folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectFolderRequest) Reset() {
+	*x = InspectFolderRequest{}
+	mi := &file_proto_api_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectFolderRequest) ProtoMessage() {}
+
+func (x *InspectFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectFolderRequest.ProtoReflect.Descriptor instead.
+func (*InspectFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *InspectFolderRequest) GetFolder() *FolderApp {
+	if x != nil {
+		return x.Folder
+	}
+	return nil
+}
+
+type InspectFolderResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The folder as the app opens it, `~` expanded.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// Unset when the folder can be opened.
+	Problem       *FolderProblem `protobuf:"bytes,2,opt,name=problem,proto3" json:"problem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectFolderResponse) Reset() {
+	*x = InspectFolderResponse{}
+	mi := &file_proto_api_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectFolderResponse) ProtoMessage() {}
+
+func (x *InspectFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectFolderResponse.ProtoReflect.Descriptor instead.
+func (*InspectFolderResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *InspectFolderResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *InspectFolderResponse) GetProblem() *FolderProblem {
+	if x != nil {
+		return x.Problem
+	}
+	return nil
+}
+
+type FolderProblem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          FolderProblemKind      `protobuf:"varint,1,opt,name=kind,proto3,enum=FolderProblemKind" json:"kind,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FolderProblem) Reset() {
+	*x = FolderProblem{}
+	mi := &file_proto_api_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FolderProblem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FolderProblem) ProtoMessage() {}
+
+func (x *FolderProblem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FolderProblem.ProtoReflect.Descriptor instead.
+func (*FolderProblem) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *FolderProblem) GetKind() FolderProblemKind {
+	if x != nil {
+		return x.Kind
+	}
+	return FolderProblemKind_FOLDER_PROBLEM_UNSPECIFIED
+}
+
+func (x *FolderProblem) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 // McpApp explores another Model Context Protocol server over the Streamable HTTP
 // transport. Its proto surface is generated from what that server exposes: one
 // method per tool, one per prompt, and the list/read methods for its resources.
@@ -5095,7 +5301,7 @@ type McpApp struct {
 
 func (x *McpApp) Reset() {
 	*x = McpApp{}
-	mi := &file_proto_api_proto_msgTypes[75]
+	mi := &file_proto_api_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5107,7 +5313,7 @@ func (x *McpApp) String() string {
 func (*McpApp) ProtoMessage() {}
 
 func (x *McpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[75]
+	mi := &file_proto_api_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5120,7 +5326,7 @@ func (x *McpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpApp.ProtoReflect.Descriptor instead.
 func (*McpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{75}
+	return file_proto_api_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *McpApp) GetUrl() string {
@@ -5181,7 +5387,7 @@ type UpdateWorkspaceRequest struct {
 
 func (x *UpdateWorkspaceRequest) Reset() {
 	*x = UpdateWorkspaceRequest{}
-	mi := &file_proto_api_proto_msgTypes[76]
+	mi := &file_proto_api_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5193,7 +5399,7 @@ func (x *UpdateWorkspaceRequest) String() string {
 func (*UpdateWorkspaceRequest) ProtoMessage() {}
 
 func (x *UpdateWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[76]
+	mi := &file_proto_api_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5206,7 +5412,7 @@ func (x *UpdateWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*UpdateWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{76}
+	return file_proto_api_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *UpdateWorkspaceRequest) GetWorkspace() *Workspace {
@@ -5227,7 +5433,7 @@ type UpdateWorkspaceResponse struct {
 
 func (x *UpdateWorkspaceResponse) Reset() {
 	*x = UpdateWorkspaceResponse{}
-	mi := &file_proto_api_proto_msgTypes[77]
+	mi := &file_proto_api_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5239,7 +5445,7 @@ func (x *UpdateWorkspaceResponse) String() string {
 func (*UpdateWorkspaceResponse) ProtoMessage() {}
 
 func (x *UpdateWorkspaceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[77]
+	mi := &file_proto_api_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5252,7 +5458,7 @@ func (x *UpdateWorkspaceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorkspaceResponse.ProtoReflect.Descriptor instead.
 func (*UpdateWorkspaceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{77}
+	return file_proto_api_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *UpdateWorkspaceResponse) GetWorkspace() *Workspace {
@@ -5591,7 +5797,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1f\n" +
 	"\tFolderApp\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x85\x02\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\":\n" +
+	"\x14InspectFolderRequest\x12\"\n" +
+	"\x06folder\x18\x01 \x01(\v2\n" +
+	".FolderAppR\x06folder\"U\n" +
+	"\x15InspectFolderResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12(\n" +
+	"\aproblem\x18\x02 \x01(\v2\x0e.FolderProblemR\aproblem\"Q\n" +
+	"\rFolderProblem\x12&\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x12.FolderProblemKindR\x04kind\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x85\x02\n" +
 	"\x06McpApp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12.\n" +
 	"\aheaders\x18\x02 \x03(\v2\x14.McpApp.HeadersEntryR\aheaders\x12\x12\n" +
@@ -5666,14 +5881,20 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
 	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x03\x12\x1b\n" +
-	"\x17VARIABLE_SOURCE_SIGN_IN\x10\x042\xe6\x0e\n" +
+	"\x17VARIABLE_SOURCE_SIGN_IN\x10\x04*\x8c\x01\n" +
+	"\x11FolderProblemKind\x12\x1e\n" +
+	"\x1aFOLDER_PROBLEM_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16FOLDER_PROBLEM_MISSING\x10\x01\x12\x1f\n" +
+	"\x1bFOLDER_PROBLEM_NOT_A_FOLDER\x10\x02\x12\x1a\n" +
+	"\x16FOLDER_PROBLEM_REFUSED\x10\x032\xa6\x0f\n" +
 	"\x03Api\x12.\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse0\x01\x122\n" +
 	"\tRenameApp\x12\x11.RenameAppRequest\x1a\x12.RenameAppResponse\x12A\n" +
 	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x128\n" +
 	"\vInspectGrpc\x12\x13.InspectGrpcRequest\x1a\x14.InspectGrpcResponse\x125\n" +
 	"\n" +
-	"InspectMcp\x12\x12.InspectMcpRequest\x1a\x13.InspectMcpResponse\x12=\n" +
+	"InspectMcp\x12\x12.InspectMcpRequest\x1a\x13.InspectMcpResponse\x12>\n" +
+	"\rInspectFolder\x12\x15.InspectFolderRequest\x1a\x16.InspectFolderResponse\x12=\n" +
 	"\fAuthorizeMcp\x12\x14.AuthorizeMcpRequest\x1a\x15.AuthorizeMcpResponse0\x01\x12Y\n" +
 	"\x16ForgetMcpAuthorization\x12\x1e.ForgetMcpAuthorizationRequest\x1a\x1f.ForgetMcpAuthorizationResponse\x12I\n" +
 	"\x10AuthorizeOpenApi\x12\x18.AuthorizeOpenApiRequest\x1a\x19.AuthorizeOpenApiResponse0\x01\x12e\n" +
@@ -5712,8 +5933,8 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
 var file_proto_api_proto_goTypes = []any{
 	(GrpcProblemKind)(0),                       // 0: GrpcProblemKind
 	(OpenApiProblemKind)(0),                    // 1: OpenApiProblemKind
@@ -5721,212 +5942,221 @@ var file_proto_api_proto_goTypes = []any{
 	(CompileStatus)(0),                         // 3: CompileStatus
 	(LogLevel)(0),                              // 4: LogLevel
 	(VariableSource)(0),                        // 5: VariableSource
-	(*CompileRequest)(nil),                     // 6: CompileRequest
-	(*RenameAppRequest)(nil),                   // 7: RenameAppRequest
-	(*RenameAppResponse)(nil),                  // 8: RenameAppResponse
-	(*InspectGrpcRequest)(nil),                 // 9: InspectGrpcRequest
-	(*InspectGrpcResponse)(nil),                // 10: InspectGrpcResponse
-	(*GrpcServer)(nil),                         // 11: GrpcServer
-	(*GrpcService)(nil),                        // 12: GrpcService
-	(*GrpcProblem)(nil),                        // 13: GrpcProblem
-	(*InspectOpenApiRequest)(nil),              // 14: InspectOpenApiRequest
-	(*InspectOpenApiResponse)(nil),             // 15: InspectOpenApiResponse
-	(*OpenApiDocument)(nil),                    // 16: OpenApiDocument
-	(*OpenApiServer)(nil),                      // 17: OpenApiServer
-	(*OpenApiServerVariable)(nil),              // 18: OpenApiServerVariable
-	(*OpenApiSecurityScheme)(nil),              // 19: OpenApiSecurityScheme
-	(*OpenApiProblem)(nil),                     // 20: OpenApiProblem
-	(*InspectMcpRequest)(nil),                  // 21: InspectMcpRequest
-	(*InspectMcpResponse)(nil),                 // 22: InspectMcpResponse
-	(*McpServer)(nil),                          // 23: McpServer
-	(*McpProblem)(nil),                         // 24: McpProblem
-	(*AuthorizeMcpRequest)(nil),                // 25: AuthorizeMcpRequest
-	(*AuthorizeMcpResponse)(nil),               // 26: AuthorizeMcpResponse
-	(*ForgetMcpAuthorizationRequest)(nil),      // 27: ForgetMcpAuthorizationRequest
-	(*ForgetMcpAuthorizationResponse)(nil),     // 28: ForgetMcpAuthorizationResponse
-	(*AuthorizeOpenApiRequest)(nil),            // 29: AuthorizeOpenApiRequest
-	(*AuthorizeOpenApiResponse)(nil),           // 30: AuthorizeOpenApiResponse
-	(*ForgetOpenApiAuthorizationRequest)(nil),  // 31: ForgetOpenApiAuthorizationRequest
-	(*ForgetOpenApiAuthorizationResponse)(nil), // 32: ForgetOpenApiAuthorizationResponse
-	(*CompileResponse)(nil),                    // 33: CompileResponse
-	(*Log)(nil),                                // 34: Log
-	(*GetWorkspaceRequest)(nil),                // 35: GetWorkspaceRequest
-	(*WatchWorkspaceRequest)(nil),              // 36: WatchWorkspaceRequest
-	(*GetWorkspaceResponse)(nil),               // 37: GetWorkspaceResponse
-	(*Runtime)(nil),                            // 38: Runtime
-	(*VariableStatus)(nil),                     // 39: VariableStatus
-	(*SetStoredValueRequest)(nil),              // 40: SetStoredValueRequest
-	(*ClearStoredValueRequest)(nil),            // 41: ClearStoredValueRequest
-	(*RenameStoredValueRequest)(nil),           // 42: RenameStoredValueRequest
-	(*StoredValueResponse)(nil),                // 43: StoredValueResponse
-	(*Script)(nil),                             // 44: Script
-	(*ListScriptsRequest)(nil),                 // 45: ListScriptsRequest
-	(*ListScriptsResponse)(nil),                // 46: ListScriptsResponse
-	(*ReadScriptRequest)(nil),                  // 47: ReadScriptRequest
-	(*ReadScriptResponse)(nil),                 // 48: ReadScriptResponse
-	(*WriteScriptRequest)(nil),                 // 49: WriteScriptRequest
-	(*WriteScriptResponse)(nil),                // 50: WriteScriptResponse
-	(*CreateScriptRequest)(nil),                // 51: CreateScriptRequest
-	(*CreateScriptResponse)(nil),               // 52: CreateScriptResponse
-	(*RenameScriptRequest)(nil),                // 53: RenameScriptRequest
-	(*RenameScriptResponse)(nil),               // 54: RenameScriptResponse
-	(*DeleteScriptRequest)(nil),                // 55: DeleteScriptRequest
-	(*DeleteScriptResponse)(nil),               // 56: DeleteScriptResponse
-	(*CopyScriptRequest)(nil),                  // 57: CopyScriptRequest
-	(*CopyScriptResponse)(nil),                 // 58: CopyScriptResponse
-	(*ListScriptFoldersRequest)(nil),           // 59: ListScriptFoldersRequest
-	(*ListScriptFoldersResponse)(nil),          // 60: ListScriptFoldersResponse
-	(*CreateScriptFolderRequest)(nil),          // 61: CreateScriptFolderRequest
-	(*CreateScriptFolderResponse)(nil),         // 62: CreateScriptFolderResponse
-	(*RenameScriptFolderRequest)(nil),          // 63: RenameScriptFolderRequest
-	(*RenameScriptFolderResponse)(nil),         // 64: RenameScriptFolderResponse
-	(*DeleteScriptFolderRequest)(nil),          // 65: DeleteScriptFolderRequest
-	(*DeleteScriptFolderResponse)(nil),         // 66: DeleteScriptFolderResponse
-	(*CopyScriptFolderRequest)(nil),            // 67: CopyScriptFolderRequest
-	(*CopyScriptFolderResponse)(nil),           // 68: CopyScriptFolderResponse
-	(*ScanScriptVariablesRequest)(nil),         // 69: ScanScriptVariablesRequest
-	(*ScriptReference)(nil),                    // 70: ScriptReference
-	(*VariableReferences)(nil),                 // 71: VariableReferences
-	(*ScanScriptVariablesResponse)(nil),        // 72: ScanScriptVariablesResponse
-	(*Workspace)(nil),                          // 73: Workspace
-	(*WorkspaceMcp)(nil),                       // 74: WorkspaceMcp
-	(*WorkspaceApp)(nil),                       // 75: WorkspaceApp
-	(*GrpcApp)(nil),                            // 76: GrpcApp
-	(*TwirpApp)(nil),                           // 77: TwirpApp
-	(*OpenApiApp)(nil),                         // 78: OpenApiApp
-	(*OpenAiApp)(nil),                          // 79: OpenAiApp
-	(*FolderApp)(nil),                          // 80: FolderApp
-	(*McpApp)(nil),                             // 81: McpApp
-	(*UpdateWorkspaceRequest)(nil),             // 82: UpdateWorkspaceRequest
-	(*UpdateWorkspaceResponse)(nil),            // 83: UpdateWorkspaceResponse
-	nil,                                        // 84: Workspace.VariablesEntry
-	nil,                                        // 85: Workspace.ShortcutsEntry
-	nil,                                        // 86: GrpcApp.HeadersEntry
-	nil,                                        // 87: TwirpApp.HeadersEntry
-	nil,                                        // 88: OpenApiApp.HeadersEntry
-	nil,                                        // 89: OpenAiApp.HeadersEntry
-	nil,                                        // 90: McpApp.HeadersEntry
+	(FolderProblemKind)(0),                     // 6: FolderProblemKind
+	(*CompileRequest)(nil),                     // 7: CompileRequest
+	(*RenameAppRequest)(nil),                   // 8: RenameAppRequest
+	(*RenameAppResponse)(nil),                  // 9: RenameAppResponse
+	(*InspectGrpcRequest)(nil),                 // 10: InspectGrpcRequest
+	(*InspectGrpcResponse)(nil),                // 11: InspectGrpcResponse
+	(*GrpcServer)(nil),                         // 12: GrpcServer
+	(*GrpcService)(nil),                        // 13: GrpcService
+	(*GrpcProblem)(nil),                        // 14: GrpcProblem
+	(*InspectOpenApiRequest)(nil),              // 15: InspectOpenApiRequest
+	(*InspectOpenApiResponse)(nil),             // 16: InspectOpenApiResponse
+	(*OpenApiDocument)(nil),                    // 17: OpenApiDocument
+	(*OpenApiServer)(nil),                      // 18: OpenApiServer
+	(*OpenApiServerVariable)(nil),              // 19: OpenApiServerVariable
+	(*OpenApiSecurityScheme)(nil),              // 20: OpenApiSecurityScheme
+	(*OpenApiProblem)(nil),                     // 21: OpenApiProblem
+	(*InspectMcpRequest)(nil),                  // 22: InspectMcpRequest
+	(*InspectMcpResponse)(nil),                 // 23: InspectMcpResponse
+	(*McpServer)(nil),                          // 24: McpServer
+	(*McpProblem)(nil),                         // 25: McpProblem
+	(*AuthorizeMcpRequest)(nil),                // 26: AuthorizeMcpRequest
+	(*AuthorizeMcpResponse)(nil),               // 27: AuthorizeMcpResponse
+	(*ForgetMcpAuthorizationRequest)(nil),      // 28: ForgetMcpAuthorizationRequest
+	(*ForgetMcpAuthorizationResponse)(nil),     // 29: ForgetMcpAuthorizationResponse
+	(*AuthorizeOpenApiRequest)(nil),            // 30: AuthorizeOpenApiRequest
+	(*AuthorizeOpenApiResponse)(nil),           // 31: AuthorizeOpenApiResponse
+	(*ForgetOpenApiAuthorizationRequest)(nil),  // 32: ForgetOpenApiAuthorizationRequest
+	(*ForgetOpenApiAuthorizationResponse)(nil), // 33: ForgetOpenApiAuthorizationResponse
+	(*CompileResponse)(nil),                    // 34: CompileResponse
+	(*Log)(nil),                                // 35: Log
+	(*GetWorkspaceRequest)(nil),                // 36: GetWorkspaceRequest
+	(*WatchWorkspaceRequest)(nil),              // 37: WatchWorkspaceRequest
+	(*GetWorkspaceResponse)(nil),               // 38: GetWorkspaceResponse
+	(*Runtime)(nil),                            // 39: Runtime
+	(*VariableStatus)(nil),                     // 40: VariableStatus
+	(*SetStoredValueRequest)(nil),              // 41: SetStoredValueRequest
+	(*ClearStoredValueRequest)(nil),            // 42: ClearStoredValueRequest
+	(*RenameStoredValueRequest)(nil),           // 43: RenameStoredValueRequest
+	(*StoredValueResponse)(nil),                // 44: StoredValueResponse
+	(*Script)(nil),                             // 45: Script
+	(*ListScriptsRequest)(nil),                 // 46: ListScriptsRequest
+	(*ListScriptsResponse)(nil),                // 47: ListScriptsResponse
+	(*ReadScriptRequest)(nil),                  // 48: ReadScriptRequest
+	(*ReadScriptResponse)(nil),                 // 49: ReadScriptResponse
+	(*WriteScriptRequest)(nil),                 // 50: WriteScriptRequest
+	(*WriteScriptResponse)(nil),                // 51: WriteScriptResponse
+	(*CreateScriptRequest)(nil),                // 52: CreateScriptRequest
+	(*CreateScriptResponse)(nil),               // 53: CreateScriptResponse
+	(*RenameScriptRequest)(nil),                // 54: RenameScriptRequest
+	(*RenameScriptResponse)(nil),               // 55: RenameScriptResponse
+	(*DeleteScriptRequest)(nil),                // 56: DeleteScriptRequest
+	(*DeleteScriptResponse)(nil),               // 57: DeleteScriptResponse
+	(*CopyScriptRequest)(nil),                  // 58: CopyScriptRequest
+	(*CopyScriptResponse)(nil),                 // 59: CopyScriptResponse
+	(*ListScriptFoldersRequest)(nil),           // 60: ListScriptFoldersRequest
+	(*ListScriptFoldersResponse)(nil),          // 61: ListScriptFoldersResponse
+	(*CreateScriptFolderRequest)(nil),          // 62: CreateScriptFolderRequest
+	(*CreateScriptFolderResponse)(nil),         // 63: CreateScriptFolderResponse
+	(*RenameScriptFolderRequest)(nil),          // 64: RenameScriptFolderRequest
+	(*RenameScriptFolderResponse)(nil),         // 65: RenameScriptFolderResponse
+	(*DeleteScriptFolderRequest)(nil),          // 66: DeleteScriptFolderRequest
+	(*DeleteScriptFolderResponse)(nil),         // 67: DeleteScriptFolderResponse
+	(*CopyScriptFolderRequest)(nil),            // 68: CopyScriptFolderRequest
+	(*CopyScriptFolderResponse)(nil),           // 69: CopyScriptFolderResponse
+	(*ScanScriptVariablesRequest)(nil),         // 70: ScanScriptVariablesRequest
+	(*ScriptReference)(nil),                    // 71: ScriptReference
+	(*VariableReferences)(nil),                 // 72: VariableReferences
+	(*ScanScriptVariablesResponse)(nil),        // 73: ScanScriptVariablesResponse
+	(*Workspace)(nil),                          // 74: Workspace
+	(*WorkspaceMcp)(nil),                       // 75: WorkspaceMcp
+	(*WorkspaceApp)(nil),                       // 76: WorkspaceApp
+	(*GrpcApp)(nil),                            // 77: GrpcApp
+	(*TwirpApp)(nil),                           // 78: TwirpApp
+	(*OpenApiApp)(nil),                         // 79: OpenApiApp
+	(*OpenAiApp)(nil),                          // 80: OpenAiApp
+	(*FolderApp)(nil),                          // 81: FolderApp
+	(*InspectFolderRequest)(nil),               // 82: InspectFolderRequest
+	(*InspectFolderResponse)(nil),              // 83: InspectFolderResponse
+	(*FolderProblem)(nil),                      // 84: FolderProblem
+	(*McpApp)(nil),                             // 85: McpApp
+	(*UpdateWorkspaceRequest)(nil),             // 86: UpdateWorkspaceRequest
+	(*UpdateWorkspaceResponse)(nil),            // 87: UpdateWorkspaceResponse
+	nil,                                        // 88: Workspace.VariablesEntry
+	nil,                                        // 89: Workspace.ShortcutsEntry
+	nil,                                        // 90: GrpcApp.HeadersEntry
+	nil,                                        // 91: TwirpApp.HeadersEntry
+	nil,                                        // 92: OpenApiApp.HeadersEntry
+	nil,                                        // 93: OpenAiApp.HeadersEntry
+	nil,                                        // 94: McpApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	75, // 0: CompileRequest.app:type_name -> WorkspaceApp
-	76, // 1: InspectGrpcRequest.grpc:type_name -> GrpcApp
-	11, // 2: InspectGrpcResponse.server:type_name -> GrpcServer
-	13, // 3: InspectGrpcResponse.problem:type_name -> GrpcProblem
-	12, // 4: GrpcServer.services:type_name -> GrpcService
+	76, // 0: CompileRequest.app:type_name -> WorkspaceApp
+	77, // 1: InspectGrpcRequest.grpc:type_name -> GrpcApp
+	12, // 2: InspectGrpcResponse.server:type_name -> GrpcServer
+	14, // 3: InspectGrpcResponse.problem:type_name -> GrpcProblem
+	13, // 4: GrpcServer.services:type_name -> GrpcService
 	0,  // 5: GrpcProblem.kind:type_name -> GrpcProblemKind
-	78, // 6: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
-	16, // 7: InspectOpenApiResponse.document:type_name -> OpenApiDocument
-	20, // 8: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
-	17, // 9: OpenApiDocument.servers:type_name -> OpenApiServer
-	19, // 10: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
-	18, // 11: OpenApiServer.variables:type_name -> OpenApiServerVariable
+	79, // 6: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	17, // 7: InspectOpenApiResponse.document:type_name -> OpenApiDocument
+	21, // 8: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
+	18, // 9: OpenApiDocument.servers:type_name -> OpenApiServer
+	20, // 10: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
+	19, // 11: OpenApiServer.variables:type_name -> OpenApiServerVariable
 	1,  // 12: OpenApiProblem.kind:type_name -> OpenApiProblemKind
-	81, // 13: InspectMcpRequest.mcp:type_name -> McpApp
-	23, // 14: InspectMcpResponse.server:type_name -> McpServer
-	24, // 15: InspectMcpResponse.problem:type_name -> McpProblem
+	85, // 13: InspectMcpRequest.mcp:type_name -> McpApp
+	24, // 14: InspectMcpResponse.server:type_name -> McpServer
+	25, // 15: InspectMcpResponse.problem:type_name -> McpProblem
 	2,  // 16: McpProblem.kind:type_name -> McpProblemKind
-	81, // 17: AuthorizeMcpRequest.mcp:type_name -> McpApp
-	24, // 18: AuthorizeMcpResponse.problem:type_name -> McpProblem
-	81, // 19: ForgetMcpAuthorizationRequest.mcp:type_name -> McpApp
-	78, // 20: AuthorizeOpenApiRequest.openapi:type_name -> OpenApiApp
-	20, // 21: AuthorizeOpenApiResponse.problem:type_name -> OpenApiProblem
-	78, // 22: ForgetOpenApiAuthorizationRequest.openapi:type_name -> OpenApiApp
+	85, // 17: AuthorizeMcpRequest.mcp:type_name -> McpApp
+	25, // 18: AuthorizeMcpResponse.problem:type_name -> McpProblem
+	85, // 19: ForgetMcpAuthorizationRequest.mcp:type_name -> McpApp
+	79, // 20: AuthorizeOpenApiRequest.openapi:type_name -> OpenApiApp
+	21, // 21: AuthorizeOpenApiResponse.problem:type_name -> OpenApiProblem
+	79, // 22: ForgetOpenApiAuthorizationRequest.openapi:type_name -> OpenApiApp
 	3,  // 23: CompileResponse.status:type_name -> CompileStatus
-	34, // 24: CompileResponse.logs:type_name -> Log
+	35, // 24: CompileResponse.logs:type_name -> Log
 	4,  // 25: Log.level:type_name -> LogLevel
-	73, // 26: GetWorkspaceResponse.workspace:type_name -> Workspace
-	34, // 27: GetWorkspaceResponse.logs:type_name -> Log
-	39, // 28: GetWorkspaceResponse.variable_status:type_name -> VariableStatus
-	38, // 29: GetWorkspaceResponse.runtime:type_name -> Runtime
+	74, // 26: GetWorkspaceResponse.workspace:type_name -> Workspace
+	35, // 27: GetWorkspaceResponse.logs:type_name -> Log
+	40, // 28: GetWorkspaceResponse.variable_status:type_name -> VariableStatus
+	39, // 29: GetWorkspaceResponse.runtime:type_name -> Runtime
 	5,  // 30: VariableStatus.source:type_name -> VariableSource
-	39, // 31: StoredValueResponse.variable_status:type_name -> VariableStatus
-	44, // 32: ListScriptsResponse.scripts:type_name -> Script
-	44, // 33: ReadScriptResponse.script:type_name -> Script
-	44, // 34: WriteScriptResponse.script:type_name -> Script
-	44, // 35: CreateScriptResponse.script:type_name -> Script
-	44, // 36: RenameScriptResponse.script:type_name -> Script
-	44, // 37: CopyScriptResponse.script:type_name -> Script
-	70, // 38: VariableReferences.scripts:type_name -> ScriptReference
-	71, // 39: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
-	75, // 40: Workspace.apps:type_name -> WorkspaceApp
-	84, // 41: Workspace.variables:type_name -> Workspace.VariablesEntry
-	85, // 42: Workspace.shortcuts:type_name -> Workspace.ShortcutsEntry
-	74, // 43: Workspace.mcp:type_name -> WorkspaceMcp
-	76, // 44: WorkspaceApp.grpc:type_name -> GrpcApp
-	77, // 45: WorkspaceApp.twirp:type_name -> TwirpApp
-	78, // 46: WorkspaceApp.openapi:type_name -> OpenApiApp
-	79, // 47: WorkspaceApp.openai:type_name -> OpenAiApp
-	80, // 48: WorkspaceApp.folder:type_name -> FolderApp
-	81, // 49: WorkspaceApp.mcp:type_name -> McpApp
-	86, // 50: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	87, // 51: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	88, // 52: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	89, // 53: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	90, // 54: McpApp.headers:type_name -> McpApp.HeadersEntry
-	73, // 55: UpdateWorkspaceRequest.workspace:type_name -> Workspace
-	73, // 56: UpdateWorkspaceResponse.workspace:type_name -> Workspace
-	39, // 57: UpdateWorkspaceResponse.variable_status:type_name -> VariableStatus
-	6,  // 58: Api.Compile:input_type -> CompileRequest
-	7,  // 59: Api.RenameApp:input_type -> RenameAppRequest
-	14, // 60: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	9,  // 61: Api.InspectGrpc:input_type -> InspectGrpcRequest
-	21, // 62: Api.InspectMcp:input_type -> InspectMcpRequest
-	25, // 63: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
-	27, // 64: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
-	29, // 65: Api.AuthorizeOpenApi:input_type -> AuthorizeOpenApiRequest
-	31, // 66: Api.ForgetOpenApiAuthorization:input_type -> ForgetOpenApiAuthorizationRequest
-	35, // 67: Api.GetWorkspace:input_type -> GetWorkspaceRequest
-	36, // 68: Api.WatchWorkspace:input_type -> WatchWorkspaceRequest
-	82, // 69: Api.UpdateWorkspace:input_type -> UpdateWorkspaceRequest
-	40, // 70: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	41, // 71: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	42, // 72: Api.RenameStoredValue:input_type -> RenameStoredValueRequest
-	45, // 73: Api.ListScripts:input_type -> ListScriptsRequest
-	47, // 74: Api.ReadScript:input_type -> ReadScriptRequest
-	49, // 75: Api.WriteScript:input_type -> WriteScriptRequest
-	51, // 76: Api.CreateScript:input_type -> CreateScriptRequest
-	53, // 77: Api.RenameScript:input_type -> RenameScriptRequest
-	55, // 78: Api.DeleteScript:input_type -> DeleteScriptRequest
-	57, // 79: Api.CopyScript:input_type -> CopyScriptRequest
-	59, // 80: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
-	61, // 81: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
-	63, // 82: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
-	65, // 83: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
-	67, // 84: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
-	69, // 85: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
-	33, // 86: Api.Compile:output_type -> CompileResponse
-	8,  // 87: Api.RenameApp:output_type -> RenameAppResponse
-	15, // 88: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	10, // 89: Api.InspectGrpc:output_type -> InspectGrpcResponse
-	22, // 90: Api.InspectMcp:output_type -> InspectMcpResponse
-	26, // 91: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
-	28, // 92: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
-	30, // 93: Api.AuthorizeOpenApi:output_type -> AuthorizeOpenApiResponse
-	32, // 94: Api.ForgetOpenApiAuthorization:output_type -> ForgetOpenApiAuthorizationResponse
-	37, // 95: Api.GetWorkspace:output_type -> GetWorkspaceResponse
-	37, // 96: Api.WatchWorkspace:output_type -> GetWorkspaceResponse
-	83, // 97: Api.UpdateWorkspace:output_type -> UpdateWorkspaceResponse
-	43, // 98: Api.SetStoredValue:output_type -> StoredValueResponse
-	43, // 99: Api.ClearStoredValue:output_type -> StoredValueResponse
-	43, // 100: Api.RenameStoredValue:output_type -> StoredValueResponse
-	46, // 101: Api.ListScripts:output_type -> ListScriptsResponse
-	48, // 102: Api.ReadScript:output_type -> ReadScriptResponse
-	50, // 103: Api.WriteScript:output_type -> WriteScriptResponse
-	52, // 104: Api.CreateScript:output_type -> CreateScriptResponse
-	54, // 105: Api.RenameScript:output_type -> RenameScriptResponse
-	56, // 106: Api.DeleteScript:output_type -> DeleteScriptResponse
-	58, // 107: Api.CopyScript:output_type -> CopyScriptResponse
-	60, // 108: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
-	62, // 109: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
-	64, // 110: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
-	66, // 111: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
-	68, // 112: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
-	72, // 113: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
-	86, // [86:114] is the sub-list for method output_type
-	58, // [58:86] is the sub-list for method input_type
-	58, // [58:58] is the sub-list for extension type_name
-	58, // [58:58] is the sub-list for extension extendee
-	0,  // [0:58] is the sub-list for field type_name
+	40, // 31: StoredValueResponse.variable_status:type_name -> VariableStatus
+	45, // 32: ListScriptsResponse.scripts:type_name -> Script
+	45, // 33: ReadScriptResponse.script:type_name -> Script
+	45, // 34: WriteScriptResponse.script:type_name -> Script
+	45, // 35: CreateScriptResponse.script:type_name -> Script
+	45, // 36: RenameScriptResponse.script:type_name -> Script
+	45, // 37: CopyScriptResponse.script:type_name -> Script
+	71, // 38: VariableReferences.scripts:type_name -> ScriptReference
+	72, // 39: ScanScriptVariablesResponse.variables:type_name -> VariableReferences
+	76, // 40: Workspace.apps:type_name -> WorkspaceApp
+	88, // 41: Workspace.variables:type_name -> Workspace.VariablesEntry
+	89, // 42: Workspace.shortcuts:type_name -> Workspace.ShortcutsEntry
+	75, // 43: Workspace.mcp:type_name -> WorkspaceMcp
+	77, // 44: WorkspaceApp.grpc:type_name -> GrpcApp
+	78, // 45: WorkspaceApp.twirp:type_name -> TwirpApp
+	79, // 46: WorkspaceApp.openapi:type_name -> OpenApiApp
+	80, // 47: WorkspaceApp.openai:type_name -> OpenAiApp
+	81, // 48: WorkspaceApp.folder:type_name -> FolderApp
+	85, // 49: WorkspaceApp.mcp:type_name -> McpApp
+	90, // 50: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	91, // 51: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	92, // 52: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	93, // 53: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	81, // 54: InspectFolderRequest.folder:type_name -> FolderApp
+	84, // 55: InspectFolderResponse.problem:type_name -> FolderProblem
+	6,  // 56: FolderProblem.kind:type_name -> FolderProblemKind
+	94, // 57: McpApp.headers:type_name -> McpApp.HeadersEntry
+	74, // 58: UpdateWorkspaceRequest.workspace:type_name -> Workspace
+	74, // 59: UpdateWorkspaceResponse.workspace:type_name -> Workspace
+	40, // 60: UpdateWorkspaceResponse.variable_status:type_name -> VariableStatus
+	7,  // 61: Api.Compile:input_type -> CompileRequest
+	8,  // 62: Api.RenameApp:input_type -> RenameAppRequest
+	15, // 63: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	10, // 64: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	22, // 65: Api.InspectMcp:input_type -> InspectMcpRequest
+	82, // 66: Api.InspectFolder:input_type -> InspectFolderRequest
+	26, // 67: Api.AuthorizeMcp:input_type -> AuthorizeMcpRequest
+	28, // 68: Api.ForgetMcpAuthorization:input_type -> ForgetMcpAuthorizationRequest
+	30, // 69: Api.AuthorizeOpenApi:input_type -> AuthorizeOpenApiRequest
+	32, // 70: Api.ForgetOpenApiAuthorization:input_type -> ForgetOpenApiAuthorizationRequest
+	36, // 71: Api.GetWorkspace:input_type -> GetWorkspaceRequest
+	37, // 72: Api.WatchWorkspace:input_type -> WatchWorkspaceRequest
+	86, // 73: Api.UpdateWorkspace:input_type -> UpdateWorkspaceRequest
+	41, // 74: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	42, // 75: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	43, // 76: Api.RenameStoredValue:input_type -> RenameStoredValueRequest
+	46, // 77: Api.ListScripts:input_type -> ListScriptsRequest
+	48, // 78: Api.ReadScript:input_type -> ReadScriptRequest
+	50, // 79: Api.WriteScript:input_type -> WriteScriptRequest
+	52, // 80: Api.CreateScript:input_type -> CreateScriptRequest
+	54, // 81: Api.RenameScript:input_type -> RenameScriptRequest
+	56, // 82: Api.DeleteScript:input_type -> DeleteScriptRequest
+	58, // 83: Api.CopyScript:input_type -> CopyScriptRequest
+	60, // 84: Api.ListScriptFolders:input_type -> ListScriptFoldersRequest
+	62, // 85: Api.CreateScriptFolder:input_type -> CreateScriptFolderRequest
+	64, // 86: Api.RenameScriptFolder:input_type -> RenameScriptFolderRequest
+	66, // 87: Api.DeleteScriptFolder:input_type -> DeleteScriptFolderRequest
+	68, // 88: Api.CopyScriptFolder:input_type -> CopyScriptFolderRequest
+	70, // 89: Api.ScanScriptVariables:input_type -> ScanScriptVariablesRequest
+	34, // 90: Api.Compile:output_type -> CompileResponse
+	9,  // 91: Api.RenameApp:output_type -> RenameAppResponse
+	16, // 92: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	11, // 93: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	23, // 94: Api.InspectMcp:output_type -> InspectMcpResponse
+	83, // 95: Api.InspectFolder:output_type -> InspectFolderResponse
+	27, // 96: Api.AuthorizeMcp:output_type -> AuthorizeMcpResponse
+	29, // 97: Api.ForgetMcpAuthorization:output_type -> ForgetMcpAuthorizationResponse
+	31, // 98: Api.AuthorizeOpenApi:output_type -> AuthorizeOpenApiResponse
+	33, // 99: Api.ForgetOpenApiAuthorization:output_type -> ForgetOpenApiAuthorizationResponse
+	38, // 100: Api.GetWorkspace:output_type -> GetWorkspaceResponse
+	38, // 101: Api.WatchWorkspace:output_type -> GetWorkspaceResponse
+	87, // 102: Api.UpdateWorkspace:output_type -> UpdateWorkspaceResponse
+	44, // 103: Api.SetStoredValue:output_type -> StoredValueResponse
+	44, // 104: Api.ClearStoredValue:output_type -> StoredValueResponse
+	44, // 105: Api.RenameStoredValue:output_type -> StoredValueResponse
+	47, // 106: Api.ListScripts:output_type -> ListScriptsResponse
+	49, // 107: Api.ReadScript:output_type -> ReadScriptResponse
+	51, // 108: Api.WriteScript:output_type -> WriteScriptResponse
+	53, // 109: Api.CreateScript:output_type -> CreateScriptResponse
+	55, // 110: Api.RenameScript:output_type -> RenameScriptResponse
+	57, // 111: Api.DeleteScript:output_type -> DeleteScriptResponse
+	59, // 112: Api.CopyScript:output_type -> CopyScriptResponse
+	61, // 113: Api.ListScriptFolders:output_type -> ListScriptFoldersResponse
+	63, // 114: Api.CreateScriptFolder:output_type -> CreateScriptFolderResponse
+	65, // 115: Api.RenameScriptFolder:output_type -> RenameScriptFolderResponse
+	67, // 116: Api.DeleteScriptFolder:output_type -> DeleteScriptFolderResponse
+	69, // 117: Api.CopyScriptFolder:output_type -> CopyScriptFolderResponse
+	73, // 118: Api.ScanScriptVariables:output_type -> ScanScriptVariablesResponse
+	90, // [90:119] is the sub-list for method output_type
+	61, // [61:90] is the sub-list for method input_type
+	61, // [61:61] is the sub-list for extension type_name
+	61, // [61:61] is the sub-list for extension extendee
+	0,  // [0:61] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -5947,8 +6177,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   85,
+			NumEnums:      7,
+			NumMessages:   88,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
