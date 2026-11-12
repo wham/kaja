@@ -107,12 +107,14 @@ type App struct{}
 func New() *App { return &App{} }
 
 func (a *App) Open(_ context.Context, parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
-	path := strings.TrimSpace(parameters["path"])
+	path := Resolve(parameters["path"])
 	if path == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "path")
 	}
-	path = filepath.Clean(path)
 	log("Folder: " + path)
+	if problem := Check(path); problem != nil {
+		return nil, problem
+	}
 
 	if err := os.WriteFile(filepath.Join(protoDir, "folder.proto"), []byte(protoSource), 0o644); err != nil {
 		return nil, fmt.Errorf("writing proto: %w", err)

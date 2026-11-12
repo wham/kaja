@@ -28,11 +28,12 @@ export function MCPServerInfo(): $CancellablePromise<$models.MCPInfo> {
 }
 
 /**
- * OpenDirectoryDialog opens a native directory picker. On macOS it saves a
+ * OpenDirectoryDialog opens a native directory picker, inside start where one is
+ * given, so a folder already named is granted with one click. On macOS it saves a
  * security-scoped bookmark so the sandbox remembers access across app restarts.
  */
-export function OpenDirectoryDialog(): $CancellablePromise<string> {
-    return $Call.ByID(1188724780);
+export function OpenDirectoryDialog(start: string): $CancellablePromise<string> {
+    return $Call.ByID(1188724780, start);
 }
 
 /**

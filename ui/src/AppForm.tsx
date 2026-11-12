@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, FileIcon, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, Folder, FileIcon, Plus, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -19,7 +19,8 @@ import { OpenApiForm } from "./OpenApiForm";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { AgentNotes } from "./agentHints";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { WorkspaceApp } from "./server/api";
+import { FolderProblem, FolderProblemKind, InspectFolderResponse, WorkspaceApp } from "./server/api";
+import { getApiClient } from "./server/connection";
 import { desktop, isWailsEnvironment } from "./wails";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
@@ -255,7 +256,10 @@ export function AppForm({
 
   const handleCancel = () => onCancel();
 
-  const isValid = Boolean(appName && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady));
+  const folderKey = definition?.parameters.find((parameter) => parameter.type === "folder")?.key;
+  const folder = useFolderCheck(folderKey ? (parameters[folderKey] ?? "") : "");
+
+  const isValid = Boolean(appName && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady) && !folder?.problem);
 
   // The margin is for an agent's notes, which a phone has no room for and has no agent to write.
   const hinted = Boolean(agentNotes && !readOnly && !phone && Object.keys(agentNotes.hints).length > 0);
@@ -321,9 +325,10 @@ export function AppForm({
                     // desktop is granted by the picker alone, so there the field states
                     // what was picked rather than taking a path on trust.
                     const picked = isWailsEnvironment() ? parameter.picked : undefined;
+                    const checked = parameter.key === folderKey ? folder : undefined;
                     const pick = async () => {
                       const app = await desktop();
-                      const path = parameter.type === "folder" ? await app.OpenDirectoryDialog() : await app.OpenFileDialog();
+                      const path = parameter.type === "folder" ? await app.OpenDirectoryDialog(checked?.path ?? "") : await app.OpenFileDialog();
                       if (path) setParameters((prev) => ({ ...prev, [parameter.key]: path }));
                     };
                     const caption = picked?.caption ?? parameter.caption;
@@ -366,6 +371,7 @@ export function AppForm({
                               disabled={readOnly}
                               readOnly={!!picked}
                               onClick={picked && !readOnly ? pick : undefined}
+                              className={checked?.problem ? "border-amber-500/40 bg-amber-500/10" : undefined}
                               trailingAction={
                                 (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
                                   <IconButton
@@ -381,7 +387,11 @@ export function AppForm({
                               }
                             />
                           )}
-                          {caption && <FormControl.Caption>{caption}</FormControl.Caption>}
+                          {checked?.problem ? (
+                            <FolderWarning problem={checked.problem} picked={!!picked} />
+                          ) : (
+                            caption && <FormControl.Caption>{caption}</FormControl.Caption>
+                          )}
                         </FormControl>
                       </FormSection>
                     );
@@ -455,5 +465,38 @@ function TypeChoice({ type, appsPreviewEnabled, onTypeChange }: { type: string; 
         })}
       </ChoiceList>
     </div>
+  );
+}
+
+// useFolderCheck asks whether the folder app could open the folder the field names,
+// after typing stops, keeping only the latest answer.
+function useFolderCheck(path: string): InspectFolderResponse | undefined {
+  const [checked, setChecked] = useState<{ path: string; response: InspectFolderResponse }>();
+  useEffect(() => {
+    if (!path.trim()) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      getApiClient()
+        .inspectFolder({ folder: { path } })
+        .then(({ response }) => current && setChecked({ path, response }))
+        .catch(() => {});
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [path]);
+  return path.trim() && checked?.path === path ? checked.response : undefined;
+}
+
+// A refused folder on the desktop is one nobody picked, and picking it is the fix.
+function FolderWarning({ problem, picked }: { problem: FolderProblem; picked: boolean }) {
+  const message =
+    picked && problem.kind === FolderProblemKind.FOLDER_PROBLEM_REFUSED ? "Kaja has no access to this folder yet. Pick it to grant access." : problem.message;
+  return (
+    <span className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+      <CircleAlert size={12} className="mt-0.5 shrink-0" />
+      {message}
+    </span>
   );
 }

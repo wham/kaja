@@ -69,7 +69,7 @@ func (w *workspaceApps) Inspect(ctx context.Context, draft mcp.AppDraft) (mcp.Ap
 	case "openai":
 		inspectOpenAi(app.GetOpenai(), &inspection)
 	case "folder":
-		inspectFolder(app.GetFolder(), &inspection)
+		err = w.inspectFolder(ctx, app.GetFolder(), &inspection)
 	}
 	if err != nil {
 		return mcp.AppInspection{}, err
@@ -249,13 +249,24 @@ func inspectOpenAi(chat *api.OpenAiApp, inspection *mcp.AppInspection) {
 	inspection.Summary = fmt.Sprintf("A chat model at %s, spoken as %s. A chat endpoint declares nothing, so nothing was probed.", endpoint, chat.Api)
 }
 
-func inspectFolder(folder *api.FolderApp, inspection *mcp.AppInspection) {
+// A path an agent writes is a suggestion: the sandboxed desktop reaches a folder only
+// once the person has picked it, so one Kaja can't open goes to the form with the
+// path in its field and the picker opening there.
+func (w *workspaceApps) inspectFolder(ctx context.Context, folder *api.FolderApp, inspection *mcp.AppInspection) error {
 	if folder.Path == "" {
 		inspection.Missing = append(inspection.Missing, "The folder: on the desktop it has to be picked in the form, because a typed path grants a sandboxed Kaja no access to it.")
 		inspection.Summary = "A folder on this machine."
-		return
+		return nil
 	}
-	inspection.Summary = fmt.Sprintf("The folder %s.", folder.Path)
+	response, err := w.service.InspectFolder(ctx, &api.InspectFolderRequest{Folder: folder})
+	if err != nil {
+		return err
+	}
+	inspection.Summary = fmt.Sprintf("The folder %s.", response.Path)
+	if response.Problem != nil {
+		inspection.Missing = append(inspection.Missing, "The folder picked in the form: "+response.Problem.Message)
+	}
+	return nil
 }
 
 // Add writes the app as one edit of kaja.json, read and written under the service's

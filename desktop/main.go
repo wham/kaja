@@ -394,14 +394,18 @@ func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
 }
 
-// OpenDirectoryDialog opens a native directory picker. On macOS it saves a
+// OpenDirectoryDialog opens a native directory picker, inside start where one is
+// given, so a folder already named is granted with one click. On macOS it saves a
 // security-scoped bookmark so the sandbox remembers access across app restarts.
-func (a *App) OpenDirectoryDialog() (string, error) {
-	dir, err := a.app.Dialog.OpenFile().
+func (a *App) OpenDirectoryDialog(start string) (string, error) {
+	dialog := a.app.Dialog.OpenFile().
 		CanChooseFiles(false).
 		CanChooseDirectories(true).
-		SetTitle("Select Workspace Directory").
-		PromptForSingleSelection()
+		SetTitle("Select Workspace Directory")
+	if start != "" {
+		dialog = dialog.SetDirectory(start)
+	}
+	dir, err := dialog.PromptForSingleSelection()
 	if err != nil || dir == "" {
 		return dir, err
 	}

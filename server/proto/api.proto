@@ -12,6 +12,7 @@ service Api {
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
+  rpc InspectFolder(InspectFolderRequest) returns (InspectFolderResponse);
   // AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
   // a browser in the middle of it: the first message carries the page to open,
   // and the last one says how it went once the server has sent the person back.
@@ -875,6 +876,33 @@ message OpenAiApp {
 // is local, so it forwards no headers.
 message FolderApp {
   string path = 1;
+}
+
+// InspectFolder says whether a folder app could open the folder it names, so the
+// form can say so beside the field rather than at the first call. On the
+// sandboxed desktop a folder nobody picked is refused, however valid the path.
+message InspectFolderRequest {
+  FolderApp folder = 1;
+}
+
+message InspectFolderResponse {
+  // The folder as the app opens it, `~` expanded.
+  string path = 1;
+  // Unset when the folder can be opened.
+  FolderProblem problem = 2;
+}
+
+message FolderProblem {
+  FolderProblemKind kind = 1;
+  string message = 2;
+}
+
+enum FolderProblemKind {
+  FOLDER_PROBLEM_UNSPECIFIED = 0;
+  FOLDER_PROBLEM_MISSING = 1;
+  FOLDER_PROBLEM_NOT_A_FOLDER = 2;
+  // The process may not read it. On the desktop, picking the folder is the fix.
+  FOLDER_PROBLEM_REFUSED = 3;
 }
 
 // McpApp explores another Model Context Protocol server over the Streamable HTTP

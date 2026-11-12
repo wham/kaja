@@ -352,7 +352,7 @@ export function GrpcForm({
                 typedRef.current = true;
                 setParameter("protoDir", value);
               }}
-              onPick={() => desktop().then((app) => app.OpenDirectoryDialog())}
+              onPick={() => desktop().then((app) => app.OpenDirectoryDialog(""))}
               icon={Folder}
               label="Select the proto directory"
               variables={variables}

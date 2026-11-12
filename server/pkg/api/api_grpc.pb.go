@@ -24,6 +24,7 @@ const (
 	Api_InspectOpenApi_FullMethodName             = "/Api/InspectOpenApi"
 	Api_InspectGrpc_FullMethodName                = "/Api/InspectGrpc"
 	Api_InspectMcp_FullMethodName                 = "/Api/InspectMcp"
+	Api_InspectFolder_FullMethodName              = "/Api/InspectFolder"
 	Api_AuthorizeMcp_FullMethodName               = "/Api/AuthorizeMcp"
 	Api_ForgetMcpAuthorization_FullMethodName     = "/Api/ForgetMcpAuthorization"
 	Api_AuthorizeOpenApi_FullMethodName           = "/Api/AuthorizeOpenApi"
@@ -62,6 +63,7 @@ type ApiClient interface {
 	InspectOpenApi(ctx context.Context, in *InspectOpenApiRequest, opts ...grpc.CallOption) (*InspectOpenApiResponse, error)
 	InspectGrpc(ctx context.Context, in *InspectGrpcRequest, opts ...grpc.CallOption) (*InspectGrpcResponse, error)
 	InspectMcp(ctx context.Context, in *InspectMcpRequest, opts ...grpc.CallOption) (*InspectMcpResponse, error)
+	InspectFolder(ctx context.Context, in *InspectFolderRequest, opts ...grpc.CallOption) (*InspectFolderResponse, error)
 	// AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
 	// a browser in the middle of it: the first message carries the page to open,
 	// and the last one says how it went once the server has sent the person back.
@@ -156,6 +158,16 @@ func (c *apiClient) InspectMcp(ctx context.Context, in *InspectMcpRequest, opts 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InspectMcpResponse)
 	err := c.cc.Invoke(ctx, Api_InspectMcp_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) InspectFolder(ctx context.Context, in *InspectFolderRequest, opts ...grpc.CallOption) (*InspectFolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectFolderResponse)
+	err := c.cc.Invoke(ctx, Api_InspectFolder_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -432,6 +444,7 @@ type ApiServer interface {
 	InspectOpenApi(context.Context, *InspectOpenApiRequest) (*InspectOpenApiResponse, error)
 	InspectGrpc(context.Context, *InspectGrpcRequest) (*InspectGrpcResponse, error)
 	InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error)
+	InspectFolder(context.Context, *InspectFolderRequest) (*InspectFolderResponse, error)
 	// AuthorizeMcp signs kaja in to an MCP server. It streams because the flow has
 	// a browser in the middle of it: the first message carries the page to open,
 	// and the last one says how it went once the server has sent the person back.
@@ -486,6 +499,9 @@ func (UnimplementedApiServer) InspectGrpc(context.Context, *InspectGrpcRequest) 
 }
 func (UnimplementedApiServer) InspectMcp(context.Context, *InspectMcpRequest) (*InspectMcpResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InspectMcp not implemented")
+}
+func (UnimplementedApiServer) InspectFolder(context.Context, *InspectFolderRequest) (*InspectFolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InspectFolder not implemented")
 }
 func (UnimplementedApiServer) AuthorizeMcp(*AuthorizeMcpRequest, grpc.ServerStreamingServer[AuthorizeMcpResponse]) error {
 	return status.Error(codes.Unimplemented, "method AuthorizeMcp not implemented")
@@ -655,6 +671,24 @@ func _Api_InspectMcp_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).InspectMcp(ctx, req.(*InspectMcpRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_InspectFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).InspectFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_InspectFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).InspectFolder(ctx, req.(*InspectFolderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1074,6 +1108,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectMcp",
 			Handler:    _Api_InspectMcp_Handler,
+		},
+		{
+			MethodName: "InspectFolder",
+			Handler:    _Api_InspectFolder_Handler,
 		},
 		{
 			MethodName: "ForgetMcpAuthorization",
