@@ -25,6 +25,7 @@ import {
   keymap,
   lineNumbers,
   rectangularSelection,
+  tooltips,
   ViewPlugin,
 } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
@@ -340,6 +341,35 @@ function typescriptLinter(buffer: TextBuffer) {
     },
   );
 }
+
+const TOOLTIP_INSET = 8;
+
+// CodeMirror lays a tooltip out against the window, and one wider than that space is
+// pinned to the window's left edge, under the sidebar, where the pane clips it. So
+// the space is the editor's own, a tooltip wraps to its width, and one that won't fit
+// above its line goes under it rather than over the command row.
+const tooltipBounds: Extension = [
+  tooltips({
+    tooltipSpace: (view) => {
+      const rect = view.dom.getBoundingClientRect();
+      return { top: rect.top, bottom: window.innerHeight, left: rect.left + TOOLTIP_INSET, right: rect.right - TOOLTIP_INSET };
+    },
+  }),
+  ViewPlugin.fromClass(
+    class {
+      observer: ResizeObserver;
+
+      constructor(view: EditorView) {
+        this.observer = new ResizeObserver(() => view.dom.style.setProperty("--tooltip-max-width", `${view.dom.clientWidth - 2 * TOOLTIP_INSET}px`));
+        this.observer.observe(view.dom);
+      }
+
+      destroy() {
+        this.observer.disconnect();
+      }
+    },
+  ),
+];
 
 function typescriptHover(buffer: TextBuffer) {
   return hoverTooltip(async (_view, pos) => {
@@ -787,6 +817,7 @@ export function Editor({
         }),
         typescriptLinter(buffer),
         typescriptHover(buffer),
+        tooltipBounds,
         definitionLinks(buffer),
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
