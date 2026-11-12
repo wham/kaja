@@ -151,6 +151,7 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	// The UI says when it is listening, and everything held so far goes to it.
 	a.app.Event.On("link:ready", func(*application.CustomEvent) { a.flushLinks() })
 	a.app.Event.On("window:front", func(*application.CustomEvent) { a.bringToFront() })
+	a.app.Event.On("signin:settled", func(*application.CustomEvent) { a.closeSignIn() })
 
 	// On their own goroutines because both end in a dialog or a reload, which wait on
 	// the main thread.

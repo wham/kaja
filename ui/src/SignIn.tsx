@@ -7,7 +7,7 @@ import { copyText } from "./clipboard";
 import { cn } from "./cn";
 import { rpcErrorMessage } from "./rpcMessage";
 import { signsIn } from "./variableExpansion";
-import { isWailsEnvironment, openInBrowser } from "./wails";
+import { emitWailsEvent, isWailsEnvironment, openInBrowser } from "./wails";
 
 export interface SignInProblem {
   message: string;
@@ -63,6 +63,9 @@ export async function followSignIn(
     return false;
   } catch (error) {
     return failed({ message: "The sign-in failed.", detail: rpcErrorMessage(error) });
+  } finally {
+    // On a phone the page is a sheet over Kaja, which only the window knows to close.
+    if (isWailsEnvironment()) emitWailsEvent("signin:settled");
   }
 }
 
