@@ -4,7 +4,7 @@ import { cn } from "./cn";
 
 const HIT_AREA = 9;
 const OVERLAP = 4;
-const BAR = 3;
+const BAR = 2;
 
 interface SplitterProps {
   orientation: "vertical" | "horizontal";
@@ -51,7 +51,7 @@ export function Splitter({ orientation, onResize, hitAreaSize, quiet }: Splitter
       >
         <div
           className={cn(
-            "absolute bg-blue-500 transition-opacity delay-100 duration-[120ms]",
+            "absolute bg-[#257de0] transition-opacity delay-100 duration-[120ms]",
             isVertical ? "top-0 h-full" : "left-0 w-full",
             isResizing ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
