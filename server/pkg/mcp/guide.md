@@ -394,9 +394,12 @@ What each member is for:
   Stats page report it. The numbers are drawn for you; the report it hands back
   is for judging them. See above.
 - `kaja.askStr(question)`, `kaja.askInt(question)`,
-  `kaja.askSelect(question, options)` — ask the user for text, a whole number,
-  or one of a list; each blocks on a human and hands back the kind of thing it
-  asked for, so never ask for text and parse it yourself.
+  `kaja.askSelect(question, items, label?, { other? })` — ask the user for text,
+  a whole number, or one of a list; each blocks on a human and hands back the
+  kind of thing it asked for, so never ask for text and parse it yourself. A
+  select hands back the item picked, `label` saying how a non-string item is
+  shown, and `{ other: true }` lets the user type an answer of their own, which
+  comes back as a string.
 - `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
   `await kaja.approve(Issues.Create({ owner, repo, title }))`. The call goes inside the
   parentheses, and not approving stops the script. Blocks on a human — though

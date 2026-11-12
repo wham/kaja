@@ -50,6 +50,11 @@ export function answerPlaceholder(answerType: AskAnswerType): string {
   return answerType === "int" ? "Whole number…" : "Answer…";
 }
 
+/** Whether a select was answered with text of the person's own rather than one of its choices. */
+export function isTypedAnswer(block: { other?: boolean; choices?: string[]; answer?: string }): boolean {
+  return block.other === true && block.answer !== undefined && !(block.choices ?? []).includes(block.answer);
+}
+
 /** How long a typeahead keeps collecting letters before the next one starts a new search. */
 export const TYPEAHEAD_MS = 800;
 

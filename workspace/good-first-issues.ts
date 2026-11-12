@@ -1,10 +1,7 @@
 import { kaja } from "kaja";
 import { Search } from "github";
 
-const language = await kaja.askSelect(
-  "Which language?",
-  ["Go", "TypeScript", "Python", "Rust", "Swift"].map((name) => ({ label: name, value: name.toLowerCase() })),
-);
+const language = (await kaja.askSelect("Which language?", ["Go", "TypeScript", "Python", "Rust", "Swift"], { other: true })).toLowerCase();
 
 const issues = kaja.pages(
   (page) =>

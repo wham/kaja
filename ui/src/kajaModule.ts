@@ -329,12 +329,6 @@ type OneList<P> = IsOne<PageListKey<P>> extends true ? unknown : { "kaja.pages: 
 type PageItem<P> = IsOne<PageListKey<P>> extends true ? (NonNullable<P[PageListKey<P>]> extends readonly (infer E)[] ? E : never) : never;
 type PageNext<P> = (page: P) => string | undefined | null;
 
-/** An option kaja.askSelect offers when the label isn't the value. */
-export interface Choice<V> {
-  label: string;
-  value: V;
-}
-
 /** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
@@ -371,19 +365,24 @@ export declare const kaja: {
    */
   askInt(question: string): Promise<number>;
   /**
-   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
-   * give { label, value } pairs and the value comes back, so picking from a list
-   * of records hands you the record.
+   * Ask the user to pick one of a list. Strings resolve as themselves; give
+   * any other items with a function saying how each is shown, and the item
+   * picked comes back, so picking from a list of records hands you the record.
    *
    *   const region = await kaja.askSelect("Which region?", ["eu", "us"]);
    *
-   *   const repo = await kaja.askSelect(
-   *     "Which repository?",
-   *     repos.map((repo) => ({ label: repo.fullName, value: repo })),
-   *   );
+   *   const repo = await kaja.askSelect("Which repository?", repos, (repo) => repo.fullName);
+   *
+   * \`{ other: true }\` adds "Something else…", where the user types an answer
+   * of their own, which comes back as the text typed. Text matching a label is
+   * that item, so with records a string is always something typed:
+   *
+   *   const target = await kaja.askSelect("Which repository?", repos, (repo) => repo.fullName, { other: true });
+   *   if (typeof target === "string") { … }
    */
-  askSelect(question: string, options: readonly string[]): Promise<string>;
-  askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
+  askSelect(question: string, choices: readonly string[], options?: { other?: boolean }): Promise<string>;
+  askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options?: { other?: false }): Promise<T>;
+  askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options: { other: true }): Promise<T | string>;
   /**
    * Hold a call until it is approved. The call and the request it is about to
    * send are drawn on the run's canvas and the run stops there; approving sends

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { answerPlaceholder, digitChoice, answerProblem, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
+import { answerPlaceholder, digitChoice, answerProblem, isTypedAnswer, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
 
 describe("parseInteger", () => {
   it("reads a whole number, signed or padded", () => {
@@ -110,5 +110,14 @@ describe("typeaheadIndex", () => {
   it("has nowhere to go when nothing starts with it", () => {
     expect(typeaheadIndex(names, "z", 0)).toBeUndefined();
     expect(typeaheadIndex([], "a", 0)).toBeUndefined();
+  });
+});
+
+describe("isTypedAnswer", () => {
+  it("is an answer outside the choices of a select that takes one", () => {
+    expect(isTypedAnswer({ other: true, choices: ["Retro"], answer: "Offsite" })).toBe(true);
+    expect(isTypedAnswer({ other: true, choices: ["Retro"], answer: "Retro" })).toBe(false);
+    expect(isTypedAnswer({ choices: ["Retro"], answer: "Offsite" })).toBe(false);
+    expect(isTypedAnswer({ other: true, choices: ["Retro"] })).toBe(false);
   });
 });

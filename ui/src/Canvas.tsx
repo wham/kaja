@@ -1,6 +1,6 @@
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { answerPlaceholder, answerProblem, AskAnswerType, digitChoice, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
+import { answerPlaceholder, answerProblem, AskAnswerType, digitChoice, isTypedAnswer, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
 import {
   ApproveBlock,
   ApproveGesture,
@@ -899,7 +899,12 @@ Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
     <div className="flex flex-col gap-2 rounded-r-md border-l-2 border-amber-500 bg-amber-500/10 py-2.5 pl-3 pr-3">
       <div className="whitespace-pre-wrap break-words text-amber-600 dark:text-amber-400">{block.question}</div>
       {block.answerType === "select" ? (
-        <Canvas.AskChoices choices={block.choices ?? []} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
+        <Canvas.AskChoices
+          choices={block.choices ?? []}
+          other={block.other === true}
+          onAnswer={(answer) => onAnswer(id, answer)}
+          onCancel={() => onCancelAsk(id)}
+        />
       ) : (
         <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
       )}
@@ -921,9 +926,12 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
       {block.cancelled ? (
         <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled. The script stopped here</span>
       ) : (
-        <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
-          {block.answer}
-        </span>
+        <>
+          <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
+            {block.answer}
+          </span>
+          {isTypedAnswer(block) && <span className="shrink-0 text-muted-foreground">typed</span>}
+        </>
       )}
     </div>
   );
@@ -1167,25 +1175,38 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
 
 interface AskChoicesProps {
   choices: string[];
+  other: boolean;
   onAnswer: (answer: string) => void;
   onCancel: () => void;
 }
 
 // A listbox rather than a Select popup: the canvas has the room, and a question the
-// run is parked on should not need a click to read.
-Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) {
+// run is parked on should not need a click to read. "Something else…" is the row after
+// the choices, and picking it turns that row into a field rather than answering.
+Canvas.AskChoices = function ({ choices, other, onAnswer, onCancel }: AskChoicesProps) {
   const [active, setActive] = useState(0);
+  const [typing, setTyping] = useState(false);
+  const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLButtonElement>(null);
   const typed = useRef({ text: "", at: 0 });
+  const rows = choices.length + (other ? 1 : 0);
 
   useEffect(() => {
-    listRef.current?.focus();
-  }, []);
+    if (!typing) listRef.current?.focus();
+  }, [typing]);
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest" });
+    listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
   }, [active]);
+
+  const pick = (index: number) => {
+    if (index < choices.length) {
+      onAnswer(choices[index]);
+      return;
+    }
+    setActive(index);
+    setTyping(true);
+  };
 
   return (
     <div
@@ -1195,28 +1216,29 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
       data-testid="canvas-ask-choices"
       className="flex flex-col gap-1 outline-none"
       onKeyDown={(event) => {
+        if (typing) return;
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault();
-          const step = event.key === "ArrowDown" ? 1 : choices.length - 1;
-          setActive((index) => (index + step) % choices.length);
+          const step = event.key === "ArrowDown" ? 1 : rows - 1;
+          setActive((index) => (index + step) % rows);
         } else if (event.key === "Enter") {
           event.preventDefault();
-          if (choices[active] !== undefined) onAnswer(choices[active]);
+          if (active < rows) pick(active);
         } else if (event.key === "Escape") {
           event.preventDefault();
           onCancel();
         } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          const numbered = digitChoice(event.key, choices.length);
+          const numbered = digitChoice(event.key, rows);
           if (numbered !== undefined) {
             event.preventDefault();
-            onAnswer(choices[numbered]);
+            pick(numbered);
             return;
           }
           const now = Date.now();
-          const text = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.text : "") + event.key;
-          if (text.trim() === "") return;
-          typed.current = { text, at: now };
-          const index = typeaheadIndex(choices, text, active);
+          const search = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.text : "") + event.key;
+          if (search.trim() === "") return;
+          typed.current = { text: search, at: now };
+          const index = typeaheadIndex(choices, search, Math.min(active, choices.length - 1));
           if (index === undefined) return;
           event.preventDefault();
           setActive(index);
@@ -1226,7 +1248,6 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
       {choices.map((choice, index) => (
         <button
           key={index}
-          ref={index === active ? activeRef : undefined}
           type="button"
           role="option"
           aria-selected={index === active}
@@ -1235,28 +1256,73 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
             "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
             index === active ? "border-amber-500" : "border-border hover:border-amber-500/50",
           )}
-          onMouseEnter={() => setActive(index)}
+          onMouseEnter={() => !typing && setActive(index)}
           onClick={() => onAnswer(choice)}
         >
-          {index < 9 ? (
-            <kbd
-              className={cn(
-                "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 px-1 font-mono text-[11px]",
-                index === active ? "border-amber-500/50 text-amber-500" : "border-border text-muted-foreground",
-              )}
-            >
-              {index + 1}
-            </kbd>
-          ) : (
-            <span className="w-[18px] shrink-0" />
-          )}
+          <ChoiceKey index={index} active={index === active} />
           <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
           {index === active && <span className="shrink-0 text-muted-foreground">⏎</span>}
         </button>
       ))}
+      {other &&
+        (typing ? (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5">
+            <ChoiceKey index={choices.length} active />
+            <input
+              autoFocus
+              data-testid="canvas-ask-other-input"
+              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+              placeholder="Something else…"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (text.trim() !== "") onAnswer(text.trim());
+                } else if (event.key === "Escape") {
+                  // Back to the list rather than out of the question: the field was one row of it.
+                  event.preventDefault();
+                  setTyping(false);
+                }
+              }}
+            />
+            <span className="shrink-0 text-muted-foreground">⏎ answer · esc back to list</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            role="option"
+            aria-selected={active === choices.length}
+            data-testid="canvas-ask-other"
+            className={cn(
+              "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
+              active === choices.length ? "border-amber-500" : "border-border hover:border-amber-500/50",
+            )}
+            onMouseEnter={() => setActive(choices.length)}
+            onClick={() => pick(choices.length)}
+          >
+            <ChoiceKey index={choices.length} active={active === choices.length} />
+            <span className="min-w-0 flex-1 italic text-muted-foreground">Something else…</span>
+            {active === choices.length && <span className="shrink-0 text-muted-foreground">⏎</span>}
+          </button>
+        ))}
     </div>
   );
 };
+
+function ChoiceKey({ index, active }: { index: number; active: boolean }) {
+  if (index >= 9) return <span className="w-[18px] shrink-0" />;
+  return (
+    <kbd
+      className={cn(
+        "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 px-1 font-mono text-[11px]",
+        active ? "border-amber-500/50 text-amber-500" : "border-border text-muted-foreground",
+      )}
+    >
+      {index + 1}
+    </kbd>
+  );
+}
 
 /**
  * A failure nothing was drawn after — the canvas does not interrupt itself for one

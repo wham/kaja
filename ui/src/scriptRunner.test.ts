@@ -215,7 +215,7 @@ describe("the ask verbs", () => {
     expect(asked.map((question) => question.answerType)).toEqual(["str", "int"]);
   });
 
-  it("offers a select's labels and resolves to the value beside the one picked", async () => {
+  it("offers a select's labels and resolves to the item picked", async () => {
     const asked: AskBlock[] = [];
     const kaja = makeKaja((question) => {
       asked.push(question);
@@ -223,7 +223,7 @@ describe("the ask verbs", () => {
     });
 
     const run = await runScriptCaptured(
-      `import { kaja } from "kaja";\nconst region = await kaja.askSelect("Where?", [{ label: "US", value: "us" }, { label: "Europe", value: "eu" }]);\nreturn region;`,
+      `import { kaja } from "kaja";\nconst region = await kaja.askSelect("Where?", [{ name: "US", code: "us" }, { name: "Europe", code: "eu" }], (region) => region.name);\nreturn region.code;`,
       kaja,
       [],
     );
@@ -231,6 +231,37 @@ describe("the ask verbs", () => {
     expect(run.error).toBeUndefined();
     expect(run.result).toBe("eu");
     expect(asked[0].choices).toEqual(["US", "Europe"]);
+    expect(asked[0].other).toBeUndefined();
+  });
+
+  it("hands back typed text from a select that takes something else", async () => {
+    const asked: AskBlock[] = [];
+    const kaja = makeKaja((question) => {
+      asked.push(question);
+      return "Asia";
+    });
+
+    const run = await runScriptCaptured(
+      `import { kaja } from "kaja";\nreturn await kaja.askSelect("Where?", [{ name: "US" }], (region) => region.name, { other: true });`,
+      kaja,
+      [],
+    );
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("Asia");
+    expect(asked[0].other).toBe(true);
+  });
+
+  it("reads typed text that matches a label as that item", async () => {
+    const kaja = makeKaja(() => "US");
+
+    const run = await runScriptCaptured(
+      `import { kaja } from "kaja";\nreturn (await kaja.askSelect("Where?", [{ name: "US", code: "us" }], (region) => region.name, { other: true })).code;`,
+      kaja,
+      [],
+    );
+
+    expect(run.result).toBe("us");
   });
 
   it("refuses a select with nothing to pick", async () => {
@@ -238,7 +269,7 @@ describe("the ask verbs", () => {
 
     const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn await kaja.askSelect("Where?", []);`, kaja, []);
 
-    expect(run.error).toContain("options must not be empty");
+    expect(run.error).toContain("choices must not be empty");
   });
 });
 

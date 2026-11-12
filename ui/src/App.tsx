@@ -129,6 +129,8 @@ function persistedDrafts(): Draft[] {
   );
 }
 
+// No label a script writes starts with NUL, so this item is never mistaken for a choice.
+const OTHER_CHOICE = "\u0000other";
 const MIN_EDITOR_HEIGHT = 120;
 const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 const SIDE_BY_SIDE_MIN_WIDTH = 1600;
@@ -381,6 +383,7 @@ export function App() {
   const [askPrompt, setAskPrompt] = useState<{
     question: AskBlock;
     value: string;
+    typing?: boolean;
     problem?: string;
     resolve: (value: string) => void;
     reject: (reason: unknown) => void;
@@ -620,12 +623,16 @@ export function App() {
 
   const submitAskPrompt = useCallback(() => {
     if (!askPrompt) return;
-    const problem = answerProblem(askPrompt.question.answerType, askPrompt.value);
+    const problem = askPrompt.typing
+      ? askPrompt.value.trim() === ""
+        ? "Type an answer"
+        : undefined
+      : answerProblem(askPrompt.question.answerType, askPrompt.value);
     if (problem) {
       setAskPrompt({ ...askPrompt, problem });
       return;
     }
-    askPrompt.resolve(normalizeAnswer(askPrompt.question.answerType, askPrompt.value));
+    askPrompt.resolve(askPrompt.typing ? askPrompt.value.trim() : normalizeAnswer(askPrompt.question.answerType, askPrompt.value));
     setAskPrompt(null);
   }, [askPrompt]);
 
@@ -3193,18 +3200,46 @@ export function App() {
           <FormControl>
             <FormControl.Label>{askPrompt.question.question}</FormControl.Label>
             {askPrompt.question.answerType === "select" ? (
-              <Select value={askPrompt.value} onValueChange={(value) => setAskPrompt((prev) => (prev ? { ...prev, value: value ?? "" } : prev))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(askPrompt.question.choices ?? []).map((choice, index) => (
-                    <SelectItem key={index} value={choice}>
-                      {choice}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  value={askPrompt.typing ? OTHER_CHOICE : askPrompt.value}
+                  onValueChange={(value) =>
+                    setAskPrompt((prev) =>
+                      prev
+                        ? value === OTHER_CHOICE
+                          ? { ...prev, typing: true, value: "", problem: undefined }
+                          : { ...prev, typing: false, value: value ?? "", problem: undefined }
+                        : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue>{(value: string) => (value === OTHER_CHOICE ? "Something else…" : value)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(askPrompt.question.choices ?? []).map((choice, index) => (
+                      <SelectItem key={index} value={choice}>
+                        {choice}
+                      </SelectItem>
+                    ))}
+                    {askPrompt.question.other && <SelectItem value={OTHER_CHOICE}>Something else…</SelectItem>}
+                  </SelectContent>
+                </Select>
+                {askPrompt.typing && (
+                  <Input
+                    autoFocus
+                    placeholder="Something else…"
+                    value={askPrompt.value}
+                    onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value, problem: undefined } : prev))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitAskPrompt();
+                      }
+                    }}
+                  />
+                )}
+              </>
             ) : (
               <Input
                 autoFocus

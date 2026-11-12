@@ -114,6 +114,8 @@ export interface AskBlock {
   // The answer is one of these, which is what makes a stored select readable without
   // its script.
   choices?: string[];
+  // A select that also takes a typed answer; an answer outside the choices is one.
+  other?: boolean;
   // Always text, whatever was asked for — a block is stored as itself, and the typed
   // value is the script's copy rather than the run's record.
   answer?: string;
