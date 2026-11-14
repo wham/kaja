@@ -25,6 +25,7 @@ export function FieldSheet({ row, control, onWrite, onClose, onRemove, onEditAsT
   const shown = useRef({ row, control });
   if (open) shown.current = { row, control };
   const { row: drawn, control: drawnControl } = shown.current;
+  const keyboard = useKeyboardInset(open);
 
   const write = (text: string) => {
     onWrite(text);
@@ -38,8 +39,8 @@ export function FieldSheet({ row, control, onWrite, onClose, onRemove, onEditAsT
         <BaseDialog.Popup
           aria-label={drawn ? `Edit ${drawn.key}` : "Edit"}
           initialFocus={false}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[14px] border-t border-border bg-popover text-popover-foreground shadow-lg outline-none transition-transform duration-200 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
+          style={keyboard ? { bottom: keyboard.inset, maxHeight: keyboard.height * 0.8 } : { maxHeight: "80vh", paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           {drawn && drawnControl && (
             <>
@@ -85,6 +86,29 @@ export function FieldSheet({ row, control, onWrite, onClose, onRemove, onEditAsT
       </BaseDialog.Portal>
     </BaseDialog.Root>
   );
+}
+
+// iOS draws its keyboard over the layout viewport rather than shrinking it, so a sheet
+// at `bottom: 0` sits under the keyboard its own field raised. The visual viewport is
+// what is left above it.
+function useKeyboardInset(open: boolean): { inset: number; height: number } | undefined {
+  const [keyboard, setKeyboard] = useState<{ inset: number; height: number }>();
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!open || !viewport) return;
+    const measure = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setKeyboard(inset > 0 ? { inset, height: viewport.height } : undefined);
+    };
+    measure();
+    viewport.addEventListener("resize", measure);
+    viewport.addEventListener("scroll", measure);
+    return () => {
+      viewport.removeEventListener("resize", measure);
+      viewport.removeEventListener("scroll", measure);
+    };
+  }, [open]);
+  return keyboard;
 }
 
 function Control({ control, onWrite }: { control: FieldControl; onWrite: (text: string) => void }) {
