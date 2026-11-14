@@ -49,6 +49,8 @@ let schedule: (run: () => void) => void = (run) => {
 // Overridable so tests can run the queue without a frame.
 export function setAppErrorSchedule(next: (run: () => void) => void): void {
   schedule = next;
+  // A frame the old schedule was holding never runs on the new one.
+  frame = false;
 }
 
 /**
