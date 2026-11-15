@@ -19,8 +19,7 @@ import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
-import { SignInState, SignInStatus, SignInVariable, followSignIn } from "./SignIn";
-import { signInCredential, signsIn } from "./variableExpansion";
+import { SignInState, SignInStatus, followSignIn } from "./SignIn";
 
 type ReadState = { status: "idle" } | { status: "reading" } | { status: "read"; server: McpServer } | { status: "problem"; problem: McpProblem };
 
@@ -169,12 +168,9 @@ export function McpForm({
   }, []);
 
   const authorize = useCallback(async () => {
-    const credential = signInCredential(parametersRef.current.token ?? "", name, variables);
-    const parameters: Record<string, string> = { ...parametersRef.current, token: credential };
-    onParametersChange((previous) => ({ ...previous, token: credential }));
-    const call = getApiClient().authorizeMcp({ mcp: mcpApp(parameters) });
+    const call = getApiClient().authorizeMcp({ mcp: mcpApp(parametersRef.current) });
     if (await followSignIn(call, setSignIn)) read({ fresh: true });
-  }, [read, name, variables, onParametersChange]);
+  }, [read]);
 
   const forget = useCallback(async () => {
     try {
@@ -291,11 +287,7 @@ export function McpForm({
               disabled={readOnly}
               className={known ? "pr-28" : marks ? knownMarksPadding(servers.length, phone) : undefined}
               trailingAction={
-                known ? (
-                  <KnownChip entry={known} />
-                ) : (
-                  marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
-                )
+                known ? <KnownChip entry={known} /> : marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
               }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
@@ -377,15 +369,7 @@ export function McpForm({
             <FormSection fields={["auth", "clientId", "scope", "apiKeyName", "token"]}>
               <AuthenticationSection
                 selected={auth}
-                onSelect={(value) =>
-                  onParametersChange((previous) => ({
-                    ...previous,
-                    auth: value,
-                    // The sign-in stays kept for when Sign in is chosen again; another
-                    // credential is typed, and a reference to a sign-in isn't one.
-                    ...(value !== AUTH_OAUTH && signsIn(previous.token ?? "", variables) ? { token: "" } : {}),
-                  }))
-                }
+                onSelect={(value) => onParametersChange((previous) => ({ ...previous, auth: value }))}
                 known={known?.connect ? undefined : known}
                 parameters={parameters}
                 onParameterChange={setParameter}
@@ -552,7 +536,6 @@ function AuthenticationSection({
                   onBundled={known && own ? backToKaja : undefined}
                 />
               )}
-              <SignInVariable credential={parameters.token ?? ""} variables={variables} />
               {!bundled && (
                 <>
                   <VariableSuggestInput

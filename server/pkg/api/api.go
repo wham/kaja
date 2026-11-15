@@ -35,8 +35,7 @@ type ApiService struct {
 	canUpdateWorkspace bool
 	gitRef             string
 	buildNumber        string
-	// authorizer runs the sign-ins, keeping each in the "${signin}" variable its app
-	// names. It is nil where the workspace is read-only, and the verbs that use it
+	// authorizer runs the sign-ins, keeping each for the server it is to. It is nil where the workspace is read-only, and the verbs that use it
 	// are then absent.
 	authorizer *oauth.Authorizer
 	apps       *apps.Manager
@@ -553,10 +552,6 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 		}})
 	}
 
-	name, err := s.signInVariable(req.Mcp.Token)
-	if err != nil {
-		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
-	}
 	prompt, done, err := s.authorizer.Begin(stream.Context(), s.mcpAuthorization(stream.Context(), req.Mcp))
 	if err != nil {
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
@@ -573,13 +568,10 @@ func (s *ApiService) AuthorizeMcp(req *AuthorizeMcpRequest, stream grpc.ServerSt
 		}
 		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
 	}
-	if err := s.defineSignIn(name); err != nil {
-		return stream.Send(&AuthorizeMcpResponse{Problem: authorizationProblem(err)})
-	}
 	return stream.Send(&AuthorizeMcpResponse{Authorized: true})
 }
 
-// ForgetMcpAuthorization drops the sign-in the app's variable holds.
+// ForgetMcpAuthorization drops the sign-in kept for the app's server.
 func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpAuthorizationRequest) (*ForgetMcpAuthorizationResponse, error) {
 	if req.Mcp == nil {
 		return nil, fmt.Errorf("mcp app is required")
@@ -587,7 +579,7 @@ func (s *ApiService) ForgetMcpAuthorization(ctx context.Context, req *ForgetMcpA
 	if s.authorizer == nil {
 		return &ForgetMcpAuthorizationResponse{}, nil
 	}
-	if err := s.authorizer.Forget(ctx, req.Mcp.Token); err != nil {
+	if err := s.authorizer.Forget(ctx, s.variables(ctx).Expand(req.Mcp.Url)); err != nil {
 		return nil, err
 	}
 	return &ForgetMcpAuthorizationResponse{}, nil
@@ -613,15 +605,10 @@ func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.
 		}})
 	}
 
-	name, err := s.signInVariable(req.Openapi.Token)
-	if err != nil {
-		return failed(err)
-	}
 	authorization, err := openapi.SignInFor(stream.Context(), s.openApiParameters(stream.Context(), req.Openapi))
 	if err != nil {
 		return failed(err)
 	}
-	authorization.Credential = req.Openapi.Token
 	prompt, done, err := s.authorizer.Begin(stream.Context(), authorization)
 	if err != nil {
 		return failed(err)
@@ -636,13 +623,10 @@ func (s *ApiService) AuthorizeOpenApi(req *AuthorizeOpenApiRequest, stream grpc.
 		}
 		return failed(err)
 	}
-	if err := s.defineSignIn(name); err != nil {
-		return failed(err)
-	}
 	return stream.Send(&AuthorizeOpenApiResponse{Authorized: true})
 }
 
-// ForgetOpenApiAuthorization drops the sign-in the app's variable holds.
+// ForgetOpenApiAuthorization drops the sign-in kept for the server the app's scheme signs in to.
 func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *ForgetOpenApiAuthorizationRequest) (*ForgetOpenApiAuthorizationResponse, error) {
 	if req.Openapi == nil {
 		return nil, fmt.Errorf("openapi app is required")
@@ -650,7 +634,11 @@ func (s *ApiService) ForgetOpenApiAuthorization(ctx context.Context, req *Forget
 	if s.authorizer == nil {
 		return &ForgetOpenApiAuthorizationResponse{}, nil
 	}
-	if err := s.authorizer.Forget(ctx, req.Openapi.Token); err != nil {
+	resource, ok := openapi.SignInResource(s.openApiParameters(ctx, req.Openapi))
+	if !ok {
+		return &ForgetOpenApiAuthorizationResponse{}, nil
+	}
+	if err := s.authorizer.Forget(ctx, resource); err != nil {
 		return nil, err
 	}
 	return &ForgetOpenApiAuthorizationResponse{}, nil
@@ -670,11 +658,10 @@ func (s *ApiService) mcpAuthorization(ctx context.Context, app *McpApp) oauth.Ap
 	resolver := s.variables(ctx)
 	endpoint := resolver.Expand(app.Url)
 	return oauth.AppAuthorization{
-		Credential: app.Token,
-		Endpoint:   endpoint,
-		Probe:      mcp.Probe(endpoint, resolver.ExpandAll(app.Headers)),
-		ClientID:   resolver.Expand(app.ClientId),
-		Scope:      resolver.Expand(app.Scope),
+		Endpoint: endpoint,
+		Probe:    mcp.Probe(endpoint, resolver.ExpandAll(app.Headers)),
+		ClientID: resolver.Expand(app.ClientId),
+		Scope:    resolver.Expand(app.Scope),
 	}
 }
 

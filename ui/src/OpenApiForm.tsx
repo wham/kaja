@@ -53,8 +53,7 @@ import { pluralCount } from "./plural";
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
-import { SignInState, SignInStatus, SignInVariable, followSignIn } from "./SignIn";
-import { signInCredential } from "./variableExpansion";
+import { SignInState, SignInStatus, followSignIn } from "./SignIn";
 
 // The value itself lives in specUrl (URL) or specContent (file, paste); switching
 // mode clears it but keeps everything the document filled in, since people often
@@ -197,12 +196,10 @@ export function OpenApiForm({
   }, []);
 
   const authorize = useCallback(async () => {
-    const credential = signInCredential(parametersRef.current.token ?? "", name, variables);
-    const parameters: Record<string, string> = { ...parametersRef.current, token: credential };
-    onParametersChange((previous) => ({ ...previous, token: credential }));
+    const parameters = parametersRef.current;
     const call = getApiClient().authorizeOpenApi({ openapi: openApiApp(parameters) });
     if (await followSignIn(call, setSignIn)) recordSignIn(parameters.securityScheme ?? "", true);
-  }, [recordSignIn, name, variables, onParametersChange]);
+  }, [recordSignIn]);
 
   const forget = useCallback(async () => {
     const parameters = parametersRef.current;
@@ -933,7 +930,6 @@ function AuthenticationSection({
                   {/* The verbs go where the workspace can't be written, as in the MCP form. */}
                   {!readOnly && <SignInStatus state={signIn} signedIn={scheme.signedIn} onSignIn={onSignIn} onSignOut={onSignOut} />}
                   {scheme.signedIn && <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>}
-                  <SignInVariable credential={parameters.token ?? ""} variables={variables} />
                 </ChoiceBody>
               )}
               {isSelected && !scheme.signIn && (

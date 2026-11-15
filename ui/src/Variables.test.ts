@@ -32,13 +32,6 @@ describe("storedValueChanges", () => {
     expect(storedValueChanges({ A: secret }, { B: secret }, [{ saved: "A", key: "B" }], new Set())).toEqual({ renamed: [{ from: "A", to: "B" }], cleared: [] });
   });
 
-  it("carries a sign-in the same way", () => {
-    expect(storedValueChanges({ A: "${signin}" }, { B: "${signin}" }, [{ saved: "A", key: " B " }], new Set())).toEqual({
-      renamed: [{ from: "A", to: "B" }],
-      cleared: [],
-    });
-  });
-
   it("clears a value whose row changed source as well as name", () => {
     expect(storedValueChanges({ A: secret }, { B: "plain" }, [{ saved: "A", key: "B" }], new Set())).toEqual({ renamed: [], cleared: ["A"] });
   });

@@ -91,15 +91,18 @@ func TestWorkspaceResponseIsACopy(t *testing.T) {
 
 func TestGenerationFollowsContentAndStatuses(t *testing.T) {
 	statuses := []*VariableStatus{{Name: "TOKEN", Source: VariableSource_VARIABLE_SOURCE_UNSET, EnvName: "KAJA_TOKEN"}}
-	base := generationOf([]byte(`{"apps":[]}`), statuses)
-	if base != generationOf([]byte(`{"apps":[]}`), statuses) {
+	base := generationOf([]byte(`{"apps":[]}`), statuses, nil)
+	if base != generationOf([]byte(`{"apps":[]}`), statuses, nil) {
 		t.Error("the same state has two generations")
 	}
-	if base == generationOf([]byte(`{"apps": []}`), statuses) {
+	if base == generationOf([]byte(`{"apps": []}`), statuses, nil) {
 		t.Error("the file's bytes moved and the generation did not")
 	}
-	if base == generationOf([]byte(`{"apps":[]}`), []*VariableStatus{{Name: "TOKEN", Source: VariableSource_VARIABLE_SOURCE_KEYCHAIN, EnvName: "KAJA_TOKEN"}}) {
+	if base == generationOf([]byte(`{"apps":[]}`), []*VariableStatus{{Name: "TOKEN", Source: VariableSource_VARIABLE_SOURCE_KEYCHAIN, EnvName: "KAJA_TOKEN"}}, nil) {
 		t.Error("a variable's source moved and the generation did not")
+	}
+	if base == generationOf([]byte(`{"apps":[]}`), statuses, []*SignInStatus{{App: "one", Resource: "https://example.com", SignedIn: true}}) {
+		t.Error("a sign-in landed and the generation did not")
 	}
 }
 

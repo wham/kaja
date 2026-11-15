@@ -60,7 +60,7 @@ func (a *auth) withToken(ctx context.Context, authorizer *oauth.Authorizer, base
 	if !sameServer(baseURL, a.signIn.resource) {
 		return nil, fmt.Errorf("the sign-in is for %s, and this app calls %s", a.signIn.resource, baseURL)
 	}
-	token, err := authorizer.Token(ctx, a.token, a.signIn.resource)
+	token, err := authorizer.Token(ctx, a.signIn.resource)
 	if err != nil {
 		return nil, err
 	}

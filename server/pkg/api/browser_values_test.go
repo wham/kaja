@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/wham/kaja/v2/pkg/oauth"
 	"testing"
 )
 
@@ -106,21 +107,21 @@ func TestStoringAValueWritesItBackToTheBrowser(t *testing.T) {
 
 // A sign-in lands in the browser's store when it is the request's.
 func TestASignInIsKeptInTheBrowser(t *testing.T) {
-	path := writeWorkspace(t, `{"id": "w1", "variables": {"GITHUB": "${signin}"}}`)
+	path := writeWorkspace(t, `{"id": "w1"}`)
 	service := NewApiService(path, true, "", "", nil)
 	defer service.Close()
 
 	values := ReadBrowserValues(browserHeader(t, "w1", nil))
 	ctx := WithBrowserValues(context.Background(), values)
 	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"gho_token"}}`
-	if err := (signInStore{service: service}).Save(ctx, "GITHUB", held); err != nil {
+	if err := (signInStore{service: service}).Save(ctx, oauth.Slot("https://api.github.com"), held); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	token, err := service.authorizer.Token(ctx, "${GITHUB}", "https://api.github.com")
+	token, err := service.authorizer.Token(ctx, "https://api.github.com")
 	if err != nil || token != "gho_token" {
 		t.Fatalf("Token = %q, %v", token, err)
 	}
-	if _, err := service.authorizer.Token(context.Background(), "${GITHUB}", "https://api.github.com"); err == nil {
+	if _, err := service.authorizer.Token(context.Background(), "https://api.github.com"); err == nil {
 		t.Error("expected a request without the browser's values to hold no sign-in")
 	}
 	if values.Written() == "" {

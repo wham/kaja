@@ -84,7 +84,7 @@ func TestASuppliedSchemeIsNeverPickedForAnApp(t *testing.T) {
 
 func TestASignInIsRefusedWithoutAnAuthorizer(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
-	if _, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(context.Background(), nil, "https://api.github.com"); err == nil {
+	if _, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(context.Background(), nil, "https://api.github.com"); err == nil {
 		t.Error("expected a kaja with nowhere to keep a sign-in to refuse")
 	}
 }
@@ -92,8 +92,8 @@ func TestASignInIsRefusedWithoutAnAuthorizer(t *testing.T) {
 func TestASignInSaysWhenItHasNoToken(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
 	authorizer := oauth.NewAuthorizer(memoryStore{}, nil)
-	_, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(context.Background(), authorizer, "https://api.github.com")
-	if err == nil || !strings.Contains(err.Error(), "holds no sign-in") {
+	_, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(context.Background(), authorizer, "https://api.github.com")
+	if err == nil || !strings.Contains(err.Error(), "not signed in") {
 		t.Errorf("err = %v, want it to say kaja is not signed in", err)
 	}
 }
@@ -103,7 +103,7 @@ func TestASignInSaysWhenItHasNoToken(t *testing.T) {
 func TestASignInIsNotSentToAnotherServer(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
 	authorizer := signedInAuthorizer(t, "https://api.github.com", "the-token")
-	_, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(context.Background(), authorizer, "https://github.example.com/api/v3")
+	_, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(context.Background(), authorizer, "https://github.example.com/api/v3")
 	if err == nil || !strings.Contains(err.Error(), "the sign-in is for") {
 		t.Errorf("err = %v, want the call refused", err)
 	}
@@ -112,7 +112,7 @@ func TestASignInIsNotSentToAnotherServer(t *testing.T) {
 func TestASignInSendsTheTokenKajaHolds(t *testing.T) {
 	s := mustReadSpec(t, githubLike)
 	authorizer := signedInAuthorizer(t, "https://api.github.com", "the-token")
-	resolved, err := resolveAuth(s, "githubSignIn", "${SIGNIN}", "", "").withToken(context.Background(), authorizer, "https://api.github.com")
+	resolved, err := resolveAuth(s, "githubSignIn", "", "", "").withToken(context.Background(), authorizer, "https://api.github.com")
 	if err != nil {
 		t.Fatalf("withToken: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestASignInSendsTheTokenKajaHolds(t *testing.T) {
 func signedInAuthorizer(t *testing.T, resource, token string) *oauth.Authorizer {
 	t.Helper()
 	held := `{"resource":"` + resource + `","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"` + token + `"}}`
-	return oauth.NewAuthorizer(memoryStore{"SIGNIN": held}, nil)
+	return oauth.NewAuthorizer(memoryStore{oauth.Slot(resource): held}, nil)
 }
 
 type memoryStore map[string]string
@@ -164,5 +164,18 @@ func TestASignInIsNotSentToWhereTheDocumentIsHosted(t *testing.T) {
 	}
 	if authorization != "" {
 		t.Errorf("the document was fetched with Authorization %q", authorization)
+	}
+}
+
+// Which server an app signs in to is read off its parameters, without the document.
+func TestSignInResourceIsReadOffTheParameters(t *testing.T) {
+	if got, ok := SignInResource(map[string]string{"security_scheme": "githubSignIn"}); !ok || got != "https://api.github.com" {
+		t.Errorf("SignInResource = %q, %v", got, ok)
+	}
+	if _, ok := SignInResource(map[string]string{"security_scheme": "githubSignIn", "base_url": "https://github.example.com/api/v3"}); ok {
+		t.Error("expected an app calling another server not to sign in to GitHub")
+	}
+	if _, ok := SignInResource(map[string]string{"security_scheme": "personalAccessToken"}); ok {
+		t.Error("expected a token scheme not to be a sign-in")
 	}
 }

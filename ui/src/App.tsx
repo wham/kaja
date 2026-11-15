@@ -58,7 +58,7 @@ import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./
 import { remapEditorCode, remapSourcesToNewName, Sources } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { deviceConsole, logScriptLine } from "./uiLog";
-import { Workspace, WorkspaceApp, GetWorkspaceResponse, LogLevel, Runtime, VariableStatus } from "./server/api";
+import { Workspace, WorkspaceApp, GetWorkspaceResponse, LogLevel, Runtime, SignInStatus, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
 import {
@@ -225,6 +225,7 @@ export function App() {
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
+  const [signIns, setSignIns] = useState<SignInStatus[]>([]);
   const variableWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   // The apps are a store rather than state (appStore.ts): a compile is a stream of log
   // lines, and the surface this reads moves only when one of them lands.
@@ -987,6 +988,7 @@ export function App() {
       if (!isNewGeneration(generationRef.current, response.generation)) return;
       generationRef.current = response.generation;
       setVariableStatus(response.variableStatus);
+      setSignIns(response.signIns);
       if (response.workspace) {
         applyWorkspace(response.workspace);
       }
@@ -1144,6 +1146,7 @@ export function App() {
       if (cancelled) return;
       if (response.workspace) setWorkspace(response.workspace);
       setVariableStatus(response.variableStatus);
+      setSignIns(response.signIns);
       if (response.runtime) setRuntime(response.runtime);
       generationRef.current = response.generation;
       setWorkspaceLoaded(true);
@@ -2349,6 +2352,18 @@ export function App() {
     [applyViews],
   );
 
+  // A sign-in is the server's, so signing out of one app signs out of every app calling
+  // that server. The watch stream says so once the store has let go of it.
+  const onSignOut = useCallback(async (appName: string) => {
+    const app = appStore.app(appName)?.configuration.app;
+    try {
+      if (app?.oneofKind === "mcp") await getApiClient().forgetMcpAuthorization({ mcp: app.mcp });
+      else if (app?.oneofKind === "openapi") await getApiClient().forgetOpenApiAuthorization({ openapi: app.openapi });
+    } catch (error) {
+      console.error(`Signing out of ${appName} failed: ${rpcErrorMessage(error)}`);
+    }
+  }, []);
+
   // Drops the form and answers with who was waiting on it, if an agent was.
   const dropAppForm = (viewId: string): string | undefined => {
     const form = viewsRef.current.find((view) => view.id === viewId);
@@ -2817,6 +2832,9 @@ export function App() {
           onScriptSelect={(script) => void onScriptSelect(script)}
           onRevealApp={(name) => setAutoExpandApp({ name })}
           onEditApp={onEditApp}
+          signIns={signIns}
+          apps={workspace?.apps ?? []}
+          onSignOut={onSignOut}
           reveal={variableReveal}
         />
       )}
@@ -2928,7 +2946,7 @@ export function App() {
         onNewScript={phoneClosing(onNewDraft)}
         onFinderClick={isPhone ? closingSidebar(() => setFinder("first")) : () => setFinder("first")}
         onVariablesClick={phoneClosing(onVariablesClick)}
-        variablesMissing={missing.length > 0}
+        variablesMissing={missing.length > 0 || signIns.some((signIn) => !signIn.signedIn)}
         missingVariables={missingApps}
         onRevealVariable={phoneClosing(onRevealVariable)}
         onMcpClick={mcpControl ? phoneClosing(onMcpClick) : undefined}
