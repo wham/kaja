@@ -168,8 +168,8 @@ export function McpForm({
   }, []);
 
   const authorize = useCallback(async () => {
-    const call = getApiClient().authorizeMcp({ mcp: mcpApp(parametersRef.current) });
-    if (await followSignIn(call, setSignIn)) read({ fresh: true });
+    const app = mcpApp(parametersRef.current);
+    if (await followSignIn((abort) => getApiClient().authorizeMcp({ mcp: app }, { abort }), setSignIn)) read({ fresh: true });
   }, [read]);
 
   const forget = useCallback(async () => {
