@@ -147,7 +147,7 @@ func inspectProtoDir(parameters map[string]string, log func(string)) (*Server, *
 	}
 	log(fmt.Sprintf("Found %d proto file(s) in %s", len(files), dir))
 
-	compiled, err := protoc.New(protoc.WithProtoPaths(dir)).Compile(files...)
+	compiled, err := protoc.New(protoc.WithProtoPaths(dir), protoc.WithDescriptorsOnly()).Compile(files...)
 	if err != nil {
 		return nil, &Problem{Kind: ProblemProtoInvalid, Message: "The proto files are there, but they don't compile.", Detail: err.Error()}
 	}
