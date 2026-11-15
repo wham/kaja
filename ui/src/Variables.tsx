@@ -17,7 +17,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
 import { ReadOnlyBanner } from "./ReadOnlyBanner";
 import { rpcErrorMessage } from "./rpcMessage";
-import { VariableSource, VariableStatus } from "./server/api";
+import { AppTypeIcon } from "./AppTypeIcon";
+import { appType } from "./appTypes";
+import { SignInStatus, VariableSource, VariableStatus, WorkspaceApp } from "./server/api";
 import { useVariableScan, VariableScan } from "./useVariableScan";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
 import { orderReferences, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
@@ -60,6 +62,11 @@ interface VariablesProps {
   onRevealApp: (name: string) => void;
   // Opens an app's settings, which is where a sign-in is made.
   onEditApp: (name: string) => void;
+  // One per app that signs in. A sign-in is kept for the app's server rather than
+  // under a name, so it is listed by the app and is not a variable.
+  signIns: SignInStatus[];
+  apps: WorkspaceApp[];
+  onSignOut: (app: string) => Promise<void>;
   // One-shot: the variable something elsewhere said was missing, which is brought into
   // view with what fixes it already open.
   reveal?: { name: string };
@@ -68,13 +75,12 @@ interface VariablesProps {
 const SOURCE_LABEL: Record<VariableKind, string> = {
   value: "Value",
   stored: storedLabel(),
-  signIn: "Sign-in",
   environment: "Environment",
 };
 
-// Both keep what they hold in the keychain, so a row leaving either takes it along.
+// A row leaving the keychain takes what it held there along.
 function keptInStore(kind: VariableKind): boolean {
-  return kind === "stored" || kind === "signIn";
+  return kind === "stored";
 }
 
 const AUTOSAVE_MS = 600;
@@ -176,6 +182,9 @@ export function Variables({
   onScriptSelect,
   onRevealApp,
   onEditApp,
+  signIns,
+  apps,
+  onSignOut,
   reveal,
 }: VariablesProps) {
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
@@ -346,7 +355,7 @@ export function Variables({
 
   const held = (row: VariableRow) => {
     const source = statusOf(row)?.source;
-    return source === VariableSource.KEYCHAIN || source === VariableSource.SIGN_IN || justStored.has(row.key.trim());
+    return source === VariableSource.KEYCHAIN || justStored.has(row.key.trim());
   };
 
   useEffect(() => {
@@ -362,13 +371,6 @@ export function Variables({
     if (!readOnly && storeAvailable && variableKind(row.value) === "stored" && !held(row)) setKeychainSheet({ index, name: reveal.name });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
-
-  // A sign-in is made in the settings of the app it signs in, which is the one that
-  // names the variable.
-  const signIn = (name: string) => {
-    const app = uses.get(name)?.[0]?.app;
-    if (app) onEditApp(app);
-  };
 
   // Deleting a variable something reads breaks that reference, and deleting one the
   // keychain holds a value for throws the value away. Either is worth stating; a
@@ -387,7 +389,7 @@ export function Variables({
   };
 
   const body =
-    rows.length === 0 ? (
+    rows.length === 0 && signIns.length === 0 ? (
       <div className="flex min-h-0 flex-1 items-center justify-center px-4">
         <Blankslate className="max-w-[340px] py-0">
           <Blankslate.Visual>
@@ -408,6 +410,17 @@ export function Variables({
       </div>
     ) : (
       <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-3.5">
+        {signIns.length > 0 && (
+          <SignIns
+            signIns={signIns}
+            apps={apps}
+            storeAvailable={storeAvailable}
+            readOnly={readOnly}
+            onSignIn={onEditApp}
+            onSignOut={onSignOut}
+            onRevealApp={onRevealApp}
+          />
+        )}
         {undefinedReferences.length > 0 && (
           <div className="flex shrink-0 flex-col gap-2 pb-3">
             {undefinedReferences.map((name) => (
@@ -436,6 +449,7 @@ export function Variables({
           </div>
         )}
 
+        {signIns.length > 0 && <SectionHeading>Variables</SectionHeading>}
         <div className="flex h-[26px] shrink-0 items-center gap-3 px-1 text-xs text-muted-foreground max-sm:hidden">
           <span className="w-[216px]">Name</span>
           {readOnly && <span className="w-[104px]">Source</span>}
@@ -475,7 +489,7 @@ export function Variables({
               }}
               onChange={(patch) => update(index, patch)}
               onSource={(kind) => setSource(index, kind)}
-              onEnterValue={() => (variableKind(row.value) === "signIn" ? signIn(name) : setKeychainSheet({ index, name }))}
+              onEnterValue={() => setKeychainSheet({ index, name })}
               onRemove={(focus) => (focus === undefined ? askToDelete(index) : removeRow(index, focus))}
               onAddRow={index === rows.length - 1 ? addRow : undefined}
               isLast={index === rows.length - 1}
@@ -602,8 +616,7 @@ function VariableRowEditor({
   const unset =
     Boolean(name) &&
     !error &&
-    (((kind === "stored" || kind === "signIn") && !held && source === VariableSource.UNSET) ||
-      (kind === "environment" && status?.source === VariableSource.UNSET));
+    ((kind === "stored" && !held && source === VariableSource.UNSET) || (kind === "environment" && status?.source === VariableSource.UNSET));
 
   return (
     <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1.5 border-t border-border px-1 py-1.5 transition-colors hover:bg-muted/40">
@@ -633,13 +646,11 @@ function VariableRowEditor({
           <ValueField
             warn={unset}
             error={Boolean(error)}
-            clickable={(kind === "stored" && storeAvailable) || (kind === "signIn" && !held)}
-            onClick={(kind === "stored" && storeAvailable) || (kind === "signIn" && !held) ? onEnterValue : undefined}
+            clickable={kind === "stored" && storeAvailable}
+            onClick={kind === "stored" && storeAvailable ? onEnterValue : undefined}
           >
             {kind === "stored" ? (
               <StoredValueCell storedEnv={storedEnv} source={source} held={held} storeAvailable={storeAvailable} />
-            ) : kind === "signIn" ? (
-              <SignInCell storedEnv={storedEnv} status={status} />
             ) : (
               <>
                 <Input
@@ -716,18 +727,22 @@ function ValueField({
   error,
   clickable,
   onClick,
+  alone,
   children,
 }: {
   warn: boolean;
   error: boolean;
   clickable: boolean;
   onClick?: () => void;
+  // No source picker is welded to its left.
+  alone?: boolean;
   children: ReactNode;
 }) {
   const className = cn(
     "group/value -ml-px flex h-8 min-w-0 flex-1 items-center rounded-r-md border shadow-sm focus-within:relative focus-within:ring-2 focus-within:ring-ring",
     error ? "border-destructive bg-background" : warn ? "border-amber-500/40 bg-amber-500/10" : "border-input bg-background",
     clickable && "cursor-pointer text-left transition-colors hover:border-ring focus-visible:relative focus-visible:ring-2 focus-visible:ring-ring",
+    alone && "ml-0 rounded-md",
   );
   if (!clickable) return <div className={className}>{children}</div>;
   return (
@@ -766,8 +781,6 @@ function SourcePicker({
       <DropdownMenuContent align="start" className="w-[288px]">
         <div className="flex h-6 items-center px-2 text-xs text-muted-foreground">Where the value comes from</div>
         <SourceItem selected={kind === "value"} label="Value" description="Written in kaja.json" onSelect={() => onSelect("value")} />
-        {/* Signing in from an app is what makes one, so it is listed only where it is. */}
-        {kind === "signIn" && <SourceItem selected label="Sign-in" description="Kept by signing in from an app" onSelect={() => onSelect("signIn")} />}
         <SourceItem
           selected={kind === "stored"}
           label={SOURCE_LABEL.stored}
@@ -801,31 +814,117 @@ function SourceItem({ selected, label, description, onSelect }: { selected: bool
   );
 }
 
-// SignInCell says which server the sign-in is for, never anything of the token. The
-// fix for one that is missing is signing in from the app, which the click opens.
-function SignInCell({ storedEnv, status }: { storedEnv: string; status?: VariableStatus }) {
-  if (status?.source === VariableSource.SIGN_IN) {
-    return (
-      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-        <span className="truncate text-xs text-muted-foreground">Signed in to {resourceHost(status.signInResource)}</span>
-      </span>
-    );
-  }
-  if (status?.source === VariableSource.ENVIRONMENT) {
-    return (
-      <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-        <span className="truncate text-xs text-muted-foreground">
-          Read from <code>{storedEnv}</code>
-        </span>
-      </span>
-    );
-  }
+function SectionHeading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-      <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
-      <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not signed in {storedWhere()}</span>
-      <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover/value:text-foreground">Sign in…</span>
-    </span>
+    <div className="flex h-7 shrink-0 items-baseline justify-between gap-4 px-1 pt-1">
+      <span className="text-xs font-medium text-foreground">{children}</span>
+      {aside && <span className="truncate text-xs text-muted-foreground max-sm:hidden">{aside}</span>}
+    </div>
+  );
+}
+
+// Sign-ins are rows of the table's own shape, the app where a name goes, because they
+// are values kept outside kaja.json too. What they are not is named: a sign-in is the
+// server's, found by the app that calls it, so there is nothing to reference.
+function SignIns({
+  signIns,
+  apps,
+  storeAvailable,
+  readOnly,
+  onSignIn,
+  onSignOut,
+  onRevealApp,
+}: {
+  signIns: SignInStatus[];
+  apps: WorkspaceApp[];
+  storeAvailable: boolean;
+  readOnly: boolean;
+  onSignIn: (app: string) => void;
+  onSignOut: (app: string) => Promise<void>;
+  onRevealApp: (app: string) => void;
+}) {
+  const types = new Map(apps.map((app) => [app.name, appType(app)]));
+  return (
+    <div className="flex shrink-0 flex-col pb-6">
+      <SectionHeading aside={`Kept ${storedWhere()}. Nothing is written to kaja.json.`}>Sign-ins</SectionHeading>
+      {signIns.map((signIn) => (
+        <SignInRow
+          key={signIn.app}
+          signIn={signIn}
+          type={types.get(signIn.app) ?? ""}
+          canSignIn={!readOnly && storeAvailable}
+          onSignIn={() => onSignIn(signIn.app)}
+          onSignOut={() => onSignOut(signIn.app)}
+          onRevealApp={() => onRevealApp(signIn.app)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SignInRow({
+  signIn,
+  type,
+  canSignIn,
+  onSignIn,
+  onSignOut,
+  onRevealApp,
+}: {
+  signIn: SignInStatus;
+  type: string;
+  canSignIn: boolean;
+  onSignIn: () => void;
+  onSignOut: () => Promise<void>;
+  onRevealApp: () => void;
+}) {
+  const [signingOut, setSigningOut] = useState(false);
+  const host = resourceHost(signIn.resource);
+  return (
+    <div className="flex min-h-[44px] shrink-0 items-center gap-3 border-t border-border px-1 py-1.5 max-sm:flex-wrap max-sm:gap-y-1">
+      <button
+        type="button"
+        onClick={onRevealApp}
+        className="flex w-[216px] shrink-0 items-center gap-2 rounded-md px-2.5 text-left text-sm transition-colors hover:text-foreground max-sm:w-full"
+      >
+        <AppTypeIcon type={type} size={13} className="shrink-0 text-muted-foreground" />
+        <span className="truncate">{signIn.app}</span>
+      </button>
+      {signIn.signedIn ? (
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm">
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+          <span className="truncate text-xs text-muted-foreground">
+            Signed in to <span className="text-foreground">{host}</span>
+          </span>
+          {canSignIn && (
+            <button
+              type="button"
+              disabled={signingOut}
+              onClick={() => {
+                setSigningOut(true);
+                void onSignOut().finally(() => setSigningOut(false));
+              }}
+              className="ml-auto shrink-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              Sign out
+            </button>
+          )}
+        </div>
+      ) : (
+        <ValueField alone warn error={false} clickable={canSignIn} onClick={canSignIn ? onSignIn : undefined}>
+          <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+            <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="truncate text-xs text-amber-600 dark:text-amber-400">
+              Not signed in to {host} {storedWhere()}
+            </span>
+            {canSignIn && (
+              <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover/value:text-foreground">Sign in…</span>
+            )}
+          </span>
+        </ValueField>
+      )}
+      <span className="w-[132px] shrink-0 max-sm:hidden" />
+      <span className="ml-1 w-6 shrink-0 max-sm:hidden" />
+    </div>
   );
 }
 
@@ -964,8 +1063,6 @@ function VariableRowStatic({ row, status, usedBy }: { row: VariableRow; status?:
           </span>
         ) : source === VariableSource.KEYCHAIN ? (
           <span className="text-muted-foreground">Stored {storedWhere()}</span>
-        ) : source === VariableSource.SIGN_IN ? (
-          <span className="text-muted-foreground">Signed in to {resourceHost(status?.signInResource ?? "")}</span>
         ) : (
           <span className="text-muted-foreground">
             Read from <code>{envName}</code>

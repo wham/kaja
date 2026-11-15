@@ -3,70 +3,63 @@ package api
 import (
 	"context"
 	"testing"
+
+	"github.com/wham/kaja/v2/pkg/oauth"
 )
 
-// A sign-in is kept under the workspace's id like a stored value, and the variable
-// naming it is written into kaja.json once it lands.
-func TestASignInIsKeptAsAVariable(t *testing.T) {
-	path := writeWorkspace(t, `{"variables": {"HOST": "https://example.com"}}`)
+// A sign-in is kept under the workspace's id and the server it is for, and every
+// app that signs in to that server is stated as signed in. kaja.json is not written.
+func TestASignInIsKeptForTheServer(t *testing.T) {
+	path := writeWorkspace(t, `{"id": "w", "apps": [
+		{"name": "one", "mcp": {"url": "https://Example.com/mcp/", "auth": "oauth"}},
+		{"name": "two", "mcp": {"url": "https://example.com/mcp", "auth": "oauth"}},
+		{"name": "elsewhere", "mcp": {"url": "https://other.example.com/mcp", "auth": "oauth"}},
+		{"name": "token", "mcp": {"url": "https://example.com/mcp", "auth": "bearer", "token": "t"}},
+		{"name": "github", "openapi": {"spec_url": "https://example.com/spec.json", "security_scheme": "githubSignIn"}}
+	]}`)
 	store := &fakeStore{available: true}
 	service := NewApiService(path, true, "", "", store)
 	defer service.Close()
 
-	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"the-token"}}`
-	if err := (signInStore{service: service}).Save(context.Background(), "GITHUB", held); err != nil {
+	held := `{"resource":"https://example.com/mcp","server":{"issuer":"https://example.com"},"token":{"access_token":"the-token"}}`
+	if err := (signInStore{service: service}).Save(context.Background(), oauth.Slot("https://example.com/mcp"), held); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	name, err := service.signInVariable("${GITHUB}")
-	if err != nil || name != "GITHUB" {
-		t.Fatalf("signInVariable = %q, %v", name, err)
-	}
-	if err := service.defineSignIn(name); err != nil {
-		t.Fatalf("defineSignIn: %v", err)
+	if got := store.values["w#signin:https://example.com/mcp"]; got != held {
+		t.Errorf("the sign-in is filed under %v", store.values)
 	}
 
-	workspace := service.snapshot().workspace
-	if got := workspace.Variables["GITHUB"]; got != SignInSource {
-		t.Errorf("GITHUB = %q, want %q", got, SignInSource)
+	response := service.workspaceResponse(context.Background())
+	if len(response.Workspace.Variables) != 0 {
+		t.Errorf("variables = %v, want kaja.json left alone", response.Workspace.Variables)
 	}
-	if got := store.values[workspace.GetId()+"#GITHUB"]; got != held {
-		t.Errorf("the sign-in is filed under %v, want the workspace's id", store.values)
+	want := map[string]bool{"one": true, "two": true, "elsewhere": false, "github": false}
+	if len(response.SignIns) != len(want) {
+		t.Fatalf("sign-ins = %v", response.SignIns)
 	}
-	if got := statusFor(t, service.Variables(), "GITHUB"); got.Source != VariableSource_VARIABLE_SOURCE_SIGN_IN {
-		t.Errorf("status = %v", got)
-	}
-}
-
-// A variable that holds a value of its own is not one a sign-in may overwrite.
-func TestASignInIsNotKeptInAVariableWithAValue(t *testing.T) {
-	path := writeWorkspace(t, `{"variables": {"TOKEN": "${secret}"}}`)
-	service := NewApiService(path, true, "", "", &fakeStore{available: true})
-	defer service.Close()
-
-	if _, err := service.signInVariable("${TOKEN}"); err == nil {
-		t.Error("expected a ${secret} variable to be refused")
-	}
-	if _, err := service.signInVariable("ghp_typed"); err == nil {
-		t.Error("expected a credential naming no variable to be refused")
+	for _, status := range response.SignIns {
+		if signedIn, ok := want[status.App]; !ok || signedIn != status.SignedIn {
+			t.Errorf("%s: signed in = %v, want %v", status.App, status.SignedIn, signedIn)
+		}
 	}
 }
 
 // The token a sign-in handed out is masked out of what a call reports sending.
 func TestASignedInTokenIsRedacted(t *testing.T) {
-	path := writeWorkspace(t, `{"variables": {"GITHUB": "${signin}"}}`)
+	path := writeWorkspace(t, `{}`)
 	store := &fakeStore{available: true}
 	service := NewApiService(path, true, "", "", store)
 	defer service.Close()
 
 	held := `{"resource":"https://api.github.com","server":{"issuer":"https://github.com/login/oauth"},"token":{"access_token":"gho_the_token"}}`
-	if err := (signInStore{service: service}).Save(context.Background(), "GITHUB", held); err != nil {
+	if err := (signInStore{service: service}).Save(context.Background(), oauth.Slot("https://api.github.com"), held); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	if _, err := service.authorizer.Token(context.Background(), "${GITHUB}", "https://api.github.com"); err != nil {
+	if _, err := service.authorizer.Token(context.Background(), "https://api.github.com"); err != nil {
 		t.Fatalf("Token: %v", err)
 	}
 	reported := service.redact(service.Variables(), map[string]string{"Authorization": "Bearer gho_the_token"}, nil)
-	if got := reported["Authorization"]; got != "Bearer ${GITHUB}" {
+	if got := reported["Authorization"]; got != "Bearer ${signin}" {
 		t.Errorf("Authorization = %q, want the token masked", got)
 	}
 }

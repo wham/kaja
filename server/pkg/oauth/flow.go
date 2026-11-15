@@ -78,7 +78,7 @@ type Authorizer struct {
 // flow is one sign-in in progress: what it will need to finish, and where to say
 // it has.
 type flow struct {
-	// name is the variable the sign-in is kept under.
+	// name is the slot the sign-in is kept under.
 	name     string
 	resource string
 	// audience is the resource a token is asked for, which is the endpoint or
@@ -112,9 +112,6 @@ type SignInPrompt struct {
 // AppAuthorization is the app's half of a sign-in: which server, and the client
 // it is to be identified as where the authorization server registers none.
 type AppAuthorization struct {
-	// Credential is the app's credential as it names its sign-in: "${NAME}", NAME
-	// being the variable the sign-in is kept in.
-	Credential string
 	// Endpoint is what the token is for and the only address it is sent to.
 	Endpoint string
 	// Issuer is the authorization server, where kaja knows it rather than
@@ -142,10 +139,6 @@ func NewAuthorizer(store Store, client *http.Client) *Authorizer {
 // a channel that reports how it went. Nothing is stored until the flow finishes:
 // a sign-in that is never completed leaves no trace.
 func (a *Authorizer) Begin(ctx context.Context, app AppAuthorization) (SignInPrompt, <-chan error, error) {
-	name, err := signInSlot(app.Credential)
-	if err != nil {
-		return SignInPrompt{}, nil, err
-	}
 	if a.store == nil || !a.store.Available(ctx) {
 		return SignInPrompt{}, nil, fmt.Errorf("this machine has nowhere to keep a sign-in")
 	}
@@ -153,6 +146,7 @@ func (a *Authorizer) Begin(ctx context.Context, app AppAuthorization) (SignInPro
 	if err != nil {
 		return SignInPrompt{}, nil, err
 	}
+	name := Slot(resource)
 
 	var server *authorizationServer
 	var described *protectedResource
@@ -254,32 +248,24 @@ func (a *Authorizer) Cancel(done <-chan error) {
 // to be. It is asked for on every call rather than held, so a sign-in replaced
 // or renewed elsewhere is used by the next call.
 //
-// A credential naming a variable reads the sign-in kept there, which is sent to
-// the resource it was issued for and nowhere else. Anything else is a token the
-// variable resolved to from the environment, where a kaja with nowhere to keep
-// a sign-in is handed one somebody made by hand.
-func (a *Authorizer) Token(ctx context.Context, credential string, endpoint string) (string, error) {
+// The sign-in is the one kept for the endpoint's resource, so it is sent there and
+// nowhere else.
+func (a *Authorizer) Token(ctx context.Context, endpoint string) (string, error) {
 	resource, err := canonicalResource(endpoint)
 	if err != nil {
 		return "", err
 	}
-	name, ok := SignInName(credential)
-	if !ok {
-		if token := strings.TrimSpace(credential); token != "" {
-			return token, nil
-		}
-		return "", fmt.Errorf("the app names no variable to keep its sign-in in; sign in from the app's settings")
-	}
+	name := Slot(resource)
 
 	a.renewing.Lock()
 	defer a.renewing.Unlock()
 
 	held := readGrant(ctx, a.store, name)
 	if held == nil {
-		return "", fmt.Errorf("${%s} holds no sign-in on this device; sign in from the app's settings", name)
+		return "", fmt.Errorf("not signed in to %s on this device; sign in from the app's settings", resource)
 	}
 	if held.Resource != resource {
-		return "", fmt.Errorf("${%s} is a sign-in to %s rather than to %s; sign in again", name, held.Resource, resource)
+		return "", fmt.Errorf("the sign-in kept for %s is to %s; sign in again", resource, held.Resource)
 	}
 	if !held.Token.expired(time.Now()) {
 		return a.handOut(name, held.Token.AccessToken), nil
@@ -347,7 +333,7 @@ func (a *Authorizer) handOut(name string, token string) string {
 	return token
 }
 
-// Sent is the token last handed out under each variable's name.
+// Sent is the token last handed out for each sign-in, by its slot.
 func (a *Authorizer) Sent() map[string]string {
 	if a == nil {
 		return nil
@@ -361,29 +347,24 @@ func (a *Authorizer) Sent() map[string]string {
 	return sent
 }
 
-// SignedIn reports whether an app's credential has a token to send to the
-// endpoint, which is what the app form states beside the button.
-func (a *Authorizer) SignedIn(ctx context.Context, credential string, endpoint string) bool {
-	name, ok := SignInName(credential)
-	if !ok {
-		return strings.TrimSpace(credential) != ""
-	}
+// SignedIn reports whether there is a token to send to the endpoint, which is
+// what the app form states beside the button.
+func (a *Authorizer) SignedIn(ctx context.Context, endpoint string) bool {
 	resource, err := canonicalResource(endpoint)
 	if err != nil {
 		return false
 	}
-	held := readGrant(ctx, a.store, name)
+	held := readGrant(ctx, a.store, Slot(resource))
 	return held != nil && held.Resource == resource
 }
 
-// Forget drops the sign-in an app's credential names, which is what signing out
-// is. The variable stays: it is still where the app's sign-in goes.
-func (a *Authorizer) Forget(ctx context.Context, credential string) error {
-	name, ok := SignInName(credential)
-	if !ok || a.store == nil {
+// Forget drops the sign-in kept for the endpoint, which is what signing out is.
+func (a *Authorizer) Forget(ctx context.Context, endpoint string) error {
+	resource, err := canonicalResource(endpoint)
+	if err != nil || a.store == nil {
 		return nil
 	}
-	return a.store.Delete(ctx, name)
+	return a.store.Delete(ctx, Slot(resource))
 }
 
 // signInAt is the authorization server to sign in at, the resource's own
@@ -661,9 +642,9 @@ func writeCallbackPage(w http.ResponseWriter, status int, message string) {
 // Credential is what an app that signed in sends: a bearer token read from where
 // the sign-in is kept as the call is made, so a renewed one is used without the app being
 // opened again.
-func (a *Authorizer) Credential(credential string, endpoint string) func(ctx context.Context) (map[string]string, error) {
+func (a *Authorizer) Credential(endpoint string) func(ctx context.Context) (map[string]string, error) {
 	return func(ctx context.Context) (map[string]string, error) {
-		token, err := a.Token(ctx, credential, endpoint)
+		token, err := a.Token(ctx, endpoint)
 		if err != nil {
 			return nil, err
 		}

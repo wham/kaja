@@ -3,15 +3,11 @@ package oauth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"regexp"
-	"strings"
 )
 
-// Store is where a sign-in is kept: one value under one name, the name being the
-// "${signin}" variable an app names its credential by. So a sign-in is the
-// workspace's, kept wherever the workspace keeps the values kaja.json only names,
-// and two apps in one workspace can be two different people.
+// Store is where a sign-in is kept: one value under one name, the Slot of the
+// resource it is for. So a sign-in is the workspace's, kept wherever the workspace
+// keeps the values kaja.json only names.
 //
 // Every method is handed the request it serves, because where the values are kept
 // can be the request's own: a browser carries its values on each call it makes.
@@ -32,7 +28,7 @@ type grant struct {
 	Token    *tokenSet            `json:"token"`
 	// Client is the client the token was issued to, secret included where the
 	// server issued one. A sign-in that registered kaja carries that registration,
-	// so signing in again under the same name presents the same client rather than
+	// so signing in again to the same resource presents the same client rather than
 	// leaving another one behind at the server.
 	Client *registration `json:"client,omitempty"`
 	// Audience is the resource the token was asked for, where the resource
@@ -72,7 +68,7 @@ func writeGrant(ctx context.Context, store Store, name string, held *grant) erro
 }
 
 // GrantResource is the resource a kept sign-in is for, or "" where the value is
-// not a sign-in. It is what the Variables view says a sign-in is.
+// not a sign-in.
 func GrantResource(value string) string {
 	held := &grant{}
 	if json.Unmarshal([]byte(value), held) != nil || held.Token == nil {
@@ -81,24 +77,20 @@ func GrantResource(value string) string {
 	return held.Resource
 }
 
-var signInReference = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$`)
-
-// SignInName is the variable an app's credential names, where it names one. A
-// "${signin}" variable is never expanded, so this is the form it reaches an app in.
-func SignInName(credential string) (string, bool) {
-	match := signInReference.FindStringSubmatch(strings.TrimSpace(credential))
-	if match == nil {
-		return "", false
-	}
-	return match[1], true
+// Slot is the name a sign-in to a resource is kept under in the store. A sign-in
+// belongs to the server rather than to an app, so every app in a workspace calling
+// that server sends the same one, and renaming an app or its credential loses
+// nothing. The colon is what keeps it apart from every variable's name.
+func Slot(resource string) string {
+	return "signin:" + resource
 }
 
-// signInSlot is the name an app's credential keeps its sign-in under, or an error
-// saying the credential names none.
-func signInSlot(credential string) (string, error) {
-	name, ok := SignInName(credential)
-	if !ok {
-		return "", fmt.Errorf("the app names no variable to keep its sign-in in")
+// Resource is the canonical form of the address a token is issued for and kept
+// under, or "" where the address isn't one.
+func Resource(endpoint string) string {
+	resource, err := canonicalResource(endpoint)
+	if err != nil {
+		return ""
 	}
-	return name, nil
+	return resource
 }

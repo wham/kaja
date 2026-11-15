@@ -77,14 +77,14 @@ describe("missingVariables", () => {
 
   it("names a variable kaja.json defines and this machine holds nothing for", () => {
     const status = [
-      { name: "HOST", source: VariableSource.FILE, envName: "", signInResource: "" },
-      { name: "TOKEN", source: VariableSource.UNSET, envName: "KAJA_TOKEN", signInResource: "" },
+      { name: "HOST", source: VariableSource.FILE, envName: "" },
+      { name: "TOKEN", source: VariableSource.UNSET, envName: "KAJA_TOKEN" },
     ];
     expect(missingVariables({ HOST: "localhost", TOKEN: "${secret}" }, status, uses)).toEqual([{ name: "TOKEN", defined: true, apps: ["grpcbin"] }]);
   });
 
   it("names a reference no variable defines", () => {
-    const status = [{ name: "HOST", source: VariableSource.FILE, envName: "", signInResource: "" }];
+    const status = [{ name: "HOST", source: VariableSource.FILE, envName: "" }];
     expect(missingVariables({ HOST: "localhost" }, status, uses)).toEqual([{ name: "TOKEN", defined: false, apps: ["grpcbin"] }]);
   });
 
@@ -93,12 +93,12 @@ describe("missingVariables", () => {
   });
 
   it("leaves out a variable nothing uses", () => {
-    const status = [{ name: "UNUSED", source: VariableSource.UNSET, envName: "KAJA_UNUSED", signInResource: "" }];
+    const status = [{ name: "UNUSED", source: VariableSource.UNSET, envName: "KAJA_UNUSED" }];
     expect(missingVariables({ HOST: "x", TOKEN: "y", UNUSED: "${secret}" }, status, uses)).toEqual([]);
   });
 
   it("lists each app once, and every app using it", () => {
-    const status = [{ name: "HOST", source: VariableSource.UNSET, envName: "HOST", signInResource: "" }];
+    const status = [{ name: "HOST", source: VariableSource.UNSET, envName: "HOST" }];
     const missing = missingVariables({ HOST: "${env:HOST}", TOKEN: "t" }, status, uses);
     expect(missing).toEqual([{ name: "HOST", defined: true, apps: ["grpcbin", "box"] }]);
     expect(

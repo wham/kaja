@@ -334,8 +334,8 @@ export interface McpProblem {
  * AuthorizeMcp signs kaja in to the server the app names, over the authorization
  * flow MCP defines: the server says which authorization server issues its tokens,
  * kaja registers itself where it has to, and the token it is given is kept in the
- * "${signin}" variable the app's token names, for that server alone. A variable
- * kaja.json does not define yet is written into it once the sign-in finishes. The app carries the same parameters it would be opened
+ * workspace's store for that server alone, where every app calling the server
+ * finds it. The app carries the same parameters it would be opened
  * with, since a document behind a login is read with the app's own headers.
  */
 export interface AuthorizeMcpRequest {
@@ -367,8 +367,8 @@ export interface AuthorizeMcpResponse {
 }
 
 /**
- * ForgetMcpAuthorization drops the sign-in the app's "${signin}" variable holds,
- * which is what signing out is. The variable stays, as where the next one goes.
+ * ForgetMcpAuthorization drops the sign-in kept for the app's server, which is
+ * what signing out is.
  */
 export interface ForgetMcpAuthorizationRequest {
     mcp?: McpApp;
@@ -439,6 +439,23 @@ export interface GetWorkspaceResponse {
      * state said twice is not.
      */
     generation: string;
+    /**
+     * One entry per app that signs in, saying whether this device holds its sign-in.
+     */
+    signIns: SignInStatus[];
+}
+
+/**
+ * SignInStatus is one app's sign-in as the Variables view states it. A sign-in is
+ * kept for the server rather than the app, so two apps calling one server share it.
+ */
+export interface SignInStatus {
+    app: string;
+    /**
+     * The server the token is for, in the canonical form it is kept under.
+     */
+    resource: string;
+    signedIn: boolean;
 }
 
 /**
@@ -487,14 +504,10 @@ export interface VariableStatus {
     source: VariableSource;
     /**
      * The environment variable consulted for this variable: the name inside
-     * ${env:...}, or KAJA_<NAME> for a "${secret}" or "${signin}" variable. Empty
-     * for a value written in kaja.json.
+     * ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
+     * written in kaja.json.
      */
     envName: string;
-    /**
-     * The server a "${signin}" variable is signed in to, where it holds a sign-in.
-     */
-    signInResource: string;
 }
 
 /**
@@ -749,9 +762,7 @@ export interface Workspace {
      * User-defined variables, referenced as `${NAME}` in app configuration and read
      * from scripts as `kaja.variables.<name>`. A value is either literal, or names
      * the source that holds it outside this file: "${secret}" (the OS keychain, or
-     * KAJA_<NAME> in the environment), "${signin}" (a sign-in kaja keeps in the
-     * keychain for the app naming it as its credential, or a token in KAJA_<NAME>)
-     * or "${env:X}" (the environment variable X, which may sit inside a longer
+     * KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X, which may sit inside a longer
      * value). Only literal values are ever sent to a
      * remote browser.
      */
@@ -893,8 +904,8 @@ export interface TwirpApp {
 export interface OpenApiApp {
     specUrl: string;
     /**
-     * The credential for the chosen scheme. For a scheme kaja signs in to it is
-     * "${NAME}", naming the "${signin}" variable the sign-in is kept in.
+     * The credential for the chosen scheme. A scheme kaja signs in to takes none:
+     * the sign-in is kept for the server.
      */
     token: string;
     username: string;
@@ -1002,8 +1013,8 @@ export interface McpApp {
      */
     auth: string;
     /**
-     * The bearer token, or the key for the "apikey" credential. For "oauth" it is
-     * "${NAME}", naming the "${signin}" variable the sign-in is kept in.
+     * The bearer token, or the key for the "apikey" credential. "oauth" takes none:
+     * the sign-in is kept for the server.
      */
     token: string;
     /**
@@ -1199,11 +1210,6 @@ export enum VariableSource {
      * The value came from an environment variable.
      */
     ENVIRONMENT = 3,
-    /**
-     * The variable holds a sign-in kaja keeps in the OS keychain. Its token is sent
-     * by the app that names it and is never a value anything else is handed.
-     */
-    SIGN_IN = 4,
 }
 
 export enum FolderProblemKind {
@@ -1400,7 +1406,14 @@ export const GetWorkspaceResponse: MessageType<GetWorkspaceResponse> = new Messa
     { no: 2, name: "logs", kind: "message", repeat: 2, T: () => Log },
     { no: 3, name: "variable_status", kind: "message", repeat: 2, T: () => VariableStatus },
     { no: 4, name: "runtime", kind: "message", T: () => Runtime },
-    { no: 5, name: "generation", kind: "scalar", T: 9 }
+    { no: 5, name: "generation", kind: "scalar", T: 9 },
+    { no: 6, name: "sign_ins", kind: "message", repeat: 2, T: () => SignInStatus }
+]);
+
+export const SignInStatus: MessageType<SignInStatus> = new MessageType<SignInStatus>("SignInStatus", [
+    { no: 1, name: "app", kind: "scalar", T: 9 },
+    { no: 2, name: "resource", kind: "scalar", T: 9 },
+    { no: 3, name: "signed_in", kind: "scalar", T: 8 }
 ]);
 
 export const Runtime: MessageType<Runtime> = new MessageType<Runtime>("Runtime", [
@@ -1414,8 +1427,7 @@ export const Runtime: MessageType<Runtime> = new MessageType<Runtime>("Runtime",
 export const VariableStatus: MessageType<VariableStatus> = new MessageType<VariableStatus>("VariableStatus", [
     { no: 1, name: "name", kind: "scalar", T: 9 },
     { no: 2, name: "source", kind: "enum", T: () => ["VariableSource", VariableSource, "VARIABLE_SOURCE_"] },
-    { no: 3, name: "env_name", kind: "scalar", T: 9 },
-    { no: 4, name: "sign_in_resource", kind: "scalar", T: 9 }
+    { no: 3, name: "env_name", kind: "scalar", T: 9 }
 ]);
 
 export const SetStoredValueRequest: MessageType<SetStoredValueRequest> = new MessageType<SetStoredValueRequest>("SetStoredValueRequest", [

@@ -28,6 +28,7 @@ type workspaceSnapshot struct {
 	// repeat.
 	generation string
 	apps       map[string]*snapshotApp
+	signIns    []*SignInStatus
 }
 
 // snapshotApp is one app as the door needs it: its type, its parameters as Open would
@@ -122,7 +123,6 @@ func (snapshot *workspaceSnapshot) resolve(store VariableStore) {
 	workspace := snapshot.workspace
 	resolver := NewResolver(workspace.Variables, store, workspace.Id)
 	snapshot.resolver = resolver
-	snapshot.generation = generationOf(snapshot.raw, resolver.Statuses())
 	snapshot.apps = make(map[string]*snapshotApp, len(workspace.Apps))
 
 	for _, app := range workspace.Apps {
@@ -138,13 +138,15 @@ func (snapshot *workspaceSnapshot) resolve(store VariableStore) {
 		}
 		snapshot.apps[app.Name] = entry
 	}
+	snapshot.signIns = signInStatuses(workspace, snapshot.apps, store)
+	snapshot.generation = generationOf(snapshot.raw, resolver.Statuses(), snapshot.signIns)
 }
 
 // generationOf hashes what a workspace response is made of beyond the runtime: the
-// file as written, and where each variable's value comes from. A stored value that
-// appears or goes changes the generation without the file moving, which is what a
+// file as written, where each variable's value comes from, and which sign-ins this
+// device holds. A stored value that appears or goes changes the generation without the file moving, which is what a
 // window has to be told about.
-func generationOf(raw []byte, statuses []*VariableStatus) string {
+func generationOf(raw []byte, statuses []*VariableStatus, signIns []*SignInStatus) string {
 	digest := sha256.New()
 	digest.Write(raw)
 	for _, status := range statuses {
@@ -154,6 +156,15 @@ func generationOf(raw []byte, statuses []*VariableStatus) string {
 		digest.Write([]byte(status.Source.String()))
 		digest.Write([]byte{0})
 		digest.Write([]byte(status.EnvName))
+	}
+	for _, signIn := range signIns {
+		digest.Write([]byte{1})
+		digest.Write([]byte(signIn.App))
+		digest.Write([]byte{0})
+		digest.Write([]byte(signIn.Resource))
+		if signIn.SignedIn {
+			digest.Write([]byte{1})
+		}
 	}
 	return hex.EncodeToString(digest.Sum(nil))
 }
@@ -166,5 +177,6 @@ func (snapshot *workspaceSnapshot) response() *GetWorkspaceResponse {
 		Logs:           append([]*Log(nil), snapshot.logs...),
 		VariableStatus: snapshot.resolver.Statuses(),
 		Generation:     snapshot.generation,
+		SignIns:        snapshot.signIns,
 	}
 }

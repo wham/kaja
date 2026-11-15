@@ -4,8 +4,6 @@ import {
   expandVariables,
   kajaTokenVariable,
   setVariables,
-  signInCredential,
-  signsIn,
   storedEnvName,
   variableKind,
   variableNameError,
@@ -88,38 +86,4 @@ describe("kajaTokenVariable", () => {
     expect(kajaTokenVariable({ KAJA_MCP_TOKEN: "${secret}" })).toBe("KAJA_MCP_TOKEN");
     expect(kajaTokenVariable({ KAJA_MCP_TOKEN: "abc", KAJA_MCP_TOKEN_2: "${env:X}" })).toBe("KAJA_MCP_TOKEN_3");
   });
-});
-
-describe("signInCredential", () => {
-  it("names the variable after the app", () => {
-    expect(signInCredential("", "GitHub", {})).toBe("${GITHUB_SIGNIN}");
-    expect(signInCredential("", "my api 2", {})).toBe("${MY_API_2_SIGNIN}");
-    expect(signInCredential("", "", {})).toBe("${APP_SIGNIN}");
-    expect(signInCredential("", "1password", {})).toBe("${_1PASSWORD_SIGNIN}");
-  });
-
-  it("numbers past a name that holds something else", () => {
-    expect(signInCredential("", "GitHub", { GITHUB_SIGNIN: "${secret}" })).toBe("${GITHUB_SIGNIN_2}");
-    expect(signInCredential("", "GitHub", { GITHUB_SIGNIN: "x", GITHUB_SIGNIN_2: "${signin}" })).toBe("${GITHUB_SIGNIN_3}");
-  });
-
-  it("keeps the variable a credential already names", () => {
-    expect(signInCredential("${WORK}", "GitHub", { WORK: "${signin}" })).toBe("${WORK}");
-    expect(signInCredential("${WORK}", "GitHub", {})).toBe("${WORK}");
-    expect(signInCredential("${TOKEN}", "GitHub", { TOKEN: "${secret}" })).toBe("${GITHUB_SIGNIN}");
-    expect(signInCredential("ghp_typed", "GitHub", {})).toBe("${GITHUB_SIGNIN}");
-  });
-});
-
-describe("signsIn", () => {
-  it("is a credential naming a sign-in variable", () => {
-    expect(signsIn("${GITHUB}", { GITHUB: "${signin}" })).toBe(true);
-    expect(signsIn("${GITHUB}", { GITHUB: "${secret}" })).toBe(false);
-    expect(signsIn("${GITHUB}", {})).toBe(false);
-  });
-});
-
-it("a sign-in is a kind of its own and kept whole", () => {
-  expect(variableKind("${signin}")).toBe("signIn");
-  expect(variableValueError("Bearer ${signin}")).toBe("${signin} must be the whole value.");
 });

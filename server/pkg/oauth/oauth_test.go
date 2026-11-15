@@ -404,9 +404,6 @@ func writeJSON(w http.ResponseWriter, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// testCredential is how an app names the variable its sign-in is kept in.
-const testCredential = "${SIGNIN}"
-
 type memoryStore map[string]string
 
 func (m memoryStore) Available(context.Context) bool { return true }
@@ -439,7 +436,7 @@ func TestSignsInAndKeepsTheToken(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -481,10 +478,10 @@ func TestSignsInAndKeepsTheToken(t *testing.T) {
 		t.Errorf("the token was not asked for one server: resource = %q", got)
 	}
 
-	if !authorizer.SignedIn(context.Background(), testCredential, fake.endpoint()) {
+	if !authorizer.SignedIn(context.Background(), fake.endpoint()) {
 		t.Fatal("expected the token to be kept")
 	}
-	token, err := authorizer.Token(context.Background(), testCredential, fake.endpoint())
+	token, err := authorizer.Token(context.Background(), fake.endpoint())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
 	}
@@ -492,10 +489,10 @@ func TestSignsInAndKeepsTheToken(t *testing.T) {
 		t.Errorf("token = %q", token)
 	}
 
-	if err := authorizer.Forget(context.Background(), testCredential); err != nil {
+	if err := authorizer.Forget(context.Background(), fake.endpoint()); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
-	if authorizer.SignedIn(context.Background(), testCredential, fake.endpoint()) {
+	if authorizer.SignedIn(context.Background(), fake.endpoint()) {
 		t.Error("expected signing out to drop the token")
 	}
 }
@@ -506,7 +503,7 @@ func TestRefusesAnAnswerFromAnotherIssuer(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -533,7 +530,7 @@ func TestRenewsAnExpiredToken(t *testing.T) {
 	fake.expiresIn = 1
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -547,7 +544,7 @@ func TestRenewsAnExpiredToken(t *testing.T) {
 		t.Fatalf("the sign-in: %v", err)
 	}
 
-	if _, err := authorizer.Token(context.Background(), testCredential, fake.endpoint()); err != nil {
+	if _, err := authorizer.Token(context.Background(), fake.endpoint()); err != nil {
 		t.Fatalf("Token: %v", err)
 	}
 	if got := fake.lastForm.Get("grant_type"); got != "refresh_token" {
@@ -564,7 +561,7 @@ func TestUsesAClientIdOfYourOwn(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint(), ClientID: "https://kaja.example/client.json"})
+	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint(), ClientID: "https://kaja.example/client.json"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -603,7 +600,7 @@ func TestUsesTheClientIdKajaShips(t *testing.T) {
 	shipsClient(t, fake.as.URL, "shipped-client")
 	authorizer := testAuthorizer(t)
 
-	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -620,7 +617,7 @@ func TestAConfiguredClientIdOutranksTheOneKajaShips(t *testing.T) {
 	shipsClient(t, fake.as.URL, "shipped-client")
 	authorizer := testAuthorizer(t)
 
-	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint(), ClientID: "mine"})
+	prompt, _, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -637,7 +634,7 @@ func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 	fake.expiresIn = 1
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint(), ClientID: "mine"})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint(), ClientID: "mine"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -649,7 +646,7 @@ func TestRenewsWithTheClientTheTokenWasIssuedTo(t *testing.T) {
 		t.Fatalf("the sign-in: %v", err)
 	}
 
-	if _, err := authorizer.Token(context.Background(), testCredential, fake.endpoint()); err != nil {
+	if _, err := authorizer.Token(context.Background(), fake.endpoint()); err != nil {
 		t.Fatalf("Token: %v", err)
 	}
 	if got := fake.lastForm.Get("grant_type"); got != "refresh_token" {
@@ -671,7 +668,7 @@ func TestSignsInWithTheDeviceGrant(t *testing.T) {
 	shipsServer(t, fake.as.URL, builtInServer{ClientID: "shipped-client", Device: true})
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -698,7 +695,7 @@ func TestSignsInWithTheDeviceGrant(t *testing.T) {
 	if asked.Get("device_code") != "the-device-code" || asked.Get("client_secret") != "" {
 		t.Errorf("the token request = %v, want the device code and no secret", asked)
 	}
-	token, err := authorizer.Token(context.Background(), testCredential, fake.endpoint())
+	token, err := authorizer.Token(context.Background(), fake.endpoint())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
 	}
@@ -717,7 +714,7 @@ func TestADeviceGrantStopsOnARefusal(t *testing.T) {
 	shipsServer(t, fake.as.URL, builtInServer{ClientID: "shipped-client", Device: true})
 	authorizer := testAuthorizer(t)
 
-	_, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	_, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -737,7 +734,7 @@ func TestADeviceEndpointAloneIsNotTheDeviceGrant(t *testing.T) {
 	fake.device = true
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -825,7 +822,7 @@ func TestTheCredentialIsTheTokenKajaHolds(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	authorizer := testAuthorizer(t)
 
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -837,7 +834,7 @@ func TestTheCredentialIsTheTokenKajaHolds(t *testing.T) {
 		t.Fatalf("the sign-in: %v", err)
 	}
 
-	headers, err := authorizer.Credential(testCredential, fake.endpoint())(context.Background())
+	headers, err := authorizer.Credential(fake.endpoint())(context.Background())
 	if err != nil {
 		t.Fatalf("the credential: %v", err)
 	}
@@ -850,7 +847,7 @@ func TestTheCredentialIsTheTokenKajaHolds(t *testing.T) {
 // going out without one.
 func TestTheCredentialSaysWhenNotSignedIn(t *testing.T) {
 	authorizer := testAuthorizer(t)
-	if _, err := authorizer.Credential(testCredential, "https://example.com/mcp")(context.Background()); err == nil || !strings.Contains(err.Error(), "holds no sign-in") {
+	if _, err := authorizer.Credential("https://example.com/mcp")(context.Background()); err == nil || !strings.Contains(err.Error(), "not signed in") {
 		t.Errorf("expected the call to say it is not signed in, got %v", err)
 	}
 }
@@ -862,7 +859,7 @@ func TestSignsInAtAKnownIssuer(t *testing.T) {
 	authorizer := testAuthorizer(t)
 
 	endpoint := fake.resource.URL + "/api"
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: endpoint, Issuer: fake.as.URL, Scope: "repo"})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: endpoint, Issuer: fake.as.URL, Scope: "repo"})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -879,7 +876,7 @@ func TestSignsInAtAKnownIssuer(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("the sign-in: %v", err)
 	}
-	if !authorizer.SignedIn(context.Background(), testCredential, endpoint) {
+	if !authorizer.SignedIn(context.Background(), endpoint) {
 		t.Error("expected a token for the endpoint")
 	}
 }
@@ -893,7 +890,7 @@ func TestTheProbedChallengeDecidesTheScope(t *testing.T) {
 	probe := func(*http.Client) string {
 		return fmt.Sprintf(`Bearer resource_metadata=%q, scope="files:write"`, fake.resource.URL+"/.well-known/oauth-protected-resource/mcp")
 	}
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint(), Probe: probe})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint(), Probe: probe})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -903,10 +900,10 @@ func TestTheProbedChallengeDecidesTheScope(t *testing.T) {
 	}
 }
 
-// signIn runs the redirect flow to its end under testCredential.
+// signIn runs the redirect flow to its end.
 func signIn(t *testing.T, fake *fakeAuthorization, authorizer *Authorizer) {
 	t.Helper()
-	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Credential: testCredential, Endpoint: fake.endpoint()})
+	prompt, done, err := authorizer.Begin(context.Background(), AppAuthorization{Endpoint: fake.endpoint()})
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
@@ -919,24 +916,24 @@ func signIn(t *testing.T, fake *fakeAuthorization, authorizer *Authorizer) {
 	}
 }
 
-// A sign-in is kept in the variable the app names, whole: the server, the token
-// and the client it was issued to.
-func TestTheSignInIsKeptInTheVariable(t *testing.T) {
+// A sign-in is kept under the server it is for, whole: the server, the token and
+// the client it was issued to.
+func TestTheSignInIsKeptForTheServer(t *testing.T) {
 	fake := newFakeAuthorization(t)
 	store := memoryStore{}
 	authorizer := NewAuthorizer(store, &http.Client{Timeout: 5 * time.Second})
 	authorizer.port = 0
 	signIn(t, fake, authorizer)
 
-	if got := GrantResource(store["SIGNIN"]); got != fake.endpoint() {
+	if got := GrantResource(store[Slot(fake.endpoint())]); got != fake.endpoint() {
 		t.Errorf("the kept sign-in is for %q, want %q", got, fake.endpoint())
 	}
-	if !strings.Contains(store["SIGNIN"], "registered-client") {
-		t.Errorf("the kept sign-in = %s, want the client it was issued to", store["SIGNIN"])
+	if !strings.Contains(store[Slot(fake.endpoint())], "registered-client") {
+		t.Errorf("the kept sign-in = %s, want the client it was issued to", store[Slot(fake.endpoint())])
 	}
 }
 
-// Signing in again under the same name presents the client the last sign-in
+// Signing in again to the same server presents the client the last sign-in
 // registered, rather than leaving another one behind at the server.
 func TestSigningInAgainReusesTheRegisteredClient(t *testing.T) {
 	fake := newFakeAuthorization(t)
@@ -956,21 +953,11 @@ func TestASignInIsNotSentToAnotherResource(t *testing.T) {
 	authorizer := testAuthorizer(t)
 	signIn(t, fake, authorizer)
 
-	if _, err := authorizer.Token(context.Background(), testCredential, "https://elsewhere.example.com/mcp"); err == nil {
+	if _, err := authorizer.Token(context.Background(), "https://elsewhere.example.com/mcp"); err == nil {
 		t.Error("expected the token to be refused for another server")
 	}
-	if authorizer.SignedIn(context.Background(), testCredential, "https://elsewhere.example.com/mcp") {
+	if authorizer.SignedIn(context.Background(), "https://elsewhere.example.com/mcp") {
 		t.Error("expected a sign-in to another server not to count")
-	}
-}
-
-// A credential that is not a reference is a token the environment supplied for a
-// kaja with nowhere to keep a sign-in, and is sent as it stands.
-func TestATokenFromTheEnvironmentIsSentAsItStands(t *testing.T) {
-	authorizer := testAuthorizer(t)
-	token, err := authorizer.Token(context.Background(), "ghp_from_the_environment", "https://api.github.com")
-	if err != nil || token != "ghp_from_the_environment" {
-		t.Errorf("Token = %q, %v", token, err)
 	}
 }
 
@@ -986,16 +973,16 @@ func TestRenewsWithWhatAnotherDeviceKept(t *testing.T) {
 	signIn(t, fake, authorizer)
 
 	// The other device's renewal: a new refresh token lands while this one holds the old.
-	stale := keptGrant(t, authorizer)
+	stale := keptGrant(t, authorizer, fake.endpoint())
 	fake.spent = map[string]bool{"refresh-1": true}
 	stale.Token.RefreshToken = "refresh-2"
 	stale.Token.AccessToken = "token-from-the-other-device"
 	stale.Token.ExpiresAt = time.Now().Add(time.Hour)
 	other, _ := json.Marshal(stale)
-	original := store["SIGNIN"]
+	original := store[Slot(fake.endpoint())]
 
 	authorizer.store = &swappingStore{memoryStore: store, first: original, then: string(other)}
-	token, err := authorizer.Token(context.Background(), testCredential, fake.endpoint())
+	token, err := authorizer.Token(context.Background(), fake.endpoint())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
 	}
@@ -1020,9 +1007,9 @@ func (s *swappingStore) Load(_ context.Context, name string) (string, bool) {
 	return s.then, true
 }
 
-func keptGrant(t *testing.T, a *Authorizer) *grant {
+func keptGrant(t *testing.T, a *Authorizer, endpoint string) *grant {
 	t.Helper()
-	held := readGrant(context.Background(), a.store, "SIGNIN")
+	held := readGrant(context.Background(), a.store, Slot(Resource(endpoint)))
 	if held == nil {
 		t.Fatal("expected a sign-in to be kept")
 	}

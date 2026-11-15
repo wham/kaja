@@ -97,3 +97,25 @@ func canonicalServer(raw string) string {
 	}
 	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host) + strings.TrimSuffix(parsed.Path, "/")
 }
+
+// SignInResource is the server an app signs in to, read off its parameters alone:
+// a scheme kaja signs in to is always one it supplied, so its key and the base URL
+// say which without the document being read.
+func SignInResource(parameters map[string]string) (string, bool) {
+	key := strings.TrimSpace(parameters["security_scheme"])
+	if key == "" {
+		return "", false
+	}
+	for _, known := range knownAPIs {
+		for _, supplied := range known.schemes {
+			if supplied.key != key || supplied.scheme.signIn == nil {
+				continue
+			}
+			if base := strings.TrimSpace(parameters["base_url"]); base != "" && !sameServer(base, supplied.scheme.signIn.resource) {
+				continue
+			}
+			return supplied.scheme.signIn.resource, true
+		}
+	}
+	return "", false
+}

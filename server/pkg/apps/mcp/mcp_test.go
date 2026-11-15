@@ -463,7 +463,7 @@ func TestInspectAsksForTheSignInBeforeReading(t *testing.T) {
 	}))
 	defer server.Close()
 
-	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth, "token": "${SIGNIN}"}
+	parameters := map[string]string{"url": server.URL + "/mcp", "auth": AuthOAuth}
 	_, problem := Inspect(context.Background(), parameters, oauth.NewAuthorizer(memoryStore{}, nil))
 	if problem == nil || problem.Kind != ProblemSignIn {
 		t.Fatalf("problem = %v, want signIn", problem)
