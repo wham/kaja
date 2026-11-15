@@ -26,10 +26,8 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/pkg/oauth"
 	"github.com/wham/protoc-go/protoc"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -88,12 +86,12 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	}
 	log(fmt.Sprintf("Generated %d service(s) with %d method(s)", len(gen.serviceTypeNames), len(gen.bindings)))
 
-	methods, err := compileMethods(protoDir, gen)
+	methods, compiled, err := compileMethods(protoDir, gen)
 	if err != nil {
 		return nil, err
 	}
 
-	return &apps.Opened{Instance: &instance{client: client, methods: methods, oauth: signsIn, opened: Credential(parameters)}}, nil
+	return &apps.Opened{Compiled: compiled, Instance: &instance{client: client, methods: methods, oauth: signsIn, opened: Credential(parameters)}}, nil
 }
 
 // credentialSource is what the app sends while its surface is read, and whether
@@ -152,30 +150,17 @@ type boundMethod struct {
 
 // compileMethods compiles the generated proto and resolves each method's request
 // and response descriptors, keyed by the gRPC method path.
-func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
-	// With comments, and written beside the source: the manifest is compiled off this
-	// set rather than off the .proto a second time.
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("mcp.proto")
+func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, *protoc.Result, error) {
+	result, files, err := apps.Compile(protoDir, "mcp.proto")
 	if err != nil {
-		return nil, fmt.Errorf("compiling generated proto: %w", err)
-	}
-	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
-		return nil, err
-	}
-	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
-	if err != nil {
-		return nil, fmt.Errorf("building descriptors: %w", err)
+		return nil, nil, err
 	}
 
 	services := make(map[string]protoreflect.ServiceDescriptor, len(gen.serviceTypeNames))
 	for _, name := range gen.serviceTypeNames {
-		descriptor, err := files.FindDescriptorByName(protoreflect.FullName(name))
+		service, err := apps.FindService(files, name)
 		if err != nil {
-			return nil, fmt.Errorf("finding service %s: %w", name, err)
-		}
-		service, ok := descriptor.(protoreflect.ServiceDescriptor)
-		if !ok {
-			return nil, fmt.Errorf("%s is not a service", name)
+			return nil, nil, err
 		}
 		services[name] = service
 	}
@@ -184,15 +169,15 @@ func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, e
 	for path, bound := range gen.bindings {
 		service := services[serviceOfMethodPath(path)]
 		if service == nil {
-			return nil, fmt.Errorf("no service for method path %s", path)
+			return nil, nil, fmt.Errorf("no service for method path %s", path)
 		}
 		method := service.Methods().ByName(protoreflect.Name(lastSegment(path)))
 		if method == nil {
-			return nil, fmt.Errorf("method %s missing from compiled descriptors", path)
+			return nil, nil, fmt.Errorf("method %s missing from compiled descriptors", path)
 		}
 		methods[path] = &boundMethod{binding: bound, input: method.Input(), output: method.Output()}
 	}
-	return methods, nil
+	return methods, result, nil
 }
 
 // requireHTTPScheme rejects endpoints that are not plain HTTP(S), so a

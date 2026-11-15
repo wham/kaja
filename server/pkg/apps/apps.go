@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/protoc-go/protoc"
 )
 
 // AppHeader is the reserved header the client sends alongside the app's own, naming
@@ -80,6 +81,10 @@ type Opened struct {
 	// protoDir passed to Open. A relative path ("grpcbin/proto") is resolved by the
 	// compiler against the workspace, which is what an app with protos on disk uses.
 	ProtoDir string
+	// Compiled is the surface an app that generates its proto already compiled to open
+	// itself. The manifest is generated off it, and it is let go of once that is done:
+	// an opened app is kept, and this is most of what a compile allocates.
+	Compiled *protoc.Result
 	// Instance is what the app's methods are invoked on. Every app has one, the
 	// forwarding gRPC app included: forwarding is a way of answering a call, not a
 	// second kind of app.

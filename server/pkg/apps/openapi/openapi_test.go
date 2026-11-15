@@ -1477,7 +1477,7 @@ components:
 	if err := gen.write(dir); err != nil {
 		t.Fatalf("write proto: %v", err)
 	}
-	if _, err := compileMethods(dir, gen); err != nil {
+	if _, _, err := compileMethods(dir, gen); err != nil {
 		t.Fatalf("compileMethods: %v", err)
 	}
 }
@@ -1575,7 +1575,7 @@ components:
 	if err := gen.write(dir); err != nil {
 		t.Fatalf("write proto: %v", err)
 	}
-	if _, err := compileMethods(dir, gen); err != nil {
+	if _, _, err := compileMethods(dir, gen); err != nil {
 		t.Fatalf("compileMethods: %v", err)
 	}
 }
@@ -1673,7 +1673,7 @@ components:
 	if err := gen.write(dir); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if _, err := compileMethods(dir, gen); err != nil {
+	if _, _, err := compileMethods(dir, gen); err != nil {
 		t.Fatalf("compileMethods: %v", err)
 	}
 }
@@ -2106,7 +2106,7 @@ components:
 			t.Errorf("service.proto missing %q\n---\n%s", frag, gen.service)
 		}
 	}
-	if _, err := compileMethods(writeGenerated(t, gen), gen); err != nil {
+	if _, _, err := compileMethods(writeGenerated(t, gen), gen); err != nil {
 		t.Fatalf("compile: %v", err)
 	}
 }

@@ -20,10 +20,8 @@ import (
 	"strings"
 
 	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
@@ -120,12 +118,12 @@ func (a *App) Open(_ context.Context, parameters map[string]string, protoDir str
 		return nil, fmt.Errorf("writing proto: %w", err)
 	}
 
-	methods, err := compile(protoDir)
+	methods, compiled, err := compile(protoDir)
 	if err != nil {
 		return nil, err
 	}
 
-	return &apps.Opened{Instance: &instance{folder: path, methods: methods, limit: maxEntries}}, nil
+	return &apps.Opened{Compiled: compiled, Instance: &instance{folder: path, methods: methods, limit: maxEntries}}, nil
 }
 
 // method holds the request and response descriptors of one service method.
@@ -136,34 +134,21 @@ type method struct {
 
 // compile compiles the static proto and resolves every method's request and
 // response descriptors, keyed by method name.
-func compile(protoDir string) (map[string]method, error) {
-	// With comments, and written beside the source: the manifest is compiled off this
-	// set rather than off the .proto a second time.
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("folder.proto")
+func compile(protoDir string) (map[string]method, *protoc.Result, error) {
+	result, files, err := apps.Compile(protoDir, "folder.proto")
 	if err != nil {
-		return nil, fmt.Errorf("compiling generated proto: %w", err)
+		return nil, nil, err
 	}
-	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
-		return nil, err
-	}
-	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
+	service, err := apps.FindService(files, serviceTypeName)
 	if err != nil {
-		return nil, fmt.Errorf("building descriptors: %w", err)
-	}
-	descriptor, err := files.FindDescriptorByName(protoreflect.FullName(serviceTypeName))
-	if err != nil {
-		return nil, fmt.Errorf("finding service %s: %w", serviceTypeName, err)
-	}
-	service, ok := descriptor.(protoreflect.ServiceDescriptor)
-	if !ok {
-		return nil, fmt.Errorf("%s is not a service", serviceTypeName)
+		return nil, nil, err
 	}
 	methods := map[string]method{}
 	for i := 0; i < service.Methods().Len(); i++ {
 		m := service.Methods().Get(i)
 		methods[string(m.Name())] = method{input: m.Input(), output: m.Output()}
 	}
-	return methods, nil
+	return methods, result, nil
 }
 
 // instance is a live opened folder app bound to a folder on disk.

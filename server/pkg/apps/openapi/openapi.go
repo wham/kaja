@@ -15,10 +15,8 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/pkg/oauth"
 	"github.com/wham/protoc-go/protoc"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -108,7 +106,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	// Compile the generated proto to descriptors so invocations can decode the
 	// protobuf request and encode the protobuf response (the app is a gRPC app).
 	log("Compiling generated proto to descriptors")
-	methods, err := compileMethods(protoDir, gen)
+	methods, compiled, err := compileMethods(protoDir, gen)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +125,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 		log("Authentication: " + summary)
 	}
 
-	return &apps.Opened{Instance: &instance{
+	return &apps.Opened{Compiled: compiled, Instance: &instance{
 		baseURL:    baseURL,
 		methods:    methods,
 		client:     &http.Client{Timeout: 30 * time.Second},
@@ -151,33 +149,17 @@ func authFor(s *spec, parameters map[string]string) *auth {
 
 // compileMethods compiles the generated proto and resolves each method's input
 // and output message descriptors, keyed by the gRPC method path.
-func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
-	// WithIncludeImports keeps imported descriptors (google/protobuf/struct.proto,
-	// pulled in when a field maps to google.protobuf.Value) in the set so
-	// protodesc.NewFiles can resolve them. The comments are kept and the set written
-	// beside the source, because the manifest is compiled off it rather than off the
-	// .proto a second time.
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("service.proto")
+func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, *protoc.Result, error) {
+	result, files, err := apps.Compile(protoDir, "service.proto", typesFile, "kaja/http.proto")
 	if err != nil {
-		return nil, fmt.Errorf("compiling generated proto: %w", err)
-	}
-	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
-		return nil, err
-	}
-	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
-	if err != nil {
-		return nil, fmt.Errorf("building descriptors: %w", err)
+		return nil, nil, err
 	}
 
 	services := make(map[string]protoreflect.ServiceDescriptor, len(gen.serviceTypeNames))
 	for _, serviceTypeName := range gen.serviceTypeNames {
-		descriptor, err := files.FindDescriptorByName(protoreflect.FullName(serviceTypeName))
+		service, err := apps.FindService(files, serviceTypeName)
 		if err != nil {
-			return nil, fmt.Errorf("finding service %s: %w", serviceTypeName, err)
-		}
-		service, ok := descriptor.(protoreflect.ServiceDescriptor)
-		if !ok {
-			return nil, fmt.Errorf("%s is not a service", serviceTypeName)
+			return nil, nil, err
 		}
 		services[serviceTypeName] = service
 	}
@@ -186,16 +168,16 @@ func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, e
 	for key, binding := range gen.bindings {
 		service := services[serviceOfMethodPath(key)]
 		if service == nil {
-			return nil, fmt.Errorf("no service for method path %s", key)
+			return nil, nil, fmt.Errorf("no service for method path %s", key)
 		}
 		name := lastSegment(key)
 		method := service.Methods().ByName(protoreflect.Name(name))
 		if method == nil {
-			return nil, fmt.Errorf("method %s missing from compiled descriptors", name)
+			return nil, nil, fmt.Errorf("method %s missing from compiled descriptors", name)
 		}
 		methods[key] = &boundMethod{binding: binding, input: method.Input(), output: method.Output()}
 	}
-	return methods, nil
+	return methods, result, nil
 }
 
 // requireHTTPScheme rejects URLs that are not plain HTTP(S), so a spec can't make

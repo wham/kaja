@@ -27,10 +27,16 @@ func NewCompiler(logger *Logger) *Compiler {
 // run compiles the proto directory into the manifest the client loads an app from. It
 // runs where the call is answered, so its logger writes each line straight on to the
 // stream.
-func (c *Compiler) run(protoDir string) (string, error) {
+func (c *Compiler) run(protoDir string, compiled *protoc.Result) (string, error) {
 	c.logger.info("Starting compilation")
 
-	manifest, err := c.compile(protoDir)
+	var manifest string
+	var err error
+	if compiled != nil {
+		manifest, err = c.generate(compiled)
+	} else {
+		manifest, err = c.compile(protoDir)
+	}
 	if err != nil {
 		c.logger.error("Compilation failed", err)
 		return "", err
@@ -43,8 +49,7 @@ func (c *Compiler) run(protoDir string) (string, error) {
 // compilerFor reads what a proto directory holds and says how to compile it. A
 // surface kaja was pointed at is .proto files; one that came from reflection is the
 // descriptors the server sent, compiled as they are rather than printed back out as
-// text something else has to parse again, and an app that generates its own surface
-// leaves the descriptors it compiled for itself the same way.
+// text something else has to parse again.
 func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, error) {
 	set := filepath.Join(protoDir, grpc.DescriptorSetName)
 	if _, err := os.Stat(set); err == nil {
@@ -83,7 +88,10 @@ func (c *Compiler) compile(protoDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("protoc compile: %v", err)
 	}
+	return c.generate(result)
+}
 
+func (c *Compiler) generate(result *protoc.Result) (string, error) {
 	c.logger.debug("Running protoc-gen-kaja")
 	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), kajaParameter)
 	if err != nil {
