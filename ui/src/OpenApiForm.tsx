@@ -197,8 +197,9 @@ export function OpenApiForm({
 
   const authorize = useCallback(async () => {
     const parameters = parametersRef.current;
-    const call = getApiClient().authorizeOpenApi({ openapi: openApiApp(parameters) });
-    if (await followSignIn(call, setSignIn)) recordSignIn(parameters.securityScheme ?? "", true);
+    const app = openApiApp(parameters);
+    if (await followSignIn((abort) => getApiClient().authorizeOpenApi({ openapi: app }, { abort }), setSignIn))
+      recordSignIn(parameters.securityScheme ?? "", true);
   }, [recordSignIn]);
 
   const forget = useCallback(async () => {

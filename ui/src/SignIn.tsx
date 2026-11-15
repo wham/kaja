@@ -18,7 +18,8 @@ export interface SignInProblem {
 // own; the form says that from what it reads next. The code is what a server kaja
 // cannot be sent back from asks the person to type over there, so waiting on one is
 // waiting with something to say.
-export type SignInState = { status: "idle" } | { status: "waiting"; userCode: string } | { status: "problem"; problem: SignInProblem };
+export type SignInState =
+  { status: "idle" } | { status: "waiting"; userCode: string; url: string; cancel: () => void } | { status: "problem"; problem: SignInProblem };
 
 interface SignInResponse {
   authorizationUrl: string;
@@ -29,12 +30,16 @@ interface SignInResponse {
 
 // followSignIn reads a sign-in's stream to its end: the first message is the page to
 // open, and the last one arrives once the person has finished there. It reports
-// whether the sign-in happened.
+// whether the sign-in happened. Cancelling ends the call, which is what lets the
+// server stop listening for an answer nobody is going to give.
 export async function followSignIn(
-  call: { responses: AsyncIterable<SignInResponse>; trailers: PromiseLike<unknown> },
+  start: (signal: AbortSignal) => { responses: AsyncIterable<SignInResponse>; trailers: PromiseLike<unknown> },
   setState: (state: SignInState) => void,
 ): Promise<boolean> {
-  setState({ status: "waiting", userCode: "" });
+  const abort = new AbortController();
+  const cancel = () => abort.abort();
+  const call = start(abort.signal);
+  setState({ status: "waiting", userCode: "", url: "", cancel });
   const failed = (problem: SignInProblem) => {
     setState({ status: "problem", problem });
     return false;
@@ -42,11 +47,8 @@ export async function followSignIn(
   try {
     for await (const response of call.responses) {
       if (response.authorizationUrl) {
-        // The desktop's window is not a browser, and a page it navigated away from
-        // would be the app gone.
-        if (isWailsEnvironment()) openInBrowser(response.authorizationUrl);
-        else window.open(response.authorizationUrl, "_blank", "noopener");
-        setState({ status: "waiting", userCode: response.userCode });
+        openSignInPage(response.authorizationUrl);
+        setState({ status: "waiting", userCode: response.userCode, url: response.authorizationUrl, cancel });
         continue;
       }
       if (response.problem) return failed(response.problem);
@@ -61,11 +63,22 @@ export async function followSignIn(
     setState({ status: "idle" });
     return false;
   } catch (error) {
+    if (abort.signal.aborted) {
+      setState({ status: "idle" });
+      return false;
+    }
     return failed({ message: "The sign-in failed.", detail: rpcErrorMessage(error) });
   } finally {
     // On a phone the page is a sheet over Kaja, which only the window knows to close.
     if (isWailsEnvironment()) emitWailsEvent("signin:settled");
   }
+}
+
+function openSignInPage(url: string) {
+  // The desktop's window is not a browser, and a page it navigated away from would
+  // be the app gone.
+  if (isWailsEnvironment()) openInBrowser(url);
+  else window.open(url, "_blank", "noopener");
 }
 
 // The code the person carries to the page that was opened. It is shown in full and
@@ -121,6 +134,16 @@ export function SignInStatus({ state, signedIn, onSignIn, onSignOut, onOwnClient
           <span>{state.userCode ? "Enter this code in the browser to finish signing in." : "Waiting for the browser. Finish signing in there."}</span>
         </div>
         {state.userCode && <UserCode code={state.userCode} />}
+        <div className="flex items-center gap-1 pl-6">
+          {state.url && (
+            <Button variant="outline" size="sm" onClick={() => openSignInPage(state.url)}>
+              Open the page again
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={state.cancel}>
+            Cancel
+          </Button>
+        </div>
       </div>
     );
   }
