@@ -2395,6 +2395,8 @@ export function App() {
 
     if (isNewApp) {
       setAutoExpandApp({ name: app.name });
+      // The drawer is where a phone walks to the new app, and it closed when the form opened.
+      if (isPhone) setPhoneSidebarOpen(true);
     }
     if (agentRequest) agentSession.reportAppForm(agentRequest, { saved: true, name: app.name });
   };
