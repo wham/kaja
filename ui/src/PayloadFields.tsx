@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { timeAgo } from "./cellTime";
 import { copyText } from "./clipboard";
 import { cn } from "./cn";
-import { copyableText, countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, pageList, Path } from "./payloadRows";
+import { copyableText, countLabel, Field, fieldCount, fields, FieldValue, MAX_FIELDS, nodeAt, pageList, Path, sentAt } from "./payloadRows";
 
 interface PayloadFieldsProps {
   value: unknown;
@@ -26,6 +26,7 @@ export function PayloadFields({ value, root, path: requested, onPathChange }: Pa
   const node = nodeAt(value, inPlace ? [list] : path);
   const rows = fields(node);
   const total = fieldCount(node);
+  const sent = inPlace ? undefined : sentAt(value, path);
   const level = path.join("\u0000");
   const scrollerRef = useRef<HTMLDivElement>(null);
   // Where each level was left, so going back lands on the row that was opened.
@@ -57,6 +58,11 @@ export function PayloadFields({ value, root, path: requested, onPathChange }: Pa
         )}
         {total > rows.length && (
           <div className="px-4 py-3 text-xs text-muted-foreground">{(total - MAX_FIELDS).toLocaleString()} more not shown. Copy to get all of it.</div>
+        )}
+        {sent !== undefined && (
+          <div className="mt-6 border-t border-border">
+            <FieldRow field={{ key: "as sent", value: { kind: "text", text: sent } }} onOpen={() => {}} mono />
+          </div>
         )}
         {beside.length > 0 && (
           <div className="mt-6 border-t border-border">
@@ -106,7 +112,7 @@ export function Trail({ root, path, onPathChange }: { root: string; path: Path; 
 // Past this a value is folded to its first lines, and a tap unfolds it.
 const LONG_TEXT = 240;
 
-function FieldRow({ field, onOpen }: { field: Field; onOpen: () => void }) {
+function FieldRow({ field, onOpen, mono = false }: { field: Field; onOpen: () => void; mono?: boolean }) {
   const { value } = field;
   const opens = (value.kind === "object" || value.kind === "array") && value.count > 0;
   const [unfolded, setUnfolded] = useState(false);
@@ -125,9 +131,10 @@ function FieldRow({ field, onOpen }: { field: Field; onOpen: () => void }) {
   const body = (
     <div className="min-w-0 flex-1">
       <div className={cn("truncate text-xs", copied ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>{copied ? "Copied" : field.key}</div>
-      <div className={cn("text-[15px] wrap-anywhere", long && !unfolded && "line-clamp-4")}>
+      <div className={cn("wrap-anywhere", mono ? "font-mono text-xs" : "text-[15px]", long && !unfolded && "line-clamp-4")}>
         <Value value={value} />
       </div>
+      {"sent" in value && value.sent !== undefined && <div className="mt-0.5 text-xs text-muted-foreground">JSON in a string</div>}
       {long && (
         <button
           type="button"

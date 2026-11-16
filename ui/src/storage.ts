@@ -31,6 +31,7 @@ const WINDOW_KEYS = new Set([
   "colorMode",
   "zoom",
   "featurePreview:previewApps",
+  "payloadRawJson",
 ]);
 
 function databaseName(workspace: WorkspaceStorage | undefined): string {

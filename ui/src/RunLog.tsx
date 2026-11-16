@@ -1,11 +1,11 @@
-import { AppWindow, ArrowDown, Braces, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
+import { AppWindow, ArrowDown, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
-import { spliceEmbedded } from "./embeddedJson";
+import { EmbeddedMark, printEmbedded } from "./embeddedJson";
 import { fetchRequestLine, htmlDocument, renderableHtml } from "./fetchCall";
 import { splitRequestLine } from "./requestLine";
 import { unwrapEnvelope } from "./httpEnvelope";
@@ -17,6 +17,7 @@ import { isContainer, nodeAt, Path } from "./payloadRows";
 import { printJson } from "./payloadText";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { useShortcutLabel } from "./shortcuts";
+import { getPersistedValue, setPersistedValue } from "./storage";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
 import { LogLevel } from "./server/api";
@@ -50,7 +51,7 @@ interface RunLogProps {
   selectedItemId?: string;
   activeTab: ConsoleTab;
   // Whether the payload pane reads the documents its strings carry.
-  embedded: boolean;
+  openedStrings: ReadonlySet<string>;
   selectedItem?: ConsoleItem;
   // The run's only call, which the console header names instead of a row.
   sole: boolean;
@@ -68,7 +69,7 @@ interface RunLogProps {
   onTailingChange: (tailing: boolean) => void;
   onSelectRow: (itemId: string) => void;
   onTabChange: (tab: ConsoleTab) => void;
-  onEmbeddedChange: (embedded: boolean) => void;
+  onToggleString: (key: string) => void;
   onShowLogs: () => void;
   onGoToCanvas: () => void;
   onRevealVariable: (name: string) => void;
@@ -86,7 +87,7 @@ export const RunLog = memo(function RunLog({
   rows,
   selectedItemId,
   activeTab,
-  embedded,
+  openedStrings,
   selectedItem,
   sole,
   waiting,
@@ -99,7 +100,7 @@ export const RunLog = memo(function RunLog({
   onTailingChange,
   onSelectRow,
   onTabChange,
-  onEmbeddedChange,
+  onToggleString,
   onShowLogs,
   onGoToCanvas,
   onRevealVariable,
@@ -234,18 +235,18 @@ export const RunLog = memo(function RunLog({
             key={selectedItem.id}
             item={selectedItem}
             activeTab={activeTab}
-            embedded={embedded}
+            openedStrings={openedStrings}
             onTabChange={onTabChange}
-            onEmbeddedChange={onEmbeddedChange}
+            onToggleString={onToggleString}
             onRevealVariable={onRevealVariable}
           />
         ) : selectedItem?.call ? (
           <PayloadPane
             methodCall={selectedItem.call}
             activeTab={activeTab}
-            embedded={embedded}
+            openedStrings={openedStrings}
             onTabChange={onTabChange}
-            onEmbeddedChange={onEmbeddedChange}
+            onToggleString={onToggleString}
             onRevealVariable={onRevealVariable}
           />
         ) : selectedItem?.printed ? (
@@ -553,9 +554,9 @@ const CallRow = memo(function CallRow({ id, name, timestamp, loopKey, status, du
 interface PayloadPaneProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
-  embedded: boolean;
+  openedStrings: ReadonlySet<string>;
   onTabChange: (tab: ConsoleTab) => void;
-  onEmbeddedChange: (embedded: boolean) => void;
+  onToggleString: (key: string) => void;
   onRevealVariable: (name: string) => void;
 }
 
@@ -564,16 +565,22 @@ interface PayloadPaneProps {
 // it would draw is also what says whether to offer it.
 interface PanePayload {
   content?: unknown;
-  rawText?: string;
-  embeddable: boolean;
+  // What the JSON viewer draws: the payload printed, with each string carrying a
+  // document marked where it is.
+  rawText: string;
+  marks: EmbeddedMark[];
+  // Text rather than a payload to walk: a stream's messages, or a fetched file.
+  text?: boolean;
   // Measured before the reading, because how big the answer was is a fact about the
   // exchange rather than about how the pane is drawing it.
   bytes?: number;
 }
 
-function readPayload(value: unknown, embedded: boolean): PanePayload {
-  const read = spliceEmbedded(value);
-  return { content: embedded ? read.value : value, embeddable: read.found, bytes: payloadBytes(value) };
+const NONE_OPENED: ReadonlySet<string> = new Set();
+
+function readPayload(value: unknown, opened: ReadonlySet<string>, root: string): PanePayload {
+  const printed = printEmbedded(value, opened, root);
+  return { content: value, rawText: printed.text, marks: printed.marks, bytes: payloadBytes(value) };
 }
 
 // Whether anything has come back. A stream sets `output` on every message, so the
@@ -588,39 +595,42 @@ function hasResponse(methodCall: MethodCall): boolean {
  * failure is the body the API sent, a stream is its messages one after another, and
  * anything else is the message with whatever encoding carried it taken off.
  */
-function responsePayload(methodCall: MethodCall, embedded: boolean): PanePayload {
-  const payload = messagePayload(methodCall, embedded);
+function responsePayload(methodCall: MethodCall, opened: ReadonlySet<string>): PanePayload {
+  const payload = messagePayload(methodCall, opened);
   if (!methodCall.http) return payload;
   // A fetch's text is the file it fetched, so it is drawn as that text rather than as a
   // JSON string of it, and its size is what came off the wire rather than the length
   // of what the log made of it.
-  const text = typeof payload.content === "string" ? payload.content : undefined;
-  return { ...payload, rawText: payload.rawText ?? text, bytes: methodCall.http.bytes ?? payload.bytes };
+  if (typeof payload.content === "string")
+    return { ...payload, rawText: payload.content, marks: [], text: true, bytes: methodCall.http.bytes ?? payload.bytes };
+  return { ...payload, bytes: methodCall.http.bytes ?? payload.bytes };
 }
 
-function messagePayload(methodCall: MethodCall, embedded: boolean): PanePayload {
-  if (methodCall.error !== undefined) return readPayload(unwrapFailure(methodCall.error), embedded);
+function messagePayload(methodCall: MethodCall, opened: ReadonlySet<string>): PanePayload {
+  if (methodCall.error !== undefined) return readPayload(unwrapFailure(methodCall.error), opened, "response");
   if (methodCall.streamOutputs !== undefined) {
-    let embeddable = false;
     const sent: string[] = [];
-    const drawn = methodCall.streamOutputs.map((message) => {
+    const marks: EmbeddedMark[] = [];
+    let rawText = "";
+    methodCall.streamOutputs.forEach((message, index) => {
       const value = unwrapEnvelope(methodCall.outputType, message);
-      const read = readPayload(value, embedded);
-      embeddable ||= read.embeddable;
+      const printed = printEmbedded(value, opened, `response/${index}`);
+      if (index > 0) rawText += "\n\n";
+      marks.push(...printed.marks.map((mark) => ({ ...mark, from: mark.from + rawText.length, to: mark.to + rawText.length })));
+      rawText += printed.text;
       sent.push(JSON.stringify(value, null, 2));
-      return JSON.stringify(read.content, null, 2);
     });
-    return { rawText: drawn.join("\n\n"), embeddable, bytes: payloadBytes(undefined, sent.join("\n\n")) };
+    return { rawText, marks, text: true, bytes: payloadBytes(undefined, sent.join("\n\n")) };
   }
-  return readPayload(unwrapEnvelope(methodCall.outputType, methodCall.output), embedded);
+  return readPayload(unwrapEnvelope(methodCall.outputType, methodCall.output), opened, "response");
 }
 
-const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, onEmbeddedChange, onRevealVariable }: PayloadPaneProps) {
+const PayloadPane = function ({ methodCall, activeTab, openedStrings, onTabChange, onToggleString, onRevealVariable }: PayloadPaneProps) {
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   const [copied, setCopied] = useState(false);
   const phone = useMediaQuery(PHONE_QUERY);
   // A phone reads the payload as fields, a level at a time; the JSON is a tap away.
-  const [rawJson, setRawJson] = useState(false);
+  const [rawJson, setRawJson] = useState(() => getPersistedValue<boolean>("payloadRawJson") ?? false);
   const [rendered, setRendered] = useState(false);
   const [path, setPath] = useState<Path>([]);
   const answered = hasResponse(methodCall);
@@ -654,20 +664,19 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
 
   // The call is mutated in place as it settles, so what it is read against is the
   // fields that move with it rather than the object alone.
-  const { content, rawText, embeddable, bytes } = useMemo(
-    () => (activeTab === "request" ? readPayload(methodCall.input, embedded) : responsePayload(methodCall, embedded)),
+  const { content, rawText, marks, text, bytes } = useMemo(
+    () => (activeTab === "request" ? readPayload(methodCall.input, openedStrings, "request") : responsePayload(methodCall, openedStrings)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [methodCall, methodCall.input, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete, activeTab, embedded],
+    [methodCall, methodCall.input, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete, activeTab, openedStrings],
   );
 
   // A stream is printed as its messages one after another, which is text rather than
   // a payload to walk.
-  const readsFields = phone && !rawJson && rawText === undefined;
+  const readsFields = phone && !rawJson && !text;
   const html = activeTab === "response" && methodCall.http ? htmlDocument(content, methodCall.responseHeaders?.["content-type"]) : undefined;
   const page = rendered ? html : undefined;
   useEffect(() => setPath([]), [methodCall.id, activeTab]);
-  // A level the payload no longer has, a new message or the embedded reading
-  // having moved it, falls back to the nearest one it still has.
+  // A level the payload no longer has, a new message having moved it, falls back to the nearest one it still has.
   let levelPath = path;
   while (levelPath.length > 0 && !isContainer(nodeAt(content, levelPath))) levelPath = levelPath.slice(0, -1);
 
@@ -694,24 +703,17 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
                 onClick={() => setRendered(!rendered)}
               />
             )}
-            {embeddable && (
-              <IconButton
-                icon={Braces}
-                aria-label={embedded ? "Show the raw string" : "Read embedded JSON"}
-                variant="ghost"
-                size="sm"
-                className={cn(utilityButtonClass, embedded && "bg-accent text-foreground")}
-                onClick={() => onEmbeddedChange(!embedded)}
-              />
-            )}
-            {phone && rawText === undefined && (
+            {phone && !text && (
               <IconButton
                 icon={CodeXml}
                 aria-label={rawJson ? "Show as fields" : "Show as JSON"}
                 variant="ghost"
                 size="sm"
                 className={cn(utilityButtonClass, rawJson && "bg-accent text-foreground")}
-                onClick={() => setRawJson(!rawJson)}
+                onClick={() => {
+                  setRawJson(!rawJson);
+                  setPersistedValue("payloadRawJson", !rawJson);
+                }}
               />
             )}
             {/* Folding is a desktop gesture; on a phone it would push Copy off the row. */}
@@ -758,7 +760,15 @@ const PayloadPane = function ({ methodCall, activeTab, embedded, onTabChange, on
           ) : readsFields ? (
             <PayloadFields key={`${methodCall.id}:${activeTab}`} value={content} root={activeTab} path={levelPath} onPathChange={setPath} />
           ) : (
-            <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} wrap={phone} />
+            <JsonViewer
+              ref={jsonViewerRef}
+              value={content}
+              rawText={rawText}
+              marks={marks}
+              onToggleMark={onToggleString}
+              payload={`${methodCall.id}:${activeTab}`}
+              wrap={phone}
+            />
           )}
         </>
       )}
@@ -885,7 +895,7 @@ const HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const requestHeaders = hasUpstream ? upstreamRequestHeaders : methodCall.requestHeaders || {};
   const responseHeaders = hasUpstream ? upstreamResponseHeaders : methodCall.responseHeaders || {};
   const { bytes } = useMemo(
-    () => responsePayload(methodCall, false),
+    () => responsePayload(methodCall, NONE_OPENED),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [methodCall, methodCall.output, methodCall.error, methodCall.streamOutputs?.length, methodCall.streamComplete],
   );

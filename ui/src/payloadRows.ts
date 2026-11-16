@@ -1,4 +1,5 @@
 import { readInstant } from "./cellTime";
+import { readEmbedded } from "./embeddedJson";
 import { lists } from "./pages";
 
 /**
@@ -22,8 +23,10 @@ export type FieldValue =
   | { kind: "null" }
   | { kind: "empty" }
   | { kind: "bytes"; length: number }
-  | { kind: "object"; label?: string; count: number }
-  | { kind: "array"; label?: string; count: number };
+  // `sent` is the string an object or a list arrived as, where it was a document
+  // carried in a string rather than a value of its own.
+  | { kind: "object"; label?: string; count: number; sent?: string }
+  | { kind: "array"; label?: string; count: number; sent?: string };
 
 export interface Field {
   key: string | number;
@@ -39,14 +42,28 @@ export function isContainer(node: unknown): node is Record<string, unknown> | un
 }
 
 // The node a path names, or undefined once the payload no longer has it — which is
-// how a level held open across a new response is let go of.
+// how a level held open across a new response is let go of. A string carrying a
+// document is that document here, since opening its row is what reads it.
 export function nodeAt(root: unknown, path: Path): unknown {
-  let node = root;
+  let node = opened(root);
   for (const step of path) {
     if (!isContainer(node)) return undefined;
-    node = (node as Record<string | number, unknown>)[step];
+    node = opened((node as Record<string | number, unknown>)[step]);
   }
   return node;
+}
+
+// The string the level a path names arrived as, where it was a document in a string.
+export function sentAt(root: unknown, path: Path): string | undefined {
+  if (path.length === 0) return typeof root === "string" && readEmbedded(root) !== undefined ? root : undefined;
+  const parent = nodeAt(root, path.slice(0, -1));
+  if (!isContainer(parent)) return undefined;
+  const node = (parent as Record<string | number, unknown>)[path[path.length - 1]];
+  return typeof node === "string" && readEmbedded(node) !== undefined ? node : undefined;
+}
+
+function opened(node: unknown): unknown {
+  return typeof node === "string" ? (readEmbedded(node) ?? node) : node;
 }
 
 export function fields(node: unknown): Field[] {
@@ -84,6 +101,8 @@ export function readValue(value: unknown): FieldValue {
   if (value === null || value === undefined) return { kind: "null" };
   if (typeof value === "string") {
     if (value === "") return { kind: "empty" };
+    const document = readEmbedded(value);
+    if (document !== undefined) return { ...readValue(document), sent: value } as FieldValue;
     const date = readInstant(value);
     if (date) return { kind: "instant", text: value, date };
     if (URL_PATTERN.test(value)) return { kind: "url", text: value };

@@ -16,7 +16,19 @@ import { RunLog } from "./RunLog";
 import { runInputLabel } from "./runInput";
 import { TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { scheduleNote, Stats } from "./Stats";
-import { callRows, ConsoleTab, ConsoleView, defaultView, failedCallsLabel, followSelection, LogFloor, presentRun, printedCounts, RunGroup, RunSelection } from "./runs";
+import {
+  callRows,
+  ConsoleTab,
+  ConsoleView,
+  defaultView,
+  failedCallsLabel,
+  followSelection,
+  LogFloor,
+  presentRun,
+  printedCounts,
+  RunGroup,
+  RunSelection,
+} from "./runs";
 import { matchesShortcut, useShortcutLabel } from "./shortcuts";
 import { CellRef, TableView } from "./tableView";
 
@@ -113,7 +125,7 @@ export function Console({
   const groups = file.groups;
   const selection = file.selection;
   const activeTab = file.tab;
-  const embedded = file.embedded;
+  const openedStrings = file.openedStrings;
   const newest = groups[groups.length - 1];
 
   const [now, setNow] = useState(Date.now());
@@ -154,7 +166,7 @@ export function Console({
 
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
-  const onEmbeddedChange = useCallback((on: boolean) => consoles.setEmbedded(fileId, on, Date.now()), [fileId]);
+  const onToggleString = useCallback((key: string) => consoles.toggleOpenedString(fileId, key, Date.now()), [fileId]);
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
 
   /**
@@ -335,7 +347,7 @@ export function Console({
       rows={rows}
       selectedItemId={selection?.itemId}
       activeTab={activeTab}
-      embedded={embedded}
+      openedStrings={openedStrings}
       selectedItem={selectedItem}
       sole={soleCall !== undefined}
       waiting={waiting !== undefined}
@@ -348,7 +360,7 @@ export function Console({
       onTailingChange={setTailing}
       onSelectRow={selectRow}
       onTabChange={onTabChange}
-      onEmbeddedChange={onEmbeddedChange}
+      onToggleString={onToggleString}
       onShowLogs={onShowLogs}
       onGoToCanvas={onGoToCanvas}
       onRevealVariable={onRevealVariable}
@@ -820,7 +832,15 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
   // what it is doing.
   const elapsed = group.heldCalls > 0 ? `${formatElapsed(now - group.run.startedAt)} · held` : formatElapsed(now - group.run.startedAt);
   const failed = failedCallsLabel(group);
-  const outcome = waiting ? "waiting" : group.running ? elapsed : failed ? undefined : group.status === "error" ? "failed" : formatDuration(group.run.durationMs);
+  const outcome = waiting
+    ? "waiting"
+    : group.running
+      ? elapsed
+      : failed
+        ? undefined
+        : group.status === "error"
+          ? "failed"
+          : formatDuration(group.run.durationMs);
   const statement = outcome ? `${time} · ${outcome}` : time;
 
   return {
