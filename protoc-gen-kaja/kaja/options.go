@@ -30,10 +30,20 @@ type extInfo struct {
 	pkg           string
 	msgPrefix     string // parent message name(s) for nested extensions, e.g. "Extensions."
 	registryOrder int    // order this extension was discovered (for matching TS plugin output order)
+	name          string // the key an option set under this extension is printed with
+}
+
+// extensionSet is every extension of one options message. What a set of options is
+// read against is settled once here: every field of a large API asks.
+type extensionSet struct {
+	byNumber map[int32]extInfo
+	// repeated names the extensions whose value is an array even when it holds one.
+	repeated map[string]bool
+	order    map[string]int
 }
 
 // buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
-func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
+func (g *generator) buildExtensionMap(extendeeName string) *extensionSet {
 	if cached, ok := g.schema.extensions[extendeeName]; ok {
 		return cached
 	}
@@ -76,8 +86,28 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 		collectFromFile(f)
 	}
 
-	g.schema.extensions[extendeeName] = extensionMap
-	return extensionMap
+	set := &extensionSet{byNumber: extensionMap, repeated: map[string]bool{}, order: map[string]int{}}
+	for number, ei := range extensionMap {
+		pkg := ei.pkg
+		if pkg != "" {
+			pkg += "."
+		}
+		ei.name = pkg + ei.msgPrefix + ei.ext.GetName()
+		extensionMap[number] = ei
+		set.order[ei.name] = ei.registryOrder
+		if ei.ext.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			continue
+		}
+		if ei.ext.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+			nestedMsg := g.findMessageType(ei.ext.GetTypeName())
+			if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+				continue
+			}
+		}
+		set.repeated[ei.name] = true
+	}
+	g.schema.extensions[extendeeName] = set
+	return set
 }
 
 // resolveEnumValueName looks up an enum value name by its fully-qualified type name and numeric value
@@ -149,7 +179,7 @@ func (g *generator) findEnumInMessageWithPrefix(prefix string, msg *descriptorpb
 }
 
 // parseCustomOptions extracts custom extension values from raw unknown fields
-func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]extInfo) []customOption {
+func (g *generator) parseCustomOptions(unknown []byte, extensions *extensionSet) []customOption {
 	var result []customOption
 
 	for len(unknown) > 0 {
@@ -159,7 +189,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 		}
 		unknown = unknown[n:]
 
-		extInf, found := extensionMap[int32(num)]
+		extInf, found := extensions.byNumber[int32(num)]
 		if !found {
 			switch typ {
 			case protowire.VarintType:
@@ -177,11 +207,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 		}
 
 		ext := extInf.ext
-		pkg := extInf.pkg
-		if pkg != "" {
-			pkg += "."
-		}
-		extName := pkg + extInf.msgPrefix + ext.GetName()
+		extName := extInf.name
 
 		// Handle packed repeated encoding: when wire type is BytesType but field type
 		// is a varint-based scalar (enum, bool, int32, etc.), protoc sends packed encoding
@@ -316,24 +342,8 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 	result = mergeRepeatedOptions(result)
 
 	// Ensure repeated (non-map) extension fields are always arrays, even with a single element.
-	repeatedExts := make(map[string]bool)
-	for _, ei := range extensionMap {
-		if ei.ext.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
-			if ei.ext.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-				nestedMsg := g.findMessageType(ei.ext.GetTypeName())
-				if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
-					continue
-				}
-			}
-			pkg := ei.pkg
-			if pkg != "" {
-				pkg += "."
-			}
-			repeatedExts[pkg+ei.msgPrefix+ei.ext.GetName()] = true
-		}
-	}
 	for i, opt := range result {
-		if repeatedExts[opt.key] {
+		if extensions.repeated[opt.key] {
 			if _, ok := opt.value.([]interface{}); !ok {
 				result[i].value = []interface{}{opt.value}
 			}
@@ -342,16 +352,8 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 
 	// Sort by registry order (the order extensions were discovered across files)
 	// to match the TS plugin's output order, which uses registration order not field number order.
-	extOrder := make(map[string]int, len(extensionMap))
-	for _, ei := range extensionMap {
-		pkg := ei.pkg
-		if pkg != "" {
-			pkg += "."
-		}
-		extOrder[pkg+ei.msgPrefix+ei.ext.GetName()] = ei.registryOrder
-	}
 	sort.SliceStable(result, func(i, j int) bool {
-		return extOrder[result[i].key] < extOrder[result[j].key]
+		return extensions.order[result[i].key] < extensions.order[result[j].key]
 	})
 
 	return result

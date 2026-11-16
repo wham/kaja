@@ -30,7 +30,7 @@ func TestKitchenSinkSpec(t *testing.T) {
 	if err := gen.write(dir); err != nil {
 		t.Fatalf("write proto: %v", err)
 	}
-	methods, err := compileMethods(dir, gen)
+	methods, _, err := compileMethods(dir, gen)
 	if err != nil {
 		t.Fatalf("compileMethods: %v", err)
 	}

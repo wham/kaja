@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/evanw/esbuild v0.28.2
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
-	github.com/wham/protoc-go v0.7.0
+	github.com/wham/protoc-go v0.8.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	sigs.k8s.io/yaml v1.6.0

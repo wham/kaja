@@ -19,9 +19,7 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/protoc-go/protoc"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -124,13 +122,13 @@ func (a *App) Open(_ context.Context, parameters map[string]string, protoDir str
 		return nil, fmt.Errorf("writing proto: %w", err)
 	}
 
-	input, output, err := compile(protoDir)
+	input, output, compiled, err := compile(protoDir)
 	if err != nil {
 		return nil, err
 	}
 	log("Generated service " + serviceTypeName + " with method ChatCompletion")
 
-	return &apps.Opened{Instance: &instance{
+	return &apps.Opened{Compiled: compiled, Instance: &instance{
 		endpoint:   endpoint,
 		wire:       format,
 		credential: opened,
@@ -181,33 +179,20 @@ func authFor(value string, format wire) (string, error) {
 
 // compile compiles the static proto and resolves ChatCompletion's request and
 // response descriptors, used to decode the request and encode the response.
-func compile(protoDir string) (protoreflect.MessageDescriptor, protoreflect.MessageDescriptor, error) {
-	// With comments, and written beside the source: the manifest is compiled off this
-	// set rather than off the .proto a second time.
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports(), protoc.WithIncludeSourceInfo()).Compile("openai.proto")
+func compile(protoDir string) (protoreflect.MessageDescriptor, protoreflect.MessageDescriptor, *protoc.Result, error) {
+	result, files, err := apps.Compile(protoDir, "openai.proto")
 	if err != nil {
-		return nil, nil, fmt.Errorf("compiling generated proto: %w", err)
+		return nil, nil, nil, err
 	}
-	if err := grpc.WriteDescriptors(result.AsFileDescriptorSet(), protoDir); err != nil {
-		return nil, nil, err
-	}
-	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
+	service, err := apps.FindService(files, serviceTypeName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("building descriptors: %w", err)
-	}
-	descriptor, err := files.FindDescriptorByName(protoreflect.FullName(serviceTypeName))
-	if err != nil {
-		return nil, nil, fmt.Errorf("finding service %s: %w", serviceTypeName, err)
-	}
-	service, ok := descriptor.(protoreflect.ServiceDescriptor)
-	if !ok {
-		return nil, nil, fmt.Errorf("%s is not a service", serviceTypeName)
+		return nil, nil, nil, err
 	}
 	method := service.Methods().ByName("ChatCompletion")
 	if method == nil {
-		return nil, nil, fmt.Errorf("method ChatCompletion missing from compiled descriptors")
+		return nil, nil, nil, fmt.Errorf("method ChatCompletion missing from compiled descriptors")
 	}
-	return method.Input(), method.Output(), nil
+	return method.Input(), method.Output(), result, nil
 }
 
 // requireHTTPScheme rejects URLs that are not plain HTTP(S), so a base URL can't

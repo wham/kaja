@@ -1,7 +1,7 @@
 package kaja
 
 import (
-	"fmt"
+	"encoding/binary"
 	"strings"
 
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -13,19 +13,29 @@ type comments map[string]*descriptorpb.SourceCodeInfo_Location
 func fileComments(file *descriptorpb.FileDescriptorProto) comments {
 	c := comments{}
 	for _, location := range file.GetSourceCodeInfo().GetLocation() {
-		c[pathKey(location.Path)] = location
+		// Most locations are positions with nothing said at them.
+		if location.LeadingComments == nil && location.TrailingComments == nil {
+			continue
+		}
+		c[string(pathKey(nil, location.Path))] = location
 	}
 	return c
 }
 
-func pathKey(path []int32) string {
-	return fmt.Sprint(path)
+// pathKey appends a path's numbers to key as varints, which is a key no two paths
+// share and one a lookup can build without allocating.
+func pathKey(key []byte, path []int32) []byte {
+	for _, number := range path {
+		key = binary.AppendVarint(key, int64(number))
+	}
+	return key
 }
 
 // doc is what the proto says about the element at path, its leading comment and then
 // its trailing one, with the space protobuf puts after each "//" taken off.
 func (c comments) doc(path []int32) string {
-	location := c[pathKey(path)]
+	var key [32]byte
+	location := c[string(pathKey(key[:0], path))]
 	if location == nil {
 		return ""
 	}

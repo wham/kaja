@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"sigs.k8s.io/yaml"
 )
@@ -496,6 +497,12 @@ func isHTML(contentType string, body []byte) bool {
 	if strings.Contains(strings.ToLower(contentType), "text/html") {
 		return true
 	}
-	head := strings.ToLower(strings.TrimSpace(string(body)))
-	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
+	// Only the opening is read: lowercasing a whole document to look at its first tag
+	// was a third of what opening a large one cost.
+	head := bytes.TrimLeftFunc(body, unicode.IsSpace)
+	if len(head) > 32 {
+		head = head[:32]
+	}
+	opening := strings.ToLower(string(head))
+	return strings.HasPrefix(opening, "<!doctype html") || strings.HasPrefix(opening, "<html")
 }

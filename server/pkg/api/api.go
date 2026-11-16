@@ -378,7 +378,8 @@ func (s *ApiService) Compile(req *CompileRequest, stream grpc.ServerStreamingSer
 		dir = protoDir
 	}
 
-	manifest, err := NewCompiler(logger).run(resolveWorkspacePath(s.WorkspaceDir(), dir))
+	manifest, err := NewCompiler(logger).run(resolveWorkspacePath(s.WorkspaceDir(), dir), opened.Compiled)
+	opened.Compiled = nil
 	if err != nil {
 		apps.CloseInstance(opened.Instance)
 		return fail()

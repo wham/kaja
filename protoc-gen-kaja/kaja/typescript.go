@@ -136,6 +136,10 @@ func briefText(doc string, marks []string) string {
 		words = append(words, "["+mark+"]")
 	}
 	text := strings.Join(words, " ")
+	// A text is never more UTF-16 units than it is bytes.
+	if len(text) <= maxDoc {
+		return text
+	}
 	if units := utf16.Encode([]rune(text)); len(units) > maxDoc {
 		text = strings.TrimRight(string(utf16.Decode(units[:maxDoc])), " ") + "…"
 	}
