@@ -24,7 +24,7 @@ require (
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
-	github.com/wham/protoc-go v0.7.0 // indirect
+	github.com/wham/protoc-go v0.8.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

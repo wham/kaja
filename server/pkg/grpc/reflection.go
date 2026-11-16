@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
-	"path/filepath"
+	"sort"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -339,50 +338,27 @@ func (c *ReflectionClient) collectFileDescriptors(
 	return nil
 }
 
-// DescriptorSetName is the one file a reflected surface is written to: the
-// descriptors the server sent, as it sent them. Compiling those directly is what
-// keeps kaja's reading of a server the server's own - printing them back out as
-// .proto text was a second parser to keep in step with protoc, and the one this
-// replaced turned an edition into a syntax nothing accepts, a proto2 file into a
-// proto3 one, an optional field into a oneof of its own, and dropped every option
-// it had no line for, deprecation included.
-const DescriptorSetName = "reflection.binpb"
-
-// WriteDescriptorSet writes the discovered descriptors into dir as a
-// FileDescriptorSet, which is what the compiler reads them back out of.
-func WriteDescriptorSet(result *ReflectionResult, dir string) error {
-	encoded, err := proto.Marshal(&descriptorpb.FileDescriptorSet{File: result.FileDescriptors})
-	if err != nil {
-		return fmt.Errorf("encoding the descriptors: %w", err)
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating %s: %w", dir, err)
-	}
-	return os.WriteFile(filepath.Join(dir, DescriptorSetName), encoded, 0o644)
-}
-
-// DescriptorSetFiles reads a descriptor set and reports the files to compile from
-// it: everything the server declared, which is everything but the well-known types
-// its protos import.
-func DescriptorSetFiles(path string) ([]string, error) {
-	encoded, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	set := &descriptorpb.FileDescriptorSet{}
-	if err := proto.Unmarshal(encoded, set); err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
-	}
-
+// DeclaredFiles are the files to compile out of what the server sent: everything it
+// declared, which is everything but the well-known types its protos import. The
+// descriptors are compiled as they are, which is what keeps kaja's reading of a
+// server the server's own - printing them back out as .proto text was a second
+// parser to keep in step with protoc, and the one this replaced turned an edition
+// into a syntax nothing accepts, a proto2 file into a proto3 one, an optional field
+// into a oneof of its own, and dropped every option it had no line for, deprecation
+// included.
+func (r *ReflectionResult) DeclaredFiles() ([]string, error) {
 	var names []string
-	for _, file := range set.GetFile() {
+	for _, file := range r.FileDescriptors {
 		if strings.HasPrefix(file.GetName(), "google/protobuf/") {
 			continue
 		}
 		names = append(names, file.GetName())
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("%s declares no files", path)
+		return nil, fmt.Errorf("the server declares no files")
 	}
+	// In the order the .proto files would have been found in, so the manifest reads
+	// the same whichever way the surface arrived.
+	sort.Strings(names)
 	return names, nil
 }

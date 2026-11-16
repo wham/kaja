@@ -16,6 +16,7 @@ import (
 
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/protoc-go/protoc"
 )
 
 // App opens "grpc" apps.
@@ -31,10 +32,11 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	log("GRPC target: " + url)
 
 	if strings.TrimSpace(parameters["reflection"]) == "true" {
-		if err := reflect(ctx, url, TLS(parameters), Metadata(parameters), protoDir, log); err != nil {
+		compiled, err := reflect(ctx, url, TLS(parameters), Metadata(parameters), log)
+		if err != nil {
 			return nil, err
 		}
-		return &apps.Opened{ProtoDir: protoDir, Instance: &instance{url: url}}, nil
+		return &apps.Opened{Compiled: compiled, Instance: &instance{url: url}}, nil
 	}
 
 	dir := strings.TrimSpace(parameters["proto_dir"])
@@ -45,14 +47,14 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 	return &apps.Opened{ProtoDir: dir, Instance: &instance{url: url}}, nil
 }
 
-// reflect discovers the upstream's services via gRPC reflection and writes the
-// descriptors it was answered with into protoDir. The app's own credential is sent
+// reflect discovers the upstream's services via gRPC reflection and compiles the
+// descriptors it was answered with as they are. The app's own credential is sent
 // with the reflection stream: a server that guards its methods usually guards
 // the list of them too.
-func reflect(ctx context.Context, url string, options grpc.TLSOptions, metadata map[string]string, protoDir string, log func(string)) error {
+func reflect(ctx context.Context, url string, options grpc.TLSOptions, metadata map[string]string, log func(string)) (*protoc.Result, error) {
 	client, err := grpc.NewReflectionClientFromString(url, options, metadata)
 	if err != nil {
-		return fmt.Errorf("creating reflection client: %w", err)
+		return nil, fmt.Errorf("creating reflection client: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -61,13 +63,18 @@ func reflect(ctx context.Context, url string, options grpc.TLSOptions, metadata 
 	log("Connecting to server for reflection...")
 	result, err := client.Discover(ctx)
 	if err != nil {
-		return fmt.Errorf("discovering services: %w", err)
+		return nil, fmt.Errorf("discovering services: %w", err)
 	}
 	log(fmt.Sprintf("Discovered %d service(s): %v", len(result.Services), result.Services))
 
-	if err := grpc.WriteDescriptorSet(result, protoDir); err != nil {
-		return fmt.Errorf("writing the descriptors: %w", err)
+	files, err := result.DeclaredFiles()
+	if err != nil {
+		return nil, err
 	}
-	log("Descriptors written to " + protoDir)
-	return nil
+	compiled, err := protoc.New(protoc.WithDescriptors(result.FileDescriptors...)).Compile(files...)
+	if err != nil {
+		return nil, fmt.Errorf("compiling the descriptors: %w", err)
+	}
+	log(fmt.Sprintf("Compiled %d file(s) the server declared", len(files)))
+	return compiled, nil
 }
