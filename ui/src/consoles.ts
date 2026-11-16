@@ -179,10 +179,11 @@ export class FileConsole {
   runs: Run[] = [];
   selection: RunSelection | null = null;
   tab: ConsoleTab = "response";
-  // Whether the payload pane reads the documents its strings carry. Off by default:
-  // the pane says what came back, and a string an API sent is a string until
+  // The strings carrying a document that the payload pane draws opened, by path. Kept
+  // by the file rather than the call, so stepping through a loop of one method keeps
+  // the same string open. Empty by default: a string an API sent is a string until
   // somebody asks for it to be read.
-  embedded = false;
+  openedStrings: ReadonlySet<string> = new Set();
   // Undefined until a view has been chosen, which is what lets a run that drew
   // something open on its canvas while an explicit choice still outranks it.
   view?: ConsoleView;
@@ -639,11 +640,12 @@ export class Consoles {
     this.#touch(fileId, true);
   }
 
-  setEmbedded(fileId: string | undefined, embedded: boolean, now: number): void {
+  toggleOpenedString(fileId: string | undefined, key: string, now: number): void {
     if (!fileId) return;
     const file = this.#ensure(fileId, now);
-    if (file.embedded === embedded) return;
-    file.embedded = embedded;
+    const opened = new Set(file.openedStrings);
+    if (!opened.delete(key)) opened.add(key);
+    file.openedStrings = opened;
     this.#touch(fileId, true);
   }
 

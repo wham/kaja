@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { copyableText, fields, MAX_FIELDS, nodeAt, objectLabel, pageList, readValue } from "./payloadRows";
+import { copyableText, fields, MAX_FIELDS, nodeAt, objectLabel, pageList, readValue, sentAt } from "./payloadRows";
 
 describe("fields", () => {
   it("keeps the order the payload holds and skips what it left unset", () => {
@@ -104,4 +104,15 @@ describe("pageList", () => {
   it("leaves an empty list a row", () => {
     expect(pageList({ items: [], nextToken: "" })).toBeUndefined();
   });
+});
+
+// A document an API carried in a string is a row that opens it, not a line of text.
+it("reads a string carrying a document as the document it carries", () => {
+  const result = { content: [{ type: "text", text: '{"name":"widget","tags":["a","b"]}' }] };
+
+  expect(readValue(result.content[0].text)).toEqual({ kind: "object", label: "widget", count: 2, sent: result.content[0].text });
+  expect(nodeAt(result, ["content", 0, "text", "tags"])).toEqual(["a", "b"]);
+  expect(sentAt(result, ["content", 0, "text"])).toBe(result.content[0].text);
+  expect(sentAt(result, ["content", 0])).toBeUndefined();
+  expect(readValue("123")).toEqual({ kind: "text", text: "123" });
 });
