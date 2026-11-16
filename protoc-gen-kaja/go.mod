@@ -3,6 +3,6 @@ module github.com/wham/kaja/v2/protoc-gen-kaja
 go 1.25.0
 
 require (
-	github.com/wham/protoc-go v0.7.0
+	github.com/wham/protoc-go v0.8.0
 	google.golang.org/protobuf v1.36.12
 )

@@ -81,8 +81,9 @@ type Opened struct {
 	// protoDir passed to Open. A relative path ("grpcbin/proto") is resolved by the
 	// compiler against the workspace, which is what an app with protos on disk uses.
 	ProtoDir string
-	// Compiled is the surface an app that generates its proto already compiled to open
-	// itself. The manifest is generated off it, and it is let go of once that is done:
+	// Compiled is the surface of an app that had to compile it to open: one that
+	// generates its proto, and one that read descriptors off a server. The manifest is
+	// generated off it rather than off ProtoDir, and it is let go of once that is done:
 	// an opened app is kept, and this is most of what a compile allocates.
 	Compiled *protoc.Result
 	// Instance is what the app's methods are invoked on. Every app has one, the

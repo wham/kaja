@@ -2,12 +2,8 @@ package api
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
-	"github.com/wham/kaja/v2/pkg/grpc"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
 )
@@ -46,45 +42,20 @@ func (c *Compiler) run(protoDir string, compiled *protoc.Result) (string, error)
 	return manifest, nil
 }
 
-// compilerFor reads what a proto directory holds and says how to compile it. A
-// surface kaja was pointed at is .proto files; one that came from reflection is the
-// descriptors the server sent, compiled as they are rather than printed back out as
-// text something else has to parse again.
-func (c *Compiler) compilerFor(protoDir string) (*protoc.Compiler, []string, error) {
-	set := filepath.Join(protoDir, grpc.DescriptorSetName)
-	if _, err := os.Stat(set); err == nil {
-		files, err := grpc.DescriptorSetFiles(set)
-		if err != nil {
-			return nil, nil, fmt.Errorf("reading descriptors: %v", err)
-		}
-		// In the order the .proto files would have been found in, so the manifest reads
-		// the same whichever way the surface arrived.
-		sort.Strings(files)
-		c.logger.debug(fmt.Sprintf("Found %d compiled file(s)", len(files)))
-		return protoc.New(protoc.WithDescriptorSetIn(set)), files, nil
-	}
-
-	protoFiles, err := rpc.ProtoFiles(protoDir)
-	if err != nil {
-		return nil, nil, fmt.Errorf("finding proto files: %v", err)
-	}
-	if len(protoFiles) == 0 {
-		return nil, nil, fmt.Errorf("no .proto files found in %s", protoDir)
-	}
-	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
-	return protoc.New(protoc.WithProtoPaths(protoDir)), protoFiles, nil
-}
-
 func (c *Compiler) compile(protoDir string) (string, error) {
 	c.logger.debug("protoDir: " + protoDir)
 
-	compiler, protoFiles, err := c.compilerFor(protoDir)
+	protoFiles, err := rpc.ProtoFiles(protoDir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("finding proto files: %v", err)
 	}
+	if len(protoFiles) == 0 {
+		return "", fmt.Errorf("no .proto files found in %s", protoDir)
+	}
+	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
 
 	c.logger.debug("Compiling proto files")
-	result, err := compiler.Compile(protoFiles...)
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir)).Compile(protoFiles...)
 	if err != nil {
 		return "", fmt.Errorf("protoc compile: %v", err)
 	}

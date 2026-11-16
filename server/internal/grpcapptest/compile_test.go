@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -106,36 +105,21 @@ func TestCompileGoogleApis(t *testing.T) {
 	}
 }
 
-// TestCompileReflectedProtoFiles is what reflection left on disk: a server's own
-// descriptors written back out as .proto, which is what the compiler then reads.
-func TestCompileReflectedProtoFiles(t *testing.T) {
+// TestCompileReflectedDescriptors is a reflected surface compiled from the descriptors
+// the server sent, in memory: nothing is written for the compiler to read back.
+func TestCompileReflectedDescriptors(t *testing.T) {
 	up := startUpstream(t, upstreamOptions{Dirs: []string{"routeguide"}, Reflection: true})
 
-	_, logs := openAndCompile(t, &api.WorkspaceApp{
+	sources, logs := openAndCompile(t, &api.WorkspaceApp{
 		Name: "guide",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: up.URL, Reflection: true}},
 	})
 
-	// The one place the directory is named is the log that says it was written.
-	protoDir := ""
-	for _, log := range logs {
-		if dir, ok := strings.CutPrefix(log.GetMessage(), "Descriptors written to "); ok {
-			protoDir = dir
-		}
+	if !strings.Contains(logText(logs), "Compiled 1 file(s) the server declared") {
+		t.Errorf("the log never said what reflection compiled:\n%s", logText(logs))
 	}
-	if protoDir == "" {
-		t.Fatalf("the log never said where reflection wrote:\n%s", logText(logs))
-	}
-	var written []string
-	filepath.Walk(protoDir, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			written = append(written, strings.TrimPrefix(path, protoDir))
-		}
-		return nil
-	})
-	t.Logf("reflection wrote: %v", written)
-	if len(written) == 0 {
-		t.Fatalf("reflection wrote no proto files")
+	if !strings.Contains(sourceText(sources), "GetFeature") {
+		t.Errorf("the generated TypeScript has no GetFeature")
 	}
 }
 
