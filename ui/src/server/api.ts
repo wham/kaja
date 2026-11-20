@@ -248,6 +248,15 @@ export interface OpenApiSecurityScheme {
      * Whether kaja holds a token for it.
      */
     signedIn: boolean;
+    /**
+     * The token endpoint of the scheme's client credentials flow, as the document
+     * writes it. Set only for an oauth2 scheme declaring that flow.
+     */
+    tokenUrl: string;
+    /**
+     * The scopes that flow declares.
+     */
+    scopes: string[];
 }
 
 /**
@@ -926,6 +935,20 @@ export interface OpenApiApp {
      */
     specHeaderName: string;
     specHeaderValue: string;
+    /**
+     * An app's own id and secret, exchanged for an access token at a client
+     * credentials flow's token endpoint. Kaja asks again whenever the token runs out.
+     */
+    clientId: string;
+    clientSecret: string;
+    /**
+     * Where that exchange is made. Empty is the token URL the scheme declares.
+     */
+    tokenUrl: string;
+    /**
+     * Space-separated scopes asked for with the token. Empty asks for none.
+     */
+    scope: string;
 }
 
 /**
@@ -1316,7 +1339,9 @@ export const OpenApiSecurityScheme: MessageType<OpenApiSecurityScheme> = new Mes
     { no: 10, name: "requires_others", kind: "scalar", T: 8 },
     { no: 11, name: "supplied", kind: "scalar", T: 8 },
     { no: 12, name: "sign_in", kind: "scalar", T: 8 },
-    { no: 13, name: "signed_in", kind: "scalar", T: 8 }
+    { no: 13, name: "signed_in", kind: "scalar", T: 8 },
+    { no: 14, name: "token_url", kind: "scalar", T: 9 },
+    { no: 15, name: "scopes", kind: "scalar", repeat: 2, T: 9 }
 ]);
 
 export const OpenApiProblem: MessageType<OpenApiProblem> = new MessageType<OpenApiProblem>("OpenApiProblem", [
@@ -1624,7 +1649,11 @@ export const OpenApiApp: MessageType<OpenApiApp> = new MessageType<OpenApiApp>("
     { no: 7, name: "base_url", kind: "scalar", T: 9 },
     { no: 8, name: "security_scheme", kind: "scalar", T: 9 },
     { no: 9, name: "spec_header_name", kind: "scalar", T: 9 },
-    { no: 10, name: "spec_header_value", kind: "scalar", T: 9 }
+    { no: 10, name: "spec_header_value", kind: "scalar", T: 9 },
+    { no: 11, name: "client_id", kind: "scalar", T: 9 },
+    { no: 12, name: "client_secret", kind: "scalar", T: 9 },
+    { no: 13, name: "token_url", kind: "scalar", T: 9 },
+    { no: 14, name: "scope", kind: "scalar", T: 9 }
 ]);
 
 export const OpenAiApp: MessageType<OpenAiApp> = new MessageType<OpenAiApp>("OpenAiApp", [

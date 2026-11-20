@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,6 +42,7 @@ type instance struct {
 	auth *auth
 	// authorizer holds the token a scheme kaja signs in to is sent with.
 	authorizer *oauth.Authorizer
+	tokens     *oauth.ClientTokens
 }
 
 func (in *instance) Close() error {
@@ -71,12 +73,24 @@ func (in *instance) Invoke(ctx context.Context, call *apps.Call) (apps.Stream, e
 	if call.Parameters != nil && in.spec != nil {
 		authentication = authFor(in.spec, call.Parameters)
 	}
-	authentication, err = authentication.withToken(ctx, in.authorizer, in.baseURL)
+	exchanged := authentication != nil && authentication.kind == authClientCredentials
+	unresolved := authentication
+	authentication, err = authentication.withToken(ctx, in.authorizer, in.tokens, in.baseURL)
 	if err != nil {
 		return nil, err
 	}
 
 	ex, err := in.transcode(ctx, method.binding, reqJSON, call.Headers, authentication)
+	var refused *apps.UpstreamError
+	if exchanged && errors.As(err, &refused) && refused.Status == http.StatusUnauthorized {
+		// A token can be revoked, or run out sooner than it said, and a new one is
+		// only the id and secret away.
+		in.tokens.Forget(authentication.clientCredentials)
+		if authentication, err = unresolved.withToken(ctx, in.authorizer, in.tokens, in.baseURL); err != nil {
+			return nil, err
+		}
+		ex, err = in.transcode(ctx, method.binding, reqJSON, call.Headers, authentication)
+	}
 	if err != nil {
 		return nil, err
 	}

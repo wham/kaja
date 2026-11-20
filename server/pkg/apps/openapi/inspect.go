@@ -68,6 +68,10 @@ type DocumentSecurityScheme struct {
 	// says whether it holds one.
 	SignIn   bool
 	SignedIn bool
+	// TokenURL is the token endpoint of the scheme's client credentials flow, as
+	// written, and Scopes the scopes it declares.
+	TokenURL string
+	Scopes   []string
 }
 
 // Problem is a document that couldn't be read, classified so the form can name
@@ -247,6 +251,8 @@ func describe(s *spec, specURL string) *Document {
 			RequiresOthers:   seenWithOthers[name] && !seenAlone[name],
 			Supplied:         scheme.supplied,
 			SignIn:           scheme.signIn != nil,
+			TokenURL:         flowTokenURL(scheme),
+			Scopes:           flowScopes(scheme),
 		})
 	}
 	// Most applicable first, so the form preselects the scheme the most
@@ -329,4 +335,24 @@ func placeholderNames(rawURL string) []string {
 		}
 		rawURL = rawURL[open+close+1:]
 	}
+}
+
+func flowTokenURL(scheme *securityScheme) string {
+	if flow := scheme.clientCredentials(); flow != nil {
+		return strings.TrimSpace(flow.TokenURL)
+	}
+	return ""
+}
+
+func flowScopes(scheme *securityScheme) []string {
+	flow := scheme.clientCredentials()
+	if flow == nil {
+		return nil
+	}
+	scopes := make([]string, 0, len(flow.Scopes))
+	for scope := range flow.Scopes {
+		scopes = append(scopes, scope)
+	}
+	sort.Strings(scopes)
+	return scopes
 }

@@ -133,6 +133,7 @@ export function defaultSecurityScheme(document: OpenApiDocument, hasToken = fals
 // so the row is read as the one taking it whatever it is really carrying.
 export function schemeLabel(scheme: OpenApiSecurityScheme): string {
   if (scheme.signIn) return "Sign in";
+  if (isClientCredentialsScheme(scheme)) return "Client credentials";
   switch (scheme.type) {
     case "apiKey":
       return apiKeyLabel(scheme);
@@ -166,6 +167,26 @@ export function schemeIdentity(scheme: OpenApiSecurityScheme): string {
     return `${scheme.key} · ${scheme.bearerFormat}`;
   }
   return scheme.key;
+}
+
+// An oauth2 scheme declaring the client credentials flow is one Kaja gets the token
+// for, from the app's own id and secret.
+export function isClientCredentialsScheme(scheme: OpenApiSecurityScheme): boolean {
+  return scheme.type === "oauth2" && Boolean(scheme.tokenUrl) && !scheme.signIn;
+}
+
+// clientCredentialsTokenUrl is where the exchange is made, read against the server
+// the way the process reads it, so a document's relative /api/v2/token is shown as
+// the address it will be.
+export function clientCredentialsTokenUrl(scheme: OpenApiSecurityScheme, parameters: Record<string, string>): string {
+  const tokenUrl = (parameters.tokenUrl ?? "").trim() || scheme.tokenUrl;
+  const baseUrl = (parameters.baseUrl ?? "").trim();
+  if (!baseUrl || holdsVariableReference(baseUrl)) return tokenUrl;
+  try {
+    return new URL(tokenUrl, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString();
+  } catch {
+    return tokenUrl;
+  }
 }
 
 export function isBasicScheme(scheme: OpenApiSecurityScheme): boolean {

@@ -38,6 +38,9 @@ type ApiService struct {
 	// authorizer runs the sign-ins, keeping each for the server it is to. It is nil where the workspace is read-only, and the verbs that use it
 	// are then absent.
 	authorizer *oauth.Authorizer
+	// clientTokens holds what client credentials were exchanged for. Unlike a
+	// sign-in it writes nothing, so a read-only kaja has it too.
+	clientTokens *oauth.ClientTokens
 	apps       *apps.Manager
 	// compiled is every surface this process has compiled, so an app whose
 	// parameters have not moved is reopened without reading its upstream again.
@@ -76,6 +79,7 @@ func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string,
 		buildNumber:        buildNumber,
 		variableStore:      variableStore,
 		compiled:           newCompileCache(),
+		clientTokens:       oauth.NewClientTokens(nil),
 	}
 
 	// A sign-in is a write: it leaves a credential in the workspace. So a kaja
@@ -88,7 +92,7 @@ func NewApiService(workspaceFile string, canUpdateWorkspace bool, gitRef string,
 	service.apps = apps.NewManager(map[string]apps.App{
 		"grpc":    rpc.New(),
 		"twirp":   twirp.New(),
-		"openapi": openapi.New().WithAuthorizer(service.authorizer),
+		"openapi": openapi.New().WithAuthorizer(service.authorizer).WithClientTokens(service.clientTokens),
 		"openai":  openai.New(),
 		"folder":  folder.New(),
 		"mcp":     mcp.New().WithAuthorizer(service.authorizer),
@@ -786,6 +790,8 @@ func describeDocument(document *openapi.Document) *OpenApiDocument {
 			SignIn:           scheme.SignIn,
 			SignedIn:         scheme.SignedIn,
 			RequiresOthers:   scheme.RequiresOthers,
+			TokenUrl:         scheme.TokenURL,
+			Scopes:           scheme.Scopes,
 		})
 	}
 	return described

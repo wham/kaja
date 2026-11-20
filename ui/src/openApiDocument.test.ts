@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { OpenApiDocument, OpenApiSecurityScheme, OpenApiServer } from "./server/api";
 import {
   NO_CREDENTIALS,
+  clientCredentialsTokenUrl,
   credentialNote,
   defaultSecurityScheme,
   defaultVariableValues,
@@ -9,6 +10,7 @@ import {
   isUsableBaseUrl,
   matchServerUrl,
   resolveServerUrl,
+  isClientCredentialsScheme,
   schemeIdentity,
   schemeLabel,
 } from "./openApiDocument";
@@ -36,6 +38,8 @@ function scheme(fields: Partial<OpenApiSecurityScheme>): OpenApiSecurityScheme {
     supplied: false,
     signIn: false,
     signedIn: false,
+    tokenUrl: "",
+    scopes: [],
     ...fields,
   };
 }
@@ -222,5 +226,26 @@ describe("deriveAppName", () => {
   // A character that would break the import path can't survive into the name.
   test("drops what an import path can't carry", () => {
     expect(deriveAppName('Acme "Orders"/v2 API')).toBe("AcmeOrders");
+  });
+});
+
+describe("client credentials", () => {
+  const flow = scheme({ key: "oAuth", type: "oauth2", tokenUrl: "/api/v2/token" });
+
+  test("an oauth2 scheme declaring the flow is one", () => {
+    expect(isClientCredentialsScheme(flow)).toBe(true);
+    expect(schemeLabel(flow)).toBe("Client credentials");
+    expect(isClientCredentialsScheme(scheme({ type: "oauth2" }))).toBe(false);
+  });
+
+  test("the token URL is read against the server", () => {
+    expect(clientCredentialsTokenUrl(flow, { baseUrl: "https://lab.example.com/api/v2" })).toBe("https://lab.example.com/api/v2/token");
+    expect(clientCredentialsTokenUrl(scheme({ type: "oauth2", tokenUrl: "token" }), { baseUrl: "https://lab.example.com/api/v2" })).toBe(
+      "https://lab.example.com/api/v2/token",
+    );
+    expect(clientCredentialsTokenUrl(flow, { baseUrl: "${BASE}" })).toBe("/api/v2/token");
+    expect(clientCredentialsTokenUrl(flow, { baseUrl: "https://lab.example.com", tokenUrl: "https://auth.example.com/token" })).toBe(
+      "https://auth.example.com/token",
+    );
   });
 });

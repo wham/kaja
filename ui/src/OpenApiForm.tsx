@@ -38,7 +38,9 @@ import {
   NO_CREDENTIALS,
   credentialNote,
   credentialPlaceholder,
+  clientCredentialsTokenUrl,
   defaultSecurityScheme,
+  isClientCredentialsScheme,
   defaultVariableValues,
   deriveAppName,
   isBasicScheme,
@@ -329,12 +331,8 @@ export function OpenApiForm({
     (parameters.securityScheme ?? "").trim() || (document ? defaultSecurityScheme(document, Boolean((parameters.token ?? "").trim())) : NO_CREDENTIALS);
 
   const selectScheme = (key: string) => {
-    credentialsRef.current[selectedScheme] = {
-      token: parametersRef.current.token ?? "",
-      username: parametersRef.current.username ?? "",
-      password: parametersRef.current.password ?? "",
-    };
-    const restored = credentialsRef.current[key] ?? { token: "", username: "", password: "" };
+    credentialsRef.current[selectedScheme] = Object.fromEntries(CREDENTIAL_KEYS.map((name) => [name, parametersRef.current[name] ?? ""])) as Credentials;
+    const restored = credentialsRef.current[key] ?? (Object.fromEntries(CREDENTIAL_KEYS.map((name) => [name, ""])) as Credentials);
     onParametersChange((previous) => ({ ...previous, securityScheme: key, ...restored }));
   };
 
@@ -512,7 +510,7 @@ export function OpenApiForm({
             />
           </FormSection>
 
-          <FormSection fields={["securityScheme", "username", "password", "token"]}>
+          <FormSection fields={["securityScheme", ...CREDENTIAL_KEYS]}>
             <AuthenticationSection
               document={document}
               variables={variables}
@@ -532,11 +530,9 @@ export function OpenApiForm({
   );
 }
 
-interface Credentials {
-  token: string;
-  username: string;
-  password: string;
-}
+const CREDENTIAL_KEYS = ["token", "username", "password", "clientId", "clientSecret", "scope"] as const;
+
+type Credentials = Record<(typeof CREDENTIAL_KEYS)[number], string>;
 
 interface SourceStatusProps {
   state: ReadState;
@@ -933,7 +929,10 @@ function AuthenticationSection({
                   {scheme.signedIn && <p className="text-xs text-muted-foreground">Signed in. Kaja sends the token with every call.</p>}
                 </ChoiceBody>
               )}
-              {isSelected && !scheme.signIn && (
+              {isSelected && isClientCredentialsScheme(scheme) && (
+                <ClientCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
+              )}
+              {isSelected && !scheme.signIn && !isClientCredentialsScheme(scheme) && (
                 <SchemeCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
               )}
             </ChoiceCard>
@@ -999,6 +998,32 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
   );
 }
 
+const CLIENT_ID_SECRET = [
+  { key: "clientId", label: "Client ID" },
+  { key: "clientSecret", label: "Client secret" },
+] as const;
+
+function ClientCredentials({ scheme, variables, readOnly, parameters, onParameterChange }: SchemeCredentialsProps) {
+  const tokenUrl = clientCredentialsTokenUrl(scheme, parameters);
+  return (
+    <ChoiceBody className="gap-1.5">
+      <BasicCredentials parameters={parameters} onParameterChange={onParameterChange} variables={variables} readOnly={readOnly} fields={CLIENT_ID_SECRET} />
+      {scheme.scopes.length > 0 && (
+        <VariableSuggestInput
+          value={parameters.scope ?? ""}
+          onValueChange={(value) => onParameterChange("scope", value)}
+          variables={variables}
+          placeholder={`Scopes, separated by spaces: ${scheme.scopes.join(" ")}`}
+          disabled={readOnly}
+        />
+      )}
+      <p className="text-xs text-muted-foreground">
+        Kaja exchanges them for a token at <span className="font-mono">{tokenUrl}</span> and asks again when it runs out.
+      </p>
+    </ChoiceBody>
+  );
+}
+
 function RelativeTime({ at }: { at: number }) {
   const [, tick] = useState(0);
   useEffect(() => {
@@ -1022,7 +1047,7 @@ function schemeAside(scheme: OpenApiSecurityScheme, document: OpenApiDocument): 
 }
 
 function schemeIcon(scheme: OpenApiSecurityScheme): LucideIcon {
-  if (scheme.signIn) return ShieldCheck;
+  if (scheme.signIn || isClientCredentialsScheme(scheme)) return ShieldCheck;
   if (scheme.type === "oauth2" || scheme.type === "openIdConnect" || scheme.type === "mutualTLS") return Shield;
   if (scheme.type === "http" && scheme.scheme.toLowerCase() === "basic") return Lock;
   return Key;

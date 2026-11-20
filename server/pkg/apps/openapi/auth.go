@@ -19,6 +19,8 @@ const (
 	authBasic  authKind = "basic"  // Authorization: Basic base64(user:pass)
 	authAPIKey authKind = "apiKey" // a named header/query/cookie carrying the key
 	authOAuth  authKind = "oauth"  // a token kaja obtained by signing in, sent as a bearer token
+	// A token kaja exchanged the app's client id and secret for, sent as a bearer token.
+	authClientCredentials authKind = "clientCredentials"
 )
 
 // auth resolves the spec's security scheme together with the credentials the user
@@ -35,6 +37,9 @@ type auth struct {
 
 	// signIn is where the token comes from, for authOAuth.
 	signIn *signIn
+	// clientCredentials is what the token is exchanged for, for authClientCredentials.
+	// Its token URL is as configured, which may be relative to the base URL.
+	clientCredentials oauth.ClientCredentials
 
 	token    string // bearer token or api key value
 	username string // basic auth user
@@ -43,12 +48,27 @@ type auth struct {
 
 // configured reports whether the user supplied any credentials.
 func (a *auth) configured() bool {
-	return a != nil && (a.kind == authOAuth || a.token != "" || a.username != "" || a.password != "")
+	return a != nil && (a.kind == authOAuth || a.kind == authClientCredentials || a.token != "" || a.username != "" || a.password != "")
 }
 
 // withToken is the auth a call is sent with. A sign-in's token is read from the
 // store as the call is made, so one renewed between two calls reaches the second.
-func (a *auth) withToken(ctx context.Context, authorizer *oauth.Authorizer, baseURL string) (*auth, error) {
+func (a *auth) withToken(ctx context.Context, authorizer *oauth.Authorizer, tokens *oauth.ClientTokens, baseURL string) (*auth, error) {
+	if a != nil && a.kind == authClientCredentials {
+		credentials, err := a.exchange(baseURL)
+		if err != nil {
+			return nil, err
+		}
+		token, err := tokens.Token(ctx, credentials)
+		if err != nil {
+			return nil, err
+		}
+		resolved := *a
+		resolved.kind = authBearer
+		resolved.token = token
+		resolved.clientCredentials = credentials
+		return &resolved, nil
+	}
 	if a == nil || a.kind != authOAuth {
 		return a, nil
 	}
@@ -68,6 +88,63 @@ func (a *auth) withToken(ctx context.Context, authorizer *oauth.Authorizer, base
 	resolved.kind = authBearer
 	resolved.token = token
 	return &resolved, nil
+}
+
+// exchange is the client credentials with the token URL made absolute. A document
+// writes it relative to the server, the way Benchling's /api/v2/token is, and the
+// server is only known once the app says which one it calls.
+func (a *auth) exchange(baseURL string) (oauth.ClientCredentials, error) {
+	credentials := a.clientCredentials
+	target, err := url.Parse(credentials.TokenURL)
+	if err != nil {
+		return credentials, fmt.Errorf("the token URL %q is not a URL: %w", credentials.TokenURL, err)
+	}
+	if !target.IsAbs() {
+		base, err := url.Parse(baseURL)
+		if err != nil || !base.IsAbs() {
+			return credentials, fmt.Errorf("the token URL %q is relative and there is no base URL to read it against", credentials.TokenURL)
+		}
+		if !strings.HasSuffix(base.Path, "/") {
+			base.Path += "/"
+		}
+		target = base.ResolveReference(target)
+	}
+	if target.Scheme != "https" && target.Scheme != "http" {
+		return credentials, fmt.Errorf("the token URL %q is not an http(s) URL", target.String())
+	}
+	credentials.TokenURL = target.String()
+	return credentials, nil
+}
+
+// useClientCredentials switches the auth to the client credentials grant where the
+// app holds a client id and the scheme it sends declares that flow, or the app names
+// a token URL of its own.
+func (a *auth) useClientCredentials(s *spec, schemeKey string, credentials oauth.ClientCredentials) {
+	if credentials.ClientID == "" || schemeKey == schemeNone {
+		return
+	}
+	var flow *oauthFlow
+	if schemeKey != "" {
+		scheme := s.Components.SecuritySchemes.get(schemeKey)
+		if scheme != nil && scheme.Type != "oauth2" {
+			return
+		}
+		flow = scheme.clientCredentials()
+	} else {
+		for _, name := range s.Components.SecuritySchemes.order() {
+			if flow = s.Components.SecuritySchemes.get(name).clientCredentials(); flow != nil {
+				break
+			}
+		}
+	}
+	if credentials.TokenURL == "" && flow != nil {
+		credentials.TokenURL = strings.TrimSpace(flow.TokenURL)
+	}
+	if credentials.TokenURL == "" {
+		return
+	}
+	a.kind = authClientCredentials
+	a.clientCredentials = credentials
 }
 
 // applyQuery adds an apiKey credential to the query string when the scheme places
@@ -229,6 +306,8 @@ func (a *auth) describe() string {
 		return "sending token as Authorization: " + a.authorizationScheme()
 	case authOAuth:
 		return "sending the token kaja signed in to " + a.signIn.resource + " for"
+	case authClientCredentials:
+		return "exchanging the client ID and secret for a token at " + a.clientCredentials.TokenURL
 	case authBasic:
 		return "sending username/password as HTTP Basic auth"
 	case authAPIKey:

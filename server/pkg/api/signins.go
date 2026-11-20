@@ -21,6 +21,9 @@ type signInStore struct {
 // having sent it.
 const signInMask = "${signin}"
 
+// clientTokenMask is what a token client credentials were exchanged for reads as.
+const clientTokenMask = "${client_credentials}"
+
 func (s signInStore) Available(ctx context.Context) bool {
 	return s.service.variableStoreAvailable(ctx)
 }
@@ -75,15 +78,17 @@ func (s *ApiService) storedValueChanged(ctx context.Context) {
 }
 
 // redact masks what a call reports having sent: every value kaja.json does not
-// carry back to the reference naming it, and every token a sign-in handed out to
-// signInMask.
+// carry back to the reference naming it, every token a sign-in handed out to
+// signInMask, and every token client credentials were exchanged for to
+// clientTokenMask.
 func (s *ApiService) redact(resolver *Resolver, reported map[string]string, sent map[string]string) map[string]string {
 	redacted := resolver.Redact(reported, sent)
 	if s == nil || len(redacted) == 0 {
 		return redacted
 	}
 	tokens := s.authorizer.Sent()
-	if len(tokens) == 0 {
+	exchanged := s.clientTokens.Sent()
+	if len(tokens) == 0 && len(exchanged) == 0 {
 		return redacted
 	}
 	masked := make(map[string]string, len(redacted))
@@ -91,6 +96,11 @@ func (s *ApiService) redact(resolver *Resolver, reported map[string]string, sent
 		for _, token := range tokens {
 			if len(token) >= maskableLength {
 				value = strings.ReplaceAll(value, token, signInMask)
+			}
+		}
+		for _, token := range exchanged {
+			if len(token) >= maskableLength {
+				value = strings.ReplaceAll(value, token, clientTokenMask)
 			}
 		}
 		masked[key] = value
