@@ -309,7 +309,7 @@ wearing a dialog — so ask before the test, or take the value from `kaja.input`
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` are refused (see the
-  globals below). `kaja.askStr/askInt/askSelect` are how a script asks, and
+  globals below). `kaja.askStr/askInt/askSelect/askSelectMany` are how a script asks, and
   `kaja.approve()` how it holds a call back until someone says yes; all park the
   run on a human — only reach for one when a person is at the app.
 - **A method hands back a `Call`, not a promise.** It is sent when you await it,
@@ -399,7 +399,8 @@ What each member is for:
   kind of thing it asked for, so never ask for text and parse it yourself. A
   select hands back the item picked, `label` saying how a non-string item is
   shown, and `{ other: true }` lets the user type an answer of their own, which
-  comes back as a string.
+  comes back as a string. `kaja.askSelectMany` takes the same arguments and hands
+  back a list of one or more, in the list's order.
 - `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
   `await kaja.approve(Issues.Create({ owner, repo, title }))`. The call goes inside the
   parentheses, and not approving stops the script. Blocks on a human — though

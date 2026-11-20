@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { answerPlaceholder, digitChoice, answerProblem, isTypedAnswer, normalizeAnswer, parseInteger, typeaheadIndex } from "./ask";
+import { answerPlaceholder, digitChoice, answerProblem, isTyped, normalizeAnswer, pickedAnswers, parseInteger, typeaheadIndex } from "./ask";
 
 describe("parseInteger", () => {
   it("reads a whole number, signed or padded", () => {
@@ -113,11 +113,16 @@ describe("typeaheadIndex", () => {
   });
 });
 
-describe("isTypedAnswer", () => {
+describe("isTyped", () => {
   it("is an answer outside the choices of a select that takes one", () => {
-    expect(isTypedAnswer({ other: true, choices: ["Retro"], answer: "Offsite" })).toBe(true);
-    expect(isTypedAnswer({ other: true, choices: ["Retro"], answer: "Retro" })).toBe(false);
-    expect(isTypedAnswer({ choices: ["Retro"], answer: "Offsite" })).toBe(false);
-    expect(isTypedAnswer({ other: true, choices: ["Retro"] })).toBe(false);
+    expect(isTyped({ other: true, choices: ["Retro"] }, "Offsite")).toBe(true);
+    expect(isTyped({ other: true, choices: ["Retro"] }, "Retro")).toBe(false);
+    expect(isTyped({ choices: ["Retro"] }, "Offsite")).toBe(false);
+  });
+});
+
+describe("pickedAnswers", () => {
+  it("answers in the list's order rather than the order things were picked, typed last", () => {
+    expect(pickedAnswers(["adam", "eko", "nao"], new Set([2, 0]), ["sam"])).toEqual(["adam", "nao", "sam"]);
   });
 });

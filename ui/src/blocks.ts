@@ -117,8 +117,9 @@ export interface AskBlock {
   // A select that also takes a typed answer; an answer outside the choices is one.
   other?: boolean;
   // Always text, whatever was asked for — a block is stored as itself, and the typed
-  // value is the script's copy rather than the run's record.
-  answer?: string;
+  // value is the script's copy rather than the run's record. One answer for every kind
+  // but selectMany, which has one or more.
+  answers?: string[];
   cancelled?: boolean;
 }
 
@@ -261,7 +262,7 @@ export function newBlockId(): string {
 // A cancelled ask and a rejected call both stopped the script instead, so they are
 // settled rather than waiting.
 export function isAwaitingUser(block: Block): boolean {
-  if (block.kind === "ask") return block.answer === undefined && block.cancelled !== true;
+  if (block.kind === "ask") return block.answers === undefined && block.cancelled !== true;
   if (block.kind === "approve") return block.decision === undefined;
   return false;
 }

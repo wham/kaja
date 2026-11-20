@@ -131,11 +131,36 @@ export class Call<T> implements PromiseLike<T> {
 // The whole block travels, not just its text: what is being asked for decides what
 // is drawn, and the id is what the answer comes back against.
 export interface AskRequest {
-  (question: AskBlock, blockId: string): Promise<string>;
+  (question: AskBlock, blockId: string): Promise<string[]>;
 }
 
 export interface AskSelectOptions {
   other?: boolean;
+}
+
+function selectQuestion(
+  verb: string,
+  question: string,
+  items: readonly unknown[],
+  labelOrOptions: ((item: any) => string) | AskSelectOptions | undefined,
+  trailing: AskSelectOptions | undefined,
+): { block: Omit<AskBlock, "answerType">; take: (answer: string) => unknown } {
+  const [label, options] = typeof labelOrOptions === "function" ? [labelOrOptions, trailing] : [undefined, labelOrOptions];
+  const other = options?.other === true;
+  if (items.length === 0) throw new Error(`${verb}: choices must not be empty`);
+  const choices = items.map((item) => formatCell(label ? label(item) : item));
+  return {
+    block: { kind: "ask", question, choices, ...(other && { other }) },
+    take: (answer) => {
+      // The answer comes back as the label — what was on the canvas, and what a stored run
+      // reads back without its script. Two items under one label are one item to whoever
+      // picked it, so the first is the honest reading, and typed text that matches a label
+      // is that item.
+      const index = choices.indexOf(answer);
+      if (index === -1 && other) return answer;
+      return items[index] ?? items[0];
+    },
+  };
 }
 
 export type ApproveDecision = Exclude<ApproveGesture, "rejected">;
@@ -524,13 +549,13 @@ export class Kaja {
   }
 
   askStr(question: string): Promise<string> {
-    return this.#ask({ kind: "ask", question, answerType: "str" }, (answer) => answer);
+    return this.#ask({ kind: "ask", question, answerType: "str" }, ([answer]) => answer);
   }
 
   // Always resolves with a number: the answer was checked against parseInteger on the
   // way in, so this is a re-read rather than a second parse with its own opinion.
   askInt(question: string): Promise<number> {
-    return this.#ask({ kind: "ask", question, answerType: "int" }, (answer) => parseInteger(answer) ?? Number.NaN);
+    return this.#ask({ kind: "ask", question, answerType: "int" }, ([answer]) => parseInteger(answer) ?? Number.NaN);
   }
 
   askSelect(question: string, choices: readonly string[], options?: AskSelectOptions): Promise<string>;
@@ -542,29 +567,31 @@ export class Kaja {
     labelOrOptions?: ((item: any) => string) | AskSelectOptions,
     trailing?: AskSelectOptions,
   ): Promise<any> {
-    const [label, options] = typeof labelOrOptions === "function" ? [labelOrOptions, trailing] : [undefined, labelOrOptions];
-    const other = options?.other === true;
-    if (items.length === 0) throw new Error("kaja.askSelect: choices must not be empty");
-    const choices = items.map((item) => formatCell(label ? label(item) : item));
-    return this.#ask({ kind: "ask", question, answerType: "select", choices, ...(other && { other }) }, (answer) => {
-      // The answer comes back as the label — what was on the canvas, and what a stored run
-      // reads back without its script. Two items under one label are one item to whoever
-      // picked it, so the first is the honest reading, and typed text that matches a label
-      // is that item.
-      const index = choices.indexOf(answer);
-      if (index === -1 && other) return answer;
-      return items[index] ?? items[0];
-    });
+    const select = selectQuestion("kaja.askSelect", question, items, labelOrOptions, trailing);
+    return this.#ask({ ...select.block, answerType: "select" }, ([answer]) => select.take(answer));
   }
 
-  async #ask<T>(question: AskBlock, take: (answer: string) => T): Promise<T> {
+  askSelectMany(question: string, choices: readonly string[], options?: AskSelectOptions): Promise<string[]>;
+  askSelectMany<T>(question: string, items: readonly T[], label: (item: T) => string, options?: { other?: false }): Promise<T[]>;
+  askSelectMany<T>(question: string, items: readonly T[], label: (item: T) => string, options: { other: true }): Promise<(T | string)[]>;
+  askSelectMany(
+    question: string,
+    items: readonly unknown[],
+    labelOrOptions?: ((item: any) => string) | AskSelectOptions,
+    trailing?: AskSelectOptions,
+  ): Promise<any[]> {
+    const select = selectQuestion("kaja.askSelectMany", question, items, labelOrOptions, trailing);
+    return this.#ask({ ...select.block, answerType: "selectMany" }, (answers) => answers.map(select.take));
+  }
+
+  async #ask<T>(question: AskBlock, take: (answers: string[]) => T): Promise<T> {
     this.#refuseInsidePerfTest("kaja.ask*");
     const blockId = newBlockId();
     this.#onBlockUpdate(blockId, question);
     try {
-      const answer = await this.#onAsk(question, blockId);
-      this.#onBlockUpdate(blockId, { ...question, answer });
-      return take(answer);
+      const answers = await this.#onAsk(question, blockId);
+      this.#onBlockUpdate(blockId, { ...question, answers });
+      return take(answers);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...question, cancelled: true });
       throw error;

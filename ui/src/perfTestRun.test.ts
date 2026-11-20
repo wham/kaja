@@ -13,7 +13,7 @@ function testing() {
   const schedules: PerfSchedule[] = [];
   const kaja = new Kaja({
     onMethodCallUpdate: () => {},
-    onAsk: () => Promise.resolve("an answer"),
+    onAsk: () => Promise.resolve(["an answer"]),
     onApprove: () => Promise.resolve("approved" as const),
     onBlockUpdate: (blockId, block) => {
       blocks.set(blockId, block);

@@ -138,7 +138,7 @@ test("defaultInput generates a request that serializes", () => {
   const generated = new Function("kaja", `return ${expr.replace(/;\s*$/, "")}`)(
     new Kaja({
       onMethodCallUpdate: () => {},
-      onAsk: async () => "",
+      onAsk: async () => [""],
       onApprove: async () => "approved" as const,
       onBlockUpdate: () => {},
       onLog: () => {},

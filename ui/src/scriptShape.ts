@@ -22,6 +22,7 @@ const VERB_KIND: { [verb: string]: ScriptKind } = {
   askStr: "ask",
   askInt: "ask",
   askSelect: "ask",
+  askSelectMany: "ask",
   text: "text",
   code: "text",
 };

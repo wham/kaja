@@ -5,7 +5,7 @@ import { REFUSED_GLOBALS, refuse, scriptCrypto, scriptGlobals } from "./scriptGl
 function makeKaja(): Kaja {
   return new Kaja({
     onMethodCallUpdate: () => {},
-    onAsk: async () => "",
+    onAsk: async () => [""],
     onApprove: async () => "approved" as const,
     onBlockUpdate: () => {},
     onLog: () => {},
