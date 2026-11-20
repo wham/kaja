@@ -1,4 +1,4 @@
-import { Block, isAwaitingUser } from "./blocks";
+import { abandoned, Block, isAwaitingUser } from "./blocks";
 import { callKey, isCallInFlight, MethodCall } from "./kaja";
 import { archivePayload, dropRunPayloads } from "./payloadArchive";
 import {
@@ -573,6 +573,17 @@ export class Consoles {
     this.#touch(fileId, file.waiting !== wasWaiting);
     if (file.waiting !== wasWaiting) this.#flagsChanged();
     this.#maybeQuiet(fileId, runId);
+  }
+
+  // A question whose prompt is gone: settled where it is drawn, in whichever file holds it.
+  abandonBlock(blockId: string, now: number): void {
+    for (const [fileId, file] of this.#files) {
+      const found = file.findBlock(blockId);
+      if (!found) continue;
+      const settled = abandoned(found.block);
+      if (settled !== found.block) this.recordBlock(fileId, found.run.id, blockId, settled, now);
+      return;
+    }
   }
 
   recordPerfSchedule(fileId: string | undefined, runId: string, schedule: PerfSchedule, now: number): void {

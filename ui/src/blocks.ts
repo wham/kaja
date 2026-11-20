@@ -267,6 +267,17 @@ export function isAwaitingUser(block: Block): boolean {
   return false;
 }
 
+/**
+ * A question nothing is listening for any more, settled as the script would have left
+ * it: a run read back from another session, or one whose prompt went with a reload,
+ * would otherwise be parked on an input no gesture can answer or cancel.
+ */
+export function abandoned(block: Block): Block {
+  if (block.kind === "ask" && isAwaitingUser(block)) return { ...block, cancelled: true };
+  if (block.kind === "approve" && isAwaitingUser(block)) return { ...block, decision: "rejected" };
+  return block;
+}
+
 // A table is described by its size, because its first cell is rarely what tells two
 // tables apart.
 export function blockLabel(block: Block): string {

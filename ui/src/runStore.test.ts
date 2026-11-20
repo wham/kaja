@@ -138,6 +138,21 @@ describe("blocks in the store", () => {
     expect(loaded.items[0].block).toEqual({ kind: "ask", question: "Which ledger?", answerType: "str", cancelled: true });
   });
 
+  // What is already in the store was not necessarily written by that rule, so reading
+  // applies it again.
+  it("reads a stored question nobody answered back as abandoned", () => {
+    const stored: StoredFile = {
+      storedAt: NOW,
+      runs: [
+        {
+          run: { ...run, stale: true },
+          items: [{ id: "b1", timestamp: NOW, block: { kind: "ask", question: "Category?", answerType: "select", choices: ["a"] } }],
+        },
+      ],
+    };
+    expect(deserializeFile(stored).items[0].block).toEqual({ kind: "ask", question: "Category?", answerType: "select", choices: ["a"], cancelled: true });
+  });
+
   // And that is the truth about the call, too: nothing ever sent it.
   it("stores a call nobody approved as one that was not approved", () => {
     const items: ConsoleItem[] = [{ id: "b1", runId: "r1", timestamp: NOW, block: { kind: "approve", method: "Issues.Create", request: "{}" } }];
