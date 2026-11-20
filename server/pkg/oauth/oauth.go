@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -376,6 +377,10 @@ func (t *tokenSet) expired(now time.Time) bool {
 // the form they post and by nothing else, so they are one function rather than
 // two that would drift.
 func requestToken(client *http.Client, server *authorizationServer, registered *registration, form url.Values) (*tokenSet, error) {
+	return requestTokenContext(context.Background(), client, server, registered, form)
+}
+
+func requestTokenContext(ctx context.Context, client *http.Client, server *authorizationServer, registered *registration, form url.Values) (*tokenSet, error) {
 	if server.TokenEndpoint == "" {
 		return nil, fmt.Errorf("the authorization server named no token endpoint")
 	}
@@ -393,7 +398,7 @@ func requestToken(client *http.Client, server *authorizationServer, registered *
 	if postSecret {
 		form.Set("client_secret", secret)
 	}
-	request, err := http.NewRequest(http.MethodPost, server.TokenEndpoint, strings.NewReader(form.Encode()))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, server.TokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}

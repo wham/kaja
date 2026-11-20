@@ -515,7 +515,7 @@ func (s *Session) AwaitApp(ctx context.Context, name string) bool {
 // link is shown to the person, passed to a URL handler and kept in a client's log, and
 // the specification keeps credentials out of one. A `${NAME}` is a reference rather
 // than a value and travels.
-var secretParameters = map[string]bool{"token": true, "password": true, "spec_header_value": true}
+var secretParameters = map[string]bool{"token": true, "password": true, "spec_header_value": true, "client_secret": true}
 
 // appFormLink is the add-app link that opens Kaja's New app form prefilled. The verb
 // is the host and the draft is the query, in kaja.json's own field names, with the

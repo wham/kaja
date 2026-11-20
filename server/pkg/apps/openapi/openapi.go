@@ -55,9 +55,19 @@ type App struct {
 	// authorizer is what a scheme kaja signs in to reads its token from. A build
 	// without one cannot sign in, and a call that needs it says so.
 	authorizer *oauth.Authorizer
+	// tokens is where the tokens client credentials were exchanged for are kept,
+	// across every app of the type, so reopening an app doesn't ask again.
+	tokens *oauth.ClientTokens
 }
 
-func New() *App { return &App{} }
+func New() *App { return &App{tokens: oauth.NewClientTokens(nil)} }
+
+// WithClientTokens shares the process's client credentials tokens with the app
+// type, so the calls they are sent on can be masked.
+func (a *App) WithClientTokens(tokens *oauth.ClientTokens) *App {
+	a.tokens = tokens
+	return a
+}
 
 // WithAuthorizer is how the process that owns this machine's stored tokens hands
 // them to the app type.
@@ -132,6 +142,7 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 		spec:       s,
 		auth:       authentication,
 		authorizer: a.authorizer,
+		tokens:     a.tokens,
 	}}, nil
 }
 
@@ -139,12 +150,20 @@ func (a *App) Open(ctx context.Context, parameters map[string]string, protoDir s
 // schemes the document declares. It is read again on every call, so a token replaced
 // in kaja.json reaches the next call rather than the next compile.
 func authFor(s *spec, parameters map[string]string) *auth {
-	return resolveAuth(s,
-		strings.TrimSpace(parameters["security_scheme"]),
+	schemeKey := strings.TrimSpace(parameters["security_scheme"])
+	a := resolveAuth(s,
+		schemeKey,
 		strings.TrimSpace(parameters["token"]),
 		strings.TrimSpace(parameters["username"]),
 		strings.TrimSpace(parameters["password"]),
 	)
+	a.useClientCredentials(s, schemeKey, oauth.ClientCredentials{
+		ClientID:     strings.TrimSpace(parameters["client_id"]),
+		ClientSecret: strings.TrimSpace(parameters["client_secret"]),
+		TokenURL:     strings.TrimSpace(parameters["token_url"]),
+		Scope:        strings.TrimSpace(parameters["scope"]),
+	})
+	return a
 }
 
 // compileMethods compiles the generated proto and resolves each method's input

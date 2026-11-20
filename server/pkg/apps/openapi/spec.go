@@ -133,19 +133,39 @@ type components struct {
 // http (bearer/basic), apiKey (header/query/cookie), and oauth2/openIdConnect
 // (treated as bearer tokens).
 type securityScheme struct {
-	Type             string `json:"type"`   // http | apiKey | oauth2 | openIdConnect | mutualTLS
-	Scheme           string `json:"scheme"` // bearer | basic (for type http)
-	In               string `json:"in"`     // header | query | cookie (for type apiKey)
-	Name             string `json:"name"`   // parameter name (for type apiKey)
-	BearerFormat     string `json:"bearerFormat"`
-	Description      string `json:"description"`
-	OpenIDConnectURL string `json:"openIdConnectUrl"`
+	Type             string      `json:"type"`   // http | apiKey | oauth2 | openIdConnect | mutualTLS
+	Scheme           string      `json:"scheme"` // bearer | basic (for type http)
+	In               string      `json:"in"`     // header | query | cookie (for type apiKey)
+	Name             string      `json:"name"`   // parameter name (for type apiKey)
+	BearerFormat     string      `json:"bearerFormat"`
+	Description      string      `json:"description"`
+	OpenIDConnectURL string      `json:"openIdConnectUrl"`
+	Flows            *oauthFlows `json:"flows"`
 
 	// supplied marks a scheme kaja knows the API takes and the document never
 	// declared (known_apis.go).
 	supplied bool
 	// signIn is set where kaja can obtain the credential itself.
 	signIn *signIn
+}
+
+// oauthFlows is an oauth2 scheme's flows. Only client credentials is read: it is
+// the one kaja can run with nothing but what the app holds.
+type oauthFlows struct {
+	ClientCredentials *oauthFlow `json:"clientCredentials"`
+}
+
+type oauthFlow struct {
+	TokenURL string            `json:"tokenUrl"`
+	Scopes   map[string]string `json:"scopes"`
+}
+
+// clientCredentials is the scheme's client credentials flow, or nil.
+func (s *securityScheme) clientCredentials() *oauthFlow {
+	if s == nil || s.Type != "oauth2" || s.Flows == nil || s.Flows.ClientCredentials == nil {
+		return nil
+	}
+	return s.Flows.ClientCredentials
 }
 
 // securitySchemes is components.securitySchemes, keeping the order the document
