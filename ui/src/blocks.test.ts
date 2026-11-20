@@ -4,7 +4,7 @@ import { Block, blockLabel, cellRun, formatCell, isAwaitingUser, RunCell, TableB
 describe("isAwaitingUser", () => {
   it("is true only for a question nobody has answered", () => {
     expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str" })).toBe(true);
-    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" })).toBe(false);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str", answers: ["june"] })).toBe(false);
   });
 
   // A cancelled ask stopped the script rather than parking it, so the run is

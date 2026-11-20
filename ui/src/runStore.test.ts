@@ -121,12 +121,12 @@ describe("blocks in the store", () => {
   it("brings back what a run drew", () => {
     const items: ConsoleItem[] = [
       { id: "b1", runId: "r1", timestamp: NOW, block: { kind: "table", columns: ["id"], rows: [["ac_1"]] } },
-      { id: "b2", runId: "r1", timestamp: NOW, block: { kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" } },
+      { id: "b2", runId: "r1", timestamp: NOW, block: { kind: "ask", question: "Which ledger?", answerType: "str", answers: ["june"] } },
     ];
     const loaded = deserializeFile(serializeFile([run], items, NOW));
     expect(loaded.items.map((item) => item.block)).toEqual([
       { kind: "table", columns: ["id"], rows: [["ac_1"]] },
-      { kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" },
+      { kind: "ask", question: "Which ledger?", answerType: "str", answers: ["june"] },
     ]);
   });
 

@@ -65,7 +65,7 @@ interface ConsoleProps {
   // rather than reporting a new run.
   fileId?: string;
   reserveTrafficLights?: boolean;
-  onAnswer: (blockId: string, answer: string) => void;
+  onAnswer: (blockId: string, answers: string[]) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   tableViews: { [blockId: string]: TableView };

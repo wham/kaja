@@ -135,7 +135,7 @@ describe("ItemStats", () => {
     expect(stats.inFlight).toBe(true);
     expect(itemStatus(item)).toBe("pending");
 
-    item.block = { ...question, answer: "this one" };
+    item.block = { ...question, answers: ["this one"] };
     stats.add(item);
 
     expect(stats.inFlight).toBe(false);

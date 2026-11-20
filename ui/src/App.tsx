@@ -8,6 +8,7 @@ import { Dialog } from "./components/dialog";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
+import { Checkbox } from "./components/checkbox";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
@@ -384,9 +385,11 @@ export function App() {
   const [askPrompt, setAskPrompt] = useState<{
     question: AskBlock;
     value: string;
+    // A selectMany's set; `value` is then only what is typed beside it.
+    picked: string[];
     typing?: boolean;
     problem?: string;
-    resolve: (value: string) => void;
+    resolve: (answers: string[]) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
   const [approvePrompt, setApprovePrompt] = useState<{
@@ -511,14 +514,17 @@ export function App() {
    * Answers to `kaja.ask*` and decisions on `kaja.approve(...)`, keyed by the block
    * they were drawn as. Each entry remembers its run, because Stop is about one run.
    */
-  const pendingPromptsRef = useRef(new Map<string, { runId: string; resolve: (answer: string) => void; reject: (error: unknown) => void }>());
+  const pendingPromptsRef = useRef(new Map<string, { runId: string; resolve: (answer: string | string[]) => void; reject: (error: unknown) => void }>());
 
-  const settlePrompt = useCallback((blockId: string, settle: (pending: { resolve: (answer: string) => void; reject: (error: unknown) => void }) => void) => {
-    const pending = pendingPromptsRef.current.get(blockId);
-    if (!pending) return;
-    pendingPromptsRef.current.delete(blockId);
-    settle(pending);
-  }, []);
+  const settlePrompt = useCallback(
+    (blockId: string, settle: (pending: { resolve: (answer: string | string[]) => void; reject: (error: unknown) => void }) => void) => {
+      const pending = pendingPromptsRef.current.get(blockId);
+      if (!pending) return;
+      pendingPromptsRef.current.delete(blockId);
+      settle(pending);
+    },
+    [],
+  );
 
   const hostRef = useRef<KajaHost>(null);
   if (!hostRef.current) {
@@ -562,13 +568,13 @@ export function App() {
           consoles.recordBlock(run.fileId, run.id, blockId, block, Date.now());
         },
         onAsk: (question: AskBlock, blockId: string) =>
-          new Promise<string>((resolve, reject) => {
+          new Promise<string[]>((resolve, reject) => {
             if (!run.fileId) {
               // A select opens on its first option: the dialog has one field and it has to hold something.
-              setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", resolve, reject });
+              setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", picked: [], resolve, reject });
               return;
             }
-            pendingPromptsRef.current.set(blockId, { runId: run.id, resolve, reject });
+            pendingPromptsRef.current.set(blockId, { runId: run.id, resolve: (answers) => resolve(answers as string[]), reject });
           }),
         onApprove: (call: ApproveBlock, blockId: string) =>
           new Promise<ApproveDecision>((resolve, reject) => {
@@ -613,7 +619,7 @@ export function App() {
     [],
   );
 
-  const onAnswerAsk = useCallback((blockId: string, answer: string) => settlePrompt(blockId, (pending) => pending.resolve(answer)), [settlePrompt]);
+  const onAnswerAsk = useCallback((blockId: string, answers: string[]) => settlePrompt(blockId, (pending) => pending.resolve(answers)), [settlePrompt]);
   const onCancelAsk = useCallback((blockId: string) => settlePrompt(blockId, (pending) => pending.reject(new AskCancelledError())), [settlePrompt]);
 
   const onDecideApproval = useCallback(
@@ -624,6 +630,17 @@ export function App() {
 
   const submitAskPrompt = useCallback(() => {
     if (!askPrompt) return;
+    if (askPrompt.question.answerType === "selectMany") {
+      const typed = askPrompt.typing && askPrompt.value.trim() !== "" ? [askPrompt.value.trim()] : [];
+      const answers = [...(askPrompt.question.choices ?? []).filter((choice) => askPrompt.picked.includes(choice)), ...typed];
+      if (answers.length === 0) {
+        setAskPrompt({ ...askPrompt, problem: "Pick at least one" });
+        return;
+      }
+      askPrompt.resolve(answers);
+      setAskPrompt(null);
+      return;
+    }
     const problem = askPrompt.typing
       ? askPrompt.value.trim() === ""
         ? "Type an answer"
@@ -633,7 +650,7 @@ export function App() {
       setAskPrompt({ ...askPrompt, problem });
       return;
     }
-    askPrompt.resolve(askPrompt.typing ? askPrompt.value.trim() : normalizeAnswer(askPrompt.question.answerType, askPrompt.value));
+    askPrompt.resolve([askPrompt.typing ? askPrompt.value.trim() : normalizeAnswer(askPrompt.question.answerType, askPrompt.value)]);
     setAskPrompt(null);
   }, [askPrompt]);
 
@@ -3219,7 +3236,38 @@ export function App() {
         >
           <FormControl>
             <FormControl.Label>{askPrompt.question.question}</FormControl.Label>
-            {askPrompt.question.answerType === "select" ? (
+            {askPrompt.question.answerType === "selectMany" ? (
+              <div className="flex flex-col gap-2">
+                {(askPrompt.question.choices ?? []).map((choice, index) => (
+                  <label key={index} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={askPrompt.picked.includes(choice)}
+                      onCheckedChange={(checked) =>
+                        setAskPrompt((prev) =>
+                          prev
+                            ? { ...prev, problem: undefined, picked: checked ? [...prev.picked, choice] : prev.picked.filter((picked) => picked !== choice) }
+                            : prev,
+                        )
+                      }
+                    />
+                    {choice}
+                  </label>
+                ))}
+                {askPrompt.question.other && (
+                  <Input
+                    placeholder="Something else…"
+                    value={askPrompt.value}
+                    onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, typing: true, value: e.target.value, problem: undefined } : prev))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitAskPrompt();
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            ) : askPrompt.question.answerType === "select" ? (
               <>
                 <Select
                   value={askPrompt.typing ? OTHER_CHOICE : askPrompt.value}

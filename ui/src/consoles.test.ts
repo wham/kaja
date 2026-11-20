@@ -497,7 +497,7 @@ describe("hasWorkInFlight", () => {
 
     expect(store.hasWorkInFlight("a.ts", created.id)).toBe(true);
 
-    store.recordBlock("a.ts", created.id, "block-1", { ...question, answer: "this one" }, NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { ...question, answers: ["this one"] }, NOW);
 
     expect(store.hasWorkInFlight("a.ts", created.id)).toBe(false);
   });

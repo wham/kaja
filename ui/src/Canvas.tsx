@@ -1,6 +1,17 @@
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { answerPlaceholder, answerProblem, AskAnswerType, digitChoice, isTypedAnswer, normalizeAnswer, typeaheadIndex, TYPEAHEAD_MS } from "./ask";
+import {
+  answerPlaceholder,
+  answerProblem,
+  AskAnswerType,
+  digitChoice,
+  isSelect,
+  isTyped,
+  normalizeAnswer,
+  pickedAnswers,
+  typeaheadIndex,
+  TYPEAHEAD_MS,
+} from "./ask";
 import {
   ApproveBlock,
   ApproveGesture,
@@ -21,6 +32,8 @@ import { formatBytes, formatDuration } from "./callFormat";
 import { copyText } from "./clipboard";
 import { readInstant, timeAgo } from "./cellTime";
 import { cn } from "./cn";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
@@ -67,7 +80,7 @@ interface CanvasProps {
   // A size, not a mode: everything below reads it only to decide how much air a
   // block is given.
   fullScreen?: boolean;
-  onAnswer: (blockId: string, answer: string) => void;
+  onAnswer: (blockId: string, answers: string[]) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onSelectCall: (itemId: string) => void;
@@ -295,7 +308,7 @@ interface BlockProps {
   id: string;
   block: Block;
   fullScreen?: boolean;
-  onAnswer: (blockId: string, answer: string) => void;
+  onAnswer: (blockId: string, answers: string[]) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onFullScreen?: () => void;
@@ -880,7 +893,7 @@ function useDelayed(active: boolean, delay: number): boolean {
 interface AskProps {
   id: string;
   block: AskBlock;
-  onAnswer: (blockId: string, answer: string) => void;
+  onAnswer: (blockId: string, answers: string[]) => void;
   onCancelAsk: (blockId: string) => void;
 }
 
@@ -891,30 +904,40 @@ interface AskProps {
  * An answered one collapses to one row.
  */
 Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
-  const waiting = block.answer === undefined && !block.cancelled;
+  const waiting = block.answers === undefined && !block.cancelled;
 
   if (!waiting) return <Canvas.AskSettled block={block} />;
 
   return (
     <div className="flex flex-col gap-2 rounded-r-md border-l-2 border-amber-500 bg-amber-500/10 py-2.5 pl-3 pr-3">
       <div className="whitespace-pre-wrap break-words text-amber-600 dark:text-amber-400">{block.question}</div>
-      {block.answerType === "select" ? (
+      {isSelect(block.answerType) ? (
         <Canvas.AskChoices
           choices={block.choices ?? []}
           other={block.other === true}
-          onAnswer={(answer) => onAnswer(id, answer)}
+          many={block.answerType === "selectMany"}
+          onAnswer={(answers) => onAnswer(id, answers)}
           onCancel={() => onCancelAsk(id)}
         />
       ) : (
-        <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
+        <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, [answer])} onCancel={() => onCancelAsk(id)} />
       )}
     </div>
   );
 };
 
+// Past this many, the rest of a set is a count, and the row's title names them all.
+const SETTLED_CHIPS = 3;
+
 Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
+  const answers = block.answers ?? [];
+  const rest = answers.length - SETTLED_CHIPS;
   return (
-    <div data-testid="canvas-ask-settled" className="flex h-[34px] items-center gap-3 rounded-md border border-border bg-card px-3">
+    <div
+      data-testid="canvas-ask-settled"
+      className="flex h-[34px] items-center gap-3 rounded-md border border-border bg-card px-3"
+      title={answers.length > 1 ? answers.join(", ") : undefined}
+    >
       {block.cancelled ? (
         <CircleX size={12} className="shrink-0 text-muted-foreground" />
       ) : (
@@ -926,12 +949,17 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
       {block.cancelled ? (
         <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled. The script stopped here</span>
       ) : (
-        <>
-          <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
-            {block.answer}
-          </span>
-          {isTypedAnswer(block) && <span className="shrink-0 text-muted-foreground">typed</span>}
-        </>
+        <span className="ml-auto flex min-w-0 max-w-[60%] items-center gap-1">
+          {answers.slice(0, SETTLED_CHIPS).map((answer, index) => (
+            <span key={index} className="flex min-w-0 items-center gap-1.5">
+              <span data-testid="canvas-ask-answer" className="min-w-0 truncate rounded bg-muted px-2 py-0.5 text-foreground" title={answer}>
+                {answer}
+              </span>
+              {isTyped(block, answer) && <span className="shrink-0 text-muted-foreground">typed</span>}
+            </span>
+          ))}
+          {rest > 0 && <span className="shrink-0 px-0.5 text-muted-foreground">+{rest}</span>}
+        </span>
       )}
     </div>
   );
@@ -1176,20 +1204,30 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
 interface AskChoicesProps {
   choices: string[];
   other: boolean;
-  onAnswer: (answer: string) => void;
+  many: boolean;
+  onAnswer: (answers: string[]) => void;
   onCancel: () => void;
 }
 
 // A listbox rather than a Select popup: the canvas has the room, and a question the
 // run is parked on should not need a click to read. "Something else…" is the row after
 // the choices, and picking it turns that row into a field rather than answering.
-Canvas.AskChoices = function ({ choices, other, onAnswer, onCancel }: AskChoicesProps) {
+//
+// A set has one rule, so a single answer stays one keystroke: with nothing picked every
+// gesture answers, and once something is picked every gesture picks. Space, ⌘click or
+// the key are what start one. What was typed into a set is a row of its own before the field.
+Canvas.AskChoices = function ({ choices, other, many, onAnswer, onCancel }: AskChoicesProps) {
   const [active, setActive] = useState(0);
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState("");
+  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set());
+  const [typed, setTyped] = useState<string[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  const typed = useRef({ text: "", at: 0 });
-  const rows = choices.length + (other ? 1 : 0);
+  const search = useRef({ text: "", at: 0 });
+  const phone = useMediaQuery(PHONE_QUERY);
+  const otherIndex = choices.length + typed.length;
+  const rows = otherIndex + (other ? 1 : 0);
+  const collecting = picked.size + typed.length > 0;
 
   useEffect(() => {
     if (!typing) listRef.current?.focus();
@@ -1199,128 +1237,265 @@ Canvas.AskChoices = function ({ choices, other, onAnswer, onCancel }: AskChoices
     listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  const pick = (index: number) => {
+  const toggle = (index: number) => {
     if (index < choices.length) {
-      onAnswer(choices[index]);
+      setPicked((prev) => {
+        const next = new Set(prev);
+        if (!next.delete(index)) next.add(index);
+        return next;
+      });
+    } else {
+      setTyped((prev) => prev.filter((_, at) => at !== index - choices.length));
+      setActive((at) => Math.min(at, rows - 2));
+    }
+  };
+
+  const answerSet = () => onAnswer(pickedAnswers(choices, picked, typed));
+
+  const pick = (index: number, toggling: boolean) => {
+    setActive(index);
+    if (index === otherIndex) {
+      setTyping(true);
       return;
     }
-    setActive(index);
-    setTyping(true);
+    if (many && (toggling || collecting)) toggle(index);
+    else onAnswer([choices[index]]);
+  };
+
+  const submitTyped = () => {
+    const answer = text.trim();
+    if (answer === "") return;
+    if (!many || !collecting) {
+      onAnswer([answer]);
+      return;
+    }
+    // Text naming a choice is that choice, the rule a single select reads it under.
+    const choice = choices.indexOf(answer);
+    if (choice !== -1) setPicked((prev) => new Set(prev).add(choice));
+    else if (!typed.includes(answer)) setTyped((prev) => [...prev, answer]);
+    setText("");
+    setTyping(false);
+    setActive(choice !== -1 || typed.includes(answer) ? otherIndex : otherIndex + 1);
   };
 
   return (
-    <div
-      ref={listRef}
-      role="listbox"
-      tabIndex={0}
-      data-testid="canvas-ask-choices"
-      className="flex flex-col gap-1 outline-none"
-      onKeyDown={(event) => {
-        if (typing) return;
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          event.preventDefault();
-          const step = event.key === "ArrowDown" ? 1 : rows - 1;
-          setActive((index) => (index + step) % rows);
-        } else if (event.key === "Enter") {
-          event.preventDefault();
-          if (active < rows) pick(active);
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          onCancel();
-        } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          const numbered = digitChoice(event.key, rows);
-          if (numbered !== undefined) {
+    <div className="flex flex-col gap-2">
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-multiselectable={many || undefined}
+        tabIndex={0}
+        data-testid="canvas-ask-choices"
+        className="flex flex-col gap-1 outline-none"
+        onKeyDown={(event) => {
+          if (typing) return;
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            pick(numbered);
-            return;
+            const step = event.key === "ArrowDown" ? 1 : rows - 1;
+            setActive((index) => (index + step) % rows);
+          } else if (event.key === " " && many) {
+            event.preventDefault();
+            pick(active, true);
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            if (many && collecting && active !== otherIndex) answerSet();
+            else if (active < rows) pick(active, false);
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            if (many && collecting) {
+              setPicked(new Set());
+              setTyped([]);
+              setActive((index) => Math.min(index, choices.length));
+            } else {
+              onCancel();
+            }
+          } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            const numbered = digitChoice(event.key, rows);
+            if (numbered !== undefined) {
+              event.preventDefault();
+              pick(numbered, false);
+              return;
+            }
+            const now = Date.now();
+            const searching = (now - search.current.at < TYPEAHEAD_MS ? search.current.text : "") + event.key;
+            if (searching.trim() === "") return;
+            search.current = { text: searching, at: now };
+            const index = typeaheadIndex(choices, searching, Math.min(active, choices.length - 1));
+            if (index === undefined) return;
+            event.preventDefault();
+            setActive(index);
           }
-          const now = Date.now();
-          const search = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.text : "") + event.key;
-          if (search.trim() === "") return;
-          typed.current = { text: search, at: now };
-          const index = typeaheadIndex(choices, search, Math.min(active, choices.length - 1));
-          if (index === undefined) return;
-          event.preventDefault();
-          setActive(index);
-        }
-      }}
-    >
-      {choices.map((choice, index) => (
-        <button
-          key={index}
-          type="button"
-          role="option"
-          aria-selected={index === active}
-          data-testid="canvas-ask-choice"
-          className={cn(
-            "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
-            index === active ? "border-amber-500" : "border-border hover:border-amber-500/50",
+        }}
+      >
+        {[...choices, ...typed].map((choice, index) => {
+          const on = index >= choices.length || picked.has(index);
+          const hint = collecting ? (on ? "space unpick" : "space pick") : "⏎";
+          return (
+            <button
+              key={index}
+              type="button"
+              role="option"
+              aria-selected={many ? on : index === active}
+              data-testid="canvas-ask-choice"
+              className={cn(
+                "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left",
+                on ? "bg-amber-500/5" : "bg-background",
+                index === active ? "border-amber-500" : "border-border hover:border-amber-500/50",
+              )}
+              onMouseEnter={() => !typing && setActive(index)}
+              onClick={(event) => pick(index, event.metaKey || event.ctrlKey || event.shiftKey)}
+            >
+              <ChoiceKey
+                index={index}
+                active={index === active}
+                picked={on}
+                collecting={collecting}
+                onToggle={many && !phone ? () => pick(index, true) : undefined}
+              />
+              <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
+              {index >= choices.length && <span className="shrink-0 text-muted-foreground">typed</span>}
+              {many && phone ? (
+                <PickBox picked={on} onToggle={() => pick(index, true)} />
+              ) : (
+                index === active && <span className="shrink-0 text-muted-foreground">{many ? hint : "⏎"}</span>
+              )}
+            </button>
+          );
+        })}
+        {other &&
+          (typing ? (
+            <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5">
+              <ChoiceKey index={otherIndex} active picked={false} collecting={collecting} />
+              <input
+                autoFocus
+                data-testid="canvas-ask-other-input"
+                className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+                placeholder="Something else…"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitTyped();
+                  } else if (event.key === "Escape") {
+                    // Back to the list rather than out of the question: the field was one row of it.
+                    event.preventDefault();
+                    setTyping(false);
+                  }
+                }}
+              />
+              <span className="shrink-0 text-muted-foreground">{many && collecting ? "⏎ add" : "⏎ answer"} · esc back to list</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              role="option"
+              aria-selected={active === otherIndex}
+              data-testid="canvas-ask-other"
+              className={cn(
+                "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
+                active === otherIndex ? "border-amber-500" : "border-border hover:border-amber-500/50",
+              )}
+              onMouseEnter={() => setActive(otherIndex)}
+              onClick={() => pick(otherIndex, false)}
+            >
+              <ChoiceKey index={otherIndex} active={active === otherIndex} picked={false} collecting={collecting} />
+              <span className="min-w-0 flex-1 italic text-muted-foreground">Something else…</span>
+              {active === otherIndex && <span className="shrink-0 text-muted-foreground">⏎</span>}
+            </button>
+          ))}
+      </div>
+      {many && (
+        <div className="flex min-h-7 flex-wrap items-center gap-3 text-muted-foreground" data-testid="canvas-ask-set">
+          {collecting ? (
+            <>
+              <span className="text-amber-600 dark:text-amber-400">{picked.size + typed.length} picked</span>
+              {!phone && <span>⏎ answer · esc clear</span>}
+              <span className="flex-1" />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setPicked(new Set());
+                  setTyped([]);
+                }}
+              >
+                Clear
+              </Button>
+              <Button size="sm" data-testid="canvas-ask-send" onClick={answerSet}>
+                Answer with {picked.size + typed.length}
+              </Button>
+            </>
+          ) : (
+            <span>{phone ? "Tap answers with one, the box picks several" : "1–9 or ⏎ answers with one · space picks several"}</span>
           )}
-          onMouseEnter={() => !typing && setActive(index)}
-          onClick={() => onAnswer(choice)}
-        >
-          <ChoiceKey index={index} active={index === active} />
-          <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
-          {index === active && <span className="shrink-0 text-muted-foreground">⏎</span>}
-        </button>
-      ))}
-      {other &&
-        (typing ? (
-          <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5">
-            <ChoiceKey index={choices.length} active />
-            <input
-              autoFocus
-              data-testid="canvas-ask-other-input"
-              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-              placeholder="Something else…"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  if (text.trim() !== "") onAnswer(text.trim());
-                } else if (event.key === "Escape") {
-                  // Back to the list rather than out of the question: the field was one row of it.
-                  event.preventDefault();
-                  setTyping(false);
-                }
-              }}
-            />
-            <span className="shrink-0 text-muted-foreground">⏎ answer · esc back to list</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            role="option"
-            aria-selected={active === choices.length}
-            data-testid="canvas-ask-other"
-            className={cn(
-              "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
-              active === choices.length ? "border-amber-500" : "border-border hover:border-amber-500/50",
-            )}
-            onMouseEnter={() => setActive(choices.length)}
-            onClick={() => pick(choices.length)}
-          >
-            <ChoiceKey index={choices.length} active={active === choices.length} />
-            <span className="min-w-0 flex-1 italic text-muted-foreground">Something else…</span>
-            {active === choices.length && <span className="shrink-0 text-muted-foreground">⏎</span>}
-          </button>
-        ))}
+        </div>
+      )}
     </div>
   );
 };
 
-function ChoiceKey({ index, active }: { index: number; active: boolean }) {
-  if (index >= 9) return <span className="w-[18px] shrink-0" />;
+interface ChoiceKeyProps {
+  index: number;
+  active: boolean;
+  picked: boolean;
+  collecting: boolean;
+  onToggle?: () => void;
+}
+
+// In a set the key is the row's checkbox, holding its digit while unpicked so the
+// digits stay readable; past nine it is an empty box.
+function ChoiceKey({ index, active, picked, collecting, onToggle }: ChoiceKeyProps) {
+  const toggle = onToggle
+    ? (event: React.MouseEvent) => {
+        event.stopPropagation();
+        onToggle();
+      }
+    : undefined;
+  if (picked) {
+    return (
+      <span
+        onClick={toggle}
+        className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 border-amber-500 bg-amber-500 text-background"
+      >
+        <Check size={11} strokeWidth={3} />
+      </span>
+    );
+  }
+  if (index >= 9) return <span onClick={toggle} className={cn("h-[18px] w-[18px] shrink-0 rounded", collecting && "border border-b-2 border-border")} />;
   return (
     <kbd
+      onClick={toggle}
       className={cn(
         "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 px-1 font-mono text-[11px]",
         active ? "border-amber-500/50 text-amber-500" : "border-border text-muted-foreground",
+        onToggle && "hover:border-amber-500",
       )}
     >
       {index + 1}
     </kbd>
+  );
+}
+
+// A phone's way into a set: no space bar, so the box at the row's end is what starts one.
+function PickBox({ picked, onToggle }: { picked: boolean; onToggle: () => void }) {
+  return (
+    <span
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      className="-my-1 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center"
+    >
+      <span
+        className={cn(
+          "inline-flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border-[1.5px]",
+          picked ? "border-amber-500 bg-amber-500 text-background" : "border-border",
+        )}
+      >
+        {picked && <Check size={11} strokeWidth={3} />}
+      </span>
+    </span>
   );
 }
 

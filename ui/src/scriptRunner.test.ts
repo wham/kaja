@@ -6,10 +6,10 @@ import { Source } from "./sources";
 import { runScriptCaptured } from "./scriptRunner";
 import { LogLevel } from "./server/api";
 
-function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
+function makeKaja(answer: (question: AskBlock) => string | string[] = () => ""): Kaja {
   return new Kaja({
     onMethodCallUpdate: () => {},
-    onAsk: async (question) => answer(question),
+    onAsk: async (question) => [answer(question)].flat(),
     onApprove: async () => "approved" as const,
     onBlockUpdate: () => {},
     onLog: () => {},
@@ -264,6 +264,30 @@ describe("the ask verbs", () => {
     expect(run.result).toBe("us");
   });
 
+  it("hands back every item a set picked, typed answers as text", async () => {
+    const asked: AskBlock[] = [];
+    const kaja = makeKaja((question) => {
+      asked.push(question);
+      return ["US", "Europe", "Asia"];
+    });
+
+    const run = await runScriptCaptured(
+      `import { kaja } from "kaja";\nconst regions = await kaja.askSelectMany("Where?", [{ name: "US", code: "us" }, { name: "Europe", code: "eu" }], (region) => region.name, { other: true });\nreturn regions.map((region) => typeof region === "string" ? region : region.code).join(" ");`,
+      kaja,
+      [],
+    );
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("us eu Asia");
+    expect(asked[0].answerType).toBe("selectMany");
+  });
+
+  it("refuses a set with nothing to pick", async () => {
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn await kaja.askSelectMany("Where?", []);`, makeKaja(), []);
+
+    expect(run.error).toContain("kaja.askSelectMany: choices must not be empty");
+  });
+
   it("refuses a select with nothing to pick", async () => {
     const kaja = makeKaja();
 
@@ -379,7 +403,7 @@ describe("the fetch a script sees", () => {
     const calls: MethodCall[] = [];
     const kaja = new Kaja({
       onMethodCallUpdate: (call) => void calls.push(call),
-      onAsk: async () => "",
+      onAsk: async () => [""],
       onApprove: async () => "approved" as const,
       onBlockUpdate: () => {},
       onLog: () => {},
@@ -454,7 +478,7 @@ describe("the console a script sees", () => {
     const lines: { level: LogLevel; message: string }[] = [];
     const kaja = new Kaja({
       onMethodCallUpdate: () => {},
-      onAsk: async () => "",
+      onAsk: async () => [""],
       onApprove: async () => "approved" as const,
       onBlockUpdate: () => {},
       onLog: (level, message) => void lines.push({ level, message }),

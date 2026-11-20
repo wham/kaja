@@ -2,13 +2,18 @@
 //
 // It lives here rather than in the block or in the canvas because three places
 // need the same reading of it: the canvas draws the control, the fallback dialog
-// draws the same control without a canvas, and `kaja.askStr`/`askInt`/`askSelect` hand the script
+// draws the same control without a canvas, and `kaja.askStr`/`askInt`/`askSelect`/`askSelectMany` hand the script
 // back the kind of thing it asked for. The point of the typed asks is that the
 // parse happens where the person who typed it can still fix it, so the check has
 // to be in front of them rather than in the script a line later.
 
 /** The kinds of thing a script can ask for. */
-export type AskAnswerType = "str" | "int" | "select";
+export type AskAnswerType = "str" | "int" | "select" | "selectMany";
+
+/** Whether the ask is answered from a list rather than a field. */
+export function isSelect(answerType: AskAnswerType): boolean {
+  return answerType === "select" || answerType === "selectMany";
+}
 
 const INTEGER = /^[+-]?\d+$/;
 
@@ -50,9 +55,17 @@ export function answerPlaceholder(answerType: AskAnswerType): string {
   return answerType === "int" ? "Whole number…" : "Answer…";
 }
 
-/** Whether a select was answered with text of the person's own rather than one of its choices. */
-export function isTypedAnswer(block: { other?: boolean; choices?: string[]; answer?: string }): boolean {
-  return block.other === true && block.answer !== undefined && !(block.choices ?? []).includes(block.answer);
+/** Whether this answer to a select is text of the person's own rather than one of its choices. */
+export function isTyped(block: { other?: boolean; choices?: string[] }, answer: string): boolean {
+  return block.other === true && !(block.choices ?? []).includes(answer);
+}
+
+/**
+ * What a set answers with: the picked choices in the list's order, then what was typed.
+ * The order things were clicked in is not something a script should come to depend on.
+ */
+export function pickedAnswers(choices: string[], picked: ReadonlySet<number>, typed: string[]): string[] {
+  return [...choices.filter((_, index) => picked.has(index)), ...typed];
 }
 
 /** How long a typeahead keeps collecting letters before the next one starts a new search. */

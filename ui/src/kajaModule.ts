@@ -384,6 +384,20 @@ export declare const kaja: {
   askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options?: { other?: false }): Promise<T>;
   askSelect<T>(question: string, items: readonly T[], label: (item: T) => string, options: { other: true }): Promise<T | string>;
   /**
+   * Ask the user to pick one or more of a list. It reads like askSelect and hands
+   * back a list: the strings, or the items, in the list's order and never empty.
+   * Picking one is still one keystroke; picking several is the user's to start.
+   *
+   *   const people = await kaja.askSelectMany("Who's coming?", team, (person) => person.login);
+   *
+   * \`{ other: true }\` lets the user type answers of their own beside the ones
+   * picked, which come back last, as the text typed. To allow picking nothing,
+   * offer an item that says so.
+   */
+  askSelectMany(question: string, choices: readonly string[], options?: { other?: boolean }): Promise<string[]>;
+  askSelectMany<T>(question: string, items: readonly T[], label: (item: T) => string, options?: { other?: false }): Promise<T[]>;
+  askSelectMany<T>(question: string, items: readonly T[], label: (item: T) => string, options: { other: true }): Promise<(T | string)[]>;
+  /**
    * Hold a call until it is approved. The call and the request it is about to
    * send are drawn on the run's canvas and the run stops there; approving sends
    * it and hands back the response, and not approving stops the script.
