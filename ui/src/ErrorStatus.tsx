@@ -113,7 +113,7 @@ export function ErrorStatus() {
           <span className="text-xs font-semibold text-foreground">Errors</span>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" className="gap-1.5" onClick={copyAll}>
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Check size={14} /> : <Copy size={14} />}
               {copied ? "Copied" : "Copy"}
             </Button>
             <Button size="sm" variant="ghost" onClick={clearAll}>

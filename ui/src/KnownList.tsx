@@ -65,7 +65,7 @@ export function KnownList({ heading, note, entries, query, highlight, onHighligh
 export function KnownChip({ entry }: { entry: Pick<KnownEntry, "name" | "mark"> }) {
   return (
     <span className="flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-      <entry.mark size={12} />
+      <entry.mark size={14} />
       <span className="max-w-24 truncate">{entry.name}</span>
     </span>
   );

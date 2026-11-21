@@ -144,7 +144,7 @@ function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variabl
               onClick={() => onHeadersChange((previous) => [...previous, { name: "", value: "" }])}
               className="flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-foreground"
             >
-              <Plus size={12} />
+              <Plus size={14} />
               <span>Add header</span>
             </button>
           )}
@@ -495,7 +495,7 @@ function FolderWarning({ problem, picked }: { problem: FolderProblem; picked: bo
     picked && problem.kind === FolderProblemKind.FOLDER_PROBLEM_REFUSED ? "Kaja has no access to this folder yet. Pick it to grant access." : problem.message;
   return (
     <span className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-      <CircleAlert size={12} className="mt-0.5 shrink-0" />
+      <CircleAlert size={14} className="mt-0.5 shrink-0" />
       {message}
     </span>
   );

@@ -141,7 +141,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           style={{ maxWidth: TRIGGER_MAX_WIDTH }}
         >
           <TriggerContent destination={current} errorCount={errorCount} />
-          <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
+          <ChevronsUpDown size={15} className="shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -152,7 +152,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
         className="flex w-[380px] flex-col overflow-hidden rounded-lg p-0 shadow-lg transition-opacity duration-[120ms] data-[ending-style]:scale-100 data-[starting-style]:scale-100"
       >
         <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-border px-3">
-          <Search size={13} className="shrink-0 text-muted-foreground" />
+          <Search size={15} className="shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             value={query}
@@ -231,7 +231,7 @@ function DestinationRow({
       onMouseEnter={() => onHighlight(index)}
       onClick={() => onSelect(destination)}
     >
-      <Icon size={13} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
+      <Icon size={15} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
         className={cn(
           "shrink-0 truncate text-sm",
@@ -242,7 +242,7 @@ function DestinationRow({
         {destination.file ? <FileName name={destination.name} /> : destination.name}
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
-      {destination.uncallable && <Ban size={12} className="shrink-0 text-muted-foreground" />}
+      {destination.uncallable && <Ban size={14} className="shrink-0 text-muted-foreground" />}
       {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
     </div>
   );
@@ -273,7 +273,7 @@ function TriggerContent({ destination, errorCount }: { destination: Destination;
           {qualifier && <span className="text-xs">{qualifier}</span>}
         </span>
       </span>
-      <Icon size={13} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", destination.provisional && "opacity-60")} />
+      <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
         className={cn("min-w-0 truncate text-sm font-medium", destination.provisional ? "text-muted-foreground" : "text-foreground")}
         // Truncating from the left keeps the call name, which is the end of a qualified one.
