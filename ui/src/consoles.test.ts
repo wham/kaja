@@ -476,6 +476,37 @@ describe("settleRun", () => {
   });
 });
 
+// A gesture on a question whose prompt went with a reload is answered by settling it,
+// or the question stays on the canvas with nothing that can end it.
+describe("abandonBlock", () => {
+  it("cancels a question nothing is listening for", () => {
+    const created = start("a.ts");
+    store.recordBlock("a.ts", created.id, "block-1", { kind: "ask", question: "which?", answerType: "select", choices: ["a", "b"] }, NOW);
+
+    store.abandonBlock("block-1", NOW);
+
+    expect(store.file("a.ts").findBlock("block-1")!.block).toEqual({
+      kind: "ask",
+      question: "which?",
+      answerType: "select",
+      choices: ["a", "b"],
+      cancelled: true,
+    });
+    expect(store.file("a.ts").waiting).toBe(false);
+    expect([...store.flagSets().waiting]).toEqual([]);
+  });
+
+  it("leaves an answered question as it was", () => {
+    const created = start("a.ts");
+    const answered: Block = { kind: "ask", question: "which?", answerType: "str", answers: ["a"] };
+    store.recordBlock("a.ts", created.id, "block-1", answered, NOW);
+
+    store.abandonBlock("block-1", NOW);
+
+    expect(store.file("a.ts").findBlock("block-1")!.block).toEqual(answered);
+  });
+});
+
 describe("hasWorkInFlight", () => {
   it("is what the settle check waits on", () => {
     const created = start("a.ts");

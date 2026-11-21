@@ -1,5 +1,5 @@
 import { Method, Service } from "./apps";
-import { Block, isAwaitingUser } from "./blocks";
+import { abandoned, Block } from "./blocks";
 import { consoles } from "./consoles";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { MethodCall } from "./kaja";
@@ -204,14 +204,13 @@ function toStoredItem(item: ConsoleItem): StoredItem {
   };
 }
 
-// A question that was never answered is stored as abandoned: the promise it was
-// blocking died with the session, so reading it back as still waiting would show a run
-// parked on an input nothing is listening to. A call that was never approved reads
-// back the same way, and that is the truth about it too — nothing sent it.
+// A question that was never answered is stored as abandoned, and read back that way
+// too, since what is already in the store was not necessarily written by this rule.
+// A call that was never approved reads back the same way, and that is the truth about
+// it too — nothing sent it.
 function storedBlock(block: Block | undefined): Block | undefined {
   if (block === undefined) return undefined;
-  if (block.kind === "ask" && isAwaitingUser(block)) return { ...block, cancelled: true };
-  if (block.kind === "approve" && isAwaitingUser(block)) return { ...block, decision: "rejected" };
+  block = abandoned(block);
   // A live table's source is a closure, which nothing can store. It reads back as the
   // rows it had, saying so.
   if (block.kind === "table" && block.live === true && block.exhausted !== true) {
@@ -241,7 +240,7 @@ export function deserializeFile(stored: StoredFile): LoadedRuns {
         call: item.call ? fromStoredCall(item.call) : undefined,
         logs: item.logs,
         printed: item.printed,
-        block: item.block,
+        block: item.block && abandoned(item.block),
         payloadsDropped: item.payloadsDropped,
         status: item.status,
       });

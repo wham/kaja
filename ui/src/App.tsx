@@ -519,7 +519,10 @@ export function App() {
   const settlePrompt = useCallback(
     (blockId: string, settle: (pending: { resolve: (answer: string | string[]) => void; reject: (error: unknown) => void }) => void) => {
       const pending = pendingPromptsRef.current.get(blockId);
-      if (!pending) return;
+      if (!pending) {
+        consoles.abandonBlock(blockId, Date.now());
+        return;
+      }
       pendingPromptsRef.current.delete(blockId);
       settle(pending);
     },
