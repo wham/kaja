@@ -28,9 +28,9 @@ import {
   tooltips,
   ViewPlugin,
 } from "@codemirror/view";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { App } from "./apps";
-import { keyBarState, KeyBarState, PhoneKeyBar, sameKeyBarState } from "./PhoneKeyBar";
+import { releaseNativeKeyboard, syncNativeKeyboard } from "./nativeKeyboard";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { kajaModuleDeclaration } from "./kajaModule";
@@ -40,6 +40,7 @@ import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } 
 import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { reportDiagnostics } from "./syntaxErrors";
+import { isIOSApp } from "./wails";
 import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
 import { ScalarValue } from "./typeMemory";
 import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, subscribeProgram } from "./typescriptService";
@@ -593,23 +594,17 @@ function gutterExtensions(phone: boolean): Extension {
   return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
 }
 
-// A phone with a finger on it, rather than a narrow window with a mouse and a keyboard.
-function isTouch(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-}
-
-// The completion list is the bar's on a touch screen, where a popup sits under the
-// finger or the keyboard, and nothing is selected in it, so return still starts a line.
-function keyBarExtensions(on: boolean, barHeight: { current: number }): Extension {
+// The completion list is the app's keyboard bar's, where a popup sits under the finger
+// or the keyboard, and nothing is selected in it, so return still starts a line.
+function keyBarExtensions(on: boolean): Extension {
   if (!on) return [];
   return [
     autocompletion({ selectOnOpen: false }),
     EditorView.theme({ ".cm-tooltip-autocomplete, .cm-completionInfo": { display: "none" } }),
     EditorView.scrollMargins.of((view) => {
-      if (!barHeight.current) return null;
       const viewport = window.visualViewport;
-      const shown = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-      return { bottom: Math.max(0, view.scrollDOM.getBoundingClientRect().bottom - (shown - barHeight.current)) };
+      if (!viewport) return null;
+      return { bottom: Math.max(0, view.scrollDOM.getBoundingClientRect().bottom - (viewport.offsetTop + viewport.height)) };
     }),
   ];
 }
@@ -638,11 +633,9 @@ export function Editor({
   // Read through refs, so the editor is created once per buffer rather than per render.
   const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition });
   callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition };
-  const withBar = phone && !readOnly && isTouch();
+  const withBar = phone && !readOnly && isIOSApp();
   const barOn = useRef(withBar);
   barOn.current = withBar;
-  const barHeight = useRef(0);
-  const [bar, setBar] = useState<KeyBarState | undefined>();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -695,7 +688,7 @@ export function Editor({
       doc: buffer.getValue(),
       extensions: [
         gutter.of(gutterExtensions(phone)),
-        keyBar.of(keyBarExtensions(withBar, barHeight)),
+        keyBar.of(keyBarExtensions(withBar)),
         editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
         history(),
@@ -726,6 +719,11 @@ export function Editor({
         tooltipBounds,
         definitionLinks(buffer),
         EditorView.domEventHandlers({
+          // Sooner than the update the focus makes, so the bar is there as the keyboard rises.
+          focus: (_event, view) => {
+            if (barOn.current) syncNativeKeyboard(view, () => valueCompletionApps);
+            return false;
+          },
           mousedown: (event, view) => {
             if (!isDefinitionModifier(event) || event.button !== 0) return false;
             const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
@@ -752,8 +750,7 @@ export function Editor({
             }
           }
           if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(update.view.contentHeight);
-          const next = barOn.current && update.view.hasFocus ? keyBarState(update.view, valueCompletionApps) : undefined;
-          setBar((shown) => (sameKeyBarState(shown, next) ? shown : next));
+          if (barOn.current) syncNativeKeyboard(update.view, () => valueCompletionApps);
         }),
       ],
     });
@@ -811,7 +808,7 @@ export function Editor({
       liveViews.delete(view);
       view.destroy();
       viewRef.current = null;
-      setBar(undefined);
+      releaseNativeKeyboard(view);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buffer]);
@@ -830,25 +827,11 @@ export function Editor({
 
   useEffect(() => {
     const view = viewRef.current;
-    view?.dispatch({ effects: keyBar.reconfigure(keyBarExtensions(withBar, barHeight)) });
-    if (!withBar) setBar(undefined);
-    else if (view?.hasFocus) setBar(keyBarState(view, valueCompletionApps));
+    view?.dispatch({ effects: keyBar.reconfigure(keyBarExtensions(withBar)) });
+    if (!view) return;
+    if (withBar) syncNativeKeyboard(view, () => valueCompletionApps);
+    else releaseNativeKeyboard(view);
   }, [withBar]);
 
-  return (
-    <>
-      <div ref={containerRef} className="h-full w-full bg-background text-xs" />
-      {bar && viewRef.current && (
-        <PhoneKeyBar
-          view={viewRef.current}
-          state={bar}
-          apps={valueCompletionApps}
-          onHeight={(height) => {
-            barHeight.current = height;
-            viewRef.current?.requestMeasure();
-          }}
-        />
-      )}
-    </>
-  );
+  return <div ref={containerRef} className="h-full w-full bg-background text-xs" />;
 }
