@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { App } from "./apps";
 import { cn } from "./cn";
 import { FieldStop, fieldStops, hop, stopAt } from "./fieldStops";
+import { isIOSApp } from "./wails";
 
 const MAX_COMPLETIONS = 30;
 const REPEAT_DELAY_MS = 400;
@@ -129,10 +130,82 @@ export function PhoneKeyBar({ view, state, apps, onHeight }: PhoneKeyBarProps) {
     };
   }, []);
 
+  // Safari stacks its form bar and its address bar over the keyboard and a page can
+  // hide neither, so there the bar is one row; the app has removed its form bar.
+  const compact = !isIOSApp();
+
   const pick = (index: number) => {
     view.dispatch({ effects: setSelectedCompletion(index) });
     acceptCompletion(view);
   };
+
+  const chips = state.completions.map((completion, index) => (
+    <Key
+      key={`${index}:${completion.label}`}
+      onPress={() => pick(index)}
+      className={cn("rounded-full px-3 font-mono text-[13px]", index === state.selected && "bg-primary text-primary-foreground")}
+    >
+      {completion.label}
+      {completion.detail && <span className="ml-1.5 font-sans text-[11px] opacity-60">{completion.detail}</span>}
+    </Key>
+  ));
+  const prev = (
+    <Key
+      aria-label="Previous field"
+      disabled={!state.canPrev}
+      onPress={() => goToField(view, apps, false)}
+      className={cn(!compact && "pr-2.5 pl-1.5 text-[13px]")}
+    >
+      <ChevronLeft size={16} />
+      {!compact && "Prev"}
+    </Key>
+  );
+  const next = (
+    <Key aria-label="Next field" disabled={!state.canNext} onPress={() => goToField(view, apps, true)} className="pr-1.5 pl-2.5 text-[13px]">
+      Next
+      <ChevronRight size={16} />
+    </Key>
+  );
+  const symbols = (
+    <>
+      <Key aria-label="Indent" onPress={() => indentMore(view)}>
+        <ArrowRightToLine size={16} />
+      </Key>
+      {SYMBOLS.map((symbol) => (
+        <Key
+          key={symbol}
+          className="font-mono text-[15px]"
+          onPress={() => {
+            type(view, symbol);
+            if (symbol === ".") startCompletion(view);
+          }}
+        >
+          {symbol}
+        </Key>
+      ))}
+    </>
+  );
+  const history = (
+    <>
+      <Key aria-label="Undo" disabled={!state.canUndo} repeat onPress={() => undo(view)}>
+        <Undo2 size={16} />
+      </Key>
+      <Key aria-label="Redo" disabled={!state.canRedo} repeat onPress={() => redo(view)}>
+        <Redo2 size={16} />
+      </Key>
+    </>
+  );
+  const arrows = (
+    <>
+      <Key aria-label="Left" repeat onPress={() => cursorCharLeft(view)}>
+        <ArrowLeft size={16} />
+      </Key>
+      <Key aria-label="Right" repeat onPress={() => cursorCharRight(view)}>
+        <ArrowRight size={16} />
+      </Key>
+    </>
+  );
+  const scroller = "flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]";
 
   return createPortal(
     <div
@@ -141,73 +214,57 @@ export function PhoneKeyBar({ view, state, apps, onHeight }: PhoneKeyBarProps) {
       className="fixed inset-x-0 z-40 flex flex-col gap-1.5 border-t border-border bg-card px-2 py-1.5 select-none"
       style={{ bottom: inset }}
     >
-      <div className="flex h-9 items-center gap-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-          {state.completions.length > 0 ? (
-            state.completions.map((completion, index) => (
-              <Key
-                key={`${index}:${completion.label}`}
-                onPress={() => pick(index)}
-                className={cn("rounded-full px-3 font-mono text-[13px]", index === state.selected && "bg-primary text-primary-foreground")}
-              >
-                {completion.label}
-                {completion.detail && <span className="ml-1.5 font-sans text-[11px] opacity-60">{completion.detail}</span>}
-              </Key>
-            ))
-          ) : state.fields > 0 ? (
-            <>
-              <Key aria-label="Previous field" disabled={!state.canPrev} onPress={() => goToField(view, apps, false)} className="pr-2.5 pl-1.5 text-[13px]">
-                <ChevronLeft size={16} />
-                Prev
-              </Key>
-              <span className="min-w-0 flex-1 truncate text-center text-[13px] text-muted-foreground">
-                {state.field ? (
+      {compact ? (
+        <div className="flex h-9 items-center gap-1.5">
+          <div className={scroller}>
+            {chips.length > 0 ? (
+              chips
+            ) : (
+              <>
+                {state.fields > 0 && (
                   <>
-                    <span className="font-mono text-foreground">{state.field.key}</span> · {state.field.index + 1} of {state.fields}
+                    {prev}
+                    {next}
+                    <span className="mx-0.5 h-5 w-px shrink-0 bg-border" />
                   </>
-                ) : (
-                  `${state.fields} ${state.fields === 1 ? "field" : "fields"}`
                 )}
-              </span>
-              <Key aria-label="Next field" disabled={!state.canNext} onPress={() => goToField(view, apps, true)} className="pr-1.5 pl-2.5 text-[13px]">
-                Next
-                <ChevronRight size={16} />
-              </Key>
-            </>
-          ) : null}
+                {symbols}
+                {history}
+              </>
+            )}
+          </div>
+          {arrows}
         </div>
-        <Key aria-label="Undo" disabled={!state.canUndo} repeat onPress={() => undo(view)}>
-          <Undo2 size={16} />
-        </Key>
-        <Key aria-label="Redo" disabled={!state.canRedo} repeat onPress={() => redo(view)}>
-          <Redo2 size={16} />
-        </Key>
-      </div>
-      <div className="flex h-9 items-center gap-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-          <Key aria-label="Indent" onPress={() => indentMore(view)}>
-            <ArrowRightToLine size={16} />
-          </Key>
-          {SYMBOLS.map((symbol) => (
-            <Key
-              key={symbol}
-              className="font-mono text-[15px]"
-              onPress={() => {
-                type(view, symbol);
-                if (symbol === ".") startCompletion(view);
-              }}
-            >
-              {symbol}
-            </Key>
-          ))}
-        </div>
-        <Key aria-label="Left" repeat onPress={() => cursorCharLeft(view)}>
-          <ArrowLeft size={16} />
-        </Key>
-        <Key aria-label="Right" repeat onPress={() => cursorCharRight(view)}>
-          <ArrowRight size={16} />
-        </Key>
-      </div>
+      ) : (
+        <>
+          <div className="flex h-9 items-center gap-1.5">
+            <div className={scroller}>
+              {chips.length > 0
+                ? chips
+                : state.fields > 0 && (
+                    <>
+                      {prev}
+                      <span className="min-w-0 flex-1 truncate text-center text-[13px] text-muted-foreground">
+                        {state.field ? (
+                          <>
+                            <span className="font-mono text-foreground">{state.field.key}</span> · {state.field.index + 1} of {state.fields}
+                          </>
+                        ) : (
+                          `${state.fields} ${state.fields === 1 ? "field" : "fields"}`
+                        )}
+                      </span>
+                      {next}
+                    </>
+                  )}
+            </div>
+            {history}
+          </div>
+          <div className="flex h-9 items-center gap-1.5">
+            <div className={scroller}>{symbols}</div>
+            {arrows}
+          </div>
+        </>
+      )}
     </div>,
     document.body,
   );
