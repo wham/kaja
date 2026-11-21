@@ -30,7 +30,6 @@ import {
 } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
-import { releaseNativeKeyboard, syncNativeKeyboard } from "./nativeKeyboard";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { kajaModuleDeclaration } from "./kajaModule";
@@ -40,7 +39,7 @@ import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } 
 import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { reportDiagnostics } from "./syntaxErrors";
-import { isIOSApp } from "./wails";
+import { valueEditing } from "./valueEditing";
 import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
 import { ScalarValue } from "./typeMemory";
 import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, subscribeProgram } from "./typescriptService";
@@ -89,7 +88,7 @@ let valueCompletionApps: App[] = [];
 
 export function setValueCompletionApps(apps: App[]): void {
   valueCompletionApps = apps;
-  // The bar's fields are read against the apps, so an app landing has to reach an open editor.
+  // The values a phone edits are read against the apps, so an app landing has to reach an open editor.
   for (const view of liveViews.keys()) view.dispatch({ effects: recheck.of(null) });
 }
 
@@ -527,7 +526,7 @@ function unclaimed(bindings: readonly KeyBinding[]): KeyBinding[] {
 }
 
 const keys = new Compartment();
-const keyBar = new Compartment();
+const values = new Compartment();
 const gutter = new Compartment();
 const editable = new Compartment();
 
@@ -594,19 +593,10 @@ function gutterExtensions(phone: boolean): Extension {
   return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
 }
 
-// The completion list is the app's keyboard bar's, where a popup sits under the finger
-// or the keyboard, and nothing is selected in it, so return still starts a line.
-function keyBarExtensions(on: boolean): Extension {
-  if (!on) return [];
-  return [
-    autocompletion({ selectOnOpen: false }),
-    EditorView.theme({ ".cm-tooltip-autocomplete, .cm-completionInfo": { display: "none" } }),
-    EditorView.scrollMargins.of((view) => {
-      const viewport = window.visualViewport;
-      if (!viewport) return null;
-      return { bottom: Math.max(0, view.scrollDOM.getBoundingClientRect().bottom - (viewport.offsetTop + viewport.height)) };
-    }),
-  ];
+const phoneValues = valueEditing({ apps: () => valueCompletionApps, recheck });
+
+function valueExtensions(on: boolean): Extension {
+  return on ? phoneValues : [];
 }
 
 // Read-only text still takes the focus, so it can be searched and walked with the keys,
@@ -633,9 +623,7 @@ export function Editor({
   // Read through refs, so the editor is created once per buffer rather than per render.
   const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition });
   callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition };
-  const withBar = phone && !readOnly && isIOSApp();
-  const barOn = useRef(withBar);
-  barOn.current = withBar;
+  const editsValues = phone && !readOnly;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -688,7 +676,7 @@ export function Editor({
       doc: buffer.getValue(),
       extensions: [
         gutter.of(gutterExtensions(phone)),
-        keyBar.of(keyBarExtensions(withBar)),
+        values.of(valueExtensions(editsValues)),
         editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
         history(),
@@ -719,11 +707,6 @@ export function Editor({
         tooltipBounds,
         definitionLinks(buffer),
         EditorView.domEventHandlers({
-          // Sooner than the update the focus makes, so the bar is there as the keyboard rises.
-          focus: (_event, view) => {
-            if (barOn.current) syncNativeKeyboard(view, () => valueCompletionApps);
-            return false;
-          },
           mousedown: (event, view) => {
             if (!isDefinitionModifier(event) || event.button !== 0) return false;
             const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
@@ -750,7 +733,6 @@ export function Editor({
             }
           }
           if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(update.view.contentHeight);
-          if (barOn.current) syncNativeKeyboard(update.view, () => valueCompletionApps);
         }),
       ],
     });
@@ -808,7 +790,6 @@ export function Editor({
       liveViews.delete(view);
       view.destroy();
       viewRef.current = null;
-      releaseNativeKeyboard(view);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buffer]);
@@ -826,12 +807,8 @@ export function Editor({
   }, [phone]);
 
   useEffect(() => {
-    const view = viewRef.current;
-    view?.dispatch({ effects: keyBar.reconfigure(keyBarExtensions(withBar)) });
-    if (!view) return;
-    if (withBar) syncNativeKeyboard(view, () => valueCompletionApps);
-    else releaseNativeKeyboard(view);
-  }, [withBar]);
+    viewRef.current?.dispatch({ effects: values.reconfigure(valueExtensions(editsValues)) });
+  }, [editsValues]);
 
   return <div ref={containerRef} className="h-full w-full bg-background text-xs" />;
 }
