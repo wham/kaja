@@ -93,8 +93,8 @@ const RENAME_CLICK_MS = 450;
 // without letting go.
 const SPRING_MS = 600;
 
-const GROUP_HEADER = "flex h-6 w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent/40";
-const ROW = "group flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/50";
+const GROUP_HEADER = "flex h-7 w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent/40";
+const ROW = "group flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -757,7 +757,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
                   than the rows it sits among. */}
               {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
                 <li role="treeitem">
-                  <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-6 items-center py-1 pr-3 text-xs text-muted-foreground">
+                  <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-7 items-center py-1 pr-3 text-xs text-muted-foreground">
                     {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
                   </div>
                 </li>
@@ -982,7 +982,7 @@ function GroupHeader({
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onToggle()}
     >
-      <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", open && "rotate-90")} />
+      <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground/70 transition-transform duration-[120ms]", open && "rotate-90")} />
       <span className="flex-1 truncate">{label}</span>
       {/* Revealed by the cursor, and always there for the keyboard: the verb
           belongs to this group, which is why it sits on it rather than on a
@@ -1144,7 +1144,7 @@ function AgentRow({
               className="pointer-events-none absolute -inset-1 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
             />
           )}
-          <Plug size={12} />
+          <Plug size={14} />
         </span>
         {/* An agent's buffer is the agent's own workbench rather than something you
             are keeping, so the name sits a shade back from your own drafts. */}
@@ -1270,8 +1270,8 @@ function FolderRow({
             }
           }}
         >
-          <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", open && "rotate-90")} />
-          <Folder size={13} className="shrink-0 text-muted-foreground" />
+          <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", open && "rotate-90")} />
+          <Folder size={15} className="shrink-0 text-muted-foreground" />
           {/* The chevron and the glyph keep folding the folder however often you
               click them; the name is what a second click renames. */}
           <span className="flex-1 truncate" {...rename.name}>
@@ -1369,8 +1369,8 @@ function FolderNameField({
       onCommit={onCommit}
       onCancel={onCancel}
     >
-      <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
-      <Folder size={13} className="shrink-0 text-muted-foreground" />
+      <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+      <Folder size={15} className="shrink-0 text-muted-foreground" />
     </NameField>
   );
 }
@@ -1427,7 +1427,7 @@ function NameField({
   };
 
   return (
-    <div className={cn("flex items-center", large ? "min-h-11 gap-3 px-3" : "h-6 gap-1.5 pr-2")} style={large ? undefined : { paddingLeft: indent }}>
+    <div className={cn("flex items-center", large ? "min-h-11 gap-3 px-3" : "h-7 gap-1.5 pr-2")} style={large ? undefined : { paddingLeft: indent }}>
       {children}
       <input
         ref={ref}

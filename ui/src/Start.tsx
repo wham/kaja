@@ -154,7 +154,7 @@ function ScriptCard({ script, shape, apps, running, onOpen }: { script: Script; 
         ))}
         {shape?.fetches && (
           <span className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-            <Globe size={11} aria-hidden />
+            <Globe size={13} aria-hidden />
             fetch
           </span>
         )}
@@ -167,7 +167,7 @@ function ImportChips({ app, specifier, names }: { app?: App; specifier: string; 
   return (
     <>
       <span className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground">
-        {app && <AppTypeIcon type={appType(app.configuration)} size={11} />}
+        {app && <AppTypeIcon type={appType(app.configuration)} size={13} />}
         {app?.configuration.name ?? specifier}
       </span>
       {names.map((name) => (

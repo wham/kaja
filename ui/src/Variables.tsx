@@ -504,7 +504,7 @@ export function Variables({
             onClick={addRow}
             className="flex h-9 shrink-0 items-center gap-1.5 border-t border-border px-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Plus size={13} />
+            <Plus size={15} />
             Add variable
           </button>
         )}
@@ -775,7 +775,7 @@ function SourcePicker({
           className="flex h-8 shrink-0 items-center gap-1 rounded-l-md border border-input bg-muted px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:relative focus-visible:ring-2 focus-visible:ring-ring"
         >
           {SOURCE_LABEL[kind]}
-          <ChevronDown size={11} />
+          <ChevronDown size={13} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[288px]">
@@ -886,7 +886,7 @@ function SignInRow({
         onClick={onRevealApp}
         className="flex w-[216px] shrink-0 items-center gap-2 rounded-md px-2.5 text-left text-sm transition-colors hover:text-foreground max-sm:w-full"
       >
-        <AppTypeIcon type={type} size={13} className="shrink-0 text-muted-foreground" />
+        <AppTypeIcon type={type} size={15} className="shrink-0 text-muted-foreground" />
         <span className="truncate">{signIn.app}</span>
       </button>
       {signIn.signedIn ? (
@@ -912,7 +912,7 @@ function SignInRow({
       ) : (
         <ValueField alone warn error={false} clickable={canSignIn} onClick={canSignIn ? onSignIn : undefined}>
           <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-            <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+            <CircleAlert size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="truncate text-xs text-amber-600 dark:text-amber-400">
               Not signed in to {host} {storedWhere()}
             </span>
@@ -959,7 +959,7 @@ function StoredValueCell({ storedEnv, source, held, storeAvailable }: { storedEn
   if (!held) {
     return (
       <span className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
-        <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+        <CircleAlert size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
         <span className="truncate text-xs text-amber-600 dark:text-amber-400">Not set</span>
         {storeAvailable && action}
       </span>

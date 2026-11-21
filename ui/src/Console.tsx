@@ -564,7 +564,7 @@ Console.LogFloorSelect = function ({
             active ? "border-border bg-muted text-foreground" : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
-          <Logs size={13} />
+          <Logs size={15} />
           <span className="font-mono tabular-nums">{lines}</span>
           {errors > 0 && <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-label={`${errors} printed at error level`} />}
         </button>
@@ -580,7 +580,7 @@ Console.LogFloorSelect = function ({
               setOpen(false);
             }}
           >
-            <span className="w-3 shrink-0">{option.floor === floor && <Check size={13} />}</span>
+            <span className="w-3 shrink-0">{option.floor === floor && <Check size={15} />}</span>
             <span className="flex-1 text-xs text-foreground">{option.label}</span>
             <span className="shrink-0 text-xs text-muted-foreground">{option.note}</span>
           </DropdownMenuItem>
@@ -726,7 +726,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
               {summary.input}
             </span>
           )}
-          {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
+          {summary?.agent && <Bot size={14} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (
             <span className={cn("truncate font-mono text-xs", summary.waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
               {summary.detail}
@@ -734,7 +734,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
           )}
           {summary?.failed && <span className="shrink-0 font-mono text-xs text-destructive">{summary.failed}</span>}
           {/* Until there is an earlier run, the menu has nothing to pick. */}
-          {groups.length > 1 && <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />}
+          {groups.length > 1 && <ChevronsUpDown size={15} className="shrink-0 text-muted-foreground" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" className="w-[300px] p-0">
@@ -763,7 +763,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now, c
               setOpen(false);
             }}
           >
-            <Trash2 size={13} />
+            <Trash2 size={15} />
             Clear history
           </DropdownMenuItem>
         )}
@@ -796,7 +796,7 @@ Console.RunRow = memo(function RunRow({ name, detail, failed, input, dotClass: d
           </span>
         )}
       </div>
-      {agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
+      {agent && <Bot size={14} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
       <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
       </span>

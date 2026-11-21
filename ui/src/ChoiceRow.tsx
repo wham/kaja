@@ -28,7 +28,7 @@ export function ChoiceRow({ selected, disabled, onSelect, icon: Icon, children }
     >
       {selected ? (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
-          <Check size={13} strokeWidth={3} />
+          <Check size={15} strokeWidth={3} />
         </span>
       ) : (
         <span className="h-5 w-5 shrink-0 rounded-full border border-input" />

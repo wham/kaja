@@ -77,7 +77,7 @@ export const SIDEBAR_TABS: SidebarTab[] = ["apps", "scripts"];
 export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // An app's row, and the one row the empty list draws in its place.
-const SECTION_ROW = "flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground";
+const SECTION_ROW = "flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground";
 
 // Small enough to sit inside a 24px row, which is what lets the frequent verbs live
 // on the row instead of behind a menu. Every one of them sits in an 18px box 16px in
@@ -332,7 +332,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => onPendingAppSelect?.(pending.viewId)}
               >
                 <span className="w-3 shrink-0" />
-                {pending.type ? <AppTypeIcon type={pending.type} size={13} /> : <Plus size={13} className="shrink-0 text-muted-foreground" />}
+                {pending.type ? <AppTypeIcon type={pending.type} size={15} /> : <Plus size={15} className="shrink-0 text-muted-foreground" />}
                 <span className="truncate italic">{pending.name}</span>
                 <span className="ml-auto flex w-[18px] shrink-0 items-center justify-center">
                   {(touch || active) && onPendingAppDiscard && (
@@ -353,7 +353,7 @@ export const Sidebar = memo(function Sidebar({
                   "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/40 hover:text-foreground",
                 )}
               >
-                <Plus size={12} className="shrink-0" />
+                <Plus size={14} className="shrink-0" />
                 <span>New app</span>
               </button>
             ) : (
@@ -406,9 +406,9 @@ export const Sidebar = memo(function Sidebar({
                       setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey);
                     }}
                   >
-                    <ChevronRight size={12} className={cn("transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                    <ChevronRight size={14} className={cn("transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
                   </button>
-                  <AppTypeIcon type={appType(app.configuration)} size={13} />
+                  <AppTypeIcon type={appType(app.configuration)} size={15} />
                   <span className="truncate">{appName}</span>
                   <AppCompileMarker app={app} />
                   {onRevealVariable && <AppVariableMarker appName={appName} missing={missingVariables?.get(appName)} onReveal={onRevealVariable} />}
@@ -687,7 +687,7 @@ function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (t
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(candidate)}
               className={cn(
-                "flex h-6 cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
+                "flex h-7 cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
                 selected ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >

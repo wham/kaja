@@ -91,7 +91,7 @@ export function PhoneFinder({ recent, elsewhere, open, onOpenChange }: PhoneFind
                     }}
                     className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 )}
               </div>

@@ -2696,7 +2696,7 @@ export function App() {
             onClick={onRequestSave}
             className="flex h-7 items-center gap-1.5 rounded-[7px] bg-muted px-2.5 text-xs text-foreground hover:bg-accent"
           >
-            <SaveIcon size={12} />
+            <SaveIcon size={14} />
             Save as file
             {saveAsFileLabel !== "" && <span className="font-mono text-muted-foreground">{saveAsFileLabel}</span>}
           </button>
@@ -2769,7 +2769,7 @@ export function App() {
               buffer that is being rewritten under you. */}
           {view.type === "draft" && agentViewName(view.draftId) && (
             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
-              <Plug size={13} className="shrink-0 text-muted-foreground" />
+              <Plug size={15} className="shrink-0 text-muted-foreground" />
               <span className="shrink-0 text-sm text-foreground">{agentViewName(view.draftId)}</span>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">agent draft · following {agentViewName(view.draftId)}</span>
               <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
@@ -3443,7 +3443,7 @@ function FolderField({ value, folders, onChange, onSubmit }: { value: string; fo
         >
           <SelectTrigger>
             <span className="flex min-w-0 items-center gap-2">
-              <Folder size={13} className="shrink-0 text-muted-foreground" />
+              <Folder size={15} className="shrink-0 text-muted-foreground" />
               <span className="truncate">{value || "Files"}</span>
             </span>
           </SelectTrigger>

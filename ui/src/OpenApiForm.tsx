@@ -587,7 +587,7 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
   return (
     <div className="flex flex-col gap-2">
       <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-        <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <CircleCheck size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
         <span className="min-w-0 truncate">
           <span className="text-foreground">{document.title || "Untitled API"}</span>
           {document.version && ` v${document.version}`}
@@ -829,7 +829,7 @@ function ServerSection({
                     </div>
                   ))}
                   <div className="flex items-center gap-2 pt-0.5">
-                    <ArrowRight size={13} className="text-muted-foreground" />
+                    <ArrowRight size={15} className="text-muted-foreground" />
                     <span className="truncate font-mono text-xs text-foreground">{resolveServerUrl(server, values)}</span>
                   </div>
                 </ChoiceBody>
@@ -966,7 +966,7 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
     <ChoiceBody className="gap-1.5">
       {scheme.requiresOthers && (
         <div className="mb-1 flex items-center gap-2">
-          <Info size={13} className="shrink-0 text-muted-foreground" />
+          <Info size={15} className="shrink-0 text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
             The document asks for this scheme together with another one. Kaja sends this one; configure the rest as headers in Advanced.
           </p>
@@ -987,7 +987,7 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
 
       {scheme.type === "openIdConnect" && scheme.openIdConnectUrl && (
         <div className="flex items-center gap-2">
-          <LinkIcon size={13} className="shrink-0 text-muted-foreground" />
+          <LinkIcon size={15} className="shrink-0 text-muted-foreground" />
           <span className="truncate font-mono text-xs text-muted-foreground">{scheme.openIdConnectUrl}</span>
         </div>
       )}

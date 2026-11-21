@@ -418,7 +418,7 @@ function ServerSummary({ server, onRefresh }: { server: McpServer; onRefresh: ()
 
   return (
     <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-      <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <CircleCheck size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
       {/* A version is whatever the server calls its build, and some of them name a
           commit, so it goes last where the line truncates. */}
       <span className="min-w-0 truncate">
