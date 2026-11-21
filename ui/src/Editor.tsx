@@ -31,6 +31,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { App } from "./apps";
 import { FieldSheet } from "./FieldSheet";
+import { keyBarState, KeyBarState, PhoneKeyBar, sameKeyBarState } from "./PhoneKeyBar";
 import { controlFor, editableRows, removeField, RequestRow, rowAt } from "./requestEdits";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
@@ -637,6 +638,7 @@ function pickableAt(view: EditorView, x: number, y: number): RequestRow | undefi
 }
 
 const keys = new Compartment();
+const keyBar = new Compartment();
 const gutter = new Compartment();
 const editable = new Compartment();
 const picker = new Compartment();
@@ -704,6 +706,27 @@ function gutterExtensions(phone: boolean): Extension {
   return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
 }
 
+// A phone with a finger on it, rather than a narrow window with a mouse and a keyboard.
+function isTouch(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+}
+
+// The completion list is the bar's on a touch screen, where a popup sits under the
+// finger or the keyboard, and nothing is selected in it, so return still starts a line.
+function keyBarExtensions(on: boolean, barHeight: { current: number }): Extension {
+  if (!on) return [];
+  return [
+    autocompletion({ selectOnOpen: false }),
+    EditorView.theme({ ".cm-tooltip-autocomplete, .cm-completionInfo": { display: "none" } }),
+    EditorView.scrollMargins.of((view) => {
+      if (!barHeight.current) return null;
+      const viewport = window.visualViewport;
+      const shown = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      return { bottom: Math.max(0, view.scrollDOM.getBoundingClientRect().bottom - (shown - barHeight.current)) };
+    }),
+  ];
+}
+
 // Read-only text still takes the focus, so it can be searched and walked with the keys,
 // except on a phone, where a focused field is a keyboard over the code.
 function editableExtensions(readOnly: boolean, phone: boolean): Extension {
@@ -731,6 +754,11 @@ export function Editor({
   // The value a picker is open on, with the text it was read from: an edit that landed
   // since (an agent writing, a reload) leaves it pointing at nothing.
   const [picked, setPicked] = useState<{ row: RequestRow; code: string } | undefined>();
+  const withBar = phone && !readOnly && isTouch();
+  const barOn = useRef(withBar);
+  barOn.current = withBar;
+  const barHeight = useRef(0);
+  const [bar, setBar] = useState<KeyBarState | undefined>();
   const pick = useRef((row: RequestRow) => {
     const view = viewRef.current;
     if (!view) return;
@@ -789,6 +817,7 @@ export function Editor({
       doc: buffer.getValue(),
       extensions: [
         gutter.of(gutterExtensions(phone)),
+        keyBar.of(keyBarExtensions(withBar, barHeight)),
         picker.of(phone && !readOnly ? pickers((row) => pick.current(row)) : []),
         editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
@@ -846,6 +875,8 @@ export function Editor({
             }
           }
           if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(update.view.contentHeight);
+          const next = barOn.current && update.view.hasFocus ? keyBarState(update.view, valueCompletionApps) : undefined;
+          setBar((shown) => (sameKeyBarState(shown, next) ? shown : next));
         }),
       ],
     });
@@ -903,6 +934,7 @@ export function Editor({
       liveViews.delete(view);
       view.destroy();
       viewRef.current = null;
+      setBar(undefined);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buffer]);
@@ -918,6 +950,13 @@ export function Editor({
   useEffect(() => {
     viewRef.current?.dispatch({ effects: gutter.reconfigure(gutterExtensions(phone)) });
   }, [phone]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    view?.dispatch({ effects: keyBar.reconfigure(keyBarExtensions(withBar, barHeight)) });
+    if (!withBar) setBar(undefined);
+    else if (view?.hasFocus) setBar(keyBarState(view, valueCompletionApps));
+  }, [withBar]);
 
   useEffect(() => {
     viewRef.current?.dispatch({ effects: picker.reconfigure(phone && !readOnly ? pickers((row) => pick.current(row)) : []) });
@@ -937,6 +976,17 @@ export function Editor({
   return (
     <>
       <div ref={containerRef} className="h-full w-full bg-background text-xs" />
+      {bar && viewRef.current && (
+        <PhoneKeyBar
+          view={viewRef.current}
+          state={bar}
+          apps={valueCompletionApps}
+          onHeight={(height) => {
+            barHeight.current = height;
+            viewRef.current?.requestMeasure();
+          }}
+        />
+      )}
       {phone && (
         <FieldSheet
           row={current?.row}
