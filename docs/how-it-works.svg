@@ -61,28 +61,25 @@
 
   <rect class="node" x="680" y="68" width="176" height="44" rx="8" stroke-width="1.5" />
   <g class="ink" stroke-width="2" transform="translate(694 80) scale(0.8333)">
-    <circle cx="6" cy="12" r="2.5" />
-    <path d="M8.5 12h6M8.3 10.8 16 6M8.3 13.2 16 18" />
-    <circle cx="18" cy="12" r="1.25" />
-    <circle cx="18" cy="5" r="1.25" />
-    <circle cx="18" cy="19" r="1.25" />
+    <circle cx="10.5" cy="13.5" r="6.5" />
+    <path d="M10.5 13.5l6.7-6.7" />
+    <circle cx="18.5" cy="5.5" r="1.75" />
   </g>
   <text class="name" x="724" y="94">OpenAPI</text>
   <text class="kind" x="842" y="94" text-anchor="end">schema</text>
 
   <rect class="node" x="680" y="128" width="176" height="44" rx="8" stroke-width="1.5" />
   <g class="ink" stroke-width="2" transform="translate(694 140) scale(0.8333)">
-    <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />
-    <circle cx="12" cy="12" r="2.5" />
+    <path d="M5 11.5l6-6a3.54 3.54 0 0 1 5 5L10.5 16" />
+    <path d="M19 12.5l-6 6a3.54 3.54 0 0 1-5-5L13.5 8" />
   </g>
   <text class="name" x="724" y="154">MCP</text>
   <text class="kind" x="842" y="154" text-anchor="end">tools</text>
 
   <rect class="node" x="680" y="188" width="176" height="44" rx="8" stroke-width="1.5" />
   <g class="ink" stroke-width="2" transform="translate(694 200) scale(0.8333)">
-    <circle cx="6" cy="12" r="2.5" />
-    <circle cx="18" cy="12" r="2.5" />
-    <path d="M8.5 9.5h7M8.5 14.5h7" />
+    <circle cx="11" cy="10.5" r="4.5" />
+    <path d="M15.5 6v10.5a4.5 4.5 0 0 1-8.2 2.5" />
   </g>
   <text class="name" x="724" y="214">gRPC</text>
   <text class="kind" x="842" y="214" text-anchor="end">.proto</text>
