@@ -9,7 +9,7 @@
  * media query and every popover go on agreeing with each other. CSS `zoom` scales what is
  * drawn without moving what a popover is anchored to, so it is not the way to do this.
  *
- * The ladder is percentages rather than a factor per step, because the footer says the
+ * The ladder is percentages rather than a factor per step, because the settings say the
  * number: 125% is a size someone can ask for again, 172.8% is arithmetic.
  */
 export const ZOOM_STEPS = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
