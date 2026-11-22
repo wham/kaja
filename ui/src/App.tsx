@@ -10,7 +10,7 @@ import { IconButton } from "./components/icon-button";
 import { Checkbox } from "./components/checkbox";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
+import { Braces, FileCode, Folder, FolderOpen, Keyboard, PenLine, Plug, Plus, Save as SaveIcon, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
@@ -417,6 +417,8 @@ export function App() {
   // the button is the CommandRow's, like every other view-level verb, and undefined
   // is the state where there is nothing to reset.
   const [resetShortcuts, setResetShortcuts] = useState<ResetAllControl>();
+  const [addVariable, setAddVariable] = useState<{ add: () => void }>();
+  const onPhoneAddVariableChange = useCallback((add: (() => void) | undefined) => setAddVariable(add ? { add } : undefined), []);
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal that a workspace write moved the modules a script imports: what
@@ -2766,7 +2768,18 @@ export function App() {
       {appFormSave.label}
     </Button>
   ) : undefined;
-  const action = runButton ?? resetAllButton ?? appFormSaveButton;
+  const addVariableButton =
+    currentView?.type === "variables" && isPhone && addVariable ? (
+      <button
+        type="button"
+        aria-label="Add variable"
+        onClick={addVariable.add}
+        className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground outline-none active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Plus size={22} />
+      </button>
+    ) : undefined;
+  const action = runButton ?? resetAllButton ?? appFormSaveButton ?? addVariableButton;
 
   // Bodies render in creation order, so bringing a file to the front never moves a
   // live editor in the DOM.
@@ -2874,6 +2887,7 @@ export function App() {
           apps={workspace?.apps ?? []}
           onSignOut={onSignOut}
           reveal={variableReveal}
+          onPhoneAddChange={onPhoneAddVariableChange}
         />
       )}
     </>
