@@ -14,6 +14,7 @@ import {
   AppCompileMarker,
   AppVariableMarker,
   MethodName,
+  MethodRequestLine,
   SIDEBAR_TABS,
   sidebarTabId,
   TAB_LABEL,
@@ -346,6 +347,7 @@ function MethodRow({ app, service, method, onSelect }: { app: App; service: Serv
     >
       <span className="truncate">
         <MethodName name={method.name} unsupported={!!unsupported} deprecated={!!method.deprecated} />
+        <MethodRequestLine http={method.http} />
       </span>
     </PhoneRow>
   );
