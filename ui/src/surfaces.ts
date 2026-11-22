@@ -2,7 +2,7 @@
 // CSS variable: the document body behind the app, and the native window around the
 // webview. They are --background and --chrome in tailwind.css.
 const surfaces = {
-  night: { background: "#0a0a0a", chrome: "#171717" },
+  night: { background: "#161616", chrome: "#222222" },
   day: { background: "#ffffff", chrome: "#f5f5f5" },
 };
 

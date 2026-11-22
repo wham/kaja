@@ -580,7 +580,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
             )}
             title={refused ? "Run to search" : undefined}
           >
-            <Search size={13} className="shrink-0 text-muted-foreground" />
+            <Search size={15} className="shrink-0 text-muted-foreground" />
             <input
               data-testid="canvas-table-search"
               className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
@@ -600,7 +600,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
                 aria-label="Clear search"
                 onClick={() => onView(id, { page: 0, search: "" })}
               >
-                <X size={13} />
+                <X size={15} />
               </button>
             )}
           </div>
@@ -849,7 +849,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
       {retry ? (
         <button type="button" className={cn("group/cell flex h-full w-full items-center gap-1", numeric && "justify-end")} aria-label="Retry" onClick={onRetry}>
           <span>—</span>
-          <RotateCw size={11} className="opacity-0 transition-opacity group-hover/cell:opacity-100" />
+          <RotateCw size={13} className="opacity-0 transition-opacity group-hover/cell:opacity-100" />
         </button>
       ) : (
         "—"
@@ -939,9 +939,9 @@ Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
       title={answers.length > 1 ? answers.join(", ") : undefined}
     >
       {block.cancelled ? (
-        <CircleX size={12} className="shrink-0 text-muted-foreground" />
+        <CircleX size={14} className="shrink-0 text-muted-foreground" />
       ) : (
-        <CircleCheck size={12} className="shrink-0 text-muted-foreground" />
+        <CircleCheck size={14} className="shrink-0 text-muted-foreground" />
       )}
       <span className="min-w-0 truncate text-muted-foreground" title={block.question}>
         {block.question}
@@ -1025,7 +1025,7 @@ Canvas.Approve = function ({ id, block, onDecide, onFullScreen }: ApproveProps) 
       )}
     >
       <div className={cn("flex items-center gap-2", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-        <ShieldQuestionMark size={12} className="shrink-0" />
+        <ShieldQuestionMark size={14} className="shrink-0" />
         <span className="min-w-0 truncate">{waiting ? `${block.method} is about to run` : block.method}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
           {size}
@@ -1061,7 +1061,7 @@ Canvas.Approve = function ({ id, block, onDecide, onFullScreen }: ApproveProps) 
             <DropdownMenu open={scopeOpen} onOpenChange={setScopeOpen}>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="h-8 rounded-none border-l border-black/20 px-1.5" aria-label="Approval scope" data-testid="canvas-approve-scope">
-                  <ChevronDown size={12} />
+                  <ChevronDown size={14} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="bottom" className="w-[270px]">
@@ -1458,7 +1458,7 @@ function ChoiceKey({ index, active, picked, collecting, onToggle }: ChoiceKeyPro
         onClick={toggle}
         className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded border border-b-2 border-amber-500 bg-amber-500 text-background"
       >
-        <Check size={11} strokeWidth={3} />
+        <Check size={13} strokeWidth={3} />
       </span>
     );
   }
@@ -1493,7 +1493,7 @@ function PickBox({ picked, onToggle }: { picked: boolean; onToggle: () => void }
           picked ? "border-amber-500 bg-amber-500 text-background" : "border-border",
         )}
       >
-        {picked && <Check size={11} strokeWidth={3} />}
+        {picked && <Check size={13} strokeWidth={3} />}
       </span>
     </span>
   );
@@ -1511,7 +1511,7 @@ Canvas.Failure = function ({ failure, onOpen }: { failure: FailureNotice; onOpen
       data-testid="canvas-failure"
       className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-destructive"
     >
-      <AlertTriangle size={12} className="shrink-0" />
+      <AlertTriangle size={14} className="shrink-0" />
       <span className="min-w-0 truncate">
         {failure.count > 1 && `${failure.count} × `}
         {failure.method} failed{said && `: ${said}`}

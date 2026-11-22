@@ -460,7 +460,7 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
   return (
     <div className="flex flex-col gap-2">
       <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-        <CircleCheck size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <CircleCheck size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
         <span className="min-w-0 truncate">
           <span className="text-foreground">
             {pluralCount(server.services.length, "service")} · {pluralCount(server.methodCount, "method")}
@@ -690,7 +690,7 @@ function CertificatesSection({ open, onOpenChange, parameters, onParameterChange
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-1.5">
-              <ShieldCheck size={13} className="text-muted-foreground" />
+              <ShieldCheck size={15} className="text-muted-foreground" />
               <span className="text-sm text-foreground">Client certificate</span>
               <span className="text-xs text-muted-foreground">Mutual TLS. The server authenticates Kaja too</span>
             </div>

@@ -461,7 +461,7 @@ function ShortcutRow({
       {caption !== undefined && <span className={cn("text-xs", recording?.refusal ? "text-destructive" : "text-muted-foreground")}>{caption}</span>}
       {caption === undefined && takeover && (
         <div ref={notice} className="flex items-center gap-2">
-          <CircleAlert size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+          <CircleAlert size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
           <span className="min-w-0 truncate text-xs text-amber-600 dark:text-amber-400">
             Taken from {joinLabels(takeover.from)}, which now {takeover.from.length === 1 ? "has" : "have"} no shortcut.
           </span>
