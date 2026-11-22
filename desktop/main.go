@@ -571,7 +571,8 @@ func main() {
 	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: config.Info.ProductName,
 		// The size VS Code and its forks open a workspace window at, and the minimum they
-		// allow. Wails centers the window on the display for us.
+		// allow. Wails centers the window on the display for us, and macOS puts it back
+		// where it was left from the second launch on.
 		Width:            1440,
 		Height:           900,
 		MinWidth:         400,
@@ -584,6 +585,7 @@ func main() {
 	})
 
 	kaja.attach(wailsApp, window)
+	rememberWindowFrame(window)
 	serveIntents(kaja)
 	wailsApp.Menu.Set(kaja.buildAppMenu())
 
