@@ -728,7 +728,7 @@ function TabPane({
       onScroll={(event) => {
         paneScroll.current[tab] = event.currentTarget.scrollTop;
       }}
-      className="min-h-0 flex-1 overflow-y-auto py-2 pr-3 pl-2"
+      className="min-h-0 flex-1 overflow-y-auto pt-2 pr-3 pb-14 pl-2"
     >
       {children}
     </div>

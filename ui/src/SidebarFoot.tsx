@@ -1,26 +1,28 @@
-import { memo } from "react";
-import { CircleHelp, GitBranch, Keyboard, Moon, Sun } from "lucide-react";
-import { IconButton } from "./components/icon-button";
+import { memo, useState } from "react";
+import { CircleHelp, ExternalLink, GitBranch, Keyboard, Minus, Moon, Plus, Settings, Sun } from "lucide-react";
 import { isWailsEnvironment, openInBrowser } from "./wails";
-import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
-import { ErrorStatus, useAppErrors } from "./ErrorStatus";
-import { DEFAULT_ZOOM } from "./zoom";
+import { ErrorStatus } from "./ErrorStatus";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { SegmentedControl } from "./components/segmented-control";
+import { Switch } from "./components/switch";
+import { DEFAULT_ZOOM, type ZoomGesture } from "./zoom";
 import { cn } from "./cn";
 import { isIPhone } from "./phone";
 
 export type ColorMode = "day" | "night";
 
-const footIconClass = "size-7 rounded-[7px] text-muted-foreground hover:text-foreground [&_svg]:size-[15px]";
-const phoneFootIconClass = "size-11 rounded-full text-muted-foreground [&_svg]:size-5";
-// The foot reaches into the home indicator's inset rather than sitting above all of it,
-// the way iOS's own bottom bars do; only the strip the indicator is drawn in stays clear.
-const phoneFootInset = "max(0px, calc(env(safe-area-inset-bottom) - 20px))";
+export interface FeaturePreview {
+  key: string;
+  label: string;
+  enabled: boolean;
+}
 
 interface SidebarFootProps {
   colorMode: ColorMode;
   onToggleColorMode: () => void;
   zoom: number;
-  onResetZoom: () => void;
+  /** Absent where nothing can zoom the window: a browser zooms itself. */
+  onZoom?: (gesture: ZoomGesture) => void;
   gitRef?: string;
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
@@ -36,73 +38,149 @@ function openExternal(url: string) {
 }
 
 /**
- * What the status bar said, at the foot of the sidebar: which build this is on the
- * left, the window's own settings on the right. The compile status is on the Apps tab
- * instead, since it reports on the apps.
+ * The window's own settings, floating over the bottom of the sidebar rather than taking
+ * a row of it. It is a zero-height block at the end of the column, so the controls hang
+ * from it over the list and the list keeps the whole height.
  */
 export const SidebarFoot = memo(function SidebarFoot({
   colorMode,
   onToggleColorMode,
   zoom,
-  onResetZoom,
+  onZoom,
   gitRef,
   featurePreviews,
   onToggleFeaturePreview,
   onShowShortcuts,
   phone = false,
 }: SidebarFootProps) {
-  const iconClass = phone ? phoneFootIconClass : footIconClass;
-  const appErrors = useAppErrors();
+  const [open, setOpen] = useState(false);
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
+  const close = (then: () => void) => () => {
+    setOpen(false);
+    then();
+  };
+
+  const row = cn("flex w-full items-center gap-2.5 rounded-md px-2 text-left text-foreground hover:bg-accent", phone ? "h-11 text-[15px]" : "h-8 text-[13px]");
+  const label = cn("px-2 pt-2 pb-1 text-muted-foreground", phone ? "text-[13px]" : "text-xs");
+  const icon = phone ? 18 : 15;
 
   return (
-    <div
-      className={cn("flex shrink-0 items-center gap-1.5 text-muted-foreground", phone ? "pr-2 pl-5 text-[13px]" : "h-10 pr-2 pl-4 text-xs")}
-      style={phone ? { height: `calc(3.5rem + ${phoneFootInset})`, paddingBottom: phoneFootInset } : undefined}
-    >
-      {gitRef && shortRef && (
-        <a
-          href={`https://github.com/wham/kaja/tree/${gitRef}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            if (isWailsEnvironment()) {
-              e.preventDefault();
-              openInBrowser(e.currentTarget.href);
-            }
-          }}
-          className="flex min-w-0 items-center gap-1.5 text-muted-foreground no-underline hover:text-foreground"
-        >
-          <GitBranch size={phone ? 16 : 13} className="shrink-0" />
-          <span className="truncate">{shortRef}</span>
-        </a>
-      )}
-      {/* Absent until Kaja has failed at something. It reads the error store itself:
-          what it reports is the window's, and every writer already reaches it through
-          `console.error`. */}
-      {appErrors.length > 0 && <ErrorStatus />}
-      {/* Absent at 100%. It is the only thing that states the size the window is drawn
-          at, and the only way back to 100% for someone who never learned the key. */}
-      {zoom !== DEFAULT_ZOOM && (
-        <button type="button" title="Reset zoom (⌘0)" onClick={onResetZoom} className="rounded px-1 font-mono tabular-nums hover:text-foreground">
-          {zoom}%
-        </button>
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-0.5">
-        <IconButton size="xs" variant="ghost" icon={CircleHelp} aria-label="Send feedback" onClick={() => openExternal(FEEDBACK_URL)} className={iconClass} />
-        {/* An iPhone has no keyboard to press them on; a narrow browser window still does. */}
-        {!isIPhone() && (
-          <IconButton size="xs" variant="ghost" icon={Keyboard} aria-label="Keyboard shortcuts" onClick={onShowShortcuts} className={iconClass} />
-        )}
-        <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={iconClass} />
-        <IconButton
-          size="xs"
-          variant="ghost"
-          icon={colorMode === "night" ? Sun : Moon}
-          aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
-          onClick={onToggleColorMode}
-          className={iconClass}
-        />
+    <div className="relative h-0 shrink-0">
+      <div
+        className="absolute flex items-center gap-1.5"
+        style={phone ? { left: 16, bottom: "max(12px, calc(env(safe-area-inset-bottom) - 8px))" } : { left: 12, bottom: 12 }}
+      >
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center rounded-full border border-border bg-card text-muted-foreground shadow-md transition-colors hover:text-foreground data-[popup-open]:text-foreground",
+                phone ? "h-11 gap-2 pr-4 pl-3.5 text-[15px]" : "h-8 gap-1.5 pr-3 pl-2.5 text-xs",
+              )}
+            >
+              <Settings size={icon} className="shrink-0" />
+              Settings
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" side="top" sideOffset={8} className={cn("rounded-xl p-1.5 shadow-xl", phone ? "w-[300px]" : "w-[256px]")}>
+            <div className={label}>Theme</div>
+            <SegmentedControl aria-label="Theme" className="flex w-full">
+              {(["day", "night"] as const).map((mode) => (
+                <SegmentedControl.Button
+                  key={mode}
+                  selected={colorMode === mode}
+                  leadingIcon={mode === "day" ? Sun : Moon}
+                  onClick={() => colorMode !== mode && onToggleColorMode()}
+                  className={cn("flex-1 justify-center", phone ? "h-9 text-sm" : "text-xs")}
+                >
+                  {mode === "day" ? "Light" : "Dark"}
+                </SegmentedControl.Button>
+              ))}
+            </SegmentedControl>
+            {onZoom && (
+              <>
+                <div className={label}>Zoom</div>
+                <div className="flex w-full items-center gap-0.5 rounded-md bg-muted p-0.5 text-xs">
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    onClick={() => onZoom("out")}
+                    className="flex h-7 flex-1 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Reset zoom"
+                    disabled={zoom === DEFAULT_ZOOM}
+                    onClick={() => onZoom("reset")}
+                    className="flex h-7 flex-[2] items-center justify-center rounded bg-background font-mono tabular-nums text-foreground shadow-sm dark:bg-accent dark:shadow-none"
+                  >
+                    {zoom}%
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    onClick={() => onZoom("in")}
+                    className="flex h-7 flex-1 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </>
+            )}
+            {featurePreviews.length > 0 && (
+              <>
+                <div className={label}>Feature previews</div>
+                {featurePreviews.map((feature) => {
+                  const labelId = `feature-preview-${feature.key}`;
+                  return (
+                    <div key={feature.key} className={cn(row, "hover:bg-transparent")}>
+                      <span id={labelId}>{feature.label}</span>
+                      <Switch
+                        className="ml-auto"
+                        checked={feature.enabled}
+                        aria-labelledby={labelId}
+                        onCheckedChange={() => onToggleFeaturePreview(feature.key)}
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            )}
+            <div className="mx-1.5 my-1 h-px bg-border" />
+            {/* An iPhone has no keyboard to press them on; a narrow browser window still does. */}
+            {!isIPhone() && (
+              <button type="button" className={row} onClick={close(onShowShortcuts)}>
+                <Keyboard size={icon} className="text-muted-foreground" />
+                Keyboard shortcuts
+              </button>
+            )}
+            <button type="button" className={row} onClick={close(() => openExternal(FEEDBACK_URL))}>
+              <CircleHelp size={icon} className="text-muted-foreground" />
+              Send feedback
+              <ExternalLink size={13} className="ml-auto text-muted-foreground" />
+            </button>
+            {gitRef && shortRef && (
+              <>
+                <div className="mx-1.5 my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className={cn(row, "h-7 text-xs text-muted-foreground hover:text-foreground")}
+                  onClick={close(() => openExternal(`https://github.com/wham/kaja/tree/${gitRef}`))}
+                >
+                  <GitBranch size={13} />
+                  <span className="truncate font-mono">{shortRef}</span>
+                  <span className="ml-auto shrink-0">View on GitHub</span>
+                </button>
+              </>
+            )}
+          </PopoverContent>
+        </Popover>
+        {/* Absent until Kaja has failed at something: news, not a setting, so it stands
+            beside the menu rather than inside it. */}
+        <ErrorStatus phone={phone} />
       </div>
     </div>
   );

@@ -454,7 +454,7 @@ function TabPane({
       id={`${tab}-panel`}
       aria-labelledby={sidebarTabId(tab)}
       hidden={tab !== active}
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-20"
     >
       {children}
     </div>

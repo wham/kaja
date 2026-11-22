@@ -46,15 +46,14 @@ import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
 import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, type PendingApp, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
-import { SidebarFoot, ColorMode } from "./SidebarFoot";
+import { SidebarFoot, ColorMode, FeaturePreview } from "./SidebarFoot";
 import { WorkspaceControl } from "./WorkspaceMenu";
-import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm, type AppFormSaveControl } from "./AppForm";
 import { Editor, EditorHandle, registerKajaModule, setRunDestinations, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { chromeColor, surfaceColor } from "./surfaces";
 import { allBuffers, openBuffer, TextBuffer } from "./textBuffer";
-import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture } from "./zoom";
+import { clampZoom, declareZoom, DEFAULT_ZOOM, zoomAfter, zoomGesture, type ZoomGesture } from "./zoom";
 import { remapEditorCode, remapSourcesToNewName, Sources } from "./sources";
 import { logFileLevel } from "./scriptConsole";
 import { deviceConsole, logScriptLine } from "./uiLog";
@@ -724,7 +723,7 @@ export function App() {
   }, []);
 
   const featurePreviews = useMemo<FeaturePreview[]>(() => [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }], [previewApps]);
-  const onResetZoom = useCallback(() => setZoom(DEFAULT_ZOOM), []);
+  const onZoom = useCallback((gesture: ZoomGesture) => setZoom((current) => zoomAfter(current, gesture)), []);
 
   const onToggleFeaturePreview = useCallback((key: string) => {
     if (key === "previewApps") {
@@ -2988,7 +2987,7 @@ export function App() {
         colorMode={colorMode}
         onToggleColorMode={onToggleColorMode}
         zoom={zoom}
-        onResetZoom={onResetZoom}
+        onZoom={isDesktopMac ? onZoom : undefined}
         gitRef={runtime.gitRef}
         featurePreviews={featurePreviews}
         onToggleFeaturePreview={onToggleFeaturePreview}

@@ -6,6 +6,7 @@ import { copyText } from "./clipboard";
 import { pluralCount } from "./plural";
 import { Button } from "./components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { cn } from "./cn";
 
 const ICON_SIZE = 14;
 
@@ -25,12 +26,7 @@ function detail(error: AppError): string | undefined {
   return end === -1 ? undefined : error.message.slice(end + 1).trim() || undefined;
 }
 
-/**
- * What has been reported, newest first.
- *
- * The footer asks as well, because an item that draws nothing still has a separator
- * drawn beside it.
- */
+/** What has been reported, newest first. */
 export function useAppErrors(): readonly AppError[] {
   return useSyncExternalStore(subscribeAppErrors, getAppErrors, getAppErrors);
 }
@@ -62,14 +58,14 @@ function ErrorRow({ error }: { error: AppError }) {
 }
 
 /**
- * What Kaja failed at, in the sidebar's foot.
+ * What Kaja failed at, floating beside the settings.
  *
  * Absent while there is nothing to say: a permanent `0` is a promise that a number is coming, and in most sessions it
  * never does. It does not open itself either — an error arrives while you are working
  * on something else, and a panel over that work is a worse interruption than a red
  * count in the corner.
  */
-export function ErrorStatus() {
+export function ErrorStatus({ phone = false }: { phone?: boolean }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const errors = useAppErrors();
@@ -100,7 +96,10 @@ export function ErrorStatus() {
         <button
           type="button"
           aria-label={`${label}, open the error log`}
-          className="flex h-6 shrink-0 items-center gap-1.5 rounded px-1.5 text-xs text-destructive transition-colors hover:bg-accent"
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card text-destructive shadow-md transition-colors hover:bg-accent",
+            phone ? "h-11 px-3.5 text-[15px]" : "h-8 px-2.5 text-xs",
+          )}
         >
           <CircleAlert size={ICON_SIZE} className="shrink-0" />
           <span aria-live="polite" className="tabular-nums">
@@ -108,7 +107,7 @@ export function ErrorStatus() {
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-[380px] p-1">
+      <PopoverContent align="start" side="top" sideOffset={8} className="w-[380px] max-w-[calc(100vw-24px)] p-1">
         <div className="flex items-center justify-between px-2 py-1">
           <span className="text-xs font-semibold text-foreground">Errors</span>
           <div className="flex items-center gap-1">
