@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { App } from "./apps";
-import { parseMethodRequest, pathParts, readRequestHints } from "./methodRequest";
+import { parseMethodRequest, readRequestHints } from "./methodRequest";
 
 function app(): App {
   const methods = [
@@ -26,15 +26,6 @@ describe("parseMethodRequest", () => {
     expect(parseMethodRequest(undefined)).toBeUndefined();
     expect(parseMethodRequest("")).toBeUndefined();
   });
-});
-
-test("pathParts sets the parameters apart", () => {
-  expect(pathParts("/a/{b}/c/{d}")).toEqual([
-    { text: "/a/", parameter: false },
-    { text: "{b}", parameter: true },
-    { text: "/c/", parameter: false },
-    { text: "{d}", parameter: true },
-  ]);
 });
 
 describe("readRequestHints", () => {

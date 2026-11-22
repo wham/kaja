@@ -20,16 +20,8 @@ export function parseMethodRequest(http: string | undefined): MethodRequest | un
   return { verb: upper, path: rest.join(" "), write: !READS.has(upper) };
 }
 
-/** A path split around its `{parameters}`, the parts a request fills in. */
-export function pathParts(path: string): { text: string; parameter: boolean }[] {
-  return path
-    .split(/(\{[^}]*\})/)
-    .filter((text) => text !== "")
-    .map((text) => ({ text, parameter: text.startsWith("{") }));
-}
-
 export interface RequestHint {
-  // Where the method's name ends, which is where the hint is drawn.
+  // Where the method's name ends.
   at: number;
   line: MethodRequest;
 }
@@ -52,28 +44,28 @@ function option(options: { [key: string]: unknown } | undefined): string | undef
 }
 
 class HintWidget extends WidgetType {
-  constructor(readonly line: MethodRequest) {
+  constructor(readonly lines: MethodRequest[]) {
     super();
   }
 
   eq(other: HintWidget) {
-    return other.line.verb === this.line.verb && other.line.path === this.line.path;
+    return (
+      other.lines.length === this.lines.length &&
+      other.lines.every((line, index) => line.verb === this.lines[index].verb && line.path === this.lines[index].path)
+    );
   }
 
   toDOM(): HTMLElement {
     const hint = document.createElement("span");
     hint.className = "cm-request-line";
     hint.setAttribute("aria-hidden", "true");
-    const verb = document.createElement("span");
-    verb.className = this.line.write ? "cm-request-verb cm-request-write" : "cm-request-verb";
-    verb.textContent = this.line.verb;
-    hint.append(verb);
-    for (const part of pathParts(this.line.path)) {
-      const span = document.createElement("span");
-      if (part.parameter) span.className = "cm-request-parameter";
-      span.textContent = part.text;
-      hint.append(span);
-    }
+    this.lines.forEach((line, index) => {
+      if (index > 0) hint.append(" · ");
+      const verb = document.createElement("span");
+      if (line.write) verb.className = "cm-request-write";
+      verb.textContent = line.verb;
+      hint.append(verb, ` ${line.path}`);
+    });
     return hint;
   }
 
@@ -82,27 +74,27 @@ class HintWidget extends WidgetType {
   }
 }
 
+// At the end of the line a call starts on, so the code itself is where it was written.
 function decorate(state: EditorState, apps: App[]): DecorationSet | undefined {
   const hints = readRequestHints(state.doc.toString(), apps);
   if (!hints) return undefined;
-  const ranges: Range<Decoration>[] = hints.map((hint) => Decoration.widget({ widget: new HintWidget(hint.line), side: 1 }).range(hint.at));
-  return Decoration.set(ranges);
+  const byLine = new Map<number, MethodRequest[]>();
+  for (const hint of hints) {
+    const end = state.doc.lineAt(hint.at).to;
+    byLine.set(end, [...(byLine.get(end) ?? []), hint.line]);
+  }
+  const ranges: Range<Decoration>[] = [...byLine].map(([end, lines]) => Decoration.widget({ widget: new HintWidget(lines), side: 1 }).range(end));
+  return Decoration.set(ranges, true);
 }
 
 const hintsTheme = EditorView.theme({
   ".cm-request-line": {
-    margin: "0 2px 0 4px",
-    padding: "1px 5px",
-    borderRadius: "4px",
-    backgroundColor: "var(--muted)",
-    color: "var(--muted-foreground)",
-    fontSize: "0.82em",
-    whiteSpace: "nowrap",
+    marginLeft: "2ch",
+    color: "color-mix(in oklab, var(--muted-foreground) 70%, transparent)",
+    fontSize: "0.85em",
     userSelect: "none",
   },
-  ".cm-request-verb": { marginRight: "4px", fontWeight: "500" },
-  ".cm-request-write, .cm-request-parameter": { color: "var(--foreground)" },
-  ".cm-request-write": { fontWeight: "600" },
+  ".cm-request-write": { color: "var(--foreground)", fontWeight: "600" },
 });
 
 export function requestHints(hooks: { apps: () => App[]; recheck: StateEffectType<null> }): Extension {

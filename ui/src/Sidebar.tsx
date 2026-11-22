@@ -762,12 +762,15 @@ export function MethodName({ name, unsupported, deprecated }: { name: string; un
 
 // The request an OpenAPI method stands for, quiet behind its name the way an extension
 // is behind a filename: the row truncates at its tail, so the name is what survives.
+// A read is its path alone, a leading slash already saying what it is; only a verb
+// that writes is spelled out.
 export function MethodRequestLine({ http }: { http: string | undefined }) {
   const line = parseMethodRequest(http);
   if (!line) return null;
   return (
-    <span className="ml-2 font-mono text-[11px] text-muted-foreground/80">
-      <span className={cn("font-medium", line.write && "font-semibold text-foreground")}>{line.verb}</span> {line.path}
+    <span className="ml-1.5 font-mono text-[10.5px] text-muted-foreground/80">
+      {line.write && <span className="font-semibold text-foreground">{line.verb} </span>}
+      {line.path}
     </span>
   );
 }
