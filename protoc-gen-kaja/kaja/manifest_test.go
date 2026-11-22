@@ -27,6 +27,10 @@ extend google.protobuf.FieldOptions {
   repeated string enum_values = 79004;
 }
 
+extend google.protobuf.MethodOptions {
+  string http_request = 79001;
+}
+
 // A thing for sale.
 message Item {
   // Where the item is listed.
@@ -47,7 +51,9 @@ enum Kind {
 
 service Catalog {
   // Reads one item.
-  rpc GetItem(Item) returns (Item);
+  rpc GetItem(Item) returns (Item) {
+    option (http_request) = "GET /items/{id}";
+  }
   rpc Upload(stream Item) returns (Item);
   rpc Watch(Item) returns (stream Item);
 }
@@ -137,7 +143,7 @@ func TestEveryServiceInAModuleIsADeclaredConst(t *testing.T) {
 	module := shopModule(t)
 	for _, want := range []string{
 		`import type { Call, CallOptions, Input } from "kaja";`,
-		"export declare const Catalog: {\n    /**\n     * Reads one item.\n     */\n    GetItem(input: Input<Item>, options?: CallOptions): Call<Item>;\n",
+		"export declare const Catalog: {\n    /**\n     * GET /items/{id}\n     *\n     * Reads one item.\n     */\n    GetItem(input: Input<Item>, options?: CallOptions): Call<Item>;\n",
 		"    Watch(input: Input<Item>, options?: CallOptions): Call<Item>;\n};",
 		"export declare const Orders: {\n    /**\n     * Places an order.\n     *\n     * @deprecated\n     */\n    Place(input: Input<Item>, options?: CallOptions): Call<Item>;\n};",
 	} {
