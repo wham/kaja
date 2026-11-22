@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight, KeyRound, SquareTerminal, Type, type LucideIcon } from "lucide-react";
 import { type ReactNode, type Ref } from "react";
-import { storedWhere } from "./browserValues";
 import { cn } from "./cn";
 import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
@@ -219,8 +218,4 @@ export function PhoneVariableDetail({
       )}
     </div>
   );
-}
-
-export function storedFooter(): string {
-  return `Stored values are kept ${storedWhere()}, never in kaja.json.`;
 }

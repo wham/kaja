@@ -27,7 +27,7 @@ import { pluralCount } from "./plural";
 import { isIOSApp } from "./wails";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
-import { KIND_ICON, PhoneGroup, PhoneRow, PhoneUse, PhoneVariableDetail, UnsetMark, storedFooter } from "./PhoneVariables";
+import { KIND_ICON, PhoneGroup, PhoneRow, PhoneUse, PhoneVariableDetail, UnsetMark } from "./PhoneVariables";
 
 interface VariableRow {
   id: number;
@@ -541,7 +541,7 @@ export function Variables({
           ? status?.source === VariableSource.UNSET
             ? `${environmentName(row)} isn't set in this process's environment.`
             : undefined
-          : "Written in kaja.json.";
+          : "Saved with the workspace, so anyone who opens it can read this.";
     return (
       <PhoneVariableDetail
         name={row.key}
@@ -608,7 +608,7 @@ export function Variables({
         </PhoneGroup>
       )}
       {rows.length > 0 && (
-        <PhoneGroup heading={signIns.length > 0 || undefinedReferences.length > 0 ? "Variables" : undefined} footer={storedFooter()}>
+        <PhoneGroup heading={signIns.length > 0 || undefinedReferences.length > 0 ? "Variables" : undefined}>
           {rows.map((row, index) => {
             const name = row.key.trim();
             const status = readOnly ? statusByName.get(name) : statusOf(row);
@@ -642,7 +642,7 @@ export function Variables({
           <Blankslate.Heading>No variables yet</Blankslate.Heading>
           <Blankslate.Description>
             A variable is a value you write once and reference as <code>{"${NAME}"}</code> in any app field or script.
-            {!readOnly && <> Keep it in kaja.json, or keep it on this machine only.</>}
+            {!readOnly && (phone ? <> Keep it with the workspace, or on this device only.</> : <> Keep it in kaja.json, or keep it on this machine only.</>)}
           </Blankslate.Description>
           {!readOnly && (
             <Blankslate.PrimaryAction onClick={phone ? phoneAdd : addRow}>
