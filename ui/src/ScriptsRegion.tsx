@@ -79,8 +79,9 @@ import { PHONE_ICON, PhoneLevelHeader, PhoneRow, PhoneRowAction, PhoneSection } 
 // branch's.
 const ROW_INDENT = 22;
 const DEPTH_INDENT = 14;
-// The chevron column a folder row spends and every other row leaves empty.
-const CHEVRON_SLOT = 18;
+// The chevron and the gap after it, which a folder row spends and every other row
+// leaves empty.
+const CHEVRON_SLOT = 20;
 const LEAF_INDENT = ROW_INDENT + CHEVRON_SLOT;
 // Every control at a row's right edge — a group's verb, a row's hover actions, a run
 // indicator — is an 18px box 8px in from the edge, so all of them share one column
@@ -1271,9 +1272,8 @@ function FolderRow({
           }}
         >
           <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", open && "rotate-90")} />
-          <Folder size={15} className="shrink-0 text-muted-foreground" />
-          {/* The chevron and the glyph keep folding the folder however often you
-              click them; the name is what a second click renames. */}
+          {/* The chevron keeps folding the folder however often you click it; the
+              name is what a second click renames. */}
           <span className="flex-1 truncate" {...rename.name}>
             {node.name}
           </span>
@@ -1370,7 +1370,6 @@ function FolderNameField({
       onCancel={onCancel}
     >
       <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
-      <Folder size={15} className="shrink-0 text-muted-foreground" />
     </NameField>
   );
 }

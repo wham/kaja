@@ -233,7 +233,7 @@ Plain Run keeps its place and pressing it never opens anything. A caret beside i
 
 ## The tree is an index
 
-The tree is a dense desktop index, not a web page: depth is the indent alone rather than an icon column or a guide line, packages and services carry no icon, and the **app keeps its** `AppTypeIcon`.
+The tree is a dense desktop index, not a web page: depth is the indent alone rather than an icon column or a guide line, packages, services and script folders carry no icon, and the **app keeps its** `AppTypeIcon`.
 
 ### What the tree opens with
 
