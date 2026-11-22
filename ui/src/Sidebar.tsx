@@ -77,7 +77,7 @@ export const SIDEBAR_TABS: SidebarTab[] = ["apps", "scripts"];
 export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // An app's row, and the one row the empty list draws in its place.
-const SECTION_ROW = "flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-foreground";
+const SECTION_ROW = "flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-[15px] font-medium text-foreground";
 
 // Small enough to sit inside a row, which is what lets the frequent verbs live
 // on the row instead of behind a menu. Every one of them sits in an 18px box 16px in
@@ -687,7 +687,7 @@ function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (t
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(candidate)}
               className={cn(
-                "flex h-6 cursor-pointer select-none items-center rounded-md px-2.5 text-[13px] outline-none focus-visible:bg-accent/50",
+                "flex h-6 cursor-pointer select-none items-center rounded-md px-2.5 text-sm outline-none focus-visible:bg-accent/50",
                 selected ? "bg-background font-medium text-foreground shadow-sm dark:bg-accent" : "text-muted-foreground hover:text-foreground",
               )}
             >

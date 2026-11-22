@@ -94,7 +94,7 @@ const RENAME_CLICK_MS = 450;
 const SPRING_MS = 600;
 
 const GROUP_HEADER = "flex h-8 w-full cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:bg-accent/40 hover:text-foreground";
-const ROW = "group flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg pr-2 text-sm outline-none focus-visible:bg-accent/50";
+const ROW = "group flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg pr-2 text-[15px] outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -1448,7 +1448,7 @@ function NameField({
         }}
         className={cn(
           "min-w-0 flex-1 border bg-background text-foreground outline-none",
-          large ? "h-9 rounded-lg px-2 text-[17px]" : "h-5 rounded-sm px-1 text-sm",
+          large ? "h-9 rounded-lg px-2 text-[17px]" : "h-5 rounded-sm px-1 text-[15px]",
           error ? "border-destructive" : "border-ring",
         )}
       />

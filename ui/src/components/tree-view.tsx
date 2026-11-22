@@ -84,7 +84,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded, event) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
-          "group flex h-8 cursor-pointer items-center gap-1.5 rounded-lg pl-2 pr-2 text-sm outline-none",
+          "group flex h-8 cursor-pointer items-center gap-1.5 rounded-lg pl-2 pr-2 text-[15px] outline-none",
           current ? "bg-accent/60 text-accent-foreground" : cn(leaf ? "text-foreground/90" : "text-foreground", "hover:bg-accent/40"),
           "focus-visible:bg-accent/40",
         )}
