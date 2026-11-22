@@ -93,8 +93,8 @@ const RENAME_CLICK_MS = 450;
 // without letting go.
 const SPRING_MS = 600;
 
-const GROUP_HEADER = "flex h-7 w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent/40";
-const ROW = "group flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/50";
+const GROUP_HEADER = "flex h-8 w-full cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:bg-accent/40 hover:text-foreground";
+const ROW = "group flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg pr-2 text-sm outline-none focus-visible:bg-accent/50";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -757,7 +757,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
                   than the rows it sits among. */}
               {scripts.length === 0 && folders.length === 0 && !folderEdit && !fileEdit && (
                 <li role="treeitem">
-                  <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-7 items-center py-1 pr-3 text-xs text-muted-foreground">
+                  <div style={{ paddingLeft: LEAF_INDENT }} className="flex min-h-8 items-center py-1 pr-3 text-xs text-muted-foreground">
                     {canWrite ? "Saved drafts appear here" : "Scripts in the workspace's folder appear here."}
                   </div>
                 </li>
@@ -1427,7 +1427,7 @@ function NameField({
   };
 
   return (
-    <div className={cn("flex items-center", large ? "min-h-11 gap-3 px-3" : "h-7 gap-1.5 pr-2")} style={large ? undefined : { paddingLeft: indent }}>
+    <div className={cn("flex items-center", large ? "min-h-11 gap-3 px-3" : "h-8 gap-1.5 pr-2")} style={large ? undefined : { paddingLeft: indent }}>
       {children}
       <input
         ref={ref}

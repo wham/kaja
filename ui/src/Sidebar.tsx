@@ -77,9 +77,9 @@ export const SIDEBAR_TABS: SidebarTab[] = ["apps", "scripts"];
 export const TRAFFIC_LIGHTS_INSET = "calc(78px / var(--zoom, 1))";
 
 // An app's row, and the one row the empty list draws in its place.
-const SECTION_ROW = "flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground";
+const SECTION_ROW = "flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-foreground";
 
-// Small enough to sit inside a 24px row, which is what lets the frequent verbs live
+// Small enough to sit inside a row, which is what lets the frequent verbs live
 // on the row instead of behind a menu. Every one of them sits in an 18px box 16px in
 // from the panel's right edge — one column, from the band's tools down to the last
 // method in the tree.
@@ -319,7 +319,7 @@ export const Sidebar = memo(function Sidebar({
         <TabPane tab="apps" active={tab} paneRefs={paneRefs} paneScroll={paneScroll}>
           {/* Where there is an action, the empty list shows the action rather than
               a sentence about it: this list can be filled from here, so its one row
-              is the verb, at the same 24px as the app rows it will be replaced by. */}
+              is the verb, drawn as the app rows it will be replaced by. */}
           {pendingApps.map((pending) => {
             const current = pending.viewId === currentViewId;
             const active = hoveredPending === pending.viewId;
@@ -589,7 +589,7 @@ function GlobalBand({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-[15px]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-[11px]"
       style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       {workspace ? (
@@ -660,11 +660,11 @@ export function sidebarTabId(tab: SidebarTab): string {
  */
 function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (tab: SidebarTab) => void; action?: React.ReactNode }) {
   return (
-    <div className="flex h-7 shrink-0 items-center pr-5 pl-2.5">
+    <div className="flex h-8 shrink-0 items-center pr-4 pl-2">
       <div
         role="tablist"
         aria-label="Sidebar"
-        className="flex items-center gap-1"
+        className="flex items-center rounded-lg bg-foreground/5 p-0.5 dark:bg-black/20"
         onKeyDown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           event.preventDefault();
@@ -687,8 +687,8 @@ function TabRow({ tab, onTabChange, action }: { tab: SidebarTab; onTabChange: (t
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(candidate)}
               className={cn(
-                "flex h-7 cursor-pointer select-none items-center rounded-md px-2 text-[13px] outline-none focus-visible:bg-accent/50",
-                selected ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                "flex h-6 cursor-pointer select-none items-center rounded-md px-2.5 text-[13px] outline-none focus-visible:bg-accent/50",
+                selected ? "bg-background font-medium text-foreground shadow-sm dark:bg-accent" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {TAB_LABEL[candidate]}
@@ -728,7 +728,7 @@ function TabPane({
       onScroll={(event) => {
         paneScroll.current[tab] = event.currentTarget.scrollTop;
       }}
-      className="min-h-0 flex-1 overflow-y-auto py-2 pr-3 pl-2"
+      className="min-h-0 flex-1 overflow-y-auto p-2"
     >
       {children}
     </div>
