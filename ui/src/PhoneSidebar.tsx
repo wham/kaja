@@ -4,7 +4,7 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
 import { App, Method, Service } from "./apps";
-import { appType } from "./appTypes";
+import { appAddress, appType, appTypeLabel } from "./appTypes";
 import { firstErrorMessage } from "./compileSummary";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { KajaTrace } from "./KajaTrace";
@@ -265,6 +265,9 @@ function AppLevel({
       onBack={() => onLevel(packages && level.pkg ? { app: appName } : undefined)}
       icon={!level.pkg ? <AppTypeIcon type={appType(app.configuration)} size={22} /> : undefined}
       title={level.pkg ?? appName}
+      subtitle={!level.pkg && [appTypeLabel(appType(app.configuration)), appAddress(app.configuration)].filter(Boolean).join(" · ")}
+      onOpen={level.pkg ? undefined : () => onEditApp(appName)}
+      current={!level.pkg && settingsCurrent}
       trailing={
         !level.pkg && (
           <>
@@ -276,18 +279,10 @@ function AppLevel({
     />
   );
 
-  // The app's own settings are a row of its level, as everything else you can be at is.
-  const settings = !level.pkg && (
-    <PhoneRow icon={<Settings size={PHONE_ICON} />} current={settingsCurrent} onClick={() => onEditApp(appName)}>
-      Settings
-    </PhoneRow>
-  );
-
   if (compiling) {
     return (
       <nav aria-label={appName}>
         {header}
-        {settings}
         <div className="flex min-h-11 items-center gap-3 px-3 text-[17px] text-muted-foreground">
           <Spinner className="size-5" />
           Compiling…
@@ -300,7 +295,6 @@ function AppLevel({
     return (
       <nav aria-label={appName}>
         {header}
-        {settings}
         <PhoneSection>Packages</PhoneSection>
         {groupServicesByPackage(app.services).map(([packageName]) => (
           <PhoneRow key={packageName} opens onClick={() => onLevel({ app: appName, pkg: packageName })}>
@@ -315,7 +309,6 @@ function AppLevel({
   return (
     <nav aria-label={appName}>
       {header}
-      {settings}
       {services.length > 0 && <PhoneSection>Services</PhoneSection>}
       {services.map((candidate) => {
         const id = serviceNodeId(appName, candidate);

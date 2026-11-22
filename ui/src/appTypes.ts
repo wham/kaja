@@ -223,6 +223,21 @@ export function appParameters(app: WorkspaceApp): Record<string, string> {
   return params;
 }
 
+// An OpenAPI app is the server it calls before the document it was read from.
+export function appAddress(app: WorkspaceApp): string {
+  const variant = appVariant(app);
+  for (const key of ["url", "endpoint", "baseUrl", "specUrl", "path"]) {
+    const value = variant?.[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value
+        .trim()
+        .replace(/^(https?:\/\/|dns:(\/\/\/)?)/i, "")
+        .replace(/\/$/, "");
+    }
+  }
+  return "";
+}
+
 // appHeaders reads the headers an app forwards upstream. They live inside the typed
 // block (every type but the local Folder app has them).
 export function appHeaders(app: WorkspaceApp): Record<string, string> {

@@ -81,13 +81,19 @@ export function PhoneLevelHeader({
   onBack,
   icon,
   title,
+  subtitle,
   trailing,
+  onOpen,
+  current,
 }: {
   back: string;
   onBack: () => void;
   icon?: React.ReactNode;
   title: React.ReactNode;
+  subtitle?: React.ReactNode;
   trailing?: React.ReactNode;
+  onOpen?: () => void;
+  current?: boolean;
 }) {
   return (
     <div className="pb-1">
@@ -99,11 +105,21 @@ export function PhoneLevelHeader({
         <ChevronLeft size={24} className="shrink-0" />
         <span className="truncate">{back}</span>
       </button>
-      <div className="flex min-h-10 items-center gap-2.5 px-3">
-        {icon}
-        <h2 className="min-w-0 flex-1 truncate text-[22px] font-semibold text-foreground">{title}</h2>
-        {trailing}
-      </div>
+      {onOpen ? (
+        <PhoneRow current={current} opens onClick={onOpen} className={cn("my-1 min-h-16 gap-3 py-2.5", !current && "bg-muted/60")} trailing={trailing}>
+          {icon}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[20px] font-semibold text-foreground">{title}</span>
+            {subtitle && <span className="block truncate text-[14px] text-muted-foreground">{subtitle}</span>}
+          </span>
+        </PhoneRow>
+      ) : (
+        <div className="flex min-h-10 items-center gap-2.5 px-3">
+          {icon}
+          <h2 className="min-w-0 flex-1 truncate text-[22px] font-semibold text-foreground">{title}</h2>
+          {trailing}
+        </div>
+      )}
     </div>
   );
 }
