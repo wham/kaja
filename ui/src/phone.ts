@@ -1,5 +1,4 @@
 import { Method } from "./apps";
-import { parseMethodRequest } from "./methodRequest";
 import { streamingKind } from "./streaming";
 
 /**
@@ -38,7 +37,9 @@ export type MethodTag = "write" | "stream";
  */
 export function methodTag(method: Method): MethodTag | undefined {
   if (streamingKind(method) !== undefined) return "stream";
-  return parseMethodRequest(method.http)?.write ? "write" : undefined;
+  const verb = method.http?.split(" ")[0]?.toUpperCase();
+  if (!verb) return undefined;
+  return verb === "GET" || verb === "HEAD" || verb === "OPTIONS" || verb === "TRACE" ? undefined : "write";
 }
 
 export interface MatchPart {

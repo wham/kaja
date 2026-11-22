@@ -27,7 +27,6 @@ import { Method, App, Service, methodId } from "./apps";
 import { firstErrorMessage, warningCount } from "./compileSummary";
 import { DEPRECATION_NOTE } from "./deprecation";
 import { pluralCount } from "./plural";
-import { parseMethodRequest } from "./methodRequest";
 import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
@@ -462,7 +461,6 @@ export const Sidebar = memo(function Sidebar({
                                       onSelect={(event) => onSelect(method, service, app, !unsupported && event?.altKey ? "append" : "go")}
                                     >
                                       <MethodName name={method.name} unsupported={!!unsupported} deprecated={!!method.deprecated} />
-                                      <MethodRequestLine http={method.http} />
                                       <TreeView.TrailingVisual>
                                         {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
@@ -758,21 +756,6 @@ export function UnsupportedMarker({ reason, size = 12 }: { reason: string; size?
 export function MethodName({ name, unsupported, deprecated }: { name: string; unsupported: boolean; deprecated: boolean }) {
   const label = <span className={cn((unsupported || deprecated) && "text-muted-foreground", deprecated && "line-through")}>{name}</span>;
   return deprecated ? <SimpleTooltip text={DEPRECATION_NOTE}>{label}</SimpleTooltip> : label;
-}
-
-// The request an OpenAPI method stands for, quiet behind its name the way an extension
-// is behind a filename: the row truncates at its tail, so the name is what survives.
-// A read is its path alone, a leading slash already saying what it is; only a verb
-// that writes is spelled out.
-export function MethodRequestLine({ http }: { http: string | undefined }) {
-  const line = parseMethodRequest(http);
-  if (!line) return null;
-  return (
-    <span className="ml-1.5 font-mono text-[10.5px] text-muted-foreground/80">
-      {line.write && <span className="font-semibold text-foreground">{line.verb} </span>}
-      {line.path}
-    </span>
-  );
 }
 
 // A failed app otherwise looks like an app with no services. The marker says which
