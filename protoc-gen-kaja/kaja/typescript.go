@@ -14,6 +14,7 @@ const (
 	httpInOption       = "kaja.http_in"
 	httpRequiredOption = "kaja.http_required"
 	httpPayloadOption  = "kaja.http_payload"
+	httpRequestOption  = "kaja.http_request"
 	enumValuesOption   = "kaja.enum_values"
 )
 

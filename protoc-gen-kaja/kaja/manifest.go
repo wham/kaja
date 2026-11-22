@@ -250,11 +250,25 @@ func serviceConst(svc *service, kaja map[string]string) string {
 		if meth.clientStreaming {
 			continue
 		}
-		writeDoc(&b, "    ", full, meth.doc, meth.deprecated, nil)
+		writeDoc(&b, "    ", full, withRequestLine(meth), meth.deprecated, nil)
 		fmt.Fprintf(&b, "    %s(input: %s<%s>, options?: %s): %s<%s>;\n", meth.name, kaja["Input"], meth.input, kaja["CallOptions"], kaja["Call"], meth.output)
 	}
 	b.WriteString("};")
 	return b.String()
+}
+
+// withRequestLine heads a method's doc with the HTTP request it stands for, which is
+// where the editor says what a generated name calls.
+func withRequestLine(meth *method) string {
+	for _, option := range meth.options {
+		if request, ok := option.value.(string); ok && option.key == httpRequestOption && request != "" {
+			if meth.doc == "" {
+				return request
+			}
+			return request + "\n\n" + meth.doc
+		}
+	}
+	return meth.doc
 }
 
 type orderedSet struct {

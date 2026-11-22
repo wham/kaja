@@ -39,7 +39,6 @@ import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } 
 import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
 import { reportDiagnostics } from "./syntaxErrors";
-import { requestHints } from "./methodRequest";
 import { valueEditing } from "./valueEditing";
 import { verbChips } from "./verbChips";
 import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
@@ -603,7 +602,6 @@ function valueExtensions(on: boolean): Extension {
 }
 
 const phoneChips = verbChips();
-const desktopHints = requestHints({ apps: () => valueCompletionApps, recheck });
 
 // Read-only text still takes the focus, so it can be searched and walked with the keys,
 // except on a phone, where a focused field is a keyboard over the code.
@@ -683,7 +681,7 @@ export function Editor({
       extensions: [
         gutter.of(gutterExtensions(phone)),
         values.of(valueExtensions(editsValues)),
-        chips.of(phone ? phoneChips : desktopHints),
+        chips.of(phone ? phoneChips : []),
         editable.of(editableExtensions(readOnly, phone)),
         keys.of(keymap.of(ownKeys())),
         history(),
@@ -810,7 +808,7 @@ export function Editor({
   }, [readOnly, phone]);
 
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: [gutter.reconfigure(gutterExtensions(phone)), chips.reconfigure(phone ? phoneChips : desktopHints)] });
+    viewRef.current?.dispatch({ effects: [gutter.reconfigure(gutterExtensions(phone)), chips.reconfigure(phone ? phoneChips : [])] });
   }, [phone]);
 
   useEffect(() => {
