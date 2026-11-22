@@ -1,5 +1,21 @@
 import { describe, expect, it } from "bun:test";
-import { appendCall, createDraft, findUntouched, isUntouched, markRun, orderDrafts, reopen, Draft, takeOver, withCode } from "./drafts";
+import {
+  appendCall,
+  createDraft,
+  agentLabel,
+  agentOverflow,
+  findAgentDraft,
+  findSpare,
+  findUntouched,
+  isUntouched,
+  markRun,
+  recentDrafts,
+  reopen,
+  shortAge,
+  Draft,
+  takeOver,
+  withCode,
+} from "./drafts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -90,7 +106,7 @@ describe("withCode", () => {
   });
 });
 
-describe("the Drafts group", () => {
+describe("Recent", () => {
   const draft = (id: string, updatedAt: number, extra: Partial<Draft> = {}): Draft => ({
     ...createDraft(listForUser, undefined, updatedAt),
     id,
@@ -98,27 +114,50 @@ describe("the Drafts group", () => {
     ...extra,
   });
 
-  it("pins the agent's row first, then work, then the browsing buffers", () => {
-    const ordered = orderDrafts([
-      draft("browsed-old", NOW - 2 * DAY),
-      draft("edited", NOW - 3 * DAY, { code: listForUser + "// mine" }),
-      draft("browsed-new", NOW),
-      draft("agent", NOW - 9 * DAY, { agentName: "Claude" }),
-      draft("ran", NOW - DAY, { ran: true }),
-    ]);
+  it("lists what was run or written in, newest first, whoever made it", () => {
+    const recent = recentDrafts(
+      [
+        draft("picked", NOW),
+        draft("edited", NOW - 3 * DAY, { code: listForUser + "// mine" }),
+        draft("agent", NOW - 2 * DAY, { agentName: "Claude", ran: true }),
+        draft("ran", NOW - DAY, { ran: true }),
+      ],
+      undefined,
+    );
 
-    expect(ordered.map((draft) => draft.id)).toEqual(["agent", "ran", "edited", "browsed-new", "browsed-old"]);
+    expect(recent.map((draft) => draft.id)).toEqual(["ran", "agent", "edited"]);
   });
 
-  // A slot per client, so the rows read as who is writing where.
-  it("pins a row per agent, most recently run first", () => {
-    const ordered = orderDrafts([
-      draft("mine", NOW),
-      draft("codex", NOW - 2 * DAY, { agentName: "Codex" }),
-      draft("claude", NOW - DAY, { agentName: "Claude Code" }),
-    ]);
+  it("lists a call that was only picked while it is the one on screen", () => {
+    expect(recentDrafts([draft("picked", NOW)], "picked").map((draft) => draft.id)).toEqual(["picked"]);
+  });
 
-    expect(ordered.map((draft) => draft.id)).toEqual(["claude", "codex", "mine"]);
+  it("hands the next picked call a buffer nobody is looking at", () => {
+    const agent = draft("agent", NOW, { agentName: "Claude" });
+    expect(findSpare([agent, draft("ran", NOW, { ran: true }), draft("picked", NOW)])?.id).toBe("picked");
+  });
+
+  it("runs an agent's snippet where that agent ran the same call", () => {
+    const drafts = [draft("codex", NOW, { agentName: "Codex", ran: true }), draft("claude", NOW, { agentName: "Claude", ran: true })];
+    expect(findAgentDraft(drafts, "Claude", listForUser.replace("{}", '{ username: "a" }'))?.id).toBe("claude");
+    expect(findAgentDraft(drafts, "Claude", getRepo)).toBeUndefined();
+    expect(findAgentDraft(drafts, "Cursor", listForUser)).toBeUndefined();
+  });
+
+  it("lets go of an agent's oldest rows past its cap, and nobody else's", () => {
+    const drafts = [draft("mine", NOW - 9 * DAY, { ran: true }), ...[0, 1, 2, 3, 4, 5].map((n) => draft(`a${n}`, NOW - n * DAY, { agentName: "Claude" }))];
+    expect(agentOverflow(drafts, "Claude").map((candidate) => candidate.id)).toEqual(["a5"]);
+  });
+
+  it("drops the bridge an agent's name arrives through", () => {
+    expect(agentLabel("claude-ai (via mcp-remote 0.16.6)")).toBe("claude-ai");
+    expect(agentLabel("copilot-cli")).toBe("copilot-cli");
+  });
+
+  it("says an age in a word", () => {
+    expect(shortAge(NOW - 5_000, NOW)).toBe("now");
+    expect(shortAge(NOW - 4 * 60_000, NOW)).toBe("4m");
+    expect(shortAge(NOW - 3 * 60 * 60_000, NOW)).toBe("3h");
   });
 
   // Clicking a method takes over a browsing buffer of your own, never the one an

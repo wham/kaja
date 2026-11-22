@@ -209,7 +209,7 @@ export function showShortcuts(views: View[]): View[] {
 
 export interface ViewIdentity {
   name: string;
-  // Where it sits, for the finder's list: "github / Repos", "Drafts".
+  // Where it sits, for the finder's list: "github / Repos", "Recent".
   path: string;
   // Empty where the name is already the whole answer.
   origin: string;
@@ -231,7 +231,7 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       const draft = drafts.find((candidate) => candidate.id === view.draftId);
       return {
         name: draft ? draftTitleText(draft.title) : "Draft",
-        path: "Drafts",
+        path: "Recent",
         origin: draft?.originAppName ?? "",
         icon: PenLine,
         provisional: draft !== undefined && isUntouched(draft),

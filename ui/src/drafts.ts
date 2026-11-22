@@ -1,10 +1,13 @@
 import type { File } from "@babel/types";
-import { deriveDraftTitle } from "./draftTitle";
+import { deriveDraftTitle, titleParts } from "./draftTitle";
 import { parseScript } from "./scriptSyntax";
 
-// How many drafts the sidebar draws before the rest become `n more…`. Capped rather
+// How many rows Recent draws before the rest are behind `Earlier…`. Capped rather
 // than scrolled, so the Scripts region stays a predictable share of the panel.
 export const VISIBLE_DRAFTS = 8;
+
+// An agent's pile grows with nobody there to discard it, so it is the one that is bounded.
+export const AGENT_DRAFTS = 5;
 
 /**
  * A draft is the unit of exploration: unlimited, kept in the app, named from its own
@@ -25,8 +28,7 @@ export interface Draft {
   // The qualifier beside the title, which tells two same-named calls in different apps
   // apart. A draft is not bound to the method it came from.
   originAppName?: string;
-  // What an agent calls itself, on the one draft it writes in. It is what pins the row
-  // above your own drafts and outside the count.
+  // What an agent calls itself, on a draft it ran. It is who the row is signed by.
   agentName?: string;
   createdAt: number;
   updatedAt: number;
@@ -104,20 +106,61 @@ export function markRun(draft: Draft, code: string, now: number): Draft {
   };
 }
 
-// Excluded from the count: it persists with no agent connected, because that is how
-// you read what the last one did.
 export function isAgentDraft(draft: Draft): boolean {
   return draft.agentName !== undefined;
 }
 
+// A bridge names itself after the agent it carries, in brackets: "claude-ai (via mcp-remote 0.16.6)".
+export function agentLabel(agentName: string): string {
+  return agentName.replace(/\s*\(.*\)\s*$/, "") || agentName;
+}
+
 /**
- * The order the Drafts group reads in: the agents' rows first, then edited drafts —
- * work never hides behind generated calls — then the browsing buffers, each half most
- * recently opened first.
+ * What Recent lists, newest first: everything that was run or written in. A call that
+ * was only picked is not a run anybody made, so it is listed only while it is the one
+ * on screen.
  */
-export function orderDrafts(drafts: Draft[]): Draft[] {
-  const rank = (draft: Draft) => (isAgentDraft(draft) ? 0 : isUntouched(draft) ? 2 : 1);
-  return [...drafts].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+export function recentDrafts(drafts: Draft[], currentId: string | undefined): Draft[] {
+  return drafts.filter((draft) => draft.id === currentId || !isUntouched(draft)).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+// The buffer the next picked call is written into. Any one will do, on screen or not,
+// which is what keeps the unlisted ones from piling up.
+export function findSpare(drafts: Draft[]): Draft | undefined {
+  return drafts.find((draft) => !isAgentDraft(draft) && isUntouched(draft));
+}
+
+/**
+ * The draft an agent's snippet runs in: the one that agent already ran the same call
+ * in, so eight tries at a call are eight runs of one row and a different call is a row
+ * of its own.
+ */
+export function findAgentDraft(drafts: Draft[], agentName: string, code: string): Draft | undefined {
+  const name = titleParts(deriveDraftTitle(code) ?? "Draft").name;
+  return drafts.find((draft) => draft.agentName === agentName && titleParts(draft.title).name === name);
+}
+
+// What an agent holds past its cap, oldest first out.
+export function agentOverflow(drafts: Draft[], agentName: string): Draft[] {
+  return drafts
+    .filter((draft) => draft.agentName === agentName)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(AGENT_DRAFTS);
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+// A row's age in the width of a word: the column it sits in is the hover actions' own.
+export function shortAge(then: number, now: number): string {
+  const span = Math.max(0, now - then);
+  if (span < MINUTE) return "now";
+  if (span < HOUR) return `${Math.floor(span / MINUTE)}m`;
+  if (span < DAY) return `${Math.floor(span / HOUR)}h`;
+  const date = new Date(then);
+  if (span < 7 * DAY) return date.toLocaleDateString(undefined, { weekday: "short" });
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 /**

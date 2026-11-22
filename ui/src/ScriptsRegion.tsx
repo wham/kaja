@@ -24,7 +24,7 @@ import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { Script } from "./apps";
-import { BROWSING_NOTE, isAgentDraft, isUntouched, orderDrafts, Draft, VISIBLE_DRAFTS } from "./drafts";
+import { agentLabel, BROWSING_NOTE, isAgentDraft, isUntouched, recentDrafts, shortAge, Draft, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
 import {
   buildScriptTree,
@@ -152,16 +152,16 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
   const touch = useMediaQuery("(hover: none)");
   const newFolderKey = useShortcutLabel("newFolder");
 
-  const ordered = useMemo(() => orderDrafts(drafts), [drafts]);
-  // One row per agent that has run something here, pinned above your own and outside
-  // the count. Two agents on one endpoint are two rows, most recently run first.
-  const agentDrafts = useMemo(() => ordered.filter(isAgentDraft), [ordered]);
-  const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
+  const recent = useMemo(() => recentDrafts(drafts, props.currentDraftId), [drafts, props.currentDraftId]);
+  // A row is signed "You" only where somebody else has signed one.
+  const signed = useMemo(() => recent.some(isAgentDraft), [recent]);
+  const now = useMinute(recent.length > 0);
+  const who = (draft: Draft) => (draft.agentName ? agentLabel(draft.agentName) : signed ? "You" : undefined);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
   const rows = useMemo(() => visibleRows(tree, new Set(openFolders)), [tree, openFolders]);
-  const draftsShown = showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
-  const hiddenDrafts = showAllDrafts ? 0 : ownDrafts.length - draftsShown.length;
+  const draftsShown = showAllDrafts ? recent : recent.slice(0, VISIBLE_DRAFTS);
+  const hiddenDrafts = recent.length - draftsShown.length;
 
   // A real row from the first keystroke. Making a folder, renaming one and renaming a
   // file are all the same row, so the interaction is learned once.
@@ -337,65 +337,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
               )
             }
           />
-        ) : (
-          (agentDrafts.length > 0 || ownDrafts.length > 0) && (
-            <>
-              <PhoneSection trailing={ownDrafts.length > 0 && <PhoneRowAction icon={Trash2} label="Discard all drafts" onClick={props.onDiscardAllDrafts} />}>
-                Drafts
-              </PhoneSection>
-              <ul aria-label="Drafts">
-                {agentDrafts.map((draft) => (
-                  <li key={draft.id}>
-                    <PhoneRow
-                      current={props.currentDraftId === draft.id}
-                      icon={<Plug size={PHONE_ICON} className={cn(props.runningFileIds?.has(draft.id) && "text-emerald-600 dark:text-emerald-400")} />}
-                      onClick={() => props.onDraftSelect(draft)}
-                      trailing={<PhoneRowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={() => props.onDiscardDraft(draft)} />}
-                    >
-                      <span className="truncate text-muted-foreground">{draft.agentName}</span>
-                    </PhoneRow>
-                  </li>
-                ))}
-                {draftsShown.map((draft) => {
-                  const { name, qualifier } = titleParts(draft.title);
-                  const current = props.currentDraftId === draft.id;
-                  return (
-                    <li key={draft.id}>
-                      <PhoneRow
-                        current={current}
-                        icon={<FilePen size={PHONE_ICON} />}
-                        onClick={() => props.onDraftSelect(draft)}
-                        trailing={
-                          <>
-                            <RowTrailing
-                              running={props.runningFileIds?.has(draft.id)}
-                              agent={props.agentFileIds?.has(draft.id)}
-                              waiting={props.waitingFileIds?.has(draft.id)}
-                            />
-                            <PhoneRowAction
-                              icon={Ellipsis}
-                              label={`Actions for ${draft.title}`}
-                              onClick={(event) => setDraftMenu({ draft, ...menuAt(event) })}
-                            />
-                          </>
-                        }
-                      >
-                        <DraftName name={name} qualifier={qualifier} browsing={isUntouched(draft)} current={current} />
-                      </PhoneRow>
-                    </li>
-                  );
-                })}
-                {hiddenDrafts > 0 && (
-                  <li>
-                    <PhoneRow onClick={() => setShowAllDrafts(true)} className="text-muted-foreground">
-                      {hiddenDrafts} more…
-                    </PhoneRow>
-                  </li>
-                )}
-              </ul>
-            </>
-          )
-        )}
+        ) : null}
         {!levelNode && (
           <PhoneSection trailing={filesActions && <PhoneRowAction icon={Ellipsis} label="Actions for Files" onClick={openFilesMenu} />}>Files</PhoneSection>
         )}
@@ -534,6 +476,46 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
             </li>
           )}
         </ul>
+        {!levelNode && recent.length > 0 && (
+          <>
+            <PhoneSection trailing={<PhoneRowAction icon={Trash2} label="Discard all recent" onClick={props.onDiscardAllDrafts} />}>Recent</PhoneSection>
+            <ul aria-label="Recent">
+              {draftsShown.map((draft) => {
+                const { name, qualifier } = titleParts(draft.title);
+                const current = props.currentDraftId === draft.id;
+                return (
+                  <li key={draft.id}>
+                    <PhoneRow
+                      current={current}
+                      icon={isAgentDraft(draft) ? <Plug size={PHONE_ICON} /> : <FilePen size={PHONE_ICON} />}
+                      onClick={() => props.onDraftSelect(draft)}
+                      trailing={
+                        <>
+                          <RowSignature who={who(draft)} when={shortAge(draft.updatedAt, now)} />
+                          <RowTrailing
+                            running={props.runningFileIds?.has(draft.id)}
+                            agent={props.agentFileIds?.has(draft.id)}
+                            waiting={props.waitingFileIds?.has(draft.id)}
+                          />
+                          <PhoneRowAction icon={Ellipsis} label={`Actions for ${draft.title}`} onClick={(event) => setDraftMenu({ draft, ...menuAt(event) })} />
+                        </>
+                      }
+                    >
+                      <DraftName name={name} qualifier={qualifier} browsing={isUntouched(draft)} current={current} />
+                    </PhoneRow>
+                  </li>
+                );
+              })}
+              {hiddenDrafts > 0 && (
+                <li>
+                  <PhoneRow onClick={() => setShowAllDrafts(true)} className="text-muted-foreground">
+                    Earlier…
+                  </PhoneRow>
+                </li>
+              )}
+            </ul>
+          </>
+        )}
       </>
     );
   };
@@ -555,64 +537,6 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
         phoneList()
       ) : (
         <>
-          {/* Zero drafts hides the group rather than showing an empty label: there
-              is nothing there and nothing to say about it. */}
-          {(agentDrafts.length > 0 || ownDrafts.length > 0) && (
-            <>
-              <GroupHeader
-                label="Drafts"
-                open={draftsOpen}
-                onToggle={() => setDraftsOpen((open) => !open)}
-                action={ownDrafts.length > 0 ? { icon: Trash2, label: "Discard all drafts", onClick: props.onDiscardAllDrafts } : undefined}
-              />
-              {draftsOpen && (
-                <ul role="tree" aria-label="Drafts" className="select-none">
-                  {agentDrafts.map((draft) => (
-                    <AgentRow
-                      key={draft.id}
-                      draft={draft}
-                      current={props.currentDraftId === draft.id}
-                      running={props.runningFileIds?.has(draft.id)}
-                      waiting={props.waitingFileIds?.has(draft.id)}
-                      active={active(`draft:${draft.id}`)}
-                      onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
-                      onSelect={() => props.onDraftSelect(draft)}
-                      onDiscard={() => props.onDiscardDraft(draft)}
-                    />
-                  ))}
-                  {draftsShown.map((draft) => (
-                    <DraftRow
-                      key={draft.id}
-                      draft={draft}
-                      current={props.currentDraftId === draft.id}
-                      running={props.runningFileIds?.has(draft.id)}
-                      agent={props.agentFileIds?.has(draft.id)}
-                      waiting={props.waitingFileIds?.has(draft.id)}
-                      active={active(`draft:${draft.id}`)}
-                      canWrite={canWrite}
-                      onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
-                      onSelect={() => props.onDraftSelect(draft)}
-                      onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
-                      onDiscard={() => props.onDiscardDraft(draft)}
-                      onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
-                    />
-                  ))}
-                  {hiddenDrafts > 0 && (
-                    <li role="treeitem">
-                      <div
-                        onClick={() => setShowAllDrafts(true)}
-                        style={{ paddingLeft: LEAF_INDENT }}
-                        className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
-                      >
-                        {hiddenDrafts} more…
-                      </div>
-                    </li>
-                  )}
-                </ul>
-              )}
-            </>
-          )}
-
           <GroupHeader
             label="Files"
             open={filesOpen}
@@ -764,6 +688,53 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
                 </li>
               )}
             </ul>
+          )}
+
+          {/* Nothing run hides the group rather than showing an empty label: there
+              is nothing there and nothing to say about it. */}
+          {recent.length > 0 && (
+            <>
+              <GroupHeader
+                label="Recent"
+                open={draftsOpen}
+                onToggle={() => setDraftsOpen((open) => !open)}
+                action={{ icon: Trash2, label: "Discard all recent", onClick: props.onDiscardAllDrafts }}
+              />
+              {draftsOpen && (
+                <ul role="tree" aria-label="Recent" className="select-none">
+                  {draftsShown.map((draft) => (
+                    <DraftRow
+                      key={draft.id}
+                      draft={draft}
+                      who={who(draft)}
+                      when={shortAge(draft.updatedAt, now)}
+                      current={props.currentDraftId === draft.id}
+                      running={props.runningFileIds?.has(draft.id)}
+                      agent={props.agentFileIds?.has(draft.id)}
+                      waiting={props.waitingFileIds?.has(draft.id)}
+                      active={active(`draft:${draft.id}`)}
+                      canWrite={canWrite}
+                      onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
+                      onSelect={() => props.onDraftSelect(draft)}
+                      onSaveAsFile={() => props.onSaveDraftAsFile(draft)}
+                      onDiscard={() => props.onDiscardDraft(draft)}
+                      onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
+                    />
+                  ))}
+                  {hiddenDrafts > 0 && (
+                    <li role="treeitem">
+                      <div
+                        onClick={() => setShowAllDrafts(true)}
+                        style={{ paddingLeft: LEAF_INDENT }}
+                        className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
+                      >
+                        Earlier…
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </>
           )}
         </>
       )}
@@ -1008,6 +979,8 @@ function GroupHeader({
 
 function DraftRow({
   draft,
+  who,
+  when,
   current,
   running,
   agent,
@@ -1021,6 +994,8 @@ function DraftRow({
   onMenu,
 }: {
   draft: Draft;
+  who?: string;
+  when: string;
   current: boolean;
   running?: boolean;
   agent?: boolean;
@@ -1060,6 +1035,7 @@ function DraftRow({
         }}
       >
         <DraftName name={name} qualifier={qualifier} browsing={browsing} current={current} />
+        {!active && <RowSignature who={who} when={running || waiting ? undefined : when} />}
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={active}>
           {active && (
             <>
@@ -1089,82 +1065,26 @@ function DraftName({ name, qualifier, browsing, current }: { name: string; quali
   return browsing ? <SimpleTooltip text={BROWSING_NOTE}>{label}</SimpleTooltip> : label;
 }
 
-/**
- * The agent's draft. One row, shared by every client, wearing the name of whichever
- * one touched it last. It can be discarded like any other draft; the next snippet an
- * agent runs makes another.
- */
-function AgentRow({
-  draft,
-  current,
-  running,
-  waiting,
-  active,
-  onHover,
-  onSelect,
-  onDiscard,
-}: {
-  draft: Draft;
-  current: boolean;
-  running?: boolean;
-  waiting?: boolean;
-  active: boolean;
-  onHover: (on: boolean) => void;
-  onSelect: () => void;
-  onDiscard: () => void;
-}) {
+// Who ran it and how long ago, which is the whole of what tells two rows of one call apart.
+function RowSignature({ who, when }: { who?: string; when?: string }) {
   return (
-    <li role="treeitem" aria-current={current || undefined}>
-      <div
-        tabIndex={0}
-        style={{ paddingLeft: LEAF_INDENT }}
-        className={cn(ROW, current ? "bg-accent/60 text-accent-foreground" : "text-foreground hover:bg-accent/40")}
-        onClick={onSelect}
-        onMouseEnter={() => onHover(true)}
-        onMouseLeave={() => onHover(false)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect();
-          }
-        }}
-      >
-        {/* Inline at the draft indent rather than hung into the chevron column: a mark
-            in that column reads as a group, and every draft under it as its child. */}
-        <span
-          className={cn(
-            "relative flex size-3 shrink-0 items-center justify-center",
-            running ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
-          )}
-          title={running ? `${draft.agentName} is running this` : undefined}
-        >
-          {/* The MCP plug's own ring, so the agent calling is visible on the row it is writing in. */}
-          {running && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -inset-1 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
-            />
-          )}
-          <Plug size={14} />
-        </span>
-        {/* An agent's buffer is the agent's own workbench rather than something you
-            are keeping, so the name sits a shade back from your own drafts. */}
-        <span className={cn("flex-1 truncate", !current && "text-muted-foreground")} title={`${draft.agentName} is writing here: ${draft.title}`}>
-          {draft.agentName}
-        </span>
-        <span
-          className={cn("flex shrink-0 items-center gap-0.5", active ? "justify-end" : "justify-center")}
-          style={active ? undefined : { width: TRAILING_SLOT }}
-        >
-          {active ? (
-            <RowAction icon={X} label={`Clear ${draft.agentName}'s draft`} onClick={onDiscard} />
-          ) : waiting ? (
-            <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
-          ) : null}
-        </span>
-      </div>
-    </li>
+    <span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+      {who && <span className="max-w-16 truncate">{who}</span>}
+      {when && <span className="opacity-70">{when}</span>}
+    </span>
   );
+}
+
+// An age goes stale without anything else moving, so it is redrawn on the minute.
+function useMinute(on: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, [on]);
+  return now;
 }
 
 /**

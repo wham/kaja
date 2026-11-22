@@ -30,7 +30,22 @@ import { appType, buildApp, getAppType, parameterKey } from "./appTypes";
 import { createPendingApp, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import { appStore } from "./appStore";
 import { forgetManifests, moveManifest, readStoredManifests } from "./manifestCache";
-import { appendCall, createDraft, findUntouched, isAgentDraft, isUntouched, markRun, reopen, Draft, takeOver, withCode } from "./drafts";
+import {
+  agentLabel,
+  agentOverflow,
+  appendCall,
+  createDraft,
+  findAgentDraft,
+  findSpare,
+  findUntouched,
+  isAgentDraft,
+  isUntouched,
+  markRun,
+  reopen,
+  Draft,
+  takeOver,
+  withCode,
+} from "./drafts";
 import { deriveDraftTitle, draftTitleText, proposeFileName } from "./draftTitle";
 import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { isWithinFolder, scriptsWithin } from "./scriptTree";
@@ -1222,9 +1237,13 @@ export function App() {
         return;
       }
 
-      if (currentDraft && isUntouched(currentDraft)) {
-        current.type === "draft" && current.buffer.setValue(code);
-        updateDraft(currentDraft.id, (draft) => takeOver(draft, code, originAppName, now));
+      const spare = currentDraft && isUntouched(currentDraft) ? currentDraft : findSpare(draftsRef.current);
+      if (spare) {
+        const taken = takeOver(spare, code, originAppName, now);
+        const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === spare.id);
+        if (view?.type === "draft") view.buffer.setValue(code);
+        updateDraft(spare.id, () => taken);
+        applyViews((views) => showDraft(views, taken));
         return;
       }
 
@@ -1256,6 +1275,9 @@ export function App() {
     [applyDrafts, applyViews],
   );
 
+  const discardDraftsRef = useRef(discardDrafts);
+  discardDraftsRef.current = discardDrafts;
+
   const onDiscardDraft = useCallback((draft: Draft) => discardDrafts([draft]), [discardDrafts]);
 
   const onNewDraft = useCallback(() => {
@@ -1267,19 +1289,20 @@ export function App() {
   onNewDraftRef.current = onNewDraft;
 
   /**
-   * The slot is the agent's, not the endpoint's: Claude Code and Codex each write into
-   * a draft of their own rather than over each other's. It is found by the name the
-   * draft is already labelled with, so there is nothing beside the list to keep in step
-   * with it and a draft written before there was more than one agent is that agent's.
+   * An agent's snippet runs in the draft that agent already ran the same call in, and
+   * in a new one otherwise. It is found by what the draft is already labelled with, so
+   * there is nothing beside the list to keep in step with it.
    */
   const agentDraft = useCallback(
     (code: string, agentName: string): Draft => {
       const now = Date.now();
-      const held = draftsRef.current.find((draft) => draft.agentName === agentName);
+      const held = findAgentDraft(draftsRef.current, agentName, code);
       const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentName };
       applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === draft.id ? draft : candidate)) : [draft, ...list]));
       const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === draft.id);
       if (view?.type === "draft" && view.buffer.getValue() !== code) view.buffer.setValue(code);
+      const running = consoles.flagSets().running;
+      discardDraftsRef.current(agentOverflow(draftsRef.current, agentName).filter((candidate) => !running.has(candidate.id)));
       return draft;
     },
     [applyDrafts],
@@ -1574,8 +1597,6 @@ export function App() {
     if (!canWriteFiles) return;
     const view = viewsRef.current[0];
     if (view?.type !== "draft") return;
-    const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
-    if (draft && isAgentDraft(draft)) return;
     openNameSheet({
       name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
@@ -1596,7 +1617,7 @@ export function App() {
   );
 
   const onDiscardAllDrafts = useCallback(() => {
-    discardDrafts(draftsRef.current.filter((draft) => !isAgentDraft(draft)));
+    discardDrafts(draftsRef.current);
   }, [discardDrafts]);
 
   const onRequestSaveRef = useRef(onRequestSave);
@@ -2605,8 +2626,8 @@ export function App() {
       destinations.push({
         key: `draft:${draft.id}`,
         name: draftTitleText(draft.title),
-        path: "Drafts",
-        origin: draft.agentName ?? draft.originAppName ?? "",
+        path: "Recent",
+        origin: draft.agentName ? agentLabel(draft.agentName) : (draft.originAppName ?? ""),
         icon: isAgentDraft(draft) ? Plug : PenLine,
         provisional: isUntouched(draft),
         go: () => onDraftSelect(draft),
@@ -2682,10 +2703,7 @@ export function App() {
   const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
   const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
-  // An agent's buffer is a playground rather than work you are keeping, so it is the
-  // one draft with no way to a file: the sheet would ask you to name what somebody
-  // else wrote.
-  const savableDraft = currentDraft && !isAgentDraft(currentDraft) ? currentDraft : undefined;
+  const savableDraft = currentDraft;
   const fileActions =
     currentDraft && canWriteFiles ? (
       <div className="flex shrink-0 items-center gap-1">
@@ -2769,8 +2787,8 @@ export function App() {
           {view.type === "draft" && agentViewName(view.draftId) && (
             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
               <Plug size={15} className="shrink-0 text-muted-foreground" />
-              <span className="shrink-0 text-sm text-foreground">{agentViewName(view.draftId)}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">agent draft · following {agentViewName(view.draftId)}</span>
+              <span className="shrink-0 text-sm text-foreground">{agentLabel(agentViewName(view.draftId) ?? "")}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">rewrites this each time it runs the call</span>
               <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
                 Take over
               </Button>
