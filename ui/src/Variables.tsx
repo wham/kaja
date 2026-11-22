@@ -25,6 +25,9 @@ import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, vari
 import { orderReferences, scannedAgo, scriptReferenceLabel, VariableUse } from "./variableUsage";
 import { pluralCount } from "./plural";
 import { isIOSApp } from "./wails";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
+import { KIND_ICON, PhoneGroup, PhoneRow, PhoneUse, PhoneVariableDetail, UnsetMark, storedFooter } from "./PhoneVariables";
 
 interface VariableRow {
   id: number;
@@ -70,6 +73,8 @@ interface VariablesProps {
   // One-shot: the variable something elsewhere said was missing, which is brought into
   // view with what fixes it already open.
   reveal?: { name: string };
+  // A phone's header holds the add, since its list has no row to put it on.
+  onPhoneAddChange?: (add: (() => void) | undefined) => void;
 }
 
 const SOURCE_LABEL: Record<VariableKind, string> = {
@@ -143,6 +148,37 @@ function toVariables(rows: VariableRow[]): { [key: string]: string } {
   return variables;
 }
 
+// The sources a row may pick. Nobody sets the environment an iOS app is launched
+// with, so there it is offered only to a variable a synced workspace already reads.
+function sourceKinds(kind: VariableKind): VariableKind[] {
+  return kind === "environment" || !isIOSApp() ? ["value", "stored", "environment"] : ["value", "stored"];
+}
+
+interface RowState {
+  kind: VariableKind;
+  source: VariableSource;
+  storedEnv: string;
+  // A keychain row on a machine with no store can only be supplied as KAJA_<NAME>.
+  needsEnvironment: boolean;
+  unset: boolean;
+}
+
+function rowState(row: VariableRow, status: VariableStatus | undefined, held: boolean, storeAvailable: boolean, error: string | undefined): RowState {
+  const kind = variableKind(row.value);
+  const name = row.key.trim();
+  const source = status?.source ?? VariableSource.UNSET;
+  return {
+    kind,
+    source,
+    storedEnv: status?.envName || storedEnvName(name || "NAME"),
+    needsEnvironment: kind === "stored" && !storeAvailable && source !== VariableSource.ENVIRONMENT,
+    unset:
+      Boolean(name) &&
+      !error &&
+      ((kind === "stored" && !held && source === VariableSource.UNSET) || (kind === "environment" && status?.source === VariableSource.UNSET)),
+  };
+}
+
 function environmentName(row: VariableRow): string {
   return environmentReferences(row.value)[0] || row.key.trim() || "NAME";
 }
@@ -186,7 +222,11 @@ export function Variables({
   apps,
   onSignOut,
   reveal,
+  onPhoneAddChange,
 }: VariablesProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  // The row a phone has pushed, by id so a re-sort under it keeps it.
+  const [phoneOpen, setPhoneOpen] = useState<number | null>(null);
   const [rows, setRows] = useState<VariableRow[]>(() => toRows(variables));
   const [editVersion, setEditVersion] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -266,9 +306,44 @@ export function Variables({
 
   const removeRow = (index: number, focus?: number) => {
     markEdited();
+    const removed = rows[index]?.id;
     setRows((prev) => prev.filter((_, i) => i !== index));
+    if (removed !== undefined && removed === phoneOpen) setPhoneOpen(null);
     if (focus !== undefined) setFocusRow(focus);
   };
+
+  const phoneAdd = () => {
+    const blank = rows.find((row) => row.key.trim() === "" && row.value === "");
+    if (blank) {
+      setPhoneOpen(blank.id);
+      setFocusRow(rows.indexOf(blank));
+      return;
+    }
+    const row = newRow();
+    markEdited();
+    setRows((prev) => [...prev, row]);
+    setPhoneOpen(row.id);
+    setFocusRow(rows.length);
+  };
+
+  // A row left with no name holds nothing a save would keep, so going back drops it.
+  const phoneBack = () => {
+    const index = rows.findIndex((row) => row.id === phoneOpen);
+    setPhoneOpen(null);
+    if (index !== -1 && rows[index].key.trim() === "") {
+      markEdited();
+      setRows((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const phoneAddRef = useRef(phoneAdd);
+  phoneAddRef.current = phoneAdd;
+  const offersPhoneAdd = phone && !readOnly && phoneOpen === null;
+  useEffect(() => {
+    if (!onPhoneAddChange) return;
+    onPhoneAddChange(offersPhoneAdd ? () => phoneAddRef.current() : undefined);
+  }, [offersPhoneAdd, onPhoneAddChange]);
+  useEffect(() => () => onPhoneAddChange?.(undefined), [onPhoneAddChange]);
 
   const setSource = (index: number, kind: VariableKind) => {
     const row = rows[index];
@@ -366,8 +441,9 @@ export function Variables({
       scrollerRef.current?.scrollTo({ top: 0 });
       return;
     }
-    nameInputs.current.get(index)?.scrollIntoView({ block: "center" });
     const row = rows[index];
+    if (phone) setPhoneOpen(row.id);
+    else nameInputs.current.get(index)?.scrollIntoView({ block: "center" });
     if (!readOnly && storeAvailable && variableKind(row.value) === "stored" && !held(row)) setKeychainSheet({ index, name: reveal.name });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
@@ -388,6 +464,174 @@ export function Variables({
     setDeleting({ index, name, apps, files, held: holdsValue });
   };
 
+  const phoneUses = (name: string): PhoneUse[] | "scanning" | "failed" => {
+    const appUses: PhoneUse[] = (uses.get(name) ?? []).map((use, index) => ({
+      key: `app ${use.app} ${use.field} ${index}`,
+      label: use.app,
+      detail: use.field,
+      onSelect: () => onRevealApp(use.app),
+    }));
+    if (scan.status !== "scanned") return appUses.length > 0 ? appUses : scan.status;
+    const fileUses: PhoneUse[] = orderReferences(scan.references.get(name) ?? [], scripts).map((reference) => {
+      const script = scripts.find((candidate) => candidate.path === reference.path);
+      return {
+        key: `file ${reference.path}`,
+        label: scriptReferenceLabel(reference, scripts),
+        detail: String(reference.count),
+        mono: true,
+        onSelect: script ? () => onScriptSelect(script) : undefined,
+      };
+    });
+    return [...appUses, ...fileUses];
+  };
+
+  const phoneSubtitle = (row: VariableRow, state: RowState, error: string | undefined) => {
+    const name = row.key.trim();
+    if (error) return <span className="truncate text-destructive">{error}</span>;
+    if (state.needsEnvironment && state.source === VariableSource.UNSET) return <UnsetMark>{state.storedEnv} not set</UnsetMark>;
+    if (state.unset) return <UnsetMark>{state.kind === "stored" ? `Not set ${storedWhere()}` : `${environmentName(row)} not set`}</UnsetMark>;
+    if (state.kind === "value") return <span className="truncate font-mono text-xs">{row.value || "Empty"}</span>;
+    const appCount = uses.get(name)?.length ?? 0;
+    const fileCount = scan.status === "scanned" ? (scan.references.get(name)?.length ?? 0) : 0;
+    const used =
+      appCount + fileCount === 0
+        ? scan.status === "scanned"
+          ? "Unused"
+          : undefined
+        : [appCount > 0 && pluralCount(appCount, "app"), fileCount > 0 && pluralCount(fileCount, "file")].filter(Boolean).join(", ");
+    return <span className="truncate">{[SOURCE_LABEL[state.kind], used].filter(Boolean).join(" · ")}</span>;
+  };
+
+  const phoneOpenIndex = phone ? rows.findIndex((row) => row.id === phoneOpen) : -1;
+  const phoneDetail = (() => {
+    if (phoneOpenIndex === -1) return null;
+    const index = phoneOpenIndex;
+    const row = rows[index];
+    const name = row.key.trim();
+    const error = rowErrors[index];
+    const status = readOnly ? statusByName.get(name) : statusOf(row);
+    const state = rowState(row, status, held(row), storeAvailable, error);
+    const canStore = !readOnly && storeAvailable;
+    const storedState =
+      state.kind === "stored"
+        ? held(row)
+          ? {
+              label: `Stored ${storedWhere()}`,
+              unset: false,
+              action: canStore ? { label: "Replace…", onClick: () => setKeychainSheet({ index, name }) } : undefined,
+            }
+          : state.source === VariableSource.ENVIRONMENT
+            ? {
+                label: `Read from ${state.storedEnv}`,
+                unset: false,
+                action: canStore ? { label: "Set…", onClick: () => setKeychainSheet({ index, name }) } : undefined,
+              }
+            : {
+                label: state.needsEnvironment ? `${state.storedEnv} not set` : "Not set",
+                unset: Boolean(name),
+                action: canStore ? { label: "Set value…", onClick: () => setKeychainSheet({ index, name }) } : undefined,
+              }
+        : undefined;
+    const caption =
+      state.kind === "stored"
+        ? state.needsEnvironment
+          ? `This device has nowhere to store a value. Define ${state.storedEnv} in the environment.`
+          : `Kept ${storedWhere()}. Kaja never shows a stored value back.`
+        : state.kind === "environment"
+          ? status?.source === VariableSource.UNSET
+            ? `${environmentName(row)} isn't set in this process's environment.`
+            : undefined
+          : "Written in kaja.json.";
+    return (
+      <PhoneVariableDetail
+        name={row.key}
+        value={row.value}
+        kind={state.kind}
+        sources={sourceKinds(state.kind).map((kind) => ({ kind, label: SOURCE_LABEL[kind] }))}
+        error={error}
+        readOnly={readOnly}
+        storedState={storedState}
+        caption={caption}
+        uses={phoneUses(name)}
+        nameRef={(element) => {
+          if (element) nameInputs.current.set(index, element);
+          else nameInputs.current.delete(index);
+        }}
+        onBack={phoneBack}
+        onName={(key) => update(index, { key })}
+        onValue={(value) => update(index, { value })}
+        onSource={(kind) => setSource(index, kind)}
+        onDelete={() => askToDelete(index)}
+      />
+    );
+  })();
+
+  const appTypes = new Map(apps.map((app) => [app.name, appType(app)]));
+  const phoneList = (
+    <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-4">
+      {signIns.length > 0 && (
+        <PhoneGroup heading="Sign-ins">
+          {signIns.map((signIn) => (
+            <PhoneSignInRow
+              key={signIn.app}
+              signIn={signIn}
+              type={appTypes.get(signIn.app) ?? ""}
+              canSignIn={!readOnly && storeAvailable}
+              onSignIn={() => onEditApp(signIn.app)}
+              onSignOut={() => onSignOut(signIn.app)}
+            />
+          ))}
+        </PhoneGroup>
+      )}
+      {undefinedReferences.length > 0 && (
+        <PhoneGroup heading="Not defined" footer="Apps send these as written until a variable defines them.">
+          {undefinedReferences.map((name) => (
+            <PhoneRow
+              key={name}
+              icon={<CircleAlert size={16} className="text-amber-600 dark:text-amber-400" />}
+              title={"${" + name + "}"}
+              mono
+              subtitle={<span className="truncate">Used by {[...new Set(uses.get(name)?.map((use) => use.app))].join(", ")}</span>}
+              trailing={!readOnly && <span className="font-medium text-foreground">Define</span>}
+              onClick={
+                readOnly
+                  ? undefined
+                  : () => {
+                      const row = newRow(name);
+                      markEdited();
+                      setRows((prev) => [...prev, row]);
+                      setPhoneOpen(row.id);
+                    }
+              }
+            />
+          ))}
+        </PhoneGroup>
+      )}
+      {rows.length > 0 && (
+        <PhoneGroup heading={signIns.length > 0 || undefinedReferences.length > 0 ? "Variables" : undefined} footer={storedFooter()}>
+          {rows.map((row, index) => {
+            const name = row.key.trim();
+            const status = readOnly ? statusByName.get(name) : statusOf(row);
+            const state = rowState(row, status, held(row), storeAvailable, rowErrors[index]);
+            const Icon = KIND_ICON[state.kind];
+            return (
+              <PhoneRow
+                key={row.id}
+                icon={<Icon size={16} />}
+                title={name || <span className="text-muted-foreground">Unnamed</span>}
+                mono
+                subtitle={phoneSubtitle(row, state, rowErrors[index])}
+                chevron
+                onClick={() => setPhoneOpen(row.id)}
+              />
+            );
+          })}
+        </PhoneGroup>
+      )}
+      {duplicateKey && <FormControl.Validation className="px-4 pb-4">Variable names must be unique.</FormControl.Validation>}
+    </div>
+  );
+
   const body =
     rows.length === 0 && signIns.length === 0 ? (
       <div className="flex min-h-0 flex-1 items-center justify-center px-4">
@@ -401,7 +645,7 @@ export function Variables({
             {!readOnly && <> Keep it in kaja.json, or keep it on this machine only.</>}
           </Blankslate.Description>
           {!readOnly && (
-            <Blankslate.PrimaryAction onClick={addRow}>
+            <Blankslate.PrimaryAction onClick={phone ? phoneAdd : addRow}>
               <Plus size={14} />
               Add variable
             </Blankslate.PrimaryAction>
@@ -520,7 +764,7 @@ export function Variables({
           Values come from the container environment. Set <code>KAJA_&lt;NAME&gt;</code> to supply one.
         </ReadOnlyBanner>
       )}
-      {body}
+      {phone && phoneDetail ? phoneDetail : phone && (rows.length > 0 || signIns.length > 0) ? phoneList : body}
 
       {keychainSheet && (
         <KeychainSheet
@@ -602,21 +846,11 @@ function VariableRowEditor({
   onRemove,
   onAddRow,
 }: VariableRowEditorProps) {
-  const kind = variableKind(row.value);
   const name = row.key.trim();
-  const source = status?.source ?? VariableSource.UNSET;
-  const storedEnv = status?.envName || storedEnvName(name || "NAME");
-  // A keychain row on a machine with no store has nothing to take a value into: it can
-  // only be supplied as KAJA_<NAME>, so the row says that instead of offering a sheet
-  // that writes nowhere.
-  const needsEnvironment = kind === "stored" && !storeAvailable && source !== VariableSource.ENVIRONMENT;
   // Nothing about one row is reported outside it: the field goes amber and the
   // consequence sits under it, rather than a banner above the table naming a row the
   // eye then has to go find.
-  const unset =
-    Boolean(name) &&
-    !error &&
-    ((kind === "stored" && !held && source === VariableSource.UNSET) || (kind === "environment" && status?.source === VariableSource.UNSET));
+  const { kind, source, storedEnv, needsEnvironment, unset } = rowState(row, status, held, storeAvailable, error);
 
   return (
     <div className="group flex min-h-[44px] shrink-0 flex-col justify-center gap-1.5 border-t border-border px-1 py-1.5 transition-colors hover:bg-muted/40">
@@ -787,9 +1021,7 @@ function SourcePicker({
           description={storeAvailable ? `Stored ${storedWhere()}` : `Read from ${storedEnvName(name || "NAME")}`}
           onSelect={() => onSelect("stored")}
         />
-        {/* Nobody sets the environment an iOS app is launched with, so there it is
-            listed only for a variable a workspace synced from elsewhere already reads. */}
-        {(kind === "environment" || !isIOSApp()) && (
+        {sourceKinds(kind).includes("environment") && (
           <SourceItem
             selected={kind === "environment"}
             label="Environment"
@@ -925,6 +1157,59 @@ function SignInRow({
       <span className="w-[132px] shrink-0 max-sm:hidden" />
       <span className="ml-1 w-6 shrink-0 max-sm:hidden" />
     </div>
+  );
+}
+
+function PhoneSignInRow({
+  signIn,
+  type,
+  canSignIn,
+  onSignIn,
+  onSignOut,
+}: {
+  signIn: SignInStatus;
+  type: string;
+  canSignIn: boolean;
+  onSignIn: () => void;
+  onSignOut: () => Promise<void>;
+}) {
+  const [signingOut, setSigningOut] = useState(false);
+  const host = resourceHost(signIn.resource);
+  const icon = <AppTypeIcon type={type} size={16} />;
+  if (!signIn.signedIn) {
+    return (
+      <PhoneRow
+        icon={icon}
+        title={signIn.app}
+        subtitle={<UnsetMark>Not signed in to {host}</UnsetMark>}
+        trailing={canSignIn && <span className="font-medium text-foreground">Sign in</span>}
+        onClick={canSignIn ? onSignIn : undefined}
+      />
+    );
+  }
+  return (
+    <PhoneRow
+      icon={icon}
+      title={signIn.app}
+      subtitle={<span className="truncate">{host}</span>}
+      trailing={
+        canSignIn ? (
+          <button
+            type="button"
+            disabled={signingOut}
+            onClick={() => {
+              setSigningOut(true);
+              void onSignOut().finally(() => setSigningOut(false));
+            }}
+            className="text-[15px] text-muted-foreground disabled:opacity-50"
+          >
+            Sign out
+          </button>
+        ) : (
+          "Signed in"
+        )
+      }
+    />
   );
 }
 
