@@ -659,7 +659,6 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, activeView, o
               are changed. */}
           {runControl}
           {runControl && <div className="h-4 w-px bg-border" />}
-          <span className="font-mono text-xs text-muted-foreground">Esc</span>
           <IconButton
             icon={Minimize2}
             aria-label="Leave full screen"
