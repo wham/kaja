@@ -148,7 +148,7 @@ describe("viewIdentity", () => {
     const identity = viewIdentity(draftView("draft-1", "s1"), [draft]);
 
     expect(identity.name).toBe("Get wham/kaja");
-    expect(identity.path).toBe("Drafts");
+    expect(identity.path).toBe("Recent");
     expect(identity.origin).toBe("github");
   });
 });
