@@ -57,8 +57,7 @@ interface PhoneFrameProps {
 
 /**
  * The window under 640px: the sidebar as a drawer under the page, and a page that is
- * the sidebar toggle, where you are and the action, the view under them, and on a script
- * a bar at the foot holding its code and the run's three views beside Run. The page slides right to show
+ * the sidebar toggle, where you are and the action, the view under them, and on a script, its code as one more view beside the run's three. The page slides right to show
  * the drawer, from the toggle or from a swipe at the left edge, and follows the
  * finger while it does.
  */
@@ -270,31 +269,13 @@ export function PhoneFrame({
               <TextAlignStart size={22} />
             </button>
             {location}
-            {/* Keeps the label centred when there is no action to balance the toggle. A
-                script's action is Run, which is in the bar under the thumb instead. */}
-            {(!onScript && action) || <div className="size-11 shrink-0" />}
+            {/* Keeps the label centred when there is no action to balance the toggle. */}
+            {action ?? <div className="size-11 shrink-0" />}
           </div>
         </div>
         <div className="relative flex min-h-0 flex-1 flex-col">
           {onScript && (
-            <div data-testid="phone-run" className={cn("flex min-h-0 flex-1 flex-col", code && "hidden")}>
-              {renderConsole(phone)}
-            </div>
-          )}
-          {/* Always in the document, because an editor unmounted is an editor disposed, and
-              it is the one the window's view cache is holding. */}
-          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>{editor}</div>
-          <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-            {children}
-          </div>
-          {/* The views and Run in one bar at the foot, where a thumb is: the top of a
-              phone is the far end of it. */}
-          {onScript && (
-            <div
-              data-testid="phone-bar"
-              className="flex shrink-0 items-center gap-2.5 border-t border-border bg-chrome px-3 pt-2"
-              style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
-            >
+            <div className="flex h-[44px] shrink-0 items-center px-3">
               <Console.ViewSelect
                 activeView={file.activeView}
                 waiting={file.selectedGroup?.awaiting !== undefined}
@@ -302,9 +283,25 @@ export function PhoneFrame({
                 fullWidth
                 code={{ selected: code, onSelect: () => setCode(true) }}
               />
-              {action}
             </div>
           )}
+          {onScript && (
+            <div
+              data-testid="phone-run"
+              className={cn("flex min-h-0 flex-1 flex-col", code && "hidden")}
+              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            >
+              {renderConsole(phone)}
+            </div>
+          )}
+          {/* Always in the document, because an editor unmounted is an editor disposed, and
+              it is the one the window's view cache is holding. */}
+          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
+            {editor}
+          </div>
+          <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+            {children}
+          </div>
         </div>
       </div>
       {/* The page left showing beside the sidebar is faded, and a tap on it is the way back. */}

@@ -72,7 +72,7 @@ export function RunButton({
     <div
       className={cn(
         "flex shrink-0 items-stretch overflow-hidden",
-        large ? "h-[40px] rounded-[10px]" : "h-7 rounded-[7px]",
+        large ? "h-[36px] rounded-md" : "h-7 rounded-[7px]",
         running ? "border border-border bg-secondary text-secondary-foreground" : "bg-emerald-600 text-white",
         disabled && "opacity-45",
       )}
@@ -110,7 +110,7 @@ export function RunButton({
                 aria-label="More run options"
                 className={cn(
                   "flex items-center justify-center",
-                  large ? "w-[36px]" : "w-[22px]",
+                  large ? "w-[32px]" : "w-[22px]",
                   !disabled && "hover:bg-emerald-700",
                   disabled && "cursor-default",
                 )}
