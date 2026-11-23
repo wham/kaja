@@ -1,4 +1,17 @@
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  RotateCw,
+  Search,
+  ShieldQuestionMark,
+  X,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   answerPlaceholder,
@@ -35,6 +48,7 @@ import { cn } from "./cn";
 import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
 import { Button } from "./components/button";
+import { PLAIN_TEXT } from "./components/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
 import {
@@ -69,6 +83,8 @@ const APPROVE_CLIP_LINES = 12;
 
 // A page off a local server is back inside a frame or two, and a dim that flashes
 // for 40ms reads as a glitch rather than as progress.
+// A list row on a phone: a name over its values, at a height a finger finds.
+const LIST_ROW_HEIGHT = 56;
 const TABLE_LOADING_DELAY_MS = 150;
 
 // Fixed rather than random: widths that re-roll on every render look like activity
@@ -514,6 +530,10 @@ interface TableProps {
 Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: TableProps) {
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
+  // A phone has the width for two columns. Past that a row is a list item: its first
+  // cell as its name and the rest under it, each beside its column's own name.
+  const asList = useMediaQuery(PHONE_QUERY) && block.columns.length > 2;
+  const held = bodyMinHeight(block, shown);
   const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
   // The press is remembered rather than the direction: the page can be clamped, and a
   // pull can start without either button being touched.
@@ -571,11 +591,13 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
         </div>
       )}
       {controls && (
-        <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2">
-          {block.title !== undefined && <span className="min-w-0 shrink truncate pl-1 font-medium text-foreground">{block.title}</span>}
+        <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2 max-sm:h-auto max-sm:flex-wrap max-sm:py-1.5">
+          {block.title !== undefined && (
+            <span className="min-w-0 shrink truncate pl-1 font-medium text-foreground max-sm:basis-full max-sm:py-1">{block.title}</span>
+          )}
           <div
             className={cn(
-              "flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring",
+              "flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring max-sm:h-9 max-sm:w-auto max-sm:flex-1",
               refused && "cursor-not-allowed opacity-60",
             )}
             title={refused ? "Run to search" : undefined}
@@ -583,6 +605,8 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
             <Search size={15} className="shrink-0 text-muted-foreground" />
             <input
               data-testid="canvas-table-search"
+              {...PLAIN_TEXT}
+              enterKeyHint="search"
               className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
               placeholder={refused ? "Run to search" : searchesLocally(block) ? "Search rows" : "Search"}
               disabled={refused}
@@ -623,7 +647,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
             <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
               <button
                 type="button"
-                className="flex h-7 w-7 items-center justify-center border-r border-input text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                className="flex h-7 w-7 items-center justify-center border-r border-input text-muted-foreground max-sm:h-9 max-sm:w-11 disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
                 disabled={!shown.hasPrevious}
                 aria-label="Previous page"
                 onClick={() => {
@@ -636,7 +660,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
               <button
                 type="button"
                 data-testid="canvas-table-next"
-                className="flex h-7 w-7 items-center justify-center text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                className="flex h-7 w-7 items-center justify-center text-muted-foreground max-sm:h-9 max-sm:w-11 disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
                 disabled={!shown.hasNext || block.loading === true}
                 aria-label="Next page"
                 onClick={() => {
@@ -653,8 +677,59 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
       {/* The height of a full page, held for as long as the table can page, so
           a fetch, a short last page and a filtered result all leave the blocks
           below exactly where they were. */}
-      <div className="relative flex flex-col" style={{ minHeight: bodyMinHeight(block, shown) }}>
-        <div className="overflow-x-auto">
+      <div className="relative flex flex-col" style={{ minHeight: held === undefined || !asList ? held : shown.expected * LIST_ROW_HEIGHT }}>
+        {asList && (
+          <div data-testid="canvas-table-list" className={cn(holding && "pointer-events-none opacity-40")}>
+            {skeleton
+              ? Array.from({ length: shown.expected }, (_, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex flex-col justify-center gap-2.5 border-b border-border/50 px-3 last:border-b-0"
+                    style={{ height: LIST_ROW_HEIGHT }}
+                  >
+                    <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[rowIndex % SKELETON_WIDTHS.length] }} />
+                    <div className="h-2 w-2/3 rounded-full bg-foreground/5" />
+                  </div>
+                ))
+              : drawn.map((row, rowIndex) => {
+                  const cellOf = (cellIndex: number) => (
+                    <Canvas.TableCell
+                      list
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setMenu({ top: event.clientY, left: event.clientX, row: drawnIndices[rowIndex], column: cellIndex });
+                      }}
+                      cell={row[cellIndex]}
+                      column={cellIndex}
+                      numeric={false}
+                      status={cellStatus(block, drawnIndices[rowIndex], cellIndex)}
+                      run={cellRun(block, drawnIndices[rowIndex], cellIndex)}
+                      expired={block.expired === true}
+                      onRetry={() => onCells(id, [{ row: drawnIndices[rowIndex], column: cellIndex, retry: true }])}
+                      onRun={onRun}
+                    />
+                  );
+                  return (
+                    <div
+                      key={rowIndex}
+                      className="flex flex-col justify-center gap-1 border-b border-border/50 px-3 py-2 last:border-b-0"
+                      style={{ minHeight: LIST_ROW_HEIGHT }}
+                    >
+                      <div className="flex min-w-0 text-[14px] font-medium">{cellOf(0)}</div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        {row.slice(1).map((_, restIndex) => (
+                          <span key={restIndex} className="flex min-w-0 items-baseline gap-1.5">
+                            <span className="shrink-0 font-sans text-[11px] text-muted-foreground">{block.columns[restIndex + 1]}</span>
+                            {cellOf(restIndex + 1)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+          </div>
+        )}
+        <div className={cn("overflow-x-auto", asList && "hidden")}>
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-muted">
@@ -770,6 +845,8 @@ interface TableCellProps {
   onRetry: () => void;
   onRun: (run: CellRun) => void;
   onContextMenu: (event: React.MouseEvent) => void;
+  // A phone's row, where a cell is a span of text rather than a box in a grid.
+  list?: boolean;
 }
 
 /**
@@ -785,19 +862,23 @@ interface TableCellProps {
  * than a closure, so it outlives the session that drew it and `expired` says nothing
  * about it.
  */
-Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRetry, onRun, onContextMenu }: TableCellProps) {
-  const className = cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
+Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRetry, onRun, onContextMenu, list }: TableCellProps) {
+  const Td = list ? "div" : "td";
+  const className = list
+    ? "min-w-0 max-w-full truncate text-foreground"
+    : cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
 
   // Underlined rather than coloured: the neutral theme's primary is the foreground
   // in both modes, so a column of destinations would read as a column of values.
   if (run !== undefined) {
     return (
-      <td onContextMenu={onContextMenu} className={cn(className, "p-0")}>
+      <Td onContextMenu={onContextMenu} className={cn(className, "p-0")}>
         <button
           type="button"
           data-testid="canvas-table-run"
           className={cn(
-            "flex h-full w-full items-center truncate px-3 text-left underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground",
+            "flex h-full w-full items-center truncate text-left underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground",
+            list ? "min-h-7" : "px-3",
             numeric && "justify-end text-right",
           )}
           title={`Run ${run.script}`}
@@ -805,7 +886,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
         >
           {cell}
         </button>
-      </td>
+      </Td>
     );
   }
 
@@ -813,15 +894,15 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
     const instant = readInstant(cell);
     if (instant !== undefined) {
       return (
-        <td onContextMenu={onContextMenu} className={className} title={instant.toLocaleString()}>
+        <Td onContextMenu={onContextMenu} className={className} title={instant.toLocaleString()}>
           {timeAgo(instant, Date.now())}
-        </td>
+        </Td>
       );
     }
     return (
-      <td onContextMenu={onContextMenu} className={className} title={cell.length > 48 ? cell : undefined}>
+      <Td onContextMenu={onContextMenu} className={className} title={cell.length > 48 ? cell : undefined}>
         {cell}
-      </td>
+      </Td>
     );
   }
 
@@ -829,15 +910,15 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
     // A run read back has lost the closure that would have filled this.
     if (expired) {
       return (
-        <td onContextMenu={onContextMenu} className={cn(className, "text-muted-foreground")} title="Run to load">
+        <Td onContextMenu={onContextMenu} className={cn(className, "text-muted-foreground")} title="Run to load">
           —
-        </td>
+        </Td>
       );
     }
     return (
-      <td onContextMenu={onContextMenu} className={className}>
+      <Td onContextMenu={onContextMenu} className={className}>
         <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[column % SKELETON_WIDTHS.length] }} />
-      </td>
+      </Td>
     );
   }
 
@@ -845,7 +926,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
   // a promise is finished whatever it settled as.
   const retry = status.retry === true && !expired;
   return (
-    <td onContextMenu={onContextMenu} className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
+    <Td onContextMenu={onContextMenu} className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
       {retry ? (
         <button type="button" className={cn("group/cell flex h-full w-full items-center gap-1", numeric && "justify-end")} aria-label="Retry" onClick={onRetry}>
           <span>—</span>
@@ -854,7 +935,7 @@ Canvas.TableCell = function ({ cell, column, numeric, status, run, expired, onRe
       ) : (
         "—"
       )}
-    </td>
+    </Td>
   );
 };
 
@@ -1154,6 +1235,7 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
   const [value, setValue] = useState("");
   const [problem, setProblem] = useState<string>();
   const inputRef = useRef<HTMLInputElement>(null);
+  const phone = useMediaQuery(PHONE_QUERY);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -1170,10 +1252,17 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className={cn("flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5", problem ? "border-destructive" : "border-amber-500")}>
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 max-sm:min-h-12 max-sm:rounded-xl max-sm:py-1 max-sm:pr-1.5 max-sm:pl-3.5",
+          problem ? "border-destructive" : "border-amber-500",
+        )}
+      >
         <input
           ref={inputRef}
           data-testid="canvas-ask-input"
+          {...PLAIN_TEXT}
+          enterKeyHint="send"
           className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
           placeholder={answerPlaceholder(answerType)}
           inputMode={answerType === "int" ? "numeric" : undefined}
@@ -1194,7 +1283,20 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
             }
           }}
         />
-        <span className="shrink-0 text-muted-foreground">⏎</span>
+        {phone ? (
+          <button
+            type="button"
+            aria-label="Answer"
+            // Keeps the keyboard up, which a button taking the focus would put away.
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={submit}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-background active:bg-amber-600"
+          >
+            <ArrowUp size={20} strokeWidth={2.5} />
+          </button>
+        ) : (
+          <span className="shrink-0 text-muted-foreground">⏎</span>
+        )}
       </div>
       {problem && <div className="text-destructive">{problem}</div>}
     </div>
@@ -1338,37 +1440,34 @@ Canvas.AskChoices = function ({ choices, other, many, onAnswer, onCancel }: AskC
               aria-selected={many ? on : index === active}
               data-testid="canvas-ask-choice"
               className={cn(
-                "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left",
+                "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left max-sm:min-h-12 max-sm:rounded-xl max-sm:px-3.5 max-sm:text-[15px]",
                 on ? "bg-amber-500/5" : "bg-background",
-                index === active ? "border-amber-500" : "border-border hover:border-amber-500/50",
+                index === active && !phone ? "border-amber-500" : "border-border hover:border-amber-500/50",
               )}
               onMouseEnter={() => !typing && setActive(index)}
               onClick={(event) => pick(index, event.metaKey || event.ctrlKey || event.shiftKey)}
             >
-              <ChoiceKey
-                index={index}
-                active={index === active}
-                picked={on}
-                collecting={collecting}
-                onToggle={many && !phone ? () => pick(index, true) : undefined}
-              />
+              {/* A digit is a key, and a phone has none to press it on. */}
+              {!phone && (
+                <ChoiceKey index={index} active={index === active} picked={on} collecting={collecting} onToggle={many ? () => pick(index, true) : undefined} />
+              )}
               <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
               {index >= choices.length && <span className="shrink-0 text-muted-foreground">typed</span>}
-              {many && phone ? (
-                <PickBox picked={on} onToggle={() => pick(index, true)} />
-              ) : (
-                index === active && <span className="shrink-0 text-muted-foreground">{many ? hint : "⏎"}</span>
-              )}
+              {phone
+                ? many && <PickBox picked={on} onToggle={() => pick(index, true)} />
+                : index === active && <span className="shrink-0 text-muted-foreground">{many ? hint : "⏎"}</span>}
             </button>
           );
         })}
         {other &&
           (typing ? (
-            <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5">
-              <ChoiceKey index={otherIndex} active picked={false} collecting={collecting} />
+            <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5 max-sm:min-h-12 max-sm:rounded-xl max-sm:px-3.5">
+              {!phone && <ChoiceKey index={otherIndex} active picked={false} collecting={collecting} />}
               <input
                 autoFocus
                 data-testid="canvas-ask-other-input"
+                {...PLAIN_TEXT}
+                enterKeyHint={many && collecting ? "done" : "send"}
                 className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
                 placeholder="Something else…"
                 value={text}
@@ -1384,7 +1483,7 @@ Canvas.AskChoices = function ({ choices, other, many, onAnswer, onCancel }: AskC
                   }
                 }}
               />
-              <span className="shrink-0 text-muted-foreground">{many && collecting ? "⏎ add" : "⏎ answer"} · esc back to list</span>
+              {!phone && <span className="shrink-0 text-muted-foreground">{many && collecting ? "⏎ add" : "⏎ answer"} · esc back to list</span>}
             </div>
           ) : (
             <button
@@ -1393,15 +1492,15 @@ Canvas.AskChoices = function ({ choices, other, many, onAnswer, onCancel }: AskC
               aria-selected={active === otherIndex}
               data-testid="canvas-ask-other"
               className={cn(
-                "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
-                active === otherIndex ? "border-amber-500" : "border-border hover:border-amber-500/50",
+                "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left max-sm:min-h-12 max-sm:rounded-xl max-sm:px-3.5 max-sm:text-[15px]",
+                active === otherIndex && !phone ? "border-amber-500" : "border-border hover:border-amber-500/50",
               )}
               onMouseEnter={() => setActive(otherIndex)}
               onClick={() => pick(otherIndex, false)}
             >
-              <ChoiceKey index={otherIndex} active={active === otherIndex} picked={false} collecting={collecting} />
+              {!phone && <ChoiceKey index={otherIndex} active={active === otherIndex} picked={false} collecting={collecting} />}
               <span className="min-w-0 flex-1 italic text-muted-foreground">Something else…</span>
-              {active === otherIndex && <span className="shrink-0 text-muted-foreground">⏎</span>}
+              {!phone && active === otherIndex && <span className="shrink-0 text-muted-foreground">⏎</span>}
             </button>
           ))}
       </div>

@@ -21,6 +21,7 @@ import {
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
+import { PLAIN_TEXT } from "./components/input";
 import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { Script } from "./apps";
@@ -1354,6 +1355,7 @@ function NameField({
         title={error}
         aria-label={label}
         aria-invalid={error !== undefined}
+        {...PLAIN_TEXT}
         onChange={(event) => setName(event.target.value)}
         onBlur={() => void commit().catch(onCancel)}
         onKeyDown={(event) => {

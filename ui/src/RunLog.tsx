@@ -1,5 +1,5 @@
-import { AppWindow, ArrowDown, Check, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AppWindow, ArrowDown, Check, ChevronLeft, ChevronRight, CodeXml, Copy, FoldVertical, UnfoldVertical } from "lucide-react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { barFraction, callErrorCode, dotClass, exchangeStatus, formatBytes, formatDuration, payloadBytes, statusClass, StatusTone } from "./callFormat";
 import { formatClockTime, formatElapsed } from "./callTime";
 import { cn } from "./cn";
@@ -28,6 +28,8 @@ import { MissingVariable, missingVariableSentence } from "./variableUsage";
 // A fixed height is what lets the log virtualise and lets the tail bar say how many
 // rows are below without measuring any of them.
 const CALL_ROW_HEIGHT = 24;
+// A phone's row is a touch target, with the key and the time on a line of their own.
+const PHONE_ROW_HEIGHT = 56;
 // Rows rendered beyond each edge of the viewport, so a scroll doesn't reveal blanks.
 const OVERSCAN = 8;
 // How close to the bottom still counts as following the tail.
@@ -40,10 +42,11 @@ const BAR_WIDTH = 88;
 // nothing moves as calls settle and age.
 const DURATION_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
 
-const payloadTabClass = "cursor-pointer select-none whitespace-nowrap text-xs text-muted-foreground hover:text-foreground";
+const payloadTabClass =
+  "cursor-pointer select-none whitespace-nowrap text-xs text-muted-foreground hover:text-foreground max-sm:flex max-sm:h-11 max-sm:items-center max-sm:text-[15px]";
 const payloadTabActiveClass = "font-medium text-foreground";
 // Same weight as the console header's utilities: no resting chrome.
-const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
+const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground max-sm:h-9 max-sm:w-9";
 
 interface RunLogProps {
   group: RunGroup;
@@ -106,6 +109,22 @@ export const RunLog = memo(function RunLog({
   onRevealVariable,
 }: RunLogProps) {
   void version;
+  const phone = useMediaQuery(PHONE_QUERY);
+  const rowHeight = phone ? PHONE_ROW_HEIGHT : CALL_ROW_HEIGHT;
+  // A phone walks into a call rather than reading it under the log: the list has the
+  // screen until a row is tapped, and the call has it until the way back is.
+  const [opened, setOpened] = useState(false);
+  const runId = group.run.id;
+  useEffect(() => setOpened(false), [runId]);
+  const listOnly = phone && !sole && !opened;
+  const callOnly = phone && !sole && opened;
+  const onRow = useCallback(
+    (itemId: string) => {
+      onSelectRow(itemId);
+      setOpened(true);
+    },
+    [onSelectRow],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const [window, setWindow] = useState({ top: 0, height: 0 });
   const onTailingRef = useRef(onTailingChange);
@@ -147,20 +166,20 @@ export const RunLog = memo(function RunLog({
     if (element && tailingRef.current) element.scrollTop = element.scrollHeight;
   }, [total, tailing, tailingRef]);
 
-  const first = Math.max(0, Math.floor(window.top / CALL_ROW_HEIGHT) - OVERSCAN);
-  const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / CALL_ROW_HEIGHT) + OVERSCAN * 2));
+  const first = Math.max(0, Math.floor(window.top / rowHeight) - OVERSCAN);
+  const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / rowHeight) + OVERSCAN * 2));
   const visible = rows.slice(first, first + count);
   // The log is never collapsed or summarised away, so this says what is out of sight
   // rather than standing in for it.
-  const rowsBelow = sole ? 0 : Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
+  const rowsBelow = sole ? 0 : Math.max(0, total - Math.round((window.top + window.height) / rowHeight));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
         data-testid="console-log"
-        className={cn("@container shrink overflow-y-auto", sole && "hidden")}
-        style={{ maxHeight: MAX_LOG_HEIGHT }}
+        className={cn("@container shrink overflow-y-auto", (sole || callOnly) && "hidden", listOnly && "flex-1")}
+        style={{ maxHeight: phone ? undefined : MAX_LOG_HEIGHT }}
       >
         {total === 0 ? (
           <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
@@ -169,8 +188,8 @@ export const RunLog = memo(function RunLog({
             {group.running && !waiting ? "Waiting for the first call…" : "No calls."}
           </div>
         ) : (
-          <div style={{ height: total * CALL_ROW_HEIGHT }}>
-            <div style={{ transform: `translateY(${first * CALL_ROW_HEIGHT}px)` }}>
+          <div style={{ height: total * rowHeight }}>
+            <div style={{ transform: `translateY(${first * rowHeight}px)` }}>
               {visible.map((item) =>
                 item.call ? (
                   <CallRow
@@ -186,7 +205,8 @@ export const RunLog = memo(function RunLog({
                     fraction={barFraction(callDurationMs(item.call), slowest)}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
-                    onSelect={onSelectRow}
+                    onSelect={phone ? onRow : onSelectRow}
+                    tall={phone}
                   />
                 ) : (
                   <LogRow
@@ -197,7 +217,8 @@ export const RunLog = memo(function RunLog({
                     message={item.logs?.[0]?.message ?? ""}
                     selected={item.id === selectedItemId}
                     stale={group.run.stale === true}
-                    onSelect={onSelectRow}
+                    onSelect={phone ? onRow : onSelectRow}
+                    tall={phone}
                   />
                 ),
               )}
@@ -206,28 +227,44 @@ export const RunLog = memo(function RunLog({
         )}
       </div>
 
-      <TailBar
-        waiting={waiting}
-        scriptFailed={scriptFailed}
-        // The run's own pill counts the clock; the count is news from the second call.
-        running={group.running && !waiting && (group.calls.length > 1 || group.heldCalls > 0)}
-        calls={group.calls.length}
-        held={group.heldCalls}
-        elapsedMs={now - group.run.startedAt}
-        rowsBelow={rowsBelow}
-        dropped={group.dropped}
-        hiddenLines={hidden.lines}
-        hiddenErrors={hidden.errors}
-        tailing={tailing}
-        onFollow={() => onTailingChange(true)}
-        onShowLogs={onShowLogs}
-        onGoToCanvas={onGoToCanvas}
-      />
+      {callOnly && (
+        <button
+          type="button"
+          data-testid="console-call-back"
+          onClick={() => setOpened(false)}
+          className="flex h-11 shrink-0 items-center gap-0.5 border-b border-border pr-4 pl-1 text-left text-[17px] text-muted-foreground active:bg-accent/60"
+        >
+          <ChevronLeft size={24} className="shrink-0" />
+          <span className="shrink-0">Calls</span>
+          <span className="ml-3 min-w-0 flex-1 truncate text-right font-mono text-[13px] text-foreground">
+            {selectedItem?.call ? callLabel(selectedItem.call) : selectedItem?.printed ? logLevelLabel(printedLevel(selectedItem)) : ""}
+          </span>
+        </button>
+      )}
+      {!callOnly && (
+        <TailBar
+          waiting={waiting}
+          scriptFailed={scriptFailed}
+          // The run's own pill counts the clock; the count is news from the second call.
+          running={group.running && !waiting && (group.calls.length > 1 || group.heldCalls > 0)}
+          calls={group.calls.length}
+          held={group.heldCalls}
+          elapsedMs={now - group.run.startedAt}
+          rowsBelow={rowsBelow}
+          dropped={group.dropped}
+          hiddenLines={hidden.lines}
+          hiddenErrors={hidden.errors}
+          tailing={tailing}
+          onFollow={() => onTailingChange(true)}
+          onShowLogs={onShowLogs}
+          onGoToCanvas={onGoToCanvas}
+        />
+      )}
 
       {/* The payload sits in a pane of its own that never reflows as you move
           through the log — which is why Request/Response/Headers live down here
           rather than in the header. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
+      <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70", listOnly && "hidden")}>
         {group.run.payloadsExpired ? (
           <NoPayload>Response no longer kept. Run to see it live</NoPayload>
         ) : selectedItem?.payloadsDropped && selectedItem.call ? (
@@ -320,6 +357,7 @@ interface LogRowProps {
   selected: boolean;
   stale: boolean;
   onSelect: (itemId: string) => void;
+  tall?: boolean;
 }
 
 /**
@@ -328,12 +366,16 @@ interface LogRowProps {
  * arithmetic only because every row is that height. The full line is one click away
  * in the pane below.
  */
-const LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
+const LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect, tall }: LogRowProps) {
   return (
     <div
       data-testid="console-log-row"
-      className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
-      style={{ height: CALL_ROW_HEIGHT }}
+      className={cn(
+        "flex shrink-0 cursor-pointer items-center gap-2.5 px-3",
+        tall ? "border-b border-border pl-4 active:bg-accent/60" : selected ? "bg-accent" : "hover:bg-accent/50",
+        stale && "opacity-75",
+      )}
+      style={{ height: tall ? PHONE_ROW_HEIGHT : CALL_ROW_HEIGHT }}
       onClick={() => onSelect(id)}
     >
       {/* A printed line is a channel rather than a verdict, so it takes a bar in
@@ -514,6 +556,8 @@ interface CallRowProps {
   stale: boolean;
   onSelect: (itemId: string) => void;
   now: number;
+  // The phone's row: two lines at a height a thumb finds.
+  tall?: boolean;
 }
 
 /**
@@ -523,8 +567,58 @@ interface CallRowProps {
  * settled row is handed the same twelve values on every repaint and doesn't render
  * again. `now` is the exception and is passed as zero unless the row is counting up.
  */
-const CallRow = memo(function CallRow({ id, name, timestamp, loopKey, status, durationMs, errorCode, fraction, selected, stale, onSelect, now }: CallRowProps) {
+const CallRow = memo(function CallRow({
+  id,
+  name,
+  timestamp,
+  loopKey,
+  status,
+  durationMs,
+  errorCode,
+  fraction,
+  selected,
+  stale,
+  onSelect,
+  now,
+  tall,
+}: CallRowProps) {
   const pending = status === "pending" || status === "streaming";
+
+  if (tall) {
+    return (
+      <div
+        data-testid="console-call-row"
+        className={cn(
+          "flex shrink-0 cursor-pointer items-center gap-3 border-b border-border pr-2 pl-4 active:bg-accent/60",
+          selected && "bg-accent/40",
+          stale && "opacity-75",
+        )}
+        style={{ height: PHONE_ROW_HEIGHT }}
+        onClick={() => onSelect(id)}
+      >
+        {pending ? <Spinner className="size-3.5" /> : <span className={cn("size-2 shrink-0 rounded-full", dotClass(status))} />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono text-[14px] text-foreground">{name}</span>
+          <span className="block truncate font-mono text-xs text-muted-foreground">
+            {formatClockTime(timestamp)}
+            {loopKey && ` · ${loopKey}`}
+          </span>
+        </span>
+        {errorCode && <span className="shrink-0 font-mono text-xs text-destructive">{errorCode}</span>}
+        <span className="w-[68px] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
+          {pending ? formatElapsed(now - timestamp) : formatDuration(durationMs)}
+          {fraction !== undefined && (
+            <span
+              aria-hidden
+              className={cn("mt-1 ml-auto block h-[3px] rounded-sm", status === "error" ? "bg-destructive/40" : "bg-muted-foreground/30")}
+              style={{ width: `${Math.max(4, fraction * 100)}%` }}
+            />
+          )}
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-muted-foreground/60" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -685,7 +779,7 @@ const PayloadPane = function ({ methodCall, activeTab, openedStrings, onTabChang
       {/* The pane names itself: which part of the call on the left, and what
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
-      <div className="@container flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
+      <div className="@container flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3 max-sm:h-11 max-sm:px-4">
         <PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
         {activeTab !== "headers" && <ResponseSummary methodCall={methodCall} bytes={bytes} sizeOnly={activeTab === "request"} />}
         {showsJson && (

@@ -2,6 +2,7 @@ import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { Ban, CircleAlert, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
+import { PLAIN_TEXT } from "./components/input";
 import { FileName } from "./FileName";
 import { Destination, matchesDestination } from "./Finder";
 import { matchParts, methodTag } from "./phone";
@@ -79,6 +80,8 @@ export function PhoneFinder({ recent, elsewhere, open, onOpenChange }: PhoneFind
                   }}
                   placeholder="Go to a file or call…"
                   aria-label="Go to a file or call"
+                  {...PLAIN_TEXT}
+                  enterKeyHint="go"
                   className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 {query !== "" && (
@@ -214,11 +217,13 @@ function ResultRow({ destination, query, first, onSelect }: { destination: Desti
   const dimmed = destination.provisional || destination.uncallable || destination.deprecated;
   if (destination.call) {
     return (
-      <Row onClick={onSelect} className={cn(first && "bg-accent")}>
-        <span className="w-4 shrink-0" />
-        <span className={cn("min-w-0 flex-1 truncate text-sm", dimmed ? "text-muted-foreground" : "text-foreground", destination.deprecated && "line-through")}>
-          <span className="text-muted-foreground">{destination.path.replaceAll(" / ", " › ")} › </span>
-          <Matched text={destination.name} query={query} />
+      <Row onClick={onSelect} className={cn("h-14", first && "bg-accent")}>
+        {/* The name leads on a line of its own: on one line behind its place, it was the name that got cut. */}
+        <span className="min-w-0 flex-1">
+          <span className={cn("block truncate text-[15px]", dimmed ? "text-muted-foreground" : "text-foreground", destination.deprecated && "line-through")}>
+            <Matched text={destination.name} query={query} />
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">{destination.path.replaceAll(" / ", " › ")}</span>
         </span>
         <MethodMark tag={destination.tag} uncallable={destination.uncallable} />
       </Row>

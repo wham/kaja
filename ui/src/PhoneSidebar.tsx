@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
+import { PLAIN_TEXT } from "./components/input";
 import { Spinner } from "./components/spinner";
 import { App, Method, Service } from "./apps";
 import { appAddress, appType, appTypeLabel } from "./appTypes";
@@ -9,6 +10,7 @@ import { firstErrorMessage } from "./compileSummary";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
+import { methodTag } from "./phone";
 import { PHONE_ICON, PhoneLevelHeader, PhoneRow, PhoneRowAction, PhoneSection } from "./PhoneList";
 import {
   AppCompileMarker,
@@ -27,6 +29,11 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 
 // Where the Apps tab has been taken: an app, then a package where the app has more than
 // one, then a service. Absent is the list of apps.
+// How far right a finger travels before it is read as going back a level.
+const BACK_SWIPE = 72;
+// A level longer than this gets a field to narrow it: past a screen and a half, scrolling is a search.
+const FILTER_FROM = 14;
+
 interface AppsLevel {
   app: string;
   pkg?: string;
@@ -80,6 +87,21 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   useLayoutEffect(() => {
     if (appsPane.current) appsPane.current.scrollTop = 0;
   }, [level?.app, level?.pkg, level?.service]);
+
+  // A swipe to the right inside a level is the way back out of it, as it is in a phone's
+  // own lists. The frame reads the same gesture and finds the drawer already open.
+  const swipe = useRef<{ x: number; y: number } | undefined>(undefined);
+  const onTouchStart = (event: React.TouchEvent) => {
+    const touch = event.touches[0];
+    swipe.current = event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : undefined;
+  };
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const from = swipe.current;
+    swipe.current = undefined;
+    const touch = event.changedTouches[0];
+    if (!from || !touch || touch.clientX - from.x < BACK_SWIPE || Math.abs(touch.clientY - from.y) > BACK_SWIPE / 2) return;
+    setLevel((current) => (!current ? current : current.service ? { app: current.app, pkg: current.pkg } : current.pkg ? { app: current.app } : undefined));
+  };
 
   // A level whose app was renamed or deleted under it is nowhere, so it reads as the top.
   const app = level ? apps.find((candidate) => candidate.configuration.name === level.app) : undefined;
@@ -147,9 +169,10 @@ export const PhoneSidebar = memo(function PhoneSidebar({
         </div>
       </div>
 
-      <TabPane tab="apps" active={tab} paneRef={appsPane}>
+      <TabPane tab="apps" active={tab} paneRef={appsPane} onTouchStart={level ? onTouchStart : undefined} onTouchEnd={level ? onTouchEnd : undefined}>
         {app && level ? (
           <AppLevel
+            key={`${level.app}/${level.pkg ?? ""}/${level.service ?? ""}`}
             app={app}
             level={level}
             onLevel={setLevel}
@@ -242,8 +265,11 @@ function AppLevel({
   const appName = app.configuration.name;
   const packages = hasMultiplePackages(app.services);
   const service = level.service ? app.services.find((candidate) => serviceNodeId(appName, candidate) === level.service) : undefined;
+  const [filter, setFilter] = useState("");
+  const term = filter.trim().toLowerCase();
 
   if (service) {
+    const methods = term === "" ? service.methods : service.methods.filter((method) => method.name.toLowerCase().includes(term));
     return (
       <nav aria-label={`${service.name} methods`}>
         <PhoneLevelHeader
@@ -251,9 +277,11 @@ function AppLevel({
           onBack={() => onLevel(packages ? { app: appName, pkg: service.packageName } : { app: appName })}
           title={service.name}
         />
-        {service.methods.map((method) => (
+        {service.methods.length >= FILTER_FROM && <LevelFilter label="Filter methods" value={filter} onChange={setFilter} />}
+        {methods.map((method) => (
           <MethodRow key={method.name} app={app} service={service} method={method} onSelect={onSelect} />
         ))}
+        {methods.length === 0 && <div className="px-3 py-2 text-[15px] text-muted-foreground">No method matches</div>}
       </nav>
     );
   }
@@ -305,11 +333,14 @@ function AppLevel({
     );
   }
 
-  const services = level.pkg ? app.services.filter((candidate) => candidate.packageName === level.pkg) : app.services;
+  const all = level.pkg ? app.services.filter((candidate) => candidate.packageName === level.pkg) : app.services;
+  const services = term === "" ? all : all.filter((candidate) => candidate.name.toLowerCase().includes(term));
   return (
     <nav aria-label={appName}>
       {header}
+      {all.length >= FILTER_FROM && <LevelFilter label="Filter services" value={filter} onChange={setFilter} />}
       {services.length > 0 && <PhoneSection>Services</PhoneSection>}
+      {all.length > 0 && services.length === 0 && <div className="px-3 py-2 text-[15px] text-muted-foreground">No service matches</div>}
       {services.map((candidate) => {
         const id = serviceNodeId(appName, candidate);
         return (
@@ -318,7 +349,7 @@ function AppLevel({
           </PhoneRow>
         );
       })}
-      {services.length === 0 && app.compilation.status === "error" && (
+      {all.length === 0 && app.compilation.status === "error" && (
         <>
           {/* A phone has no hover for the marker's tooltip, so the reason is stated. */}
           <p className="px-3 py-2 text-[15px] break-words text-destructive">{firstErrorMessage(app) ?? "Compilation failed"}</p>
@@ -333,14 +364,27 @@ function AppLevel({
 
 function MethodRow({ app, service, method, onSelect }: { app: App; service: Service; method: Method; onSelect: SidebarProps["onSelect"] }) {
   const unsupported = unsupportedReason(method, appType(app.configuration));
+  // The verb is the one thing that says whether a call reads or writes, and a phone has no hover to ask it on.
+  const verb = method.http?.split(" ")[0]?.toUpperCase();
   return (
     <PhoneRow
       onClick={() => onSelect(method, service, app)}
       trailing={
-        unsupported && (
+        unsupported ? (
           <span className="flex size-9 shrink-0 items-center justify-center">
             <UnsupportedMarker reason={unsupported} size={18} />
           </span>
+        ) : (
+          verb && (
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[11px]",
+                methodTag(method) === "write" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70",
+              )}
+            >
+              {verb}
+            </span>
+          )
         )
       }
     >
@@ -398,6 +442,33 @@ function AppMenu({
   );
 }
 
+function LevelFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="mx-1 mb-1 flex h-10 items-center gap-2 rounded-xl bg-muted px-3">
+      <Search size={16} className="shrink-0 text-muted-foreground" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={label}
+        aria-label={label}
+        {...PLAIN_TEXT}
+        enterKeyHint="search"
+        className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      {value !== "" && (
+        <button
+          type="button"
+          aria-label="Clear"
+          onClick={() => onChange("")}
+          className="flex size-6 shrink-0 items-center justify-center text-muted-foreground"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // The round buttons a phone's own top bar carries.
 const BAND_BUTTON =
   "relative flex size-11 shrink-0 items-center justify-center rounded-full border border-border text-foreground outline-none active:bg-accent";
@@ -434,11 +505,15 @@ function TabPane({
   active,
   paneRef,
   children,
+  onTouchStart,
+  onTouchEnd,
 }: {
   tab: SidebarTab;
   active: SidebarTab;
   paneRef?: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
+  onTouchStart?: (event: React.TouchEvent) => void;
+  onTouchEnd?: (event: React.TouchEvent) => void;
 }) {
   return (
     <div
@@ -447,7 +522,9 @@ function TabPane({
       id={`${tab}-panel`}
       aria-labelledby={sidebarTabId(tab)}
       hidden={tab !== active}
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-20"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3"
     >
       {children}
     </div>

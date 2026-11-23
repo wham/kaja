@@ -9,7 +9,7 @@ interface SegmentedControlProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function SegmentedControl({ className, children, ...props }: SegmentedControlProps) {
   return (
-    <div role="tablist" className={cn("inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5", className)} {...props}>
+    <div role="tablist" className={cn("inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5 max-sm:rounded-[10px]", className)} {...props}>
       {children}
     </div>
   );
@@ -27,7 +27,7 @@ function Button({ selected, leadingIcon: LeadingIcon, className, children, ...pr
       role="tab"
       aria-selected={selected}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-sm font-medium max-sm:min-h-9 max-sm:rounded-lg max-sm:px-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selected ? "bg-background text-foreground shadow-sm dark:bg-accent dark:shadow-none" : "text-muted-foreground hover:text-foreground",
         className,
       )}

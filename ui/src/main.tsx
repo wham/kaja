@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
+import { watchKeyboardInset } from "./keyboardInset";
 import { surfaceColor } from "./surfaces";
 import { resetPayloadArchive } from "./payloadArchive";
 import { startSettings } from "./settings";
@@ -14,6 +15,7 @@ import { desktop, isWailsEnvironment } from "./wails";
 import { declareZoom, DEFAULT_ZOOM } from "./zoom";
 
 installUiLog();
+watchKeyboardInset();
 startSettings();
 preloadWorkspace();
 

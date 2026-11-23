@@ -491,10 +491,10 @@ interface ViewSelectProps {
  * not a mode, so taking the screen may not take two thirds of the run with it.
  */
 Console.ViewSelect = function ({ activeView: runView, waiting, onChange, fullWidth, code }: ViewSelectProps) {
-  const segment = fullWidth ? "h-[26px] flex-1 justify-center px-2.5 py-0 text-xs" : "h-[20px] px-2.5 py-0 text-xs";
+  const segment = fullWidth ? "h-[34px] min-w-0 flex-1 justify-center px-1 py-0 text-[13px]" : "h-[20px] px-2.5 py-0 text-xs";
   const activeView = code?.selected ? undefined : runView;
   return (
-    <SegmentedControl className={fullWidth ? "flex h-[32px] w-full p-[2px]" : "h-[26px] shrink-0 p-[2px]"} aria-label="Run view">
+    <SegmentedControl className={fullWidth ? "flex h-[40px] min-w-0 flex-1 p-[3px]" : "h-[26px] shrink-0 p-[2px]"} aria-label="Run view">
       {code && (
         <SegmentedControl.Button selected={code.selected} className={segment} onClick={code.onSelect} data-testid="console-view-code">
           Code
