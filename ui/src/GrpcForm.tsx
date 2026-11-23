@@ -219,11 +219,13 @@ export function GrpcForm({
   // that identifies the API rather than the machine.
   useEffect(() => {
     if (!server || nameTouched) return;
+    const address = parametersRef.current.url ?? "";
     const derived = uniqueAppName(
-      deriveAppName(
-        parametersRef.current.url ?? "",
-        server.services.map((service) => service.name),
-      ),
+      knownGrpcServerFor(address)?.name.toLowerCase() ??
+        deriveAppName(
+          address,
+          server.services.map((service) => service.name),
+        ),
       takenNames,
     );
     if (derived) onNameChange(derived);
@@ -504,12 +506,13 @@ interface ProblemBannerProps {
 }
 
 function ProblemBanner({ problem, mode, readOnly, onRetry, onSwitchMode }: ProblemBannerProps) {
-  // A server that reflects nothing, doesn't reflect at all, or isn't there yet is
+  // A server that reflects nothing, doesn't reflect at all, or isn't running yet is
   // answered by the other source rather than by trying again. The failures with a fix of
   // their own — the transport, the address, a credential, a proto that won't compile —
-  // are not.
+  // are not, and neither is a server that never answered.
   const otherSource = !(
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_TLS ||
+    problem.kind === GrpcProblemKind.GRPC_PROBLEM_TIMEOUT ||
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_TARGET ||
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_PROTO_INVALID ||
     problem.kind === GrpcProblemKind.GRPC_PROBLEM_UNAUTHENTICATED ||
@@ -522,19 +525,19 @@ function ProblemBanner({ problem, mode, readOnly, onRetry, onSwitchMode }: Probl
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md border px-3 py-2",
+        "flex items-start gap-2 max-sm:flex-wrap rounded-md border px-3 py-2",
         warning ? "border-amber-500/40 bg-amber-500/10" : "border-destructive/40 bg-destructive/10",
       )}
     >
       <div className={cn("pt-0.5", warning ? "text-amber-600 dark:text-amber-400" : "text-destructive")}>
         <Icon size={15} />
       </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="text-sm text-foreground">{problem.message}</p>
         {problem.detail && <p className="break-words font-mono text-xs text-muted-foreground">{problem.detail}</p>}
       </div>
       {!readOnly && (
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2 max-sm:w-full max-sm:pl-[23px]">
           {otherSource && (
             <Button variant="secondary" size="sm" onClick={() => onSwitchMode(mode === "reflection" ? "protoDir" : "reflection")}>
               {mode === "reflection" ? "Use proto files" : "Use reflection"}

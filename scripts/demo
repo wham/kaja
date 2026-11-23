@@ -480,23 +480,23 @@ cat > "$KAJA_HOME/workspace/kaja.json" <<'WORKSPACE'
       }
     },
     {
-      "name": "grpcb.in",
+      "name": "eliza",
       "grpc": {
-        "url": "${GRPCBIN_HOST}",
-        "proto_dir": "grpcbin/proto"
+        "url": "${ELIZA_HOST}",
+        "reflection": true,
+        "tls": "on"
       }
     }
   ],
   "variables": {
     "GITHUB_API": "https://api.github.com",
-    "GRPCBIN_HOST": "grpc://grpcb.in:9000",
+    "ELIZA_HOST": "dns:demo.connectrpc.com:443",
     "GITHUB_TOKEN": "${secret}"
   }
 }
 WORKSPACE
 
 cp "$REPO_ROOT"/workspace/*.ts "$KAJA_HOME/workspace/"
-cp -R "$REPO_ROOT/workspace/grpcbin" "$KAJA_HOME/workspace/"
 
 say "Reloading, and waiting for the apps to compile"
 # The configuration is watched, but the scripts are read once at load, so

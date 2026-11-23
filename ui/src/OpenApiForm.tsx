@@ -681,14 +681,14 @@ function ProblemBanner({ problem, parameters, variables, readOnly, onUploadInste
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md border px-3 py-2",
+        "flex items-start gap-2 max-sm:flex-wrap rounded-md border px-3 py-2",
         warning ? "border-amber-500/40 bg-amber-500/10" : "border-destructive/40 bg-destructive/10",
       )}
     >
       <div className={cn("pt-0.5", warning ? "text-amber-600 dark:text-amber-400" : "text-destructive")}>
         <Icon size={15} />
       </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="text-sm text-foreground">{problem.message}</p>
         {problem.detail && (
           <p className={cn("break-words text-xs text-muted-foreground", problem.kind !== OpenApiProblemKind.OPEN_API_PROBLEM_HTML && "font-mono")}>
@@ -697,9 +697,11 @@ function ProblemBanner({ problem, parameters, variables, readOnly, onUploadInste
         )}
       </div>
       {problem.kind === OpenApiProblemKind.OPEN_API_PROBLEM_UNREACHABLE && !readOnly && (
-        <Button variant="secondary" size="sm" className="ml-auto shrink-0" onClick={onUploadInstead}>
-          Upload file
-        </Button>
+        <div className="ml-auto shrink-0 max-sm:w-full max-sm:pl-[23px]">
+          <Button variant="secondary" size="sm" onClick={onUploadInstead}>
+            Upload file
+          </Button>
+        </div>
       )}
     </div>
   );

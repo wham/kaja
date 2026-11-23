@@ -170,6 +170,9 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 	version := "v1"
 	stream, v1Err := c.openV1Stream(ctx, conn)
 	if v1Err != nil {
+		if ctx.Err() != nil {
+			return nil, v1Err
+		}
 		version = "v1alpha"
 		stream, err = c.openV1AlphaStream(ctx, conn)
 		if err != nil {

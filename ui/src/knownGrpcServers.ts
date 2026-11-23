@@ -8,10 +8,10 @@ export interface KnownGrpcServer {
   mark: (props: { size?: number; className?: string }) => React.ReactNode;
 }
 
-export const knownGrpcServers: KnownGrpcServer[] = [{ name: "grpcb.in", address: "grpcb.in:9000", mark: GrpcMark }];
+export const knownGrpcServers: KnownGrpcServer[] = [{ name: "Eliza", address: "demo.connectrpc.com:443", mark: GrpcMark }];
 
-// The host and port, however the address was spelled: "dns:///grpcb.in:9000" and
-// "GRPCB.IN:9000" are the same server, but grpcb.in:9001 is its TLS twin, not it.
+// The host and port, however the address was spelled: "dns:///example.com:443"
+// and "EXAMPLE.COM:443" are the same server, but another port on the host is not.
 function canonicalAddress(value: string): string {
   return value
     .trim()

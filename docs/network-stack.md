@@ -244,11 +244,11 @@ Every app call — traces 1 to 5 — shares one spine, on both builds:
 
 What differs is hop 4: who talks to the API, and how.
 
-### 1. gRPC — `HelloService.SayHello({ greeting: "kaja" })`
+### 1. gRPC — `ElizaService.Say({ sentence: "kaja" })`
 
 The grpc app forwards rather than transcodes: it opens `OpenServerStream` at
-**`grpcb.in:9000`**, `/hello.HelloService/SayHello`, and the request
-the browser framed is the request the server gets — every call, unary or not.
+**`demo.connectrpc.com:443`**, `/connectrpc.eliza.v1.ElizaService/Say`, and
+the request the browser framed is the request the server gets — every call, unary or not.
 Response frames are forwarded as they arrive, and the server's own metadata
 comes back in the trailer under its own names: this lane is a bridge rather
 than a hop, so what the server answered with **is** the call's response
