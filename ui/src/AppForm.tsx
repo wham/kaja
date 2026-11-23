@@ -456,8 +456,11 @@ function TypeChoice({ type, appsPreviewEnabled, onTypeChange }: { type: string; 
           return (
             <ChoiceCard key={candidate.type} selected={selected}>
               <ChoiceRow selected={selected} disabled={false} onSelect={() => onTypeChange(candidate.type)} icon={candidate.icon}>
-                <span className={cn("shrink-0", choiceLabel(selected))}>{candidate.label}</span>
-                <span className="truncate text-xs text-muted-foreground">{candidate.description}</span>
+                {/* A phone has no width for the sentence beside the name, so it goes under it, whole. */}
+                <span className="flex min-w-0 items-center gap-3 max-sm:flex-1 max-sm:flex-col max-sm:items-start max-sm:gap-0 max-sm:py-1">
+                  <span className={cn("shrink-0", choiceLabel(selected))}>{candidate.label}</span>
+                  <span className="truncate text-xs text-muted-foreground max-sm:whitespace-normal">{candidate.description}</span>
+                </span>
                 {candidate.preview && <PreviewPill />}
               </ChoiceRow>
             </ChoiceCard>

@@ -1,4 +1,4 @@
-import { Check, Copy, RefreshCw, RotateCw, type LucideIcon } from "lucide-react";
+import { Check, ChevronsUpDown, Copy, RefreshCw, RotateCw, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { copyText } from "./clipboard";
@@ -9,7 +9,9 @@ import { IconButton } from "./components/icon-button";
 import { Switch } from "./components/switch";
 import { containerUrl, mcpAgents, type McpAgent, type McpAgentKind, type McpEndpoint } from "./mcpAgents";
 import { isListening, mcpDotClass, mcpStatusOf, type McpConnection, type McpControl } from "./mcpState";
-import { desktop, isWailsEnvironment, openInBrowser } from "./wails";
+import { PHONE_QUERY } from "./phone";
+import { useMediaQuery } from "./useMediaQuery";
+import { desktop, isIOSApp, isWailsEnvironment, openInBrowser } from "./wails";
 
 // A copy verb is its own receipt: the label swaps in place for this long, and nothing
 // else about the page moves.
@@ -46,6 +48,7 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
   const [copied, setCopied] = useState<CopyTarget>();
   const [armed, setArmed] = useState(false);
   const [inContainer, setInContainer] = useState(false);
+  const phone = useMediaQuery(PHONE_QUERY);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const armTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -101,6 +104,129 @@ export function Mcp({ info, control, active }: { info?: McpConnection; control: 
       window.location.href = link;
     }
   };
+
+  if (phone) {
+    const group = "divide-y divide-border overflow-hidden rounded-xl border border-border bg-card";
+    const copyButton = (target: CopyTarget, label: string, text: string) => (
+      <button
+        type="button"
+        aria-label={copied === target ? `Copied the ${label}` : `Copy the ${label}`}
+        onClick={() => copy(target, text)}
+        className={cn(
+          "-mr-2 flex size-11 shrink-0 items-center justify-center rounded-full active:bg-accent",
+          copied === target ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+        )}
+      >
+        {copied === target ? <Check size={18} /> : <Copy size={18} />}
+      </button>
+    );
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain bg-background p-4">
+        <section aria-label="MCP server" className={group}>
+          <div className="flex min-h-14 items-center gap-3 px-4 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-[16px] font-medium">
+                <span className={cn("size-[7px] shrink-0 rounded-full", mcpDotClass(status.state) ?? "bg-muted-foreground/40")} />
+                <span className={cn(status.tone === "emerald" && "text-emerald-600 dark:text-emerald-400")}>{status.headline}</span>
+              </div>
+              {status.note && (
+                <div className={cn("text-[13px] break-words", status.tone === "destructive" ? "text-destructive" : "text-muted-foreground")}>{status.note}</div>
+              )}
+            </div>
+            <Switch checked={control.enabled} onCheckedChange={(checked) => control.setEnabled(checked === true)} aria-label="Enable MCP server" />
+          </div>
+          <div className="flex min-h-14 items-center gap-2 px-4 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] text-muted-foreground">Endpoint</div>
+              <div className={cn("font-mono text-[13px] break-all", !listening && "text-muted-foreground")}>{endpoint.url}</div>
+            </div>
+            {copyButton("url", "endpoint", endpoint.url)}
+          </div>
+          <div className="flex min-h-14 items-center gap-2 px-4 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] text-muted-foreground">Token</div>
+              <div className={cn("truncate font-mono text-[13px]", !listening && "text-muted-foreground")}>{written ? endpoint.token : "not set"}</div>
+            </div>
+            {written && copyButton("token", "token", endpoint.token)}
+          </div>
+          {written && (
+            <button type="button" onClick={regenerate} className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] active:bg-accent">
+              <RefreshCw size={17} className="shrink-0 text-muted-foreground" />
+              {armed ? "Replaces every pasted config. Tap again" : "Regenerate token"}
+            </button>
+          )}
+          {status.state === "error" && (
+            <button
+              type="button"
+              onClick={() => control.setEnabled(true)}
+              className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] active:bg-accent"
+            >
+              <RotateCw size={17} className="shrink-0 text-muted-foreground" />
+              Retry
+            </button>
+          )}
+        </section>
+        {isIOSApp() && <p className="-mt-2 px-1 text-[13px] text-muted-foreground">On an iPhone nothing outside Kaja can reach this endpoint.</p>}
+
+        <section aria-label={agent.name} className="flex flex-col gap-3">
+          {/* The system's own picker: a list of fifteen names is what it is for, and a column of them beside the snippet left the snippet no width. */}
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-card px-4 text-[16px]">
+            <span className="shrink-0">Agent</span>
+            <select
+              aria-label="MCP agent"
+              value={selected}
+              onChange={(event) => setSelected(Number(event.target.value))}
+              className="min-w-0 flex-1 appearance-none border-0 bg-transparent text-right text-muted-foreground outline-none"
+              dir="rtl"
+            >
+              {agentGroups.map((candidateGroup) => (
+                <optgroup key={candidateGroup.kind} label={candidateGroup.label}>
+                  {mcpAgents.map(
+                    (candidate, index) =>
+                      candidate.kind === candidateGroup.kind && (
+                        <option key={candidate.name} value={index}>
+                          {candidate.name}
+                        </option>
+                      ),
+                  )}
+                </optgroup>
+              ))}
+            </select>
+            <ChevronsUpDown size={16} className="shrink-0 text-muted-foreground" />
+          </label>
+          {agent.install && written && (
+            <Button className="h-[50px] rounded-xl text-[17px]" onClick={install}>
+              {agent.install.label}
+            </Button>
+          )}
+          <p className="m-0 px-1 text-[13px] leading-[1.5] text-pretty text-muted-foreground">
+            {where(agent)}
+            {agent.file && <span className="font-mono text-foreground"> {agent.file}</span>}.{agent.note && ` ${agent.note}`}
+          </p>
+          {fromContainer && (
+            <label className="flex min-h-11 items-center gap-3 px-1 text-[15px] text-foreground">
+              <Checkbox checked={inContainer} onCheckedChange={(checked) => setInContainer(checked === true)} />
+              {agent.name} runs in a dev container
+            </label>
+          )}
+          <pre
+            className={cn(
+              "m-0 overflow-x-auto rounded-xl bg-card p-4 font-mono text-[12px] leading-[1.7] break-all whitespace-pre-wrap text-foreground",
+              !written && "opacity-45",
+            )}
+          >
+            {snippet}
+          </pre>
+          {written && (
+            <Button variant="secondary" className="h-[50px] rounded-xl text-[17px]" onClick={() => copy("snippet", snippet)}>
+              {copied === "snippet" ? <Check size={18} /> : <Copy size={18} />}
+              {copied === "snippet" ? "Copied" : "Copy"}
+            </Button>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">

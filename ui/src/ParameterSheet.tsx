@@ -7,7 +7,9 @@ import { Dialog } from "./components/dialog";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { FileName } from "./FileName";
+import { PHONE_QUERY } from "./phone";
 import { LINK_SCHEME, scriptLinkParts } from "./scriptLink";
+import { useMediaQuery } from "./useMediaQuery";
 
 /**
  * The three doors that need values for a script: `copy` builds a deeplink, `arrived`
@@ -80,6 +82,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, on
     });
   }, [link]);
 
+  const phone = useMediaQuery(PHONE_QUERY);
+
   const submit = useCallback(() => {
     if (door === "copy") {
       void copyText(link);
@@ -111,6 +115,10 @@ export function ParameterSheet({ door, fileName, address, parameters, values, on
       initialFocusRef={parameters.length > 0 ? firstFieldRef : undefined}
       footerButtons={[
         { content: "Cancel", variant: "ghost", onClick: onClose },
+        // A phone's own sheet is where a link goes on to Shortcuts or to another device. Only a secure page has it.
+        ...(door === "copy" && phone && typeof navigator.share === "function"
+          ? [{ content: "Share…", variant: "outline" as const, onClick: () => void navigator.share({ url: link }).catch(() => {}) }]
+          : []),
         { content: door === "copy" ? "Copy deeplink" : "Run", variant: "default", onClick: submit },
       ]}
     >
@@ -181,7 +189,7 @@ export function ParameterSheet({ door, fileName, address, parameters, values, on
 
         {door === "copy" &&
           (parameters.length > 0 ? (
-            <div className="rounded-md border border-border px-3 py-2">
+            <div className="rounded-md border border-border px-3 py-2 max-sm:hidden">
               <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
                 {schemeLink ? "Anything on this device that opens a URL can run this script" : "Anything that opens a URL can run this script"}: a{" "}
                 {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}

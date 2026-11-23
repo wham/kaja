@@ -1,4 +1,4 @@
-import { FileCode } from "lucide-react";
+import { FileCode, Plus, Search } from "lucide-react";
 import { useShortcutLabel } from "./shortcuts";
 
 interface NoFileBlankslateProps {
@@ -29,6 +29,21 @@ export function NoFileBlankslate({ onOpenFinder, onNewDraft, phone = false }: No
 export function BlankslateActions({ onOpenFinder, onNewDraft, phone = false }: NoFileBlankslateProps) {
   const finderKey = useShortcutLabel("finder");
   const newDraftKey = useShortcutLabel("newDraft");
+  if (phone) {
+    const button = "flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card text-[15px] text-foreground active:bg-accent";
+    return (
+      <div className="flex w-full gap-2.5">
+        <button type="button" onClick={onOpenFinder} className={button}>
+          <Search size={17} className="text-muted-foreground" />
+          Find a call
+        </button>
+        <button type="button" onClick={onNewDraft} className={button}>
+          <Plus size={17} className="text-muted-foreground" />
+          Blank script
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3">
       <button type="button" onClick={onOpenFinder} className="text-xs text-muted-foreground hover:text-foreground">

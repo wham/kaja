@@ -239,11 +239,13 @@ function PhoneSettings({
   onShowShortcuts,
 }: PhoneSettingsProps) {
   return (
-    <div className="relative h-0 shrink-0">
-      <div className="absolute flex items-center gap-1.5" style={{ left: 16, bottom: "max(12px, calc(env(safe-area-inset-bottom) - 8px))" }}>
+    // A row of its own on a phone, where the desktop floats it: a pill over a list a thumb
+    // is scrolling sits on whichever row is under it.
+    <div className="shrink-0 border-t border-border" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="flex h-[52px] items-center gap-1.5 pr-4 pl-2">
         <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
-          <BaseDialog.Trigger className="flex h-11 items-center gap-2 rounded-full border border-border bg-card pr-4 pl-3.5 text-[15px] text-muted-foreground shadow-md transition-colors data-[popup-open]:text-foreground">
-            <Settings size={18} className="shrink-0" />
+          <BaseDialog.Trigger className="flex h-11 items-center gap-3 rounded-xl px-3 text-[17px] text-foreground outline-none active:bg-accent/60">
+            <Settings size={20} className="shrink-0 text-muted-foreground" />
             Settings
           </BaseDialog.Trigger>
           <BaseDialog.Portal>
@@ -327,6 +329,7 @@ function PhoneSettings({
             </BaseDialog.Popup>
           </BaseDialog.Portal>
         </BaseDialog.Root>
+        <span className="flex-1" />
         <ErrorStatus phone />
       </div>
     </div>
