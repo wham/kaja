@@ -444,19 +444,19 @@ function ProblemBanner({ problem, readOnly, onRetry }: { problem: McpProblem; re
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md border px-3 py-2",
+        "flex items-start gap-2 max-sm:flex-wrap rounded-md border px-3 py-2",
         step ? "border-border bg-card" : warning ? "border-amber-500/40 bg-amber-500/10" : "border-destructive/40 bg-destructive/10",
       )}
     >
       <div className={cn("pt-0.5", step ? "text-muted-foreground" : warning ? "text-amber-600 dark:text-amber-400" : "text-destructive")}>
         <Icon size={15} />
       </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="text-sm text-foreground">{problem.message}</p>
         {problem.detail && <p className="break-words font-mono text-xs text-muted-foreground">{problem.detail}</p>}
       </div>
       {!readOnly && !step && (
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2 max-sm:w-full max-sm:pl-[23px]">
           <Button variant="ghost" size="sm" onClick={onRetry}>
             Retry
           </Button>

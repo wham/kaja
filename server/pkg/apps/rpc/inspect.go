@@ -273,6 +273,10 @@ func wrongTransport(mode string) string {
 	return "The server is there, but it only speaks TLS."
 }
 
+// What grpc-go says when the deadline passed before there was a connection, which is
+// the only thing telling that from a server that took the call and never answered.
+const neverConnected = "waiting for connections to become ready"
+
 func classify(err error) *Problem {
 	detail := brief(err.Error())
 	switch grpcstatus.Code(err) {
@@ -295,6 +299,13 @@ func classify(err error) *Problem {
 			Detail:  detail,
 		}
 	case grpccodes.DeadlineExceeded:
+		if strings.Contains(detail, neverConnected) {
+			return &Problem{
+				Kind:    ProblemTimeout,
+				Message: "Couldn't connect to the server.",
+				Detail:  fmt.Sprintf("Nothing answered within %d seconds. It may be down, or the address or port may be wrong.", int(reflectTimeout.Seconds())),
+			}
+		}
 		return &Problem{
 			Kind:    ProblemTimeout,
 			Message: "The server didn't answer in time.",

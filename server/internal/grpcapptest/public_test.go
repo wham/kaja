@@ -18,8 +18,8 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// The public gRPC servers this suite reads: grpcb.in, the demo workspace's upstream,
-// on its plaintext and its TLS port, and Postman's echo server, which is the one
+// The public gRPC servers this suite reads: Eliza, the demo workspace's upstream,
+// and Postman's echo server, which is the one
 // everybody points a gRPC client at first.
 var publicServers = []struct {
 	name string
@@ -29,8 +29,7 @@ var publicServers = []struct {
 	dial string
 	tls  bool
 }{
-	{name: "grpcb.in", url: "grpc://grpcb.in:9000", dial: "grpcb.in:9000"},
-	{name: "grpcb.in over TLS", url: "grpcs://grpcb.in:9001", dial: "grpcb.in:9001", tls: true},
+	{name: "eliza", url: "dns:demo.connectrpc.com:443", dial: "demo.connectrpc.com:443", tls: true},
 	{name: "grpc.postman-echo.com", url: "dns:grpc.postman-echo.com:443", dial: "grpc.postman-echo.com:443", tls: true},
 }
 
@@ -65,7 +64,7 @@ func TestPublicReflection(t *testing.T) {
 // with a certificate the machine trusts, which is the one case where kaja can say
 // what is wrong rather than that it couldn't connect.
 func TestPublicWrongTransport(t *testing.T) {
-	server := publicServers[2]
+	server := publicServers[1]
 	skipUnlessReachable(t, server.dial)
 
 	response := inspect(t, map[string]string{"url": server.url, "reflection": "true", "tls": "off"})
@@ -107,20 +106,20 @@ func skipUnlessReachable(t *testing.T, address string) {
 // the window does it: reflect the server, compile what it declared, then make the
 // call a script would make. It is the one case here where every piece is real at once.
 func TestLiveDemoApp(t *testing.T) {
-	skipUnlessReachable(t, "grpcb.in:9000")
+	skipUnlessReachable(t, "demo.connectrpc.com:443")
 
-	const target = "grpc://grpcb.in:9000"
+	const target = "dns:demo.connectrpc.com:443"
 	sources, _ := openAndCompile(t, &api.WorkspaceApp{
-		Name: "grpcb.in",
+		Name: "eliza",
 		App:  &api.WorkspaceApp_Grpc{Grpc: &api.GrpcApp{Url: target, Reflection: true}},
 	})
 	t.Logf("generated: %v", sourceNames(sources))
 
-	k := openKaja(t, "grpcb.in", map[string]string{"url": target, "reflection": "true"}, nil)
+	k := openKaja(t, "eliza", map[string]string{"url": target, "reflection": "true"}, nil)
 	files := reflectedFiles(t, target)
 
 	t.Run("a unary call", func(t *testing.T) {
-		e := k.invoke(t, "hello.HelloService/SayHello", build(t, files, "hello.HelloRequest", map[string]any{"greeting": "kaja"}), nil)
+		e := k.invoke(t, "connectrpc.eliza.v1.ElizaService/Say", build(t, files, "connectrpc.eliza.v1.SayRequest", map[string]any{"sentence": "kaja"}), nil)
 		code, message := e.grpcStatus(t)
 		if code != "0" {
 			t.Fatalf("grpc-status = %q (%s)", code, message)
@@ -128,7 +127,7 @@ func TestLiveDemoApp(t *testing.T) {
 		if len(e.Messages) != 1 {
 			t.Fatalf("%d messages, want 1", len(e.Messages))
 		}
-		answered := decode(t, files, "hello.HelloResponse", e.Messages[0])
+		answered := decode(t, files, "connectrpc.eliza.v1.SayResponse", e.Messages[0])
 		t.Logf("answered with %d bytes: %s", len(e.Messages[0]), firstLine(answered.String()))
 	})
 
@@ -136,7 +135,7 @@ func TestLiveDemoApp(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 
-		e := k.invokeWithin(t, ctx, "hello.HelloService/LotsOfReplies", build(t, files, "hello.HelloRequest", map[string]any{"greeting": "kaja"}), nil)
+		e := k.invokeWithin(t, ctx, "connectrpc.eliza.v1.ElizaService/Introduce", build(t, files, "connectrpc.eliza.v1.IntroduceRequest", map[string]any{"name": "kaja"}), nil)
 		code, message := e.grpcStatus(t)
 		t.Logf("the stream carried %d message(s) and ended with %s (%s)", len(e.Messages), code, message)
 		if code != "0" {
