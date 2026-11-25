@@ -54,6 +54,8 @@ export const codeTheme = EditorView.theme({
     borderRadius: "6px",
     boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
     overflow: "hidden",
+    // WebKit draws it absolute, in a host with no width to shrink to.
+    width: "max-content",
     maxWidth: "var(--tooltip-max-width, none)",
   },
   // Off the line it describes, so the code under it stays readable.

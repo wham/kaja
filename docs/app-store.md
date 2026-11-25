@@ -94,10 +94,10 @@ caption is what the picture is for rather than something drawn into it.
 | --- | --- | --- | --- |
 | `06-canvas.png` | 1 | Tables, not JSON | Full-screen canvas: `trending.ts` listing this week's most-starred repositories, each one a link into `repo-pulse.ts`. |
 | `05-run.png` | 2 | See exactly what happened | The drafted `Licenses.GetAllCommonlyUsed` call, run, with its response under the editor. |
-| `03-apps.png` | 3 | Connect. Run. Inspect. | The GitHub and Eliza trees in the sidebar, and Start listing the workspace's scripts. |
+| `03-apps.png` | 3 | Connect. Run. Inspect. | The GitHub and grpcb.in trees in the sidebar, and Start listing the workspace's scripts. |
 | `02-new-app.png` | 4 | Connect your API | The New app form asking for the type: OpenAPI, MCP, gRPC and Twirp. |
 | `04-draft.png` | 5 | Click a method, get a typed script | The draft a click on `Licenses.GetAllCommonlyUsed` wrote. |
-| `07-stats.png` | 6 | Load test with one call | Full-screen Stats for `how-fast.ts` against Eliza. |
+| `07-stats.png` | 6 | Load test with one call | Full-screen Stats for `how-fast.ts` against grpcb.in. |
 | `08-variables.png` | 7 | Secrets stay out of your files | The Variables table with a Keychain row beside plain values. |
 | `09-agent.png` | 8 | Works with the agent you already use | The MCP server page with the agents it can be added to. |
 | `01-start.png` | 9 | Start with an app or an agent | Start in an empty workspace: the map, and the two ways in. |
