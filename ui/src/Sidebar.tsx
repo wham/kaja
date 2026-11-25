@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "./cn";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "./components/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCursorAnchor, DropdownMenuItem } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { SimpleTooltip } from "./components/tooltip";
 import { TreeView } from "./components/tree-view";
@@ -525,7 +525,7 @@ export const Sidebar = memo(function Sidebar({
           {scriptsRegion}
         </TabPane>
       </div>
-      <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <DropdownMenuCursorAnchor ref={appMenuAnchorRef} at={appMenu} />
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
         <DropdownMenuContent align="start" anchor={appMenuAnchorRef} className="w-48">
           <DropdownMenuItem

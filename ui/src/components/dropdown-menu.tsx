@@ -53,6 +53,13 @@ function DropdownMenuContent({ className, align = "center", side = "bottom", sid
   );
 }
 
+function DropdownMenuCursorAnchor({ at, ref }: { at: { top: number; left: number } | null; ref: React.Ref<HTMLDivElement> }) {
+  // The popup is still positioned while it fades out, so a closed menu keeps the point it was opened at.
+  const held = React.useRef({ top: 0, left: 0 });
+  if (at) held.current = { top: at.top, left: at.left };
+  return <div ref={ref} style={{ position: "fixed", ...held.current, width: 1, height: 1, pointerEvents: "none" }} />;
+}
+
 interface DropdownMenuItemProps extends Omit<React.ComponentPropsWithoutRef<typeof Menu.Item>, "onClick"> {
   variant?: "default" | "danger";
   onSelect?: () => void;
@@ -78,4 +85,4 @@ function DropdownMenuSeparator({ className }: { className?: string }) {
   return <Menu.Separator className={cnState("-mx-1 my-1 h-px bg-border max-sm:mx-2", className)} />;
 }
 
-export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator };
+export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCursorAnchor, DropdownMenuItem, DropdownMenuSeparator };

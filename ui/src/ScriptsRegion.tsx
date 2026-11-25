@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "./cn";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCursorAnchor, DropdownMenuItem, DropdownMenuSeparator } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { PLAIN_TEXT } from "./components/input";
 import { Spinner } from "./components/spinner";
@@ -1550,7 +1550,7 @@ function CursorMenu({
   const anchor = useRef<HTMLDivElement>(null);
   return (
     <>
-      <div ref={anchor} style={{ position: "fixed", top: at?.top ?? 0, left: at?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <DropdownMenuCursorAnchor ref={anchor} at={at} />
       <DropdownMenu open={at !== null} onOpenChange={(open) => !open && onClose()}>
         <DropdownMenuContent align="start" anchor={anchor} className={width}>
           {children}
