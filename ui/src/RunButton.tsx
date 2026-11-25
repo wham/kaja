@@ -11,8 +11,6 @@ interface RunButtonProps {
   running: boolean;
   // Wall-clock start of the run in flight, for the elapsed counter.
   startedAt?: number;
-  // The first error stopping the run. Run goes disabled and says so.
-  error?: string;
   // Omitted rather than disabled on a script that reads nothing — a greyed item makes
   // people hunt for the way to enable it.
   onRunWithParameters?: () => void;
@@ -46,7 +44,6 @@ export function RunButton({
   onStop,
   running,
   startedAt,
-  error,
   onRunWithParameters,
   onCopyDeeplink,
   onRevealInFinder,
@@ -61,7 +58,6 @@ export function RunButton({
   const runWithParametersLabel = useShortcutLabel("runWithParameters");
   const copyDeeplinkLabel = useShortcutLabel("copyDeeplink");
   const saveAsFileLabel = useShortcutLabel("saveAsFile");
-  const disabled = !running && error !== undefined;
   // What the second group holds, which decides whether there is a separator above it.
   const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onSaveAsFile, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to choose
@@ -74,20 +70,12 @@ export function RunButton({
         "flex shrink-0 items-stretch overflow-hidden",
         large ? "h-[36px] rounded-md" : "h-7 rounded-[7px]",
         running ? "border border-border bg-secondary text-secondary-foreground" : "bg-emerald-600 text-white",
-        disabled && "opacity-45",
       )}
     >
       <button
         type="button"
-        disabled={disabled}
-        title={error}
         onClick={() => (running ? onStop() : onRun())}
-        className={cn(
-          "flex items-center",
-          large ? "gap-2 px-4" : "gap-1.5 px-2.5",
-          !running && !disabled && "hover:bg-emerald-700",
-          disabled && "cursor-default",
-        )}
+        className={cn("flex items-center", large ? "gap-2 px-4" : "gap-1.5 px-2.5", !running && "hover:bg-emerald-700")}
       >
         {running ? <Spinner className={cn("text-muted-foreground", large ? "size-[15px]" : "size-[13px]")} /> : <Play size={large ? 15 : 13} />}
         <span className={cn("font-medium", large ? "text-sm" : "text-xs")}>{running ? "Stop" : "Run"}</span>
@@ -96,7 +84,7 @@ export function RunButton({
         ) : (
           // The hint is the first thing to go as the command row narrows: the screens that
           // narrow it that far have no keyboard to press.
-          !disabled && !large && runLabel !== "" && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runLabel}</span>
+          !large && runLabel !== "" && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runLabel}</span>
         )}
       </button>
       {split && (
@@ -106,14 +94,8 @@ export function RunButton({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                disabled={disabled}
                 aria-label="More run options"
-                className={cn(
-                  "flex items-center justify-center",
-                  large ? "w-[32px]" : "w-[22px]",
-                  !disabled && "hover:bg-emerald-700",
-                  disabled && "cursor-default",
-                )}
+                className={cn("flex items-center justify-center", large ? "w-[32px]" : "w-[22px]", "hover:bg-emerald-700")}
               >
                 <ChevronDown size={large ? 15 : 13} />
               </button>

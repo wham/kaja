@@ -2,6 +2,7 @@ import {
   autocompletion,
   closeBrackets,
   closeBracketsKeymap,
+  closeCompletion,
   Completion,
   CompletionContext,
   CompletionResult,
@@ -10,7 +11,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
-import { Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
+import { Diagnostic, forEachDiagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -38,12 +39,13 @@ import { runInputDeclaration } from "./scriptInputs";
 import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
 import { readRunReferences, runNameAt, unresolvedIn } from "./scriptRuns";
 import { claimedBindings, isMacPlatform, subscribeShortcuts } from "./shortcuts";
-import { reportDiagnostics } from "./syntaxErrors";
+import { runRefusals, showRefusal, RunRefusal } from "./runRefusal";
+import { SETTLE_MS, settledDiagnostics } from "./settledDiagnostics";
 import { valueEditing } from "./valueEditing";
 import { verbChips } from "./verbChips";
 import { getBuffer, lineColumnAt, offsetAt, openBuffer, TextBuffer } from "./textBuffer";
 import { ScalarValue } from "./typeMemory";
-import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, subscribeProgram } from "./typescriptService";
+import { askTypeScript, DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING, isSyntaxCode, subscribeProgram } from "./typescriptService";
 import { suggestValues } from "./valueCompletions";
 
 // Scripts get the kaja object through `import { kaja } from "kaja"` — the task runner
@@ -69,11 +71,33 @@ const liveViews = new Map<EditorView, string>();
 // finished has to be asked for again: this effect is what the linter refreshes on.
 const recheck = StateEffect.define<null>();
 
+function relint(view: EditorView) {
+  if (!liveViews.has(view)) return;
+  view.dispatch({ effects: recheck.of(null) });
+  forceLinting(view);
+}
+
 function relintAll() {
-  for (const view of liveViews.keys()) {
-    view.dispatch({ effects: recheck.of(null) });
-    forceLinting(view);
-  }
+  for (const view of liveViews.keys()) relint(view);
+}
+
+// When somebody last typed in an editor, and the check that follows their pause.
+const lastEdits = new WeakMap<EditorView, number>();
+const settling = new WeakMap<EditorView, ReturnType<typeof setTimeout>>();
+
+function noteEdit(view: EditorView) {
+  lastEdits.set(view, Date.now());
+  clearTimeout(settling.get(view));
+  settling.set(
+    view,
+    setTimeout(() => relint(view), SETTLE_MS),
+  );
+}
+
+function settleNow(view: EditorView) {
+  clearTimeout(settling.get(view));
+  lastEdits.delete(view);
+  relint(view);
 }
 
 // A script's text is nothing another script is checked against, so an edit in one
@@ -323,7 +347,6 @@ function typescriptLinter(buffer: TextBuffer) {
       const found = await askTypeScript("diagnostics", buffer.path).catch(() => []);
       // The worker answered for the text it had, which is this text only if nothing was
       // typed in between; the linter drops an answer about an older document itself.
-      reportDiagnostics(buffer.path, found);
       const length = view.state.doc.length;
       const diagnostics: Diagnostic[] = found
         .filter((diagnostic) => diagnostic.category === DIAGNOSTIC_ERROR || diagnostic.category === DIAGNOSTIC_WARNING)
@@ -333,7 +356,9 @@ function typescriptLinter(buffer: TextBuffer) {
           severity: diagnostic.category === DIAGNOSTIC_ERROR ? "error" : "warning",
           message: diagnostic.message,
         }));
-      return [...diagnostics, ...runDiagnostics(code)];
+      const shown: Diagnostic[] = [];
+      forEachDiagnostic(view.state, (diagnostic, from, to) => shown.push({ ...diagnostic, from, to }));
+      return settledDiagnostics([...diagnostics, ...runDiagnostics(code)], shown, Date.now() - (lastEdits.get(view) ?? 0));
     },
     {
       delay: 300,
@@ -543,6 +568,8 @@ export interface EditorHandle {
   saveViewState(): EditorViewState;
   // Puts the caret at an offset and scrolls to it.
   reveal(offset: number): void;
+  // Takes the caret to what stops the script from running and says what it is.
+  refuseRun(refusal: RunRefusal): void;
 }
 
 export interface onGoToDefinition {
@@ -625,8 +652,8 @@ export function Editor({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   // Read through refs, so the editor is created once per buffer rather than per render.
-  const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition });
-  callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition };
+  const callbacks = useRef({ onUserEdit, onContentHeight, onGoToDefinition, phone });
+  callbacks.current = { onUserEdit, onContentHeight, onGoToDefinition, phone };
   const editsValues = phone && !readOnly;
 
   useEffect(() => {
@@ -708,6 +735,7 @@ export function Editor({
           icons: false,
         }),
         typescriptLinter(buffer),
+        runRefusals,
         typescriptHover(buffer),
         tooltipBounds,
         definitionLinks(buffer),
@@ -734,6 +762,7 @@ export function Editor({
                   transaction.isUserEvent("move"),
               )
             ) {
+              noteEdit(update.view);
               callbacks.current.onUserEdit?.();
             }
           }
@@ -781,9 +810,27 @@ export function Editor({
       reveal(offsetAt(buffer.getValue(), startLineNumber, startColumn));
     }
 
+    const refuseRun = async (refusal: RunRefusal) => {
+      const code = view.state.doc;
+      closeCompletion(view);
+      settleNow(view);
+      // The worker's is the sentence the squiggle says; Babel's is what is left without one.
+      const found = await askTypeScript("diagnostics", buffer.path).catch(() => []);
+      if (disposed || !view.state.doc.eq(code)) return;
+      const first = found.find((diagnostic) => diagnostic.category === DIAGNOSTIC_ERROR && isSyntaxCode(diagnostic.code));
+      const { offset, message } = first ? { offset: Math.min(first.start, code.length), message: first.message } : refusal;
+      view.dispatch({
+        selection: { anchor: offset },
+        effects: [showRefusal.of({ offset, message }), EditorView.scrollIntoView(offset, { y: "center" })],
+      });
+      // On a phone the focus is a keyboard over the code.
+      if (!callbacks.current.phone) view.focus();
+    };
+
     onMount?.({
       getValue: () => view.state.doc.toString(),
       saveViewState: () => ({ anchor: view.state.selection.main.anchor, head: view.state.selection.main.head, scrollTop: view.scrollDOM.scrollTop }),
+      refuseRun: (refusal) => void refuseRun(refusal),
       reveal: (offset) => reveal(Math.min(offset, view.state.doc.length)),
     });
     callbacks.current.onContentHeight?.(view.contentHeight);
@@ -793,6 +840,7 @@ export function Editor({
       unsubscribeBuffer();
       unsubscribeShortcuts();
       liveViews.delete(view);
+      clearTimeout(settling.get(view));
       view.destroy();
       viewRef.current = null;
     };

@@ -48,6 +48,8 @@ interface PhoneFrameProps {
   script?: PhoneScript;
   // Set while that script is the view on screen: its code and its run are the body.
   onScript: boolean;
+  // Counts the times the code was asked for from outside the frame.
+  codeRequest: number;
   // The mounted editors, whichever view is current; they live in the code pane.
   editor: React.ReactNode;
   console: (phone: PhoneConsole) => React.ReactNode;
@@ -69,6 +71,7 @@ export function PhoneFrame({
   action,
   script,
   onScript,
+  codeRequest,
   editor,
   console: renderConsole,
   children,
@@ -100,6 +103,13 @@ export function PhoneFrame({
     if (newestRunId !== undefined && newestRunning) showRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newestRunId]);
+
+  const seenRequest = useRef(codeRequest);
+  useLayoutEffect(() => {
+    if (seenRequest.current === codeRequest) return;
+    seenRequest.current = codeRequest;
+    setCode(true);
+  }, [codeRequest]);
 
   const onRunView = useCallback(
     (view: ConsoleView) => {
@@ -296,9 +306,7 @@ export function PhoneFrame({
           )}
           {/* Always in the document, because an editor unmounted is an editor disposed, and
               it is the one the window's view cache is holding. */}
-          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>
-            {editor}
-          </div>
+          <div className={cn("flex min-h-0 flex-1 flex-col", !(onScript && code) && "hidden")}>{editor}</div>
           <div className={cn("flex min-h-0 flex-1 flex-col", onScript && "hidden")} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {children}
           </div>

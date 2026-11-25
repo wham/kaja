@@ -1,4 +1,4 @@
-import { Ban, ChevronsUpDown, CircleAlert, Search, type LucideIcon } from "lucide-react";
+import { Ban, ChevronsUpDown, Search, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
@@ -54,8 +54,6 @@ interface FinderProps {
   // Most recent first; the first is where you are.
   recent: Destination[];
   elsewhere: Destination[];
-  // The trigger says so, and Run beside it goes disabled on the same condition.
-  errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   // ⌘P opens on the previous place so ⌘P⏎ is "back"; a click on the trigger opens on
@@ -68,7 +66,7 @@ interface FinderProps {
  * shows one thing, and this is how you reach another without walking the tree. So it
  * is a finder, not a tab list: nothing here can be closed, because nothing was opened.
  */
-export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, highlightPrevious }: FinderProps) {
+export function Finder({ recent, elsewhere, open, onOpenChange, highlightPrevious }: FinderProps) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -137,13 +135,12 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           className={cn(
             // It gives up room before anything else in the row does — a label that truncates is
             // read; a button that shrinks is one drawn over the button next to it.
-            "relative flex h-7 min-w-0 items-center gap-2 rounded-[7px] border bg-muted px-2.5 hover:bg-accent",
+            "relative flex h-7 min-w-0 items-center gap-2 rounded-[7px] bg-muted px-2.5 hover:bg-accent",
             open && "bg-accent",
-            errorCount > 0 ? "border-destructive" : "border-transparent",
           )}
           style={{ maxWidth: TRIGGER_MAX_WIDTH }}
         >
-          <TriggerContent destination={current} errorCount={errorCount} />
+          <TriggerContent destination={current} />
           <ChevronsUpDown size={15} className="shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -257,17 +254,17 @@ function DestinationRow({
 // The trigger says where you are, in 26px: icon, name, and the one qualifier that
 // tells two identically named calls apart. There is always somewhere to be — Start is
 // the bottom of the stack — so it has no "nothing open" state to draw.
-function TriggerContent({ destination, errorCount }: { destination: Destination; errorCount: number }) {
+function TriggerContent({ destination }: { destination: Destination }) {
   const [dropLabel, setDropLabel] = useState(false);
   const probeRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const probe = probeRef.current;
     setDropLabel(probe ? probe.offsetWidth > TRIGGER_MAX_WIDTH - TRIGGER_CHROME : false);
-  }, [destination.name, destination.origin, errorCount]);
+  }, [destination.name, destination.origin]);
 
-  const Icon = errorCount > 0 ? CircleAlert : destination.icon;
-  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : destination.origin;
+  const Icon = destination.icon;
+  const qualifier = destination.origin;
 
   return (
     <>
@@ -279,7 +276,7 @@ function TriggerContent({ destination, errorCount }: { destination: Destination;
           {qualifier && <span className="text-xs">{qualifier}</span>}
         </span>
       </span>
-      <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", destination.provisional && "opacity-60")} />
+      <Icon size={15} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
         className={cn("min-w-0 truncate text-sm font-medium", destination.provisional ? "text-muted-foreground" : "text-foreground")}
         // Truncating from the left keeps the call name, which is the end of a qualified one.
@@ -292,9 +289,7 @@ function TriggerContent({ destination, errorCount }: { destination: Destination;
           wide in the first place, which the probe measures nothing about. Either
           way the qualifier goes before the name truncates — a name cut to its
           last letter says less than no qualifier does. */}
-      {qualifier && !dropLabel && (
-        <span className={cn("shrink-0 text-xs @max-[340px]:hidden", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
-      )}
+      {qualifier && !dropLabel && <span className="shrink-0 text-xs text-muted-foreground @max-[340px]:hidden">{qualifier}</span>}
     </>
   );
 }

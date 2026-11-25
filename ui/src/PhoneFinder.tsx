@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { Ban, CircleAlert, Search, X } from "lucide-react";
+import { Ban, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { PLAIN_TEXT } from "./components/input";
@@ -135,22 +135,20 @@ export function PhoneFinder({ recent, elsewhere, open, onOpenChange }: PhoneFind
   );
 }
 
-/** The header's label: where you are, or how many errors the file there has. */
-export function PhoneLocation({ current, errorCount }: { current: Destination; errorCount: number }) {
-  const Icon = errorCount > 0 ? CircleAlert : current.icon;
-  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : current.origin;
+/** The header's label: where you are. */
+export function PhoneLocation({ current }: { current: Destination }) {
+  const Icon = current.icon;
+  const qualifier = current.origin;
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
-      <Icon size={15} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", current.provisional && "opacity-60")} />
+      <Icon size={15} className={cn("shrink-0 text-muted-foreground", current.provisional && "opacity-60")} />
       <span
         className={cn("min-w-0 truncate text-sm font-medium", current.file && "font-mono", current.provisional ? "text-muted-foreground" : "text-foreground")}
       >
         {current.file ? <FileName name={current.name} /> : current.name}
       </span>
       {/* The place gives way before the name does. */}
-      {qualifier && (
-        <span className={cn("min-w-0 shrink-[3] truncate text-sm", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
-      )}
+      {qualifier && <span className="min-w-0 shrink-[3] truncate text-sm text-muted-foreground">{qualifier}</span>}
     </div>
   );
 }

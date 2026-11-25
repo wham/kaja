@@ -58,7 +58,7 @@ import { classifyFailure } from "./callFailure";
 import { unsupportedReason } from "./streaming";
 import { RunButton } from "./RunButton";
 import { checkScript, ScriptDiagnostic } from "./scriptDiagnostics";
-import { useSyntaxErrors } from "./syntaxErrors";
+import { runRefusal } from "./runRefusal";
 import { Sidebar, type PendingApp, type SidebarTab, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { ScriptsRegion } from "./ScriptsRegion";
 import { SidebarFoot, ColorMode, FeaturePreview } from "./SidebarFoot";
@@ -2189,12 +2189,21 @@ export function App() {
   const reportAppFormSave = useCallback((viewId: string, control: AppFormSaveControl | undefined) => {
     setAppFormSaves(({ [viewId]: _, ...others }) => (control ? { ...others, [viewId]: control } : others));
   }, []);
-  const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.buffer : undefined);
   const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.buffer : undefined);
   // Read rather than depended on: the keys move with the buffer, and Run is not a new
   // function every time a parameter is typed.
   const inputKeysRef = useRef(inputKeys);
   inputKeysRef.current = inputKeys;
+
+  // A phone reading the run has the code behind it, so a refusal brings the code up.
+  const [codeRequest, setCodeRequest] = useState(0);
+  const refusesRun = useCallback((editor: EditorHandle) => {
+    const refusal = runRefusal(editor.getValue());
+    if (!refusal) return false;
+    setCodeRequest((count) => count + 1);
+    editor.refuseRun(refusal);
+    return true;
+  }, []);
 
   const onRunCurrentTab = useCallback(
     (input?: { [key: string]: string }) => {
@@ -2206,6 +2215,7 @@ export function App() {
       if (!editor) {
         return;
       }
+      if (refusesRun(editor)) return;
       const code = editor.getValue();
       const controller = new AbortController();
       const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
@@ -2223,7 +2233,7 @@ export function App() {
         updateDraft(view.draftId, (draft) => markRun(draft, code, Date.now()));
       }
     },
-    [apps, beginRun, reportScriptError, updateDraft, markSettled],
+    [apps, beginRun, reportScriptError, updateDraft, markSettled, refusesRun],
   );
 
   /**
@@ -2304,12 +2314,14 @@ export function App() {
     const view = viewsRef.current[0];
     if (!view || (view.type !== "draft" && view.type !== "script")) return;
     if (inputKeys.length === 0) return;
+    const editor = editorRegistryRef.current.get(view.id);
+    if (editor && refusesRun(editor)) return;
     setRunPrompt({
       fileId: view.type === "script" ? view.script.path : view.draftId,
       fileName: view.type === "script" ? view.script.name : viewIdentity(view, draftsRef.current).name,
       parameters: inputKeys,
     });
-  }, [inputKeys]);
+  }, [inputKeys, refusesRun]);
   const onRunWithParametersRef = useRef(onRunWithParameters);
   onRunWithParametersRef.current = onRunWithParameters;
 
@@ -2743,7 +2755,6 @@ export function App() {
       onStop={onStopActiveRun}
       running={running}
       startedAt={runningSince}
-      error={syntaxErrors.first}
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
@@ -3040,12 +3051,13 @@ export function App() {
             onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
           />
           <PhoneFrame
-            location={<PhoneLocation current={recent[0]} errorCount={currentIsEditor ? syntaxErrors.count : 0} />}
+            location={<PhoneLocation current={recent[0]} />}
             drawer={sidebar}
             drawerOpen={phoneSidebarOpen}
             onDrawerOpenChange={setPhoneSidebarOpen}
             action={action}
             script={phoneScript}
+            codeRequest={codeRequest}
             onScript={phoneScriptView !== undefined && phoneScriptView.id === currentView?.id}
             editor={<div className="flex min-h-0 flex-1 flex-col">{editorBodies.map((view) => bodyOf(view, phoneScriptView?.id))}</div>}
             console={(phone) => (
@@ -3110,7 +3122,6 @@ export function App() {
                   <Finder
                     recent={recent}
                     elsewhere={elsewhere}
-                    errorCount={currentIsEditor ? syntaxErrors.count : 0}
                     open={finder !== undefined}
                     onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
                     highlightPrevious={finder === "previous"}

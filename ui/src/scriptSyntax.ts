@@ -23,6 +23,25 @@ export function parseScript(code: string): File | undefined {
 }
 
 /**
+ * What stops a script from running, read when it is asked to. An error Babel recovers
+ * from is left to the run, except a top-level return: the wrapper would honour one.
+ */
+export function parseRunnable(code: string): { error?: { offset: number; message: string } } {
+  try {
+    const file = parse(code, { sourceType: "module", plugins: ["typescript"], errorRecovery: true, attachComment: false });
+    const illegalReturn = file.errors?.find((error) => error.reasonCode === "IllegalReturn");
+    return illegalReturn ? { error: syntaxError(illegalReturn) } : {};
+  } catch (error) {
+    return { error: syntaxError(error) };
+  }
+}
+
+function syntaxError(error: unknown): { offset: number; message: string } {
+  const { pos, message } = error as { pos?: number; message: string };
+  return { offset: pos ?? 0, message: message.replace(/\s*\(\d+:\d+\)/, "") };
+}
+
+/**
  * Every node under `node`, in source order. Babel keeps no parent pointers, so each
  * is handed the node it was reached from; returning false skips its children.
  */
