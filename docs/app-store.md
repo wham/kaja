@@ -34,45 +34,24 @@ Kaja is the API client for people and agents.
 
 Connect OpenAPI, MCP, or gRPC. Explore APIs yourself, or let an agent write and run typed scripts. Every request stays visible and inspectable.
 
-CONNECT. RUN. INSPECT.
-One window: your APIs on the left, the script in the middle, and every call it made underneath.
-
 CONNECT YOUR API
-• OpenAPI 3.0 and 3.1 from a URL, a file, or pasted text
-• MCP servers, whose tools, prompts and resources become methods you can call
-• gRPC through server reflection or your .proto files, with TLS and credentials per app
-• Twirp through its address and your .proto files
-• Pick GitHub, OpenAI, Atlassian or Sentry from a list instead of hunting for the address
-Browse every service and method in one tree.
-
-SIGN IN INSTEAD OF PASTING A TOKEN
-• Kaja runs the OAuth sign-in an MCP server asks for and renews the token on its own
-• Sign in to GitHub's REST API straight from the form
-• Give an OpenAPI app a client ID and secret, and Kaja exchanges them for the token
-• One sign-in covers every app that calls the same server
+• OpenAPI from a URL or a file
+• MCP servers, whose tools become methods you can call
+• gRPC and Twirp, through server reflection or your .proto files
+• Sign in with your browser instead of pasting a token
 
 RUN IT YOURSELF OR ASK AN AGENT
-• Click a method and Kaja drafts the call as a typed TypeScript script
-• Autocomplete for every request field, straight from the API's own types
-• Chain calls and page through a whole list with one line
-• Ask for input as the script runs: text, a number, one choice or several
-• Draw tables and text on a canvas instead of reading raw JSON
-• Link a table cell to another script, so one result opens the next
-• Approve a call before it is sent
-• Run a load test and read latency percentiles, throughput and errors
-• Give a script an address and run it from Raycast, Alfred, Shortcuts or a shell
+• Click a method and Kaja drafts the call as a TypeScript script, with autocomplete for every field
+• Chain calls, page through lists, and ask for input as the script runs
+• Show results as tables instead of raw JSON
+• Run a load test and read latency, throughput and errors
+• Point Claude Code, Codex, Cursor or any other MCP-capable agent at Kaja, and it writes and runs scripts against your APIs
 
 SEE EXACTLY WHAT HAPPENED
-Requests, responses, headers, duration and status stay visible for every run. The log keeps every call in order, and the canvas shows what the script drew. A JSON document an API tucked inside a string opens in place.
+Every request, response, header, status and duration stays visible, whether you made the call or an agent did.
 
-AGENTS CAN DO THE WORK WITHOUT BECOMING A BLACK BOX
-Kaja includes an MCP server for the APIs you connected. Point Claude Code, Codex, Cursor, VS Code, GitHub Copilot or any other MCP-capable agent at it, with one command or one click. The agent writes TypeScript against your APIs and runs it through Kaja. It can connect a new API too, and Kaja opens its own form for whatever only you can answer, such as a credential. Every script an agent ran is listed under its name, and every request it made appears alongside your own.
-
-SECRETS STAY OUT OF YOUR FILES
-Keep a token in the macOS Keychain or the environment. Your workspace file only names it, and Kaja tells you when an app needs a value this Mac doesn't have yet. Stored values and sign-ins sync through iCloud Keychain.
-
-A WORKSPACE IS A FOLDER
-Open any folder as a workspace and switch between them. Everything lives in one kaja.json and the scripts beside it, so a workspace can be committed next to the code it tests and opens the same on every clone. Kaja collects no data.
+YOUR FILES, YOUR SECRETS
+A workspace is a folder: one kaja.json and your scripts, ready to commit next to your code. Tokens stay in the macOS Keychain, never in the file. Kaja collects no data.
 
 Kaja is open source. Documentation and a live demo are at kaja.tools.
 ```
