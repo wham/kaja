@@ -59,17 +59,11 @@ Kaja is open source. Documentation and a live demo are at kaja.tools.
 ## What's New
 
 ```
-• Workspaces: open any folder, switch between them, and keep one beside your code
-• Sign in to GitHub, Atlassian, Sentry and other servers from the app form, with no token to paste
-• Pick a known API or MCP server from a list when adding an app
-• An agent can connect an API for you, and Kaja opens its form for what only you can answer
-• A rebuilt editor that offers a missing import where the error is
-• Tables read their columns from the rows, and kaja.pages walks a paged list in one line
-• A script's question can take several answers, or one of your own
-• Apps and Scripts are two tabs, and Start lists the workspace's scripts
-• Scripts without a file are listed as Recent, signed by who ran them
-• Stored values sync through iCloud Keychain, and a missing one is flagged where it bites
-• The window remembers its size and position
+• Workspaces: open any folder and switch between them
+• Sign in with your browser instead of pasting a token
+• Pick GitHub, OpenAI and other known APIs from a list
+• An agent can connect an API for you
+• A faster, rebuilt script editor
 ```
 
 Check against the release notes before submitting.
