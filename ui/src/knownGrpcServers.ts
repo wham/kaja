@@ -8,7 +8,7 @@ export interface KnownGrpcServer {
   mark: (props: { size?: number; className?: string }) => React.ReactNode;
 }
 
-export const knownGrpcServers: KnownGrpcServer[] = [{ name: "Eliza", address: "demo.connectrpc.com:443", mark: GrpcMark }];
+export const knownGrpcServers: KnownGrpcServer[] = [{ name: "grpcb.in", address: "grpcb.in:443", mark: GrpcMark }];
 
 // The host and port, however the address was spelled: "dns:///example.com:443"
 // and "EXAMPLE.COM:443" are the same server, but another port on the host is not.

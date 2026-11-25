@@ -108,6 +108,6 @@ has no caption field, so a caption is drawn into the image.
 | 5 | See exactly what happened | The Calls log with the response JSON and the status, duration and size strip. |
 | 6 | Tables, not JSON | Full-screen canvas: the `good-first-issues.ts` table paging through GitHub's search, a page at a time. |
 | 7 | Scripts that ask | `good-first-issues.ts` paused on its question, which language to look in. |
-| 8 | Load test with one call | Full-screen Stats for `how-fast.ts` against Eliza. |
+| 8 | Load test with one call | Full-screen Stats for `how-fast.ts` against grpcb.in. |
 | 9 | Secrets stay out of your files | The Variables table with a Keychain row beside plain values. |
 | 10 | Works with the agent you already use | The MCP server page switched on, with Claude Code's command shown. |
