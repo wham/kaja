@@ -103,12 +103,15 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
   }, [highlight, rows.length]);
 
   const select = (destination: Destination | undefined) => {
-    if (!destination) return;
+    // The list stays on screen, reordered by the pick, while it fades out.
+    if (!open || !destination) return;
     destination.go();
     onOpenChange(false);
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
+    // The field keeps the focus through the fade, and a ⌘⏎ pressed then is the window's Run.
+    if (!open) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setHighlight((index) => (rows.length === 0 ? 0 : (index + 1) % rows.length));
@@ -156,7 +159,10 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           <input
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setHighlight(0);
+            }}
             onKeyDown={onKeyDown}
             placeholder="Go to a file or call…"
             aria-label="Go to a file or call"
