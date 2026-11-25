@@ -10,7 +10,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
-import { Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
+import { Action, Diagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -31,8 +31,10 @@ import {
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
+import { mergeImports } from "./drafts";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { kajaModuleDeclaration } from "./kajaModule";
+import { importSpecifiers, isUnknownName } from "./missingImports";
 import { noSuchScript } from "./scriptLink";
 import { runInputDeclaration } from "./scriptInputs";
 import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
@@ -316,6 +318,18 @@ function valueCompletions(context: CompletionContext): CompletionResult | null {
   };
 }
 
+function importActions(name: string): Action[] {
+  return importSpecifiers(name, valueCompletionApps).map((specifier) => ({
+    name: `Import from "${specifier}"`,
+    apply: (view) => {
+      const before = view.state.doc.toString();
+      const after = mergeImports(before, `import { ${name} } from "${specifier}";`);
+      view.dispatch({ changes: minimalChange(before, after), userEvent: "input.import" });
+      view.focus();
+    },
+  }));
+}
+
 function typescriptLinter(buffer: TextBuffer) {
   return linter(
     async (view) => {
@@ -332,6 +346,10 @@ function typescriptLinter(buffer: TextBuffer) {
           to: Math.min(diagnostic.start + diagnostic.length, length),
           severity: diagnostic.category === DIAGNOSTIC_ERROR ? "error" : "warning",
           message: diagnostic.message,
+          actions:
+            !view.state.readOnly && isUnknownName(diagnostic.code)
+              ? importActions(code.slice(diagnostic.start, diagnostic.start + diagnostic.length))
+              : undefined,
         }));
       return [...diagnostics, ...runDiagnostics(code)];
     },
@@ -804,7 +822,7 @@ export function Editor({
   // Without this the file that was open when the window last closed stays read-only for
   // the session.
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: editable.reconfigure(editableExtensions(readOnly, phone)) });
+    viewRef.current?.dispatch({ effects: [editable.reconfigure(editableExtensions(readOnly, phone)), recheck.of(null)] });
   }, [readOnly, phone]);
 
   useEffect(() => {

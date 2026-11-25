@@ -72,6 +72,15 @@ export const codeTheme = EditorView.theme({
   ".cm-tooltip.cm-completionInfo": { whiteSpace: "pre-wrap" },
   ".cm-diagnostic": { padding: "4px 8px", borderLeft: "none" },
   ".cm-diagnostic-error": { color: "var(--destructive)" },
+  ".cm-diagnosticAction": {
+    backgroundColor: "var(--secondary)",
+    color: "var(--secondary-foreground)",
+    borderRadius: "4px",
+    padding: "2px 8px",
+    fontSize: "12px",
+    cursor: "pointer",
+  },
+  ".cm-diagnosticAction:hover": { backgroundColor: "var(--accent)", color: "var(--accent-foreground)" },
   ".cm-lintRange-error": {
     backgroundImage: "none",
     textDecoration: "underline wavy var(--destructive)",

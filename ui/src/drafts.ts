@@ -185,7 +185,7 @@ export function mergeImports(existingCode: string, importing: string): string {
 
   for (const imported of importsOf(parseScript(importing), importing)) {
     // A draft mid-edit has no import lines to merge into, so the call brings its own.
-    const target = importsOf(parseScript(code), code).find((candidate) => candidate.module === imported.module);
+    const target = importsOf(parseScript(code), code).find((candidate) => candidate.mergeable && candidate.module === imported.module);
 
     if (!target) {
       additions.push(imported.text);
@@ -200,7 +200,7 @@ export function mergeImports(existingCode: string, importing: string): string {
     if (brace === -1) continue;
     let at = brace;
     while (at > 0 && /\s/.test(code[at - 1])) at--;
-    code = code.slice(0, at) + `, ${missing.join(", ")}` + code.slice(at);
+    code = code.slice(0, at) + `${code[at - 1] === "," ? "" : ","} ${missing.join(", ")}` + code.slice(at);
   }
 
   if (additions.length > 0) {
@@ -215,6 +215,8 @@ export function mergeImports(existingCode: string, importing: string): string {
 interface ImportLine {
   module: string;
   names: string[];
+  // Whether a value can join its braces: a type-only or a braceless import takes none.
+  mergeable: boolean;
   text: string;
   end: number;
 }
@@ -224,7 +226,8 @@ function importsOf(file: File | undefined, code: string): ImportLine[] {
   for (const statement of file?.program.body ?? []) {
     if (statement.type !== "ImportDeclaration") continue;
     const names = statement.specifiers.flatMap((specifier) => (specifier.type === "ImportSpecifier" ? [specifier.local.name] : []));
-    lines.push({ module: statement.source.value, names, text: code.slice(statement.start!, statement.end!), end: statement.end! });
+    const mergeable = names.length > 0 && statement.importKind !== "type";
+    lines.push({ module: statement.source.value, names, mergeable, text: code.slice(statement.start!, statement.end!), end: statement.end! });
   }
   return lines;
 }
