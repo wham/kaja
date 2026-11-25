@@ -9,10 +9,10 @@
       }
     },
     {
-      "name": "eliza",
+      "name": "grpcb.in",
       "grpc": {
-        "url": "dns:demo.connectrpc.com:443",
-        "reflection": true,
+        "url": "dns:grpcb.in:443",
+        "proto_dir": "grpcbin/proto",
         "tls": "on"
       }
     },
