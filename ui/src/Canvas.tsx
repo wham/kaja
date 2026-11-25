@@ -49,7 +49,7 @@ import { PHONE_QUERY } from "./phone";
 import { useMediaQuery } from "./useMediaQuery";
 import { Button } from "./components/button";
 import { PLAIN_TEXT } from "./components/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCursorAnchor, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
 import {
   bodyMinHeight,
@@ -812,7 +812,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull, onCells, onRun }: Ta
           </div>
         )}
       </div>
-      <div ref={menuAnchor} style={{ position: "fixed", top: menu?.top ?? 0, left: menu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <DropdownMenuCursorAnchor ref={menuAnchor} at={menu} />
       <DropdownMenu open={menu !== null} onOpenChange={(open) => !open && setMenu(null)}>
         <DropdownMenuContent align="start" anchor={menuAnchor} className="w-40">
           {menuCell !== undefined && menuCell !== "" && <DropdownMenuItem onSelect={() => void copyText(menuCell)}>Copy value</DropdownMenuItem>}
