@@ -31,6 +31,7 @@ import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
 import { useMediaQuery } from "./useMediaQuery";
+import { NoAppsBlankslate } from "./NoAppsBlankslate";
 import { MissingVariable, missingVariableSentence } from "./variableUsage";
 import { WorkspaceMenu, type WorkspaceControl } from "./WorkspaceMenu";
 import {
@@ -184,6 +185,7 @@ export const Sidebar = memo(function Sidebar({
   onPendingAppSelect,
   onPendingAppDiscard,
 }: SidebarProps) {
+  const noApps = apps.length === 0 && pendingApps.length === 0;
   // Each tab keeps its own scroll. The pane that is not on screen has no box, so its
   // offset is kept here and put back when the tab returns.
   const paneRefs = useRef<Record<SidebarTab, HTMLDivElement | null>>({ apps: null, scripts: null });
@@ -308,7 +310,7 @@ export const Sidebar = memo(function Sidebar({
         onTabChange={onTabChange}
         action={
           tab === "apps"
-            ? canUpdateWorkspace && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
+            ? canUpdateWorkspace && !noApps && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
             : onNewScript && <RowAction icon={Plus} label="New script" onClick={onNewScript} />
         }
       />
@@ -317,9 +319,6 @@ export const Sidebar = memo(function Sidebar({
         {/* Both panes stay mounted and the one not on screen is hidden, so a fold, a
           hover, or a name being typed survives a switch. */}
         <TabPane tab="apps" active={tab} paneRefs={paneRefs} paneScroll={paneScroll}>
-          {/* Where there is an action, the empty list shows the action rather than
-              a sentence about it: this list can be filled from here, so its one row
-              is the verb, at the same 24px as the app rows it will be replaced by. */}
           {pendingApps.map((pending) => {
             const current = pending.viewId === currentViewId;
             const active = hoveredPending === pending.viewId;
@@ -342,20 +341,9 @@ export const Sidebar = memo(function Sidebar({
               </div>
             );
           })}
-          {apps.length === 0 &&
-            pendingApps.length === 0 &&
+          {noApps &&
             (canUpdateWorkspace ? (
-              <button
-                type="button"
-                onClick={onNewAppClick}
-                className={cn(
-                  SECTION_ROW,
-                  "w-full border-0 bg-transparent text-left font-normal text-muted-foreground hover:bg-accent/40 hover:text-foreground",
-                )}
-              >
-                <Plus size={14} className="shrink-0" />
-                <span>New app</span>
-              </button>
+              <NoAppsBlankslate onNewAppClick={onNewAppClick} />
             ) : (
               <div className="px-2 py-1 text-xs text-muted-foreground">Apps named in kaja.json appear here.</div>
             ))}
