@@ -523,7 +523,7 @@ shot 03-apps
 # -- 04  A call, as a script ---------------------------------------------------
 
 say "04  A call drafted into a script"
-go_to "GetAllCommonlyUsed" "GetAllCommonlyUsed - $PRODUCT_NAME"
+go_to "GetAllCommonlyUsed" "GetAllCommonlyUsed true - $PRODUCT_NAME"
 shot 04-draft
 
 # -- 05  Running it ------------------------------------------------------------
