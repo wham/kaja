@@ -278,8 +278,13 @@ export function App() {
   useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
   const [finder, setFinder] = useState<"first" | "previous">();
   // The phone's sidebar is a drawer, so it is a passing state rather than a persisted
-  // collapse: every launch opens on the page.
-  const [phoneSidebarOpen, setPhoneSidebarOpen] = useState(false);
+  // collapse: every launch opens on the page. A reload is not a launch, and a workspace
+  // switch is one made from inside the drawer, so the history entry carries it across;
+  // sessionStorage would, but the desktop's page has none.
+  const [phoneSidebarOpen, setPhoneSidebarOpen] = useState(() => window.history.state?.phoneSidebarOpen === true);
+  useEffect(() => {
+    window.history.replaceState({ ...window.history.state, phoneSidebarOpen }, "");
+  }, [phoneSidebarOpen]);
   const viewsRef = useRef(views);
   viewsRef.current = views;
   const draftsRef = useRef(drafts);
@@ -1509,7 +1514,7 @@ export function App() {
   const takeLinkFromLocation = useCallback(() => {
     if (!linksReadyRef.current || !hasKajaLink(window.location.href)) return;
     const href = window.location.href;
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
     openLinkRef.current(href);
   }, []);
 
