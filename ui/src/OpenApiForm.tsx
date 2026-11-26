@@ -1028,7 +1028,7 @@ function ClientCredentials({ scheme, variables, readOnly, parameters, onParamete
         />
       )}
       <p className="text-xs text-muted-foreground">
-        Kaja exchanges them for a token at <span className="font-mono">{tokenUrl}</span> and asks again when it runs out.
+        Kaja gets an access token with these from <span className="font-mono">{tokenUrl}</span> and renews it when it expires.
       </p>
     </ChoiceBody>
   );
