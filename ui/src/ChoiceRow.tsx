@@ -33,7 +33,7 @@ export function ChoiceRow({ selected, disabled, onSelect, icon: Icon, children }
       ) : (
         <span className="h-5 w-5 shrink-0 rounded-full border border-input" />
       )}
-      {Icon && !phone && <Icon size={15} className="shrink-0 text-muted-foreground" />}
+      {Icon && <Icon size={15} className="shrink-0 text-muted-foreground" />}
       {children}
     </button>
   );
