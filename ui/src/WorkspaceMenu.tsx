@@ -88,7 +88,8 @@ function useClipped(ref: React.RefObject<HTMLElement | null>, text: string) {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const measure = () => setClipped(element.scrollWidth > element.clientWidth);
+    // Under a page zoom WebKit rounds the two widths apart, so a name that fits reads a pixel over.
+    const measure = () => setClipped(element.scrollWidth - element.clientWidth > 1);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
