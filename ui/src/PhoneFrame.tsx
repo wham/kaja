@@ -134,6 +134,10 @@ export function PhoneFrame({
   useLayoutEffect(() => {
     rootRef.current?.style.setProperty("--drawer-progress", drawerOpen ? "1" : "0");
   }, [drawerOpen]);
+  // A drawer that opens with the page (a reload made from inside it) is in place on the
+  // first style pass, or it slides in over the page it covers: a child's layout effect
+  // measuring the page settles the styles before the effect above has written it.
+  const [initialProgress] = useState(drawerOpen ? "1" : "0");
 
   useLayoutEffect(() => {
     if (drawerOpen) {
@@ -235,7 +239,7 @@ export function PhoneFrame({
     <div
       ref={rootRef}
       className="group/frame fixed inset-0 overflow-hidden bg-chrome text-foreground"
-      style={{ overscrollBehavior: "contain", "--drawer-width": "min(86vw, 360px)" } as React.CSSProperties}
+      style={{ overscrollBehavior: "contain", "--drawer-width": "min(86vw, 360px)", "--drawer-progress": initialProgress } as React.CSSProperties}
     >
       <nav
         ref={drawerRef}
