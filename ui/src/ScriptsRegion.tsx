@@ -13,6 +13,7 @@ import {
   Link2,
   Pencil,
   Plug,
+  Plus,
   Save,
   Trash2,
   X,
@@ -25,6 +26,7 @@ import { PLAIN_TEXT } from "./components/input";
 import { Spinner } from "./components/spinner";
 import { SimpleTooltip } from "./components/tooltip";
 import { Script } from "./apps";
+import { SidebarBlankslate } from "./SidebarBlankslate";
 import { agentLabel, BROWSING_NOTE, isAgentDraft, isUntouched, recentDrafts, shortAge, Draft, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
 import {
@@ -141,6 +143,9 @@ export interface ScriptsRegionProps {
   onRevealScripts?: () => void;
   // A level at a time rather than a tree, at a phone's size.
   phone?: boolean;
+  hasApps?: boolean;
+  onNewDraft?: () => void;
+  onShowApps?: () => void;
 }
 
 export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionProps) {
@@ -161,6 +166,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
   const rows = useMemo(() => visibleRows(tree, new Set(openFolders)), [tree, openFolders]);
+  const empty = scripts.length === 0 && folders.length === 0 && recent.length === 0;
   const draftsShown = showAllDrafts ? recent : recent.slice(0, VISIBLE_DRAFTS);
   const hiddenDrafts = recent.length - draftsShown.length;
 
@@ -534,7 +540,23 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
         setDrag((current) => (current && current.folder !== null ? { ...current, folder: null } : current));
       }}
     >
-      {props.phone ? (
+      {empty ? (
+        props.hasApps ? (
+          <SidebarBlankslate
+            title="No scripts yet"
+            description="Pick a method in Apps and Kaja drafts a script, or ask an agent to write one"
+            action={{ label: "Blank script", icon: Plus, onClick: props.onNewDraft, outline: true }}
+            phone={props.phone}
+          />
+        ) : (
+          <SidebarBlankslate
+            title="No scripts yet"
+            description={canWrite ? "A script calls your apps, so add one first" : "A script calls your apps, and this workspace has none"}
+            action={{ label: "Go to Apps", onClick: props.onShowApps }}
+            phone={props.phone}
+          />
+        )
+      ) : props.phone ? (
         phoneList()
       ) : (
         <>

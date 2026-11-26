@@ -25,6 +25,7 @@ import {
 } from "./Sidebar";
 import { unsupportedReason } from "./streaming";
 import { groupServicesByPackage, hasMultiplePackages, serviceNodeId } from "./treeExpansion";
+import { SidebarBlankslate } from "./SidebarBlankslate";
 import { WorkspaceMenu } from "./WorkspaceMenu";
 
 // Where the Apps tab has been taken: an app, then a package where the app has more than
@@ -57,6 +58,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   onRecompileApp,
   onNewAppClick,
   onNewScript,
+  noScripts = false,
   onFinderClick,
   onVariablesClick,
   variablesMissing = false,
@@ -74,6 +76,7 @@ export const PhoneSidebar = memo(function PhoneSidebar({
   onPendingAppSelect,
   onPendingAppDiscard,
 }: SidebarProps) {
+  const noApps = apps.length === 0 && pendingApps.length === 0;
   const [level, setLevel] = useState<AppsLevel | undefined>(undefined);
   const appsPane = useRef<HTMLDivElement>(null);
 
@@ -164,8 +167,8 @@ export const PhoneSidebar = memo(function PhoneSidebar({
         </div>
         <div className="ml-auto flex shrink-0 items-center">
           {tab === "apps"
-            ? canUpdateWorkspace && <PhoneRowAction icon={Plus} label="New app" onClick={onNewAppClick} />
-            : onNewScript && <PhoneRowAction icon={Plus} label="New script" onClick={onNewScript} />}
+            ? canUpdateWorkspace && !noApps && <PhoneRowAction icon={Plus} label="New app" onClick={onNewAppClick} />
+            : onNewScript && !noScripts && <PhoneRowAction icon={Plus} label="New script" onClick={onNewScript} />}
         </div>
       </div>
 
@@ -198,12 +201,14 @@ export const PhoneSidebar = memo(function PhoneSidebar({
                 <span className="truncate italic">{pending.name}</span>
               </PhoneRow>
             ))}
-            {apps.length === 0 &&
-              pendingApps.length === 0 &&
+            {noApps &&
               (canUpdateWorkspace ? (
-                <PhoneRow icon={<Plus size={PHONE_ICON} />} onClick={onNewAppClick} className="text-muted-foreground">
-                  New app
-                </PhoneRow>
+                <SidebarBlankslate
+                  title="No apps yet"
+                  description="An app is an API your scripts call: gRPC, OpenAPI or MCP"
+                  action={{ label: "New app", icon: Plus, onClick: onNewAppClick }}
+                  phone
+                />
               ) : (
                 <div className="px-3 py-2 text-[15px] text-muted-foreground">Apps named in kaja.json appear here</div>
               ))}

@@ -41,6 +41,7 @@ import {
   isAgentDraft,
   isUntouched,
   markRun,
+  recentDrafts,
   reopen,
   Draft,
   takeOver,
@@ -2961,9 +2962,15 @@ export function App() {
         onCopyFolder={canWriteFiles ? onCopyFolder : undefined}
         onRevealScripts={canReveal ? onRevealScripts : undefined}
         phone={isPhone}
+        hasApps={apps.length > 0}
+        onNewDraft={isPhone ? closingSidebar(onNewDraft) : onNewDraft}
+        onShowApps={() => setSidebarTab("apps")}
       />
     ),
     [
+      apps.length,
+      onNewDraft,
+      setSidebarTab,
       scripts,
       scriptFolders,
       drafts,
@@ -2996,6 +3003,10 @@ export function App() {
   // On a phone the sidebar covers the page, so whatever it opens has to put it away.
   const phoneClosing = <A extends unknown[]>(fn: (...args: A) => unknown) => (isPhone ? closingSidebar(fn) : fn);
   const SidebarList = isPhone ? PhoneSidebar : Sidebar;
+  const noScripts =
+    (scripts ?? []).length === 0 &&
+    scriptFolders.length === 0 &&
+    recentDrafts(drafts, currentView?.type === "draft" ? currentView.draftId : undefined).length === 0;
   const pendingApps: PendingApp[] = bodies.flatMap((view) =>
     view.type === "appForm" && view.mode === "create"
       ? [{ viewId: view.id, name: viewIdentity(view).name, type: view.initialData ? appType(view.initialData) : "" }]
@@ -3030,6 +3041,7 @@ export function App() {
         onPendingAppSelect={phoneClosing((viewId: string) => applyViews((views) => visit(views, viewId)))}
         onPendingAppDiscard={onAppFormCancel}
         scriptsRegion={scriptsRegion}
+        noScripts={noScripts}
       />
       <SidebarFoot
         colorMode={colorMode}
