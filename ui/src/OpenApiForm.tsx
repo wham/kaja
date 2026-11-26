@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { AppNameField } from "./AppNameField";
 import { BasicCredentials } from "./BasicCredentials";
 import { ReadingRow } from "./InspectStatus";
-import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
+import { ClearButton, KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
 import { KnownApi, knownApiFor, knownApis, matchingApis } from "./knownApis";
 import { ChoiceBody, ChoiceCard, ChoiceList, ChoiceRow, choiceLabel } from "./ChoiceRow";
 import { FormSection } from "./FormSection";
@@ -151,6 +151,7 @@ export function OpenApiForm({
   const offered = useMemo(() => matchingApis(specUrl), [specUrl]);
   const picking = picker && !readOnly && !known && offered.length > 0;
   const marks = !readOnly && !specUrl.trim() && knownApis.length > 0;
+  const clearable = picker && !readOnly && specUrl !== "";
 
   const read = useCallback(async (options?: { fresh?: boolean }) => {
     const parameters = parametersRef.current;
@@ -371,9 +372,16 @@ export function OpenApiForm({
                 variables={variables}
                 placeholder="https://example.com/openapi.json"
                 disabled={readOnly}
-                className={known ? "pr-28" : marks ? knownMarksPadding(knownApis.length, phone) : undefined}
+                className={clearable ? "pr-9" : known ? "pr-28" : marks ? knownMarksPadding(knownApis.length, phone) : undefined}
                 trailingAction={
-                  known ? (
+                  clearable ? (
+                    <ClearButton
+                      onClear={() => {
+                        typedRef.current = true;
+                        setParameter("specUrl", "");
+                      }}
+                    />
+                  ) : known ? (
                     <KnownChip entry={known} />
                   ) : (
                     marks && <KnownMarks entries={knownApis} inputId="openapi-source" open={picking} onOpen={() => setPicker(true)} />

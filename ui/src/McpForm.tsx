@@ -15,7 +15,7 @@ import { AUTH_APIKEY, AUTH_BEARER, AUTH_NONE, AUTH_OAUTH, DEFAULT_API_KEY_NAME, 
 import { isReadableUrl, joinReading, remember, uniqueAppName } from "./appForms";
 import { pluralCount } from "./plural";
 import { KnownServer, knownServerFor, matchingServers, withKaja } from "./knownServers";
-import { KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
+import { ClearButton, KnownChip, KnownList, KnownMarks, knownMarksPadding } from "./KnownList";
 import { InspectMcpResponse, McpApp, McpProblem, McpProblemKind, McpServer } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { rpcErrorMessage } from "./rpcMessage";
@@ -123,6 +123,7 @@ export function McpForm({
   // them: what a matched endpoint has to say is said by the chip and the read below it.
   const picking = picker && !readOnly && !known && offered.length > 0;
   const marks = !readOnly && !url.trim() && servers.length > 0;
+  const clearable = picker && !readOnly && url !== "";
   const server = state.status === "read" ? state.server : undefined;
   const problem = state.status === "problem" ? state.problem : undefined;
   // The endpoint names a variable this kaja doesn't define. The server is read where
@@ -285,9 +286,20 @@ export function McpForm({
               variables={variables}
               placeholder="https://example.com/mcp"
               disabled={readOnly}
-              className={known ? "pr-28" : marks ? knownMarksPadding(servers.length, phone) : undefined}
+              className={clearable ? "pr-9" : known ? "pr-28" : marks ? knownMarksPadding(servers.length, phone) : undefined}
               trailingAction={
-                known ? <KnownChip entry={known} /> : marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
+                clearable ? (
+                  <ClearButton
+                    onClear={() => {
+                      typedRef.current = true;
+                      onParametersChange((previous) => withEndpoint(previous, ""));
+                    }}
+                  />
+                ) : known ? (
+                  <KnownChip entry={known} />
+                ) : (
+                  marks && <KnownMarks entries={servers} inputId="mcp-url" open={picking} onOpen={() => setPicker(true)} />
+                )
               }
               onFocus={() => setPicker(true)}
               onBlur={() => setPicker(false)}
