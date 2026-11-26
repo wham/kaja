@@ -1,4 +1,5 @@
 import { ChevronDown, ExternalLink, FolderOpen } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { KajaTrace } from "./KajaTrace";
@@ -23,6 +24,8 @@ export interface WorkspaceControl {
 // corner says which workspace rather than repeating "Kaja".
 export function WorkspaceMenu({ control, withMark, large = false }: { control: WorkspaceControl; withMark?: boolean; large?: boolean }) {
   const others = control.known.filter((workspace) => workspace.dir !== control.current.dir);
+  const name = useRef<HTMLSpanElement>(null);
+  const clipped = useClipped(name, control.current.name);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,13 +34,22 @@ export function WorkspaceMenu({ control, withMark, large = false }: { control: W
           aria-label={`Workspace: ${control.current.name}`}
           title={control.current.dir}
           className={cn(
-            "flex min-w-0 shrink items-center font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted",
+            "group flex min-w-0 shrink items-center font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted",
             large ? "h-11 gap-1.5 rounded-xl pr-2.5 pl-2 text-[20px]" : "h-6 gap-1 rounded-md pr-1.5 pl-2 text-xs",
           )}
         >
           {withMark && <KajaTrace width={large ? 26 : 18} height={large ? 16 : 11} className={cn("shrink-0", large ? "mr-1" : "mr-0.5")} />}
-          <span className="truncate">{control.current.name}</span>
-          <ChevronDown size={large ? 18 : 12} className="shrink-0 text-muted-foreground" />
+          <span
+            ref={name}
+            className="overflow-hidden whitespace-nowrap"
+            style={clipped ? { maskImage: "linear-gradient(to right, #000 calc(100% - 1.5em), transparent)" } : undefined}
+          >
+            {control.current.name}
+          </span>
+          <ChevronDown
+            size={large ? 18 : 12}
+            className="hidden shrink-0 text-muted-foreground group-hover:block group-focus-visible:block group-data-[popup-open]:block"
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
@@ -69,4 +81,18 @@ export function WorkspaceMenu({ control, withMark, large = false }: { control: W
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function useClipped(ref: React.RefObject<HTMLElement | null>, text: string) {
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => setClipped(element.scrollWidth > element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, text]);
+  return clipped;
 }
