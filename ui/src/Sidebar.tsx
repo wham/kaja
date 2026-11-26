@@ -31,7 +31,7 @@ import { unsupportedReason } from "./streaming";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
 import { useMediaQuery } from "./useMediaQuery";
-import { NoAppsBlankslate } from "./NoAppsBlankslate";
+import { SidebarBlankslate } from "./SidebarBlankslate";
 import { MissingVariable, missingVariableSentence } from "./variableUsage";
 import { WorkspaceMenu, type WorkspaceControl } from "./WorkspaceMenu";
 import {
@@ -130,6 +130,7 @@ export interface SidebarProps {
   onRecompileApp: (appName: string) => void;
   onNewAppClick: () => void;
   onNewScript?: () => void;
+  noScripts?: boolean;
   // A phone's only way to the finder, the command row being the desktop's.
   onFinderClick?: () => void;
   onVariablesClick?: () => void;
@@ -167,6 +168,7 @@ export const Sidebar = memo(function Sidebar({
   onRecompileApp,
   onNewAppClick,
   onNewScript,
+  noScripts = false,
   onFinderClick,
   onVariablesClick,
   variablesMissing = false,
@@ -311,7 +313,7 @@ export const Sidebar = memo(function Sidebar({
         action={
           tab === "apps"
             ? canUpdateWorkspace && !noApps && <RowAction icon={Plus} label="New app" onClick={onNewAppClick} />
-            : onNewScript && <RowAction icon={Plus} label="New script" onClick={onNewScript} />
+            : onNewScript && !noScripts && <RowAction icon={Plus} label="New script" onClick={onNewScript} />
         }
       />
 
@@ -343,7 +345,11 @@ export const Sidebar = memo(function Sidebar({
           })}
           {noApps &&
             (canUpdateWorkspace ? (
-              <NoAppsBlankslate onNewAppClick={onNewAppClick} />
+              <SidebarBlankslate
+                title="No apps yet"
+                description="An app is an API your scripts call: gRPC, OpenAPI or MCP"
+                action={{ label: "New app", icon: Plus, onClick: onNewAppClick }}
+              />
             ) : (
               <div className="px-2 py-1 text-xs text-muted-foreground">Apps named in kaja.json appear here.</div>
             ))}
