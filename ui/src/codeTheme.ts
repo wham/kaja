@@ -32,6 +32,8 @@ export const codeTheme = EditorView.theme({
   },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 8px 0 12px" },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--code-text)" },
+  ".cm-refused-line": { backgroundColor: "color-mix(in oklch, var(--destructive) 10%, transparent)" },
+  ".cm-gutterElement.cm-refused-line-number": { color: "var(--destructive)" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0 4px", cursor: "pointer" },
   // A fold that can be made is offered where the pointer is; one that was made stays.
   ".cm-fold-open": { opacity: "0", transition: "opacity 0.15s" },
