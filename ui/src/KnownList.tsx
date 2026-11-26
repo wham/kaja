@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CircleX } from "lucide-react";
 import { cn } from "./cn";
 import { endpointLabel } from "./knownServers";
 import { PHONE_QUERY } from "./phone";
@@ -68,6 +68,23 @@ export function KnownChip({ entry }: { entry: Pick<KnownEntry, "name" | "mark"> 
       <entry.mark size={14} />
       <span className="max-w-24 truncate">{entry.name}</span>
     </span>
+  );
+}
+
+// What the chip gives way to while the field has the focus: a long address is a lot of
+// backspace on a phone, and an emptied field is the list of known ones again.
+export function ClearButton({ onClear }: { onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Clear"
+      // Keep focus in the input, so the list opens on the emptied field.
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClear}
+      className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+    >
+      <CircleX size={14} />
+    </button>
   );
 }
 
