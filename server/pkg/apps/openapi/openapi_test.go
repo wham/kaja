@@ -1246,6 +1246,37 @@ paths:
 	}
 }
 
+// TestLoadSpecKeepsTheAPITokenFromAPublicHost covers a document hosted somewhere
+// the API's token means nothing: raw.githubusercontent.com answers one with 404.
+func TestLoadSpecKeepsTheAPITokenFromAPublicHost(t *testing.T) {
+	spec := `openapi: 3.0.1
+info: {title: Public, version: "1"}
+servers: [{url: "https://api.example.com"}]
+paths:
+  /ping:
+    get:
+      responses:
+        "200": {description: OK}
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, spec)
+	}))
+	defer srv.Close()
+
+	s, problem := loadSpec(context.Background(), srv.URL+"/openapi.yaml", fetchCredentials{token: "sk-api-key"}, func(string) {})
+	if problem != nil {
+		t.Fatalf("loadSpec: %v", problem)
+	}
+	if s.Info.Title != "Public" {
+		t.Errorf("title = %q", s.Info.Title)
+	}
+}
+
 // TestLoadSpecReportsLoginRedirect covers the real failure behind a misleading
 // YAML error: an unauthenticated fetch is redirected to an HTML sign-in page,
 // which must surface as a web page, not a parse error.

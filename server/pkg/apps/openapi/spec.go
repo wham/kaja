@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -355,15 +356,31 @@ type fetchCredentials struct {
 	headerValue string
 }
 
-// loadSpec fetches and parses an OpenAPI document from a URL, authenticating the
-// request with the user's credentials so specs served behind a login (e.g. a
-// tenant's /api/v2/openapi.yaml) can be read. The spec's own security schemes are
-// not known yet, so it falls back the same way invocations do: username/password
-// as HTTP Basic, otherwise a bearer token. An explicit spec header wins over both.
+// loadSpec fetches and parses an OpenAPI document from a URL. An explicit spec
+// header is always sent. The app's own credentials are for the API rather than
+// wherever its document is hosted, so they are sent only when the host refused the
+// document without them: raw.githubusercontent.com answers a token it doesn't know
+// with 404, and a public document has no business seeing the API's key.
 func loadSpec(ctx context.Context, specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem) {
+	if credentials.headerName != "" || (credentials.token == "" && credentials.username == "" && credentials.password == "") {
+		s, p, _ := fetchDocument(ctx, specURL, credentials, log)
+		return s, p
+	}
+	s, p, answered := fetchDocument(ctx, specURL, fetchCredentials{}, log)
+	if p == nil || !answered {
+		return s, p
+	}
+	log("Fetching the spec again with the app's credentials")
+	s, p, _ = fetchDocument(ctx, specURL, credentials, log)
+	return s, p
+}
+
+// fetchDocument is one fetch of the document. answered is false when no server
+// was reached, which asking again with credentials can't change.
+func fetchDocument(ctx context.Context, specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, specURL, nil)
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}, false
 	}
 	req.Header.Set("Accept", "application/yaml, application/json, text/yaml, text/plain, */*")
 	applyFetchAuth(req, credentials)
@@ -371,7 +388,11 @@ func loadSpec(ctx context.Context, specURL string, credentials fetchCredentials,
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't reach " + hostOf(specURL), Detail: unwrapURLError(err)}
+		var opErr *net.OpError
+		var netErr net.Error
+		unreached := errors.As(err, &opErr) || (errors.As(err, &netErr) && netErr.Timeout())
+		answered := !unreached && ctx.Err() == nil
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't reach " + hostOf(specURL), Detail: unwrapURLError(err)}, answered
 	}
 	defer resp.Body.Close()
 
@@ -384,16 +405,17 @@ func loadSpec(ctx context.Context, specURL string, credentials fetchCredentials,
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, specFetchProblem(specURL, resp)
+		return nil, specFetchProblem(specURL, resp), true
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't read the response from " + hostOf(specURL), Detail: err.Error()}
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't read the response from " + hostOf(specURL), Detail: err.Error()}, false
 	}
 	log(fmt.Sprintf("Read %d bytes of spec", len(body)))
 
-	return readSpec(body, contentType)
+	s, p := readSpec(body, contentType)
+	return s, p, true
 }
 
 // readSpec parses a fetched or uploaded document, classifying what came back when
