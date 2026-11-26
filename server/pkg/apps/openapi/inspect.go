@@ -156,9 +156,9 @@ func readFor(ctx context.Context, parameters map[string]string) (*spec, error) {
 	return fetched.spec, nil
 }
 
-// specFetchCredentials collects the credentials used to fetch the document
-// itself. They double as the API's credentials when no separate spec header is
-// configured.
+// specFetchCredentials collects the credentials that may be sent while fetching
+// the document: its own header, or the API's credentials where the host refuses
+// the document without them (loadSpec).
 func specFetchCredentials(parameters map[string]string) fetchCredentials {
 	token := strings.TrimSpace(parameters["token"])
 	// A sign-in is never expanded, and its token is for the API rather than wherever
