@@ -34,7 +34,7 @@ export function WorkspaceMenu({ control, withMark, large = false }: { control: W
           aria-label={`Workspace: ${control.current.name}`}
           title={control.current.dir}
           className={cn(
-            "group flex min-w-0 shrink items-center font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted",
+            "flex min-w-0 shrink items-center font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-muted",
             large ? "h-11 gap-1.5 rounded-xl pr-2.5 pl-2 text-[20px]" : "h-6 gap-1 rounded-md pr-1.5 pl-2 text-xs",
           )}
         >
@@ -46,10 +46,7 @@ export function WorkspaceMenu({ control, withMark, large = false }: { control: W
           >
             {control.current.name}
           </span>
-          <ChevronDown
-            size={large ? 18 : 12}
-            className="hidden shrink-0 text-muted-foreground group-hover:block group-focus-visible:block group-data-[popup-open]:block"
-          />
+          <ChevronDown size={large ? 18 : 12} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
