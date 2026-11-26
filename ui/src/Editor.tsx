@@ -11,7 +11,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
-import { Diagnostic, forEachDiagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
+import { Action, Diagnostic, forEachDiagnostic, forceLinting, linter, lintKeymap } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorSelection, EditorState, Extension, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -26,14 +26,17 @@ import {
   keymap,
   lineNumbers,
   rectangularSelection,
+  scrollPastEnd,
   tooltips,
   ViewPlugin,
 } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { App } from "./apps";
 import { codeHighlighting, codeTheme, foldMarker, printCode } from "./codeTheme";
+import { mergeImports } from "./drafts";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { kajaModuleDeclaration } from "./kajaModule";
+import { importSpecifiers, isUnknownName } from "./missingImports";
 import { noSuchScript } from "./scriptLink";
 import { runInputDeclaration } from "./scriptInputs";
 import { demandScriptParameters, knownScriptInputs, subscribeScriptParameters } from "./scriptParameters";
@@ -340,6 +343,18 @@ function valueCompletions(context: CompletionContext): CompletionResult | null {
   };
 }
 
+function importActions(name: string): Action[] {
+  return importSpecifiers(name, valueCompletionApps).map((specifier) => ({
+    name: `Import from "${specifier}"`,
+    apply: (view) => {
+      const before = view.state.doc.toString();
+      const after = mergeImports(before, `import { ${name} } from "${specifier}";`);
+      view.dispatch({ changes: minimalChange(before, after), userEvent: "input.import" });
+      view.focus();
+    },
+  }));
+}
+
 function typescriptLinter(buffer: TextBuffer) {
   return linter(
     async (view) => {
@@ -355,6 +370,10 @@ function typescriptLinter(buffer: TextBuffer) {
           to: Math.min(diagnostic.start + diagnostic.length, length),
           severity: diagnostic.category === DIAGNOSTIC_ERROR ? "error" : "warning",
           message: diagnostic.message,
+          actions:
+            !view.state.readOnly && isUnknownName(diagnostic.code)
+              ? importActions(code.slice(diagnostic.start, diagnostic.start + diagnostic.length))
+              : undefined,
         }));
       const shown: Diagnostic[] = [];
       forEachDiagnostic(view.state, (diagnostic, from, to) => shown.push({ ...diagnostic, from, to }));
@@ -370,31 +389,39 @@ function typescriptLinter(buffer: TextBuffer) {
 const TOOLTIP_INSET = 8;
 
 // CodeMirror lays a tooltip out against the window, and one wider than that space is
-// pinned to the window's left edge, under the sidebar, where the pane clips it. So
-// the space is the editor's own, a tooltip wraps to its width, and one that won't fit
-// above its line goes under it rather than over the command row.
-const tooltipBounds: Extension = [
-  tooltips({
-    tooltipSpace: (view) => {
-      const rect = view.dom.getBoundingClientRect();
-      return { top: rect.top, bottom: window.innerHeight, left: rect.left + TOOLTIP_INSET, right: rect.right - TOOLTIP_INSET };
-    },
-  }),
-  ViewPlugin.fromClass(
-    class {
-      observer: ResizeObserver;
+// pinned to the window's left edge, under the sidebar. So the space is the editor's own
+// on three sides, and a tooltip wraps to its width. Its foot is the window's, since the
+// pane is short: the host is on the body because the pane clips what is drawn inside it.
+// It has no size because the theme's root rule draws the container inside it at 100%.
+function tooltipBounds(): Extension {
+  const host = document.createElement("div");
+  host.className = "fixed top-0 left-0 z-50 size-0 text-xs";
+  return [
+    ViewPlugin.fromClass(
+      class {
+        observer: ResizeObserver;
 
-      constructor(view: EditorView) {
-        this.observer = new ResizeObserver(() => view.dom.style.setProperty("--tooltip-max-width", `${view.dom.clientWidth - 2 * TOOLTIP_INSET}px`));
-        this.observer.observe(view.dom);
-      }
+        constructor(view: EditorView) {
+          document.body.appendChild(host);
+          this.observer = new ResizeObserver(() => host.style.setProperty("--tooltip-max-width", `${view.dom.clientWidth - 2 * TOOLTIP_INSET}px`));
+          this.observer.observe(view.dom);
+        }
 
-      destroy() {
-        this.observer.disconnect();
-      }
-    },
-  ),
-];
+        destroy() {
+          this.observer.disconnect();
+          host.remove();
+        }
+      },
+    ),
+    tooltips({
+      parent: host,
+      tooltipSpace: (view) => {
+        const rect = view.dom.getBoundingClientRect();
+        return { top: rect.top, bottom: window.innerHeight, left: rect.left + TOOLTIP_INSET, right: rect.right - TOOLTIP_INSET };
+      },
+    }),
+  ];
+}
 
 function typescriptHover(buffer: TextBuffer) {
   return hoverTooltip(async (_view, pos) => {
@@ -618,8 +645,14 @@ function minimalChange(before: string, after: string): { from: number; to: numbe
 
 const phoneMargins = EditorView.theme({ ".cm-content": { padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" } });
 
+// The pane is sized by this, and the room past the end is sized by the pane.
+function fittedHeight(view: EditorView): number {
+  const { top, bottom } = view.documentPadding;
+  return view.contentHeight - bottom + top;
+}
+
 function gutterExtensions(phone: boolean): Extension {
-  return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker })];
+  return phone ? phoneMargins : [lineNumbers(), foldGutter({ markerDOM: foldMarker }), scrollPastEnd()];
 }
 
 const phoneValues = valueEditing({ apps: () => valueCompletionApps, recheck });
@@ -737,7 +770,7 @@ export function Editor({
         typescriptLinter(buffer),
         runRefusals,
         typescriptHover(buffer),
-        tooltipBounds,
+        tooltipBounds(),
         definitionLinks(buffer),
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
@@ -766,7 +799,7 @@ export function Editor({
               callbacks.current.onUserEdit?.();
             }
           }
-          if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(update.view.contentHeight);
+          if (update.geometryChanged || update.heightChanged) callbacks.current.onContentHeight?.(fittedHeight(update.view));
         }),
       ],
     });
@@ -833,7 +866,7 @@ export function Editor({
       refuseRun: (refusal) => void refuseRun(refusal),
       reveal: (offset) => reveal(Math.min(offset, view.state.doc.length)),
     });
-    callbacks.current.onContentHeight?.(view.contentHeight);
+    callbacks.current.onContentHeight?.(fittedHeight(view));
 
     return () => {
       disposed = true;
@@ -852,7 +885,7 @@ export function Editor({
   // Without this the file that was open when the window last closed stays read-only for
   // the session.
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: editable.reconfigure(editableExtensions(readOnly, phone)) });
+    viewRef.current?.dispatch({ effects: [editable.reconfigure(editableExtensions(readOnly, phone)), recheck.of(null)] });
   }, [readOnly, phone]);
 
   useEffect(() => {

@@ -56,6 +56,8 @@ export const codeTheme = EditorView.theme({
     borderRadius: "6px",
     boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
     overflow: "hidden",
+    // WebKit draws it absolute, in a host with no width to shrink to.
+    width: "max-content",
     maxWidth: "var(--tooltip-max-width, none)",
   },
   // Off the line it describes, so the code under it stays readable.
@@ -74,6 +76,15 @@ export const codeTheme = EditorView.theme({
   ".cm-tooltip.cm-completionInfo": { whiteSpace: "pre-wrap" },
   ".cm-diagnostic": { padding: "4px 8px", borderLeft: "none" },
   ".cm-diagnostic-error": { color: "var(--destructive)" },
+  ".cm-diagnosticAction": {
+    backgroundColor: "var(--secondary)",
+    color: "var(--secondary-foreground)",
+    borderRadius: "4px",
+    padding: "2px 8px",
+    fontSize: "12px",
+    cursor: "pointer",
+  },
+  ".cm-diagnosticAction:hover": { backgroundColor: "var(--accent)", color: "var(--accent-foreground)" },
   ".cm-lintRange-error": {
     backgroundImage: "none",
     textDecoration: "underline wavy var(--destructive)",

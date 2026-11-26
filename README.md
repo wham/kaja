@@ -11,7 +11,7 @@
 <p align="center">
   The API client for people and agents.
   <br/>
-  Connect gRPC, OpenAPI, or MCP. Explore APIs yourself, or let an agent write and run typed scripts.
+  Connect OpenAPI, MCP, or gRPC. Explore APIs yourself, or let an agent write and run typed scripts.
   <br/>
   Every request stays visible and inspectable.
 </p>
@@ -60,7 +60,7 @@ and pointing an agent at it are all documented on the website.
 |  |  |
 | --- | --- |
 | **[Installation](https://kaja.tools/docs#installation)** | The Mac App Store build, or one `docker run` with your protos and `kaja.json` mounted |
-| **[Apps](https://kaja.tools/docs#apps)** | Connect gRPC, OpenAPI, Twirp and MCP apps, and what each type's block takes |
+| **[Apps](https://kaja.tools/docs#apps)** | Connect OpenAPI, MCP, gRPC and Twirp apps, and what each type's block takes |
 | **[Variables](https://kaja.tools/docs#variables)** | Named values your scripts and your app configuration both read, with secrets kept out of the file |
 | **[Scripts](https://kaja.tools/docs#scripts)** | TypeScript with a typed import for every app you connected, drawing on the canvas |
 | **[Agents](https://kaja.tools/docs#agents)** | Point your agent at Kaja's MCP server, and watch every run it makes |

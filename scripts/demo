@@ -9,15 +9,16 @@
 # its workspace out of its sandbox container and nowhere else, so the demo
 # stages one there, takes its pictures, and puts the real one back.
 #
-# Three permissions have to be granted to whatever terminal runs this, once, in
+# Four permissions have to be granted to whatever terminal runs this, once, in
 # System Settings → Privacy & Security:
 #
+#   Full Disk Access to stage a workspace inside the app's sandbox container
 #   Accessibility    to send the app keystrokes and click its menu bar
 #   Automation       to ask System Events to do that; macOS asks the first time
 #                    and files the answer under the terminal's own row
 #   Screen Recording to photograph a window that is not this terminal's
 #
-# All three are asked for before anything is quit or moved aside, and the
+# All four are asked for before anything is quit or moved aside, and the
 # message names the terminal to switch on: a permission missing is one the run
 # cannot acquire on its way past, and finding out after the workspace has been
 # staged costs a launch and a restore to learn one thing. Screen Recording takes
@@ -251,6 +252,15 @@ else
     WEBSITE_DATA="$HOME/Library/WebKit/$BUNDLE_ID"
 fi
 
+# macOS keeps one app's container from another unless the person allows it, and
+# the refusal reads the same for a listing as for the move below.
+if [ -d "$CONTAINER_HOME" ] && ! ls "$CONTAINER_HOME/Library" > /dev/null 2>&1; then
+    die "$GRANTEE may not read $PRODUCT_NAME's container, so a demo workspace cannot be staged in it.
+       Switch it on in System Settings → Privacy & Security → Full Disk Access, quit
+       $GRANTEE completely so the new permission is picked up, then run again.
+       open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+fi
+
 STAMP="$(date +%Y%m%d-%H%M%S)"
 HOME_BACKUP="$KAJA_HOME.demo-backup-$STAMP"
 DATA_BACKUP="$WEBSITE_DATA.demo-backup-$STAMP"
@@ -480,23 +490,24 @@ cat > "$KAJA_HOME/workspace/kaja.json" <<'WORKSPACE'
       }
     },
     {
-      "name": "eliza",
+      "name": "grpcb.in",
       "grpc": {
-        "url": "${ELIZA_HOST}",
-        "reflection": true,
+        "url": "${GRPCBIN_HOST}",
+        "proto_dir": "grpcbin/proto",
         "tls": "on"
       }
     }
   ],
   "variables": {
     "GITHUB_API": "https://api.github.com",
-    "ELIZA_HOST": "dns:demo.connectrpc.com:443",
+    "GRPCBIN_HOST": "dns:grpcb.in:443",
     "GITHUB_TOKEN": "${secret}"
   }
 }
 WORKSPACE
 
 cp "$REPO_ROOT"/workspace/*.ts "$KAJA_HOME/workspace/"
+cp -R "$REPO_ROOT/workspace/grpcbin" "$KAJA_HOME/workspace/"
 
 say "Reloading, and waiting for the apps to compile"
 # The configuration is watched, but the scripts are read once at load, so
@@ -512,7 +523,7 @@ shot 03-apps
 # -- 04  A call, as a script ---------------------------------------------------
 
 say "04  A call drafted into a script"
-go_to "GetAllCommonlyUsed" "GetAllCommonlyUsed - $PRODUCT_NAME"
+go_to "GetAllCommonlyUsed" "GetAllCommonlyUsed true - $PRODUCT_NAME"
 shot 04-draft
 
 # -- 05  Running it ------------------------------------------------------------
