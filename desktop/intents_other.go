@@ -4,6 +4,6 @@ package main
 
 const appIntents = false
 
-const mcpListener = true
+const mcpListenerAlways = false
 
 func serveIntents(*App) {}

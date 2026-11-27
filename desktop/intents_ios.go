@@ -20,13 +20,12 @@ import (
 )
 
 // An App Intent is the phone's owner asking, so it reaches the session whatever the
-// agent switch says: the switch is about the loopback listener, which nothing on a
-// phone can reach.
+// agent switch says.
 const appIntents = true
 
-// mcpListener is false because a loopback port on a phone is one no agent can reach,
-// so the switch, the page and the listener are not offered there at all.
-const mcpListener = false
+// No agent elsewhere on a phone reaches a loopback port, but an MCP app of Kaja's own
+// does, so the listener is open for as long as the process is and there is no switch.
+const mcpListenerAlways = true
 
 // intentClient is who an intent's runs are made as, which is the name the agent draft
 // wears in the sidebar.

@@ -192,7 +192,7 @@ func configurationDir(home string) string {
 func (a *App) startMCPServer() {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
-	if a.mcpServer != nil || !mcpListener {
+	if a.mcpServer != nil {
 		return
 	}
 	a.mcpError = ""
@@ -208,6 +208,11 @@ func (a *App) startMCPServer() {
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", mcpPort)
 	ln, err := net.Listen("tcp", addr)
+	if err != nil && mcpListenerAlways {
+		// Nothing on a phone is configured with the port, and an app of Kaja's own is
+		// pointed at whatever URL is reported.
+		ln, err = net.Listen("tcp", "127.0.0.1:0")
+	}
 	if err != nil {
 		// Don't fall back to a random port — that would silently break the static connection
 		// command the user has configured.
@@ -221,11 +226,33 @@ func (a *App) startMCPServer() {
 	a.mcpServer = srv
 	a.mcpURL = fmt.Sprintf("http://%s/mcp", ln.Addr().String())
 	slog.Info("MCP server started", "url", a.mcpURL)
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			slog.Error("MCP server stopped", "error", err)
+	go a.serveMCP(srv, ln)
+}
+
+// serveMCP serves until the server is shut down. iOS reclaims a listening socket while
+// the app is suspended, so accept fails once it is back in front; the port is bound
+// again rather than leaving a server that answers nothing.
+func (a *App) serveMCP(srv *http.Server, ln net.Listener) {
+	for {
+		err := srv.Serve(ln)
+		if err == nil || err == http.ErrServerClosed {
+			return
 		}
-	}()
+		slog.Error("MCP server stopped", "error", err)
+		for {
+			time.Sleep(time.Second)
+			a.mcpMu.Lock()
+			current := a.mcpServer == srv
+			a.mcpMu.Unlock()
+			if !current {
+				return
+			}
+			if ln, err = net.Listen("tcp", ln.Addr().String()); err == nil {
+				slog.Info("MCP server listening again", "url", a.mcpURL)
+				break
+			}
+		}
+	}
 }
 
 func (a *App) stopMCPServer() {
