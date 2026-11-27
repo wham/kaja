@@ -978,6 +978,18 @@ func TestEmptyCatalog(t *testing.T) {
 	contains(t, tool(t, srv, "list_services", nil), "No services yet")
 }
 
+func TestResourceTemplates(t *testing.T) {
+	srv := NewServer(newFakeBridge(), token, version)
+	resp := call(t, srv, "resources/templates/list", nil)
+	if resp.Error != nil {
+		t.Fatalf("resources/templates/list refused: %+v", resp.Error)
+	}
+	templates, ok := resp.Result.(map[string]interface{})["resourceTemplates"].([]interface{})
+	if !ok || len(templates) != 0 {
+		t.Fatalf("want an empty resourceTemplates list, got %v", resp.Result)
+	}
+}
+
 func TestResources(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token, version)
 	resp := call(t, srv, "resources/list", nil)

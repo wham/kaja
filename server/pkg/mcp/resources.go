@@ -33,6 +33,13 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 	return cacheable(map[string]interface{}{"resources": resources}, workspaceTTL), nil
 }
 
+// handleResourceTemplatesList answers with none. A client that sees the resources
+// capability lists templates beside resources, and a refusal there reads as a server
+// that is broken rather than one that has nothing parameterised to offer.
+func handleResourceTemplatesList() (interface{}, *rpcError) {
+	return cacheable(map[string]interface{}{"resourceTemplates": []interface{}{}}, staticTTL), nil
+}
+
 type resourceReadParams struct {
 	URI string `json:"uri"`
 }
