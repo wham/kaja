@@ -9,7 +9,6 @@ import { firstErrorMessage } from "./compileSummary";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { KajaTrace } from "./KajaTrace";
 import { mcpDotClass, mcpPlugClass, type McpState } from "./mcpState";
-import { methodTag } from "./phone";
 import { PHONE_ICON, PhoneLevelHeader, PhoneRow, PhoneRowAction, PhoneSection } from "./PhoneList";
 import {
   AppCompileMarker,
@@ -358,27 +357,14 @@ function AppLevel({
 
 function MethodRow({ app, service, method, onSelect }: { app: App; service: Service; method: Method; onSelect: SidebarProps["onSelect"] }) {
   const unsupported = unsupportedReason(method, appType(app.configuration));
-  // The verb is the one thing that says whether a call reads or writes, and a phone has no hover to ask it on.
-  const verb = method.http?.split(" ")[0]?.toUpperCase();
   return (
     <PhoneRow
       onClick={() => onSelect(method, service, app)}
       trailing={
-        unsupported ? (
+        unsupported && (
           <span className="flex size-9 shrink-0 items-center justify-center">
             <UnsupportedMarker reason={unsupported} size={18} />
           </span>
-        ) : (
-          verb && (
-            <span
-              className={cn(
-                "shrink-0 font-mono text-[11px]",
-                methodTag(method) === "write" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70",
-              )}
-            >
-              {verb}
-            </span>
-          )
         )
       }
     >
