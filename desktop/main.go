@@ -188,7 +188,7 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 
 	// Started here rather than left for the window to ask for: the window attaches to
 	// whatever is already running when it reads MCPServerInfo.
-	if a.settings.load().Mcp.Enabled {
+	if mcpListenerAlways || a.settings.load().Mcp.Enabled {
 		a.startMCPServer()
 	}
 

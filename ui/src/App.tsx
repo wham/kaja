@@ -2578,9 +2578,11 @@ export function App() {
     applyStoredValue(name);
     return "${" + name + "}";
   }, [mcpToken, queueVariableWrite, applyWorkspace, applyStoredValue]);
+  // Offered where there is a switch to turn the server on, or where it is on with none.
+  const kajaMcpReachable = mcpControl !== undefined || mcpConnection?.enabled === true;
   const kajaMcp = useMemo(
-    () => (mcpToken ? { endpoint: mcpConnection?.url || idleUrl(), connect: onConnectKajaMcp } : undefined),
-    [mcpToken, mcpConnection?.url, onConnectKajaMcp],
+    () => (kajaMcpReachable && mcpToken ? { endpoint: mcpConnection?.url || idleUrl(), connect: onConnectKajaMcp } : undefined),
+    [kajaMcpReachable, mcpToken, mcpConnection?.url, onConnectKajaMcp],
   );
 
   const onDeleteApp = useCallback(
