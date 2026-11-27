@@ -2578,9 +2578,11 @@ export function App() {
     applyStoredValue(name);
     return "${" + name + "}";
   }, [mcpToken, queueVariableWrite, applyWorkspace, applyStoredValue]);
+  // Offered only where there is an MCP page to turn it on from: on iOS the process holds
+  // a token but no listener, so the address would refuse every read.
   const kajaMcp = useMemo(
-    () => (mcpToken ? { endpoint: mcpConnection?.url || idleUrl(), connect: onConnectKajaMcp } : undefined),
-    [mcpToken, mcpConnection?.url, onConnectKajaMcp],
+    () => (mcpControl && mcpToken ? { endpoint: mcpConnection?.url || idleUrl(), connect: onConnectKajaMcp } : undefined),
+    [mcpControl, mcpToken, mcpConnection?.url, onConnectKajaMcp],
   );
 
   const onDeleteApp = useCallback(
