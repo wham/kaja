@@ -2,7 +2,6 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Braces, Ellipsis, Plug, Plus, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
-import { PLAIN_TEXT } from "./components/input";
 import { Spinner } from "./components/spinner";
 import { App, Method, Service } from "./apps";
 import { appAddress, appType, appTypeLabel } from "./appTypes";
@@ -32,8 +31,6 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 // one, then a service. Absent is the list of apps.
 // How far right a finger travels before it is read as going back a level.
 const BACK_SWIPE = 72;
-// A level longer than this gets a field to narrow it: past a screen and a half, scrolling is a search.
-const FILTER_FROM = 14;
 
 interface AppsLevel {
   app: string;
@@ -270,11 +267,8 @@ function AppLevel({
   const appName = app.configuration.name;
   const packages = hasMultiplePackages(app.services);
   const service = level.service ? app.services.find((candidate) => serviceNodeId(appName, candidate) === level.service) : undefined;
-  const [filter, setFilter] = useState("");
-  const term = filter.trim().toLowerCase();
 
   if (service) {
-    const methods = term === "" ? service.methods : service.methods.filter((method) => method.name.toLowerCase().includes(term));
     return (
       <nav aria-label={`${service.name} methods`}>
         <PhoneLevelHeader
@@ -282,11 +276,9 @@ function AppLevel({
           onBack={() => onLevel(packages ? { app: appName, pkg: service.packageName } : { app: appName })}
           title={service.name}
         />
-        {service.methods.length >= FILTER_FROM && <LevelFilter label="Filter methods" value={filter} onChange={setFilter} />}
-        {methods.map((method) => (
+        {service.methods.map((method) => (
           <MethodRow key={method.name} app={app} service={service} method={method} onSelect={onSelect} />
         ))}
-        {methods.length === 0 && <div className="px-3 py-2 text-[15px] text-muted-foreground">No method matches</div>}
       </nav>
     );
   }
@@ -338,14 +330,11 @@ function AppLevel({
     );
   }
 
-  const all = level.pkg ? app.services.filter((candidate) => candidate.packageName === level.pkg) : app.services;
-  const services = term === "" ? all : all.filter((candidate) => candidate.name.toLowerCase().includes(term));
+  const services = level.pkg ? app.services.filter((candidate) => candidate.packageName === level.pkg) : app.services;
   return (
     <nav aria-label={appName}>
       {header}
-      {all.length >= FILTER_FROM && <LevelFilter label="Filter services" value={filter} onChange={setFilter} />}
       {services.length > 0 && <PhoneSection>Services</PhoneSection>}
-      {all.length > 0 && services.length === 0 && <div className="px-3 py-2 text-[15px] text-muted-foreground">No service matches</div>}
       {services.map((candidate) => {
         const id = serviceNodeId(appName, candidate);
         return (
@@ -354,7 +343,7 @@ function AppLevel({
           </PhoneRow>
         );
       })}
-      {all.length === 0 && app.compilation.status === "error" && (
+      {services.length === 0 && app.compilation.status === "error" && (
         <>
           {/* A phone has no hover for the marker's tooltip, so the reason is stated. */}
           <p className="px-3 py-2 text-[15px] break-words text-destructive">{firstErrorMessage(app) ?? "Compilation failed"}</p>
@@ -444,33 +433,6 @@ function AppMenu({
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
-  );
-}
-
-function LevelFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <div className="mx-1 mb-1 flex h-10 items-center gap-2 rounded-xl bg-muted px-3">
-      <Search size={16} className="shrink-0 text-muted-foreground" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={label}
-        aria-label={label}
-        {...PLAIN_TEXT}
-        enterKeyHint="search"
-        className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
-      />
-      {value !== "" && (
-        <button
-          type="button"
-          aria-label="Clear"
-          onClick={() => onChange("")}
-          className="flex size-6 shrink-0 items-center justify-center text-muted-foreground"
-        >
-          <X size={16} />
-        </button>
-      )}
-    </div>
   );
 }
 
