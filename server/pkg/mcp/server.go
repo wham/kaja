@@ -574,6 +574,8 @@ func (s *Server) handlerFor(method string) handlerFunc {
 		return plain(s.handleResourcesList)
 	case "resources/read":
 		return withParams(s.handleResourceRead)
+	case "resources/templates/list":
+		return plain(handleResourceTemplatesList)
 	}
 	return nil
 }
