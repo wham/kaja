@@ -98,7 +98,7 @@ const RENAME_CLICK_MS = 450;
 const SPRING_MS = 600;
 
 const GROUP_HEADER = "flex h-7 w-full cursor-pointer select-none items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent/40";
-const ROW = "group flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/50";
+const ROW = "group flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm outline-none focus-visible:bg-accent/40";
 // What a row under a drag looks like. One class, because a folder row and the Files
 // header mean the same thing by it.
 const DROPPING = "bg-accent/60 text-accent-foreground ring-1 ring-inset ring-ring";
@@ -749,7 +749,7 @@ export const ScriptsRegion = memo(function ScriptsRegion(props: ScriptsRegionPro
                       <div
                         onClick={() => setShowAllDrafts(true)}
                         style={{ paddingLeft: LEAF_INDENT }}
-                        className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/50 hover:text-foreground")}
+                        className={cn(ROW, "text-muted-foreground opacity-75 hover:bg-accent/40 hover:text-foreground")}
                       >
                         Earlier…
                       </div>
@@ -1195,7 +1195,7 @@ function FolderRow({
           ref={rename.row}
           tabIndex={0}
           style={{ paddingLeft: ROW_INDENT + node.depth * DEPTH_INDENT }}
-          className={cn(ROW, "text-foreground hover:bg-accent/50", dropping && DROPPING)}
+          className={cn(ROW, "text-foreground hover:bg-accent/40", dropping && DROPPING)}
           onClick={onToggle}
           onDragOver={onDragOver}
           onDrop={onDrop}
